@@ -60,7 +60,7 @@ describe('with no page open, the agent is offered no page tools', () => {
 })
 
 describe('the agent reads the page in code mode', () => {
-  it('with a page open the tools and the skill reach the agent and an outside agent, a screenshot reaches the model as an image, the changes are journaled, a queued list wakes the agent when it finishes, an outside agent gets its queued list back once as a notice, and the page that leaves takes its tools along', async ({
+  it('with a page open the tools and the skill reach the agent and an outside agent, a screenshot reaches the model as an image, the changes are journaled, a queued list wakes the agent when it finishes, a queued list from an outside agent ends as a completed job, and the page that leaves takes its tools along', async ({
     createEngine,
   }) => {
     const engine = await createEngine({}, {plugins: [page]})
@@ -138,9 +138,14 @@ describe('the agent reads the page in code mode', () => {
     await outsideAnswered
     const widget = widgetClient(engine)
     await expect
-      .poll(() => widget.sessions.outsideNotices({sessionId: engine.session.id, waitMs: 0}))
-      .toMatchObject([{text: expect.stringContaining('finished: 1 played, 0 failed')}])
-    await expect(widget.sessions.outsideNotices({sessionId: engine.session.id, waitMs: 0})).resolves.toEqual([])
+      .poll(() => widget.jobs.list({sessionId: engine.session.id}))
+      .toMatchObject([
+        expect.objectContaining({
+          type: 'page-queue',
+          status: 'completed',
+          output: expect.stringContaining('finished: 1 played, 0 failed'),
+        }),
+      ])
 
     const bravo = await engine.newSession('Bravo')
     const switched = new AbortController()

@@ -162,6 +162,19 @@ function timedOut(action: Work, timeoutMs: number) {
 
 const SessionNotFound = Predicate.isTagged('Session.NotFoundError')
 
+export function queueJobNotice(
+  job: {readonly id: string; readonly status: string; readonly output?: string; readonly error?: string},
+  queueId: string,
+) {
+  const state = job.status === 'running' ? 'cancelled' : job.status
+  const body = job.status === 'running' ? 'Interrupted by server restart.' : (job.output ?? job.error ?? state)
+  return {
+    description: `Queued page actions ${state}`,
+    text: body,
+    metadata: {source: 'page-queue', jobID: job.id, queueId, state},
+  }
+}
+
 const withLane = <K, A, E>(lanes: RcMap.RcMap<K, Semaphore.Semaphore>, key: K, effect: Effect.Effect<A, E>) =>
   RcMap.get(lanes, key).pipe(
     Effect.flatMap((lane) => lane.withPermit(effect)),
@@ -169,7 +182,10 @@ const withLane = <K, A, E>(lanes: RcMap.RcMap<K, Semaphore.Semaphore>, key: K, e
   )
 
 export const make = Effect.fn('PageConnection.make')(function* (
-  ctx: Pick<Context, 'agent' | 'rpc' | 'session' | 'browserTabs' | 'location' | 'event' | 'storage' | 'options'>,
+  ctx: Pick<
+    Context,
+    'agent' | 'rpc' | 'session' | 'browserTabs' | 'job' | 'location' | 'event' | 'storage' | 'options'
+  >,
   symbolicator: Symbolicator,
   grabs: GrabStore,
 ) {
@@ -385,34 +401,35 @@ export const make = Effect.fn('PageConnection.make')(function* (
     play: playQueue,
     journal: (sessionId, change) => records.append(sessionId, change),
     started: (entry) =>
-      entry.origin === 'hub'
-        ? ctx.session.expectOutside({sessionId: entry.sessionId, toolCallId: entry.toolCallId})
-        : Effect.void,
+      Effect.gen(function* () {
+        const id = `pq_${entry.queueId}`
+        yield* ctx.job.start({
+          id,
+          type: 'page-queue',
+          title: 'Queued page actions',
+          metadata: {toolCallId: entry.toolCallId, origin: entry.origin},
+          recovery: {kind: 'page-queue', sessionID: entry.sessionId, queueId: entry.queueId},
+          background: true,
+          run: Deferred.await(entry.done).pipe(Effect.map(queueNotice)),
+        })
+        if (entry.origin === 'hub') return
+        yield* ctx.job.wait({id}).pipe(
+          Effect.flatMap(({info}) =>
+            info === undefined || info.status === 'cancelled'
+              ? Effect.void
+              : ctx.session.synthetic({sessionID: entry.sessionId, ...queueJobNotice(info, entry.queueId)}),
+          ),
+          Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not reach its session`, cause)),
+          Effect.forkIn(work),
+        )
+      }).pipe(Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not start its job`, cause))),
     finished: (entry) => {
       if (entry.result === null) return Effect.void
-      const {sessionId, queueId, toolCallId, result, origin} = entry
-      const notify = queues.undelivered(sessionId, {toolCallIds: [toolCallId]}).pipe(
-        Effect.flatMap((owed) =>
-          Effect.forEach(
-            owed,
-            (finished) =>
-              origin === 'hub'
-                ? ctx.session.notifyOutside({sessionId, toolCallId, text: queueNotice(finished)})
-                : ctx.session.synthetic({
-                    sessionID: sessionId,
-                    text: queueNotice(finished),
-                    description: `Queued page actions ${finished.status}`,
-                    metadata: {source: 'page-queue', queueId: finished.queueId, state: finished.status},
-                  }),
-            {discard: true},
-          ),
-        ),
-        Effect.catchCause((cause) => Effect.logWarning(`Queue ${queueId} could not reach its session`, cause)),
-      )
+      const {sessionId, queueId, toolCallId, result} = entry
       return Effect.forkIn(
-        registration.events.emit('queue.finished', {sessionId, queueId, toolCallId, result}).pipe(
+        queues.settle(sessionId, [queueId]).pipe(
+          Effect.andThen(registration.events.emit('queue.finished', {sessionId, queueId, toolCallId, result})),
           Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)),
-          Effect.andThen(notify),
         ),
         work,
       ).pipe(Effect.asVoid)
@@ -491,12 +508,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
         queues
           .wait(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.claim': (input, call) =>
-        queues
-          .claim(input.sessionId, input.queueId, input.waitMs)
-          .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.settle': (input) => queues.settle(input.sessionId, input.queueIds),
-      'queue.undelivered': (input) => queues.undelivered(input.sessionId, {}),
     })
     .pipe(Effect.orDie)
 

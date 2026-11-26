@@ -38,12 +38,6 @@ export type QueueEffect =
 
 export type QueueTransition = {readonly state: QueueState; readonly effects: readonly QueueEffect[]}
 
-export type Owed = {
-  readonly queueId: string
-  readonly toolCallId: string
-  readonly result: PageQueueResult
-}
-
 export const KEPT_QUEUES = 200
 
 export const OWED_QUEUES = 1000
@@ -92,23 +86,6 @@ export function readProgress(entry: QueueEntry): PageQueueProgress {
     done: entry.settled.filter((each) => each !== undefined).length,
     of: entry.tools.length,
   }
-}
-
-function awaitsDelivery(entry: QueueEntry): boolean {
-  return entry.delivery === 'owed' && entry.result !== null
-}
-
-export type OwedFilter = {readonly toolCallIds?: readonly string[]}
-
-export function selectUndelivered(state: QueueState, sessionId: SessionId, filter: OwedFilter): Owed[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId &&
-    (filter.toolCallIds === undefined || filter.toolCallIds.includes(entry.toolCallId)) &&
-    entry.result !== null &&
-    awaitsDelivery(entry)
-      ? [{queueId: entry.queueId, toolCallId: entry.toolCallId, result: entry.result}]
-      : [],
-  )
 }
 
 function updated(state: QueueState, queueId: string, change: (entry: QueueEntry) => QueueEntry): QueueTransition {

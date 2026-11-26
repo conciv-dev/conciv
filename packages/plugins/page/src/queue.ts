@@ -17,8 +17,6 @@ import {
   OWED_QUEUES,
   readOwing,
   readProgress,
-  selectUndelivered,
-  type OwedFilter,
   transitionQueue,
   type Landed,
   type QueueEntry,
@@ -209,17 +207,9 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
     )
 
-  const undelivered = (sessionId: SessionId, filter: OwedFilter) =>
-    Effect.suspend(() => {
-      const owed = selectUndelivered(machine.state, sessionId, filter)
-      return dispatch({type: 'delivered', queueIds: owed.map((each) => each.queueId)}).pipe(
-        Effect.as(owed.map((each) => each.result)),
-      )
-    })
-
   const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})
 
-  return {start, play, wait, claim, settle, undelivered, cancelSession}
+  return {start, play, wait, settle, cancelSession}
 })
 
 export type Queues = Effect.Success<ReturnType<typeof makeQueues>>

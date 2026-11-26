@@ -12,7 +12,7 @@ and the engine's (`./engine-builtins`).
 
 The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: the
 commands it sends a tab, page operations, live changes, captures, action queues and `symbolicate`.
-The engine reaches the plugin only through the plugin API: `@conciv/backend` passes the plugin's engine built-ins list (`./engine-builtins`) and `@conciv/backend-defaults` imports no plugin, so without it the engine answers no tabs and no page tools. A queue records the `Tool.Context.origin` of the call that started it: a chat-started queue's finish is posted into its session as a `session.synthetic` notice (description `Queued page actions <status>`), which wakes the chat agent; a hub-started queue is announced to core when it starts (`ctx.session.expectOutside`) and its finish goes to core as an outside notice (`ctx.session.notifyOutside`), which the hub hands to the outside agent.
+The engine reaches the plugin only through the plugin API: `@conciv/backend` passes the plugin's engine built-ins list (`./engine-builtins`) and `@conciv/backend-defaults` imports no plugin, so without it the engine answers no tabs and no page tools. A queue starts a core job (`ctx.job.start`, type `page-queue`, recovery `{kind: 'page-queue', sessionID, queueId}`, metadata `toolCallId` and `origin`) whose output is the queue's notice: a chat-started queue's notice is posted into its session as a `session.synthetic` once the job ends (description `Queued page actions <status>`), which wakes the chat agent; a hub-started queue's job is read by the hub.
 
 The widget's entry (`./client`), inlined into the widget by `@conciv/app` through `./builtins`: the React bridge install, the element
 picker, the grab preview fit, a toast, the session cards and the page tool names. They hold no
@@ -64,8 +64,7 @@ the source's `jobs.cancelSession` does on delete: a result that lands later is n
 finishes may not see that result in their terminal; it stays in the queue's journal and card and can be read again with
 `conciv plugin call experimental.page queue.wait --data '{"sessionId":"<sessionId>","queueId":"<queueId>","waitMs":0}'`,
 which answers the kept result again (`src/queue.ts` `wait` returns the result whatever its delivery; the
-newest 200 delivered queues are kept). The delivered-once guarantee belongs to the hub (`queue.undelivered`,
-`queue.claim` and `queue.settle`).
+newest 200 delivered queues are kept).
 Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
 dropped request gets (`src/connection.ts` `deleted`), and the queue's next actions are never sent (the
 session's tabs are gone, so they settle `disconnected before dispatch`). The source only fails the request on delete
