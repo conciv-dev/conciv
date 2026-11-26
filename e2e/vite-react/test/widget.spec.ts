@@ -70,13 +70,17 @@ test.describe('the conciv CLI against the vite react dev server', () => {
     expect(JSON.parse(found)).toMatchObject({ok: true, data: {total: 1}})
     await expect(page.getByRole('group', {name: 'Permission request'})).toHaveCount(0)
 
-    const attached = await text(
-      spawn(process.execPath, [conciv, 'plugin', 'call', 'experimental.page', 'sessions.attached', '--data', '{}'], {
-        cwd: project,
-        env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
-      }).stdout,
+    const captures = await text(
+      spawn(
+        process.execPath,
+        [conciv, 'plugin', 'call', 'experimental.page', 'captures.list', '--data', JSON.stringify({sessionId: tab})],
+        {
+          cwd: project,
+          env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
+        },
+      ).stdout,
     )
-    expect(JSON.parse(attached)).toMatchObject({ok: true, data: expect.arrayContaining([tab])})
+    expect(JSON.parse(captures)).toMatchObject({ok: true, data: {captures: expect.any(Array)}})
   })
 })
 
