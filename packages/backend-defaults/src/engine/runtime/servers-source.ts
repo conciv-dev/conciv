@@ -1,7 +1,7 @@
 import {basename} from 'node:path'
 import {engineTooOld, makeRpcClient} from '@conciv/client'
 import {checkEngines, listEngines, prepareHome, withHomeDb, type EngineRow, type PreparedHome} from '@conciv/home'
-import {Conciv} from '@conciv/backend-plugin-api'
+import {Conciv} from '@conciv/client/plugin'
 import {PluginHost} from '@conciv/backend-app-api'
 import {Context, Effect, Latch, Layer, Ref, Schedule, Semaphore, Stream} from 'effect'
 import {isEqual, memoize, uniqBy} from 'es-toolkit'

@@ -1,8 +1,8 @@
-export * from './settings.js'
-export * from './browser-transport.js'
-export * from './rpc-client.js'
-export * from './chat-connection.js'
-export * from './reachability.js'
+export * from './settings/settings.js'
+export * from './connection/browser-transport.js'
+export * from './connection/rpc-client.js'
+export * from './chat/chat-connection.js'
+export * from './connection/reachability.js'
 export {
   QueryClient,
   QueryClientProvider,
@@ -21,9 +21,9 @@ export {
 } from '@tanstack/solid-query'
 import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from './chat.js'
-import type {RpcClient} from './rpc-client.js'
-import type {EngineTrust} from './engine-connection.js'
-import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
+import type {RpcClient} from './connection/rpc-client.js'
+import type {EngineTrust} from './connection/engine-connection.js'
+import {chatConnection, type ChatConnectionOptions} from './chat/chat-connection.js'
 export type {ChatSession} from './chat.js'
 import {createTanstackQueryUtils, type RouterUtils} from '@orpc/tanstack-query'
 

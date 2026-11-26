@@ -7,7 +7,7 @@ import type {BridgePluginExperimental} from './startup'
 const modules = {
   effect: () => import('effect'),
   '@conciv/frontend-plugin-api': () => import('@conciv/frontend-plugin-api'),
-  '@conciv/backend-plugin-api/rpc': () => import('@conciv/backend-plugin-api/rpc'),
+  '@conciv/protocol/schema/rpc': () => import('@conciv/protocol/schema/rpc'),
   zod: () => import('zod'),
   'solid-js': () => import('solid-js'),
   'solid-js/web': () => import('solid-js/web'),

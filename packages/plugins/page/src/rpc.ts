@@ -1,7 +1,7 @@
 export * as Page from './rpc.js'
 import {z} from 'zod'
 import {keyBy, mapValues} from 'es-toolkit'
-import {Rpc} from '@conciv/backend-plugin-api/rpc'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 import {SessionId} from '@conciv/types/chat-types'
 import {PageCaptureBundleSchema, SessionCapturesSchema, type ToolCaptureMode} from './element-capture-types.js'
 import {

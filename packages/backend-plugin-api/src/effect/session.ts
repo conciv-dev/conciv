@@ -14,7 +14,7 @@ import type {
   SessionListInput,
   SessionSyntheticInput,
   SessionUpdateInput,
-} from '../client/promise/generated/types.js'
+} from '../promise/session-info.js'
 import type {ModelHooks} from './registration.js'
 
 type SessionId = SessionInfo['id']

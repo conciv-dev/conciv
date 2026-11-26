@@ -1,5 +1,4 @@
-import type {RequestOptions} from '../client/promise/generated/client.js'
-import type {ModelListInput} from '../client/promise/generated/types.js'
+import type {RpcCallOptions} from '@conciv/client/plugin'
 import type {PublicRef} from '@conciv/protocol/schema/location'
 import type * as Model from '@conciv/protocol/schema/model'
 import type {Transform} from './registration.js'
@@ -18,11 +17,15 @@ export interface ModelEditor {
 export interface ModelDomain {
   readonly list: (
     input?: ModelListInput,
-    requestOptions?: RequestOptions,
+    requestOptions?: RpcCallOptions,
   ) => Promise<{location: PublicRef; data: Array<Model.Info>}>
-  readonly default: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: Model.Info | null}>
+  readonly default: (requestOptions?: RpcCallOptions) => Promise<{location: PublicRef; data: Model.Info | null}>
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly transform: Transform<ModelEditor> | undefined
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly reload: (() => Promise<void>) | undefined
+}
+
+export interface ModelListInput {
+  readonly types?: ReadonlyArray<'chat' | 'decision' | 'image' | (string & {})> | undefined
 }

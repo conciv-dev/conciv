@@ -1,6 +1,6 @@
 import {Schema} from 'effect'
 import {describe, expect, it} from 'vitest'
-import {Rpc} from '../../src/rpc.js'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 
 describe('defining an rpc contract', () => {
   it.each<[string, Rpc.ErrorMap]>([

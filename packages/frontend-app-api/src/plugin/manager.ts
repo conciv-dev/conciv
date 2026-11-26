@@ -1,5 +1,5 @@
 import type {SettingsScope} from '@conciv/protocol'
-import type {ConcivClient} from '@conciv/backend-plugin-api'
+import type {ConcivClient} from '@conciv/client/plugin'
 import type {EnableState} from './installed'
 import {readEnableState} from './enable-state'
 import {pluginError} from './error'

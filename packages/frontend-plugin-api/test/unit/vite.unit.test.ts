@@ -45,7 +45,7 @@ describe('building a plugin', () => {
         build: {write: false},
       }),
     ).rejects.toThrow(
-      'effect/Schema is not a module the conciv app provides to plugins: effect, @conciv/frontend-plugin-api, @conciv/backend-plugin-api/rpc, zod, solid-js, solid-js/web, solid-js/store, @conciv/client, @conciv/frontend-plugin-api/page, @conciv/frontend-plugin-api/grab',
+      'effect/Schema is not a module the conciv app provides to plugins: effect, @conciv/frontend-plugin-api, @conciv/protocol/schema/rpc, zod, solid-js, solid-js/web, solid-js/store, @conciv/client, @conciv/frontend-plugin-api/page, @conciv/frontend-plugin-api/grab',
     )
   })
 })

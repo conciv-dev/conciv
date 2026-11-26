@@ -392,7 +392,7 @@
         "reason": "perform keeps the source's single dispatch switch, opencode gui-plugins/src/browser/chromium.ts:718-726"
       },
       {
-        "files": ["packages/backend-plugin-api/src/client/shared-events.ts"],
+        "files": ["packages/client/src/plugin/shared-events.ts"],
         "maxCrap": 32,
         "reason": "copied from opencode packages/client/src/shared-events.ts: run keeps opencode's shape"
       },
@@ -774,11 +774,11 @@
       "exports": ["Context", "Error", "Info"]
     },
     {
-      "file": "packages/backend-plugin-api/src/client/promise/client.ts",
+      "file": "packages/client/src/plugin/client.ts",
       "exports": ["make"]
     },
     {
-      "file": "packages/backend-plugin-api/src/client/shared-events.ts",
+      "file": "packages/client/src/plugin/shared-events.ts",
       "exports": ["make"]
     },
     {
@@ -874,11 +874,11 @@
       "exports": ["layer"]
     },
     {
-      "file": "packages/backend-plugin-api/src/client/effect/rpc.ts",
+      "file": "packages/client/src/plugin/effect-rpc.ts",
       "exports": ["RpcApi"]
     },
     {
-      "file": "packages/backend-plugin-api/src/client/promise/rpc.ts",
+      "file": "packages/client/src/plugin/rpc.ts",
       "exports": ["RpcApi"]
     },
     {

@@ -1,12 +1,9 @@
-import type {RpcClient as ConcivRpcClient} from '@conciv/client'
+import type {RpcClient as ConcivRpcClient} from '../connection/rpc-client.js'
 import {z} from 'zod'
 import type * as Rpc from '@conciv/protocol/schema/rpc'
-import type {RequestOptions} from './generated/client.js'
-import type {EventSubscribeOutput} from './generated/types.js'
+import type {ConcivEvent, RpcEvent} from './events.js'
 
-type RpcEvent = Extract<EventSubscribeOutput, {type: `rpc.${string}`}>
-
-export type RpcCallOptions = RequestOptions
+export type RpcCallOptions = {readonly signal?: AbortSignal}
 
 export type RpcArguments<Input, Options> = unknown extends Input
   ? [input: Input, options?: Options]
@@ -77,12 +74,12 @@ export type RpcClient<D extends Rpc.PortableDefinition, Options = RpcCallOptions
   readonly events: {
     readonly subscribe: <Name extends keyof D['events'] & string>(
       name: Name,
-      options?: Pick<RequestOptions, 'signal'>,
+      options?: RpcCallOptions,
     ) => AsyncIterable<RpcEventPayload<D, Name>>
     readonly on: <Name extends keyof D['events'] & string>(
       name: Name,
       handler: (event: RpcEventPayload<D, Name>) => Promise<void> | void,
-      options?: Pick<RequestOptions, 'signal'>,
+      options?: RpcCallOptions,
     ) => () => void
   }
 }
@@ -112,13 +109,13 @@ const RpcError = z.object({
 
 export function makeRpc(
   raw: ConcivRpcClient,
-  events: {subscribe(options?: Pick<RequestOptions, 'signal'>): AsyncIterable<EventSubscribeOutput>},
+  events: {subscribe(options?: RpcCallOptions): AsyncIterable<ConcivEvent>},
   server: () => string,
 ): RpcApi {
   return (definition) => {
     const subscribe = (
       name: string,
-      options?: Pick<RequestOptions, 'signal'>,
+      options?: RpcCallOptions,
     ): AsyncIterable<RpcEventPayload<Rpc.PortableDefinition>> => {
       if (!Object.hasOwn(definition.events, name)) throw new Error(`Unknown RPC event: ${definition.id}.${name}`)
       const type = eventType(definition, name)
@@ -172,7 +169,7 @@ export function makeRpc(
           on: (
             name: string,
             handler: (event: RpcEventPayload<Rpc.PortableDefinition>) => Promise<void> | void,
-            options?: Pick<RequestOptions, 'signal'>,
+            options?: RpcCallOptions,
           ) => {
             const controller = new AbortController()
             const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal

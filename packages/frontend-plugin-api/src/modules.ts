@@ -1,7 +1,7 @@
 export const pluginSharedModules = [
   'effect',
   '@conciv/frontend-plugin-api',
-  '@conciv/backend-plugin-api/rpc',
+  '@conciv/protocol/schema/rpc',
   'zod',
 ] as const
 

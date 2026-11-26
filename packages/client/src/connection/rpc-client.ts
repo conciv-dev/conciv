@@ -4,7 +4,7 @@ import {ValidationError, type ContractRouterClient} from '@orpc/contract'
 import {ResponseValidationPlugin} from '@orpc/contract/plugins'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER} from '@conciv/types/rpc-types'
 import {contract} from '@conciv/protocol'
-import contractManifest from '../../protocol/package.json' with {type: 'json'}
+import contractManifest from '../../../protocol/package.json' with {type: 'json'}
 import {
   engineUnreachable,
   type EngineConnection,

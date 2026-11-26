@@ -1,7 +1,7 @@
 import type {SessionId} from '@conciv/types/chat-types'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import type {JsonSchema} from 'effect'
-import type {RequestOptions} from '../client/promise/generated/client.js'
+import type {RpcCallOptions} from '@conciv/client/plugin'
 import type {
   InstructionEntryInfo,
   PromptMention,
@@ -15,7 +15,7 @@ import type {
   SessionSyntheticInput,
   SessionUpdateInput,
   TokenUsageInfo,
-} from '../client/promise/generated/types.js'
+} from './session-info.js'
 import type {Ref} from '@conciv/protocol/schema/model'
 import type {Json} from '@conciv/types/json'
 import type {Hooks} from './registration.js'
@@ -125,28 +125,28 @@ export interface SessionHooks {
 export interface SessionDomain {
   readonly list: (
     input?: SessionListInput,
-    requestOptions?: RequestOptions,
+    requestOptions?: RpcCallOptions,
   ) => Promise<{data: Array<SessionInfo>; cursor: {previous?: string | null; next?: string | null}}>
-  readonly create: (input?: SessionCreateInput, requestOptions?: RequestOptions) => Promise<SessionInfo>
-  readonly get: (input: SessionInput, requestOptions?: RequestOptions) => Promise<SessionInfo>
-  readonly remove: (input: SessionInput, requestOptions?: RequestOptions) => Promise<void>
+  readonly create: (input?: SessionCreateInput, requestOptions?: RpcCallOptions) => Promise<SessionInfo>
+  readonly get: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<SessionInfo>
+  readonly remove: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<void>
   readonly switchAgent: (
     input: {readonly sessionId: SessionId; readonly agent: string},
-    requestOptions?: RequestOptions,
+    requestOptions?: RpcCallOptions,
   ) => Promise<void>
   readonly switchModel: (
     input: {readonly sessionId: SessionId; readonly model: Ref},
-    requestOptions?: RequestOptions,
+    requestOptions?: RpcCallOptions,
   ) => Promise<void>
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly generate:
     | ((
         input: {readonly sessionId: SessionId; readonly prompt: string},
-        requestOptions?: RequestOptions,
+        requestOptions?: RpcCallOptions,
       ) => Promise<{text: string; tokens: TokenUsageInfo; cost: number}>)
     | undefined
   /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly command: ((input: SessionCommandInput, requestOptions?: RequestOptions) => Promise<void>) | undefined
+  readonly command: ((input: SessionCommandInput, requestOptions?: RpcCallOptions) => Promise<void>) | undefined
   readonly compact: (
     input: {
       readonly sessionId: SessionId
@@ -155,28 +155,28 @@ export interface SessionDomain {
       /** @remarks Not implemented yet. Always undefined in this version. */
       readonly delivery?: SessionInboxDelivery | undefined
     },
-    requestOptions?: RequestOptions,
+    requestOptions?: RpcCallOptions,
   ) => Promise<SessionInboxCompaction>
-  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>
+  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RpcCallOptions) => Promise<SessionInboxSynthetic>
   readonly interrupt: (
     input: {
       readonly sessionId: SessionId
       readonly resume?: boolean | undefined
     },
-    requestOptions?: RequestOptions,
+    requestOptions?: RpcCallOptions,
   ) => Promise<{interrupted: boolean}>
-  readonly update: (input: SessionUpdateInput, requestOptions?: RequestOptions) => Promise<void>
-  readonly wait: (input: SessionInput, requestOptions?: RequestOptions) => Promise<void>
+  readonly update: (input: SessionUpdateInput, requestOptions?: RpcCallOptions) => Promise<void>
+  readonly wait: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<void>
   readonly instructions: {
     readonly entry: {
-      readonly list: (input: SessionInput, requestOptions?: RequestOptions) => Promise<Array<InstructionEntryInfo>>
+      readonly list: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<Array<InstructionEntryInfo>>
       readonly put: (
         input: {readonly sessionId: SessionId; readonly key: string; readonly value: Json},
-        requestOptions?: RequestOptions,
+        requestOptions?: RpcCallOptions,
       ) => Promise<void>
       readonly remove: (
         input: {readonly sessionId: SessionId; readonly key: string},
-        requestOptions?: RequestOptions,
+        requestOptions?: RpcCallOptions,
       ) => Promise<void>
     }
   }

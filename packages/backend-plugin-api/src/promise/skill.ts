@@ -1,4 +1,4 @@
-import type {RequestOptions} from '../client/promise/generated/client.js'
+import type {RpcCallOptions} from '@conciv/client/plugin'
 import type {PublicRef} from '@conciv/protocol/schema/location'
 import type * as Skill from '@conciv/protocol/schema/skill'
 import type {Transform} from './registration.js'
@@ -14,7 +14,7 @@ export interface SkillEditor {
 }
 
 export interface SkillDomain {
-  readonly list: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: Skill.Info[]}>
+  readonly list: (requestOptions?: RpcCallOptions) => Promise<{location: PublicRef; data: Skill.Info[]}>
   readonly transform: Transform<SkillEditor>
   readonly reload: () => Promise<void>
 }

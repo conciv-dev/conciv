@@ -1,4 +1,4 @@
-import type {PluginInfo} from '@conciv/backend-plugin-api'
+import type {PluginInfo} from '@conciv/client/plugin'
 import {z} from 'zod'
 import {createMemo, createSignal, createUniqueId, For, Show} from 'solid-js'
 import {Button, Switch} from '@conciv/ui-kit-system'

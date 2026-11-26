@@ -1,5 +1,5 @@
-import type {ConcivEvent} from '../client/promise/promise.js'
-import type {SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
+import type {ConcivEvent} from '@conciv/client/plugin'
+import type {SelectedEvent, SubscribeOptions} from '@conciv/client/plugin'
 
 type EventType = Exclude<ConcivEvent['type'], 'server.connected'>
 

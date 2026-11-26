@@ -1,4 +1,4 @@
-import {Rpc} from '@conciv/backend-plugin-api/rpc'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 import {z} from 'zod'
 import {
   commentRow,

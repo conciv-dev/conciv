@@ -19,7 +19,6 @@ export type {EventDomain} from './event.js'
 export type {ModelDomain, ModelEditor} from './model.js'
 export type {PermissionDomain, PermissionEvaluation, PermissionHooks} from './permission.js'
 export type {RpcCallContext, RpcDomain, RpcHandlers, RpcRegistration} from './rpc.js'
-export type {ServerRef, Servers} from './servers.js'
 export type {
   PromptAgentAttachment,
   PromptFileSource,
@@ -41,28 +40,8 @@ export type {
 export type {SkillDomain, SkillEditor} from './skill.js'
 export type {StorageDomain} from './storage.js'
 export type {Info, ToolContext, ToolDomain, ToolEditor} from './tool.js'
-export type {ExperimentalGenerateApi, SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
 export type {
-  ClientConnectionOptions,
-  ClientConnectionStatus,
-  ConcivClient,
-  ConcivEvent,
-} from '../client/promise/promise.js'
-export type {
-  RpcApi,
-  RpcArguments,
-  RpcCallOptions,
-  RpcClient,
-  RpcEventPayload,
-  RpcMethod,
-  RpcQueryArguments,
-  RpcQueryKey,
-} from '../client/promise/rpc.js'
-export {Conciv} from '../client/promise/promise.js'
-export {makeRpc} from '../client/promise/rpc.js'
-export type {RequestOptions} from '../client/promise/generated/client.js'
-export type {
-  EventSubscribeOutput,
+  ExperimentalGenerateApi,
   GenerateChoiceValue,
   GenerateDecisionAnswer,
   GenerateDecisionResult,
@@ -72,18 +51,12 @@ export type {
   GenerateNative,
   GenerateTextInput,
   GenerateUsage,
+} from './generate.js'
+export type {
   InstructionEntryInfo,
-  ModelListInput,
-  PermissionReplyInput,
-  PermissionRequest,
-  PluginFeatures,
-  PluginInfo,
-  PluginSource,
-  PluginState,
   PromptMention,
   SessionCommandInput,
   SessionCreateInput,
-  SessionDeleted,
   SessionInboxCompaction,
   SessionInboxDelivery,
   SessionInboxSynthetic,
@@ -92,4 +65,6 @@ export type {
   SessionSyntheticInput,
   SessionUpdateInput,
   TokenUsageInfo,
-} from '../client/promise/generated/types.js'
+} from './session-info.js'
+export type {ModelListInput} from './model.js'
+export type {PermissionReplyInput, PermissionRequest} from './permission.js'

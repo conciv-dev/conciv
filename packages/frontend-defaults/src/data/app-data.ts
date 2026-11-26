@@ -9,7 +9,7 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@conciv/client'
-import {Conciv, type ConcivClient} from '@conciv/backend-plugin-api'
+import {Conciv, type ConcivClient} from '@conciv/client/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {forgetDeletedSessions} from './forget-deleted-sessions.js'

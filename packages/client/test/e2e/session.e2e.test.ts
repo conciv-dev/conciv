@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {createRoot, observable} from 'solid-js'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
-import {createChatSession, type ChatSessionHydration} from '../../src/session/session.js'
+import {createChatSession, type ChatSessionHydration} from '../../src/chat/session.js'
 import {createTextChunks} from '../../src/testing.js'
 
 describe('a refresh racing a send', () => {

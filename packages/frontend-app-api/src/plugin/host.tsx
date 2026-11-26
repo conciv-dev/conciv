@@ -43,7 +43,7 @@ import {
   type Token,
 } from '@conciv/frontend-plugin-api'
 import type {QueryClient} from '@conciv/client'
-import type {ConcivClient} from '@conciv/backend-plugin-api'
+import type {ConcivClient} from '@conciv/client/plugin'
 import {
   createPluginDialogState,
   transitionPluginDialog,

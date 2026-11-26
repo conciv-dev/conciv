@@ -6,15 +6,15 @@ import {
   transitionConnection,
   type ConnectionEvent,
   type ConnectionState,
-} from './engine-connection-machine.js'
+} from '../connection/engine-connection-machine.js'
 import type {
   EngineConnection,
   EngineTrust,
   ReachabilityListener,
   RpcClientContext,
   TrustListener,
-} from './engine-connection.js'
-import type {RpcClient} from './rpc-client.js'
+} from '../connection/engine-connection.js'
+import type {RpcClient} from '../connection/rpc-client.js'
 import {lookup} from './fake-router.js'
 import type {FakeConnectOptions} from './fake-types.js'
 

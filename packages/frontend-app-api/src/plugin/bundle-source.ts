@@ -23,7 +23,7 @@ import {
   Stream,
 } from 'effect'
 import type {EngineConnection} from '@conciv/client'
-import type {ConcivClient} from '@conciv/backend-plugin-api'
+import type {ConcivClient} from '@conciv/client/plugin'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import {pluginEnabled, pluginIdAvailable, shipsPluginExperimental, type EnableState, type Installed} from './installed'

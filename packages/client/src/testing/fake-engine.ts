@@ -1,8 +1,8 @@
 import {contract, type DraftRow} from '@conciv/protocol'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import {modelMessagesToUIMessages} from '@tanstack/ai-client'
-import manifest from '../package.json' with {type: 'json'}
-import type {EngineConnection} from './engine-connection.js'
+import manifest from '../../package.json' with {type: 'json'}
+import type {EngineConnection} from '../connection/engine-connection.js'
 import {aborted, channel} from './fake-channel.js'
 import {createChat} from './fake-chat.js'
 import {authHandlers, endLinks, fakeConnection, issueCode, type Access} from './fake-connection.js'

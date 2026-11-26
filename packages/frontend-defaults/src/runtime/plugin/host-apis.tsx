@@ -20,7 +20,7 @@ import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/client'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
-import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/backend-plugin-api'
+import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/client/plugin'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import type {
   Layout,

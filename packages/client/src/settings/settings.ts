@@ -1,6 +1,6 @@
 import {createDefu} from 'defu'
 import {z} from 'zod'
-import type {RpcClient} from './rpc-client.js'
+import type {RpcClient} from '../connection/rpc-client.js'
 import type {SettingsScope, SettingsSnapshot} from '@conciv/protocol'
 
 export type SettingsStore<T extends object = Record<string, unknown>> = {

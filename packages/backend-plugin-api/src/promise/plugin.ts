@@ -1,6 +1,6 @@
-import type {ExperimentalGenerateApi} from '../client/promise/api.js'
-import type {RequestOptions} from '../client/promise/generated/client.js'
-import type {PluginInfo} from '../client/promise/generated/types.js'
+import type {ExperimentalGenerateApi} from './generate.js'
+import type {RpcCallOptions} from '@conciv/client/plugin'
+import type {PluginInfo} from '@conciv/client/plugin'
 import type {App} from '../app.js'
 import type {PluginOptions} from '@conciv/protocol/options'
 import type {Info, PublicRef} from '@conciv/protocol/schema/location'
@@ -9,7 +9,7 @@ import type {EventDomain} from './event.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
 import type {RpcDomain} from './rpc.js'
-import type {Servers} from './servers.js'
+import type {Servers} from '@conciv/client/plugin'
 import type {SessionDomain} from './session.js'
 import type {SkillDomain} from './skill.js'
 import type {StorageDomain} from './storage.js'
@@ -28,7 +28,7 @@ export interface Context {
   readonly model: ModelDomain
   readonly permission: PermissionDomain
   readonly plugin: {
-    readonly list: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: PluginInfo[]}>
+    readonly list: (requestOptions?: RpcCallOptions) => Promise<{location: PublicRef; data: PluginInfo[]}>
   }
   readonly rpc: RpcDomain
   readonly session: SessionDomain

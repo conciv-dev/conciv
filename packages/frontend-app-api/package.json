@@ -45,7 +45,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/protocol": "workspace:^",

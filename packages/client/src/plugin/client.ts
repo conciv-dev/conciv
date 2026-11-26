@@ -1,11 +1,10 @@
 import {z} from 'zod'
-import type {EngineTrust, RpcClient} from '@conciv/client'
+import type {EngineTrust} from '../connection/engine-connection.js'
+import type {RpcClient} from '../connection/rpc-client.js'
 import {contract} from '@conciv/protocol'
-import * as SharedEvents from '../shared-events.js'
-import type {EventSubscribeOutput} from './generated/types.js'
+import * as SharedEvents from './shared-events.js'
+import type {ConcivEvent} from './events.js'
 import {makeRpc, type RpcApi} from './rpc.js'
-
-export type {RequestOptions} from './generated/client.js'
 
 export type ClientConnectionStatus = 'connected' | 'connecting' | 'reconnecting'
 
@@ -26,7 +25,7 @@ export function make(
   options: ClientConnectionOptions,
 ): Omit<RpcClient, 'event'> & {
   rpc: RpcApi & {call: RpcClient['plugin']['call']}
-  event: ReturnType<typeof SharedEvents.make<EventSubscribeOutput>>
+  event: ReturnType<typeof SharedEvents.make<ConcivEvent>>
   connection: ClientConnection
 } {
   const connection = makeConnection()
@@ -137,7 +136,7 @@ async function* attempted(
       touch()
       if (event.type === 'server.heartbeat') continue
       if (event.type === 'server.connected') setStatus('connected')
-      yield event as EventSubscribeOutput
+      yield event as ConcivEvent
     }
     if (!signal.aborted) console.info('[conciv] the event stream ended; subscribing again')
   } catch (error) {

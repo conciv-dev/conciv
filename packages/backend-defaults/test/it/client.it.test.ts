@@ -1,7 +1,7 @@
 import {makeRpcClient} from '@conciv/client'
 import {describe, expect} from 'vitest'
 import {test as it} from '../utils/engine-test.js'
-import {Conciv, type ClientConnectionStatus} from '@conciv/backend-plugin-api'
+import {Conciv, type ClientConnectionStatus} from '@conciv/client/plugin'
 
 describe('the SDK client keeps its event stream open', () => {
   it('the stream connects, comes back after the engine restarts, reopens when it goes silent, and is connecting again once the last reader leaves', async ({

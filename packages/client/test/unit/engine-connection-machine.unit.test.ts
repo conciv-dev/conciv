@@ -6,7 +6,7 @@ import {
   REVOKED_SOCKET_CLOSE_CODE,
   transitionConnection,
   type ConnectionEvent,
-} from '../../src/engine-connection-machine.js'
+} from '../../src/connection/engine-connection-machine.js'
 
 describe('the connection machine', () => {
   const timings = {

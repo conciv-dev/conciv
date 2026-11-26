@@ -1,4 +1,4 @@
-export {createChat, createChatSession} from './session/session.js'
+export {createChat, createChatSession} from './chat/session.js'
 export type {
   Chat,
   ChatSession,
@@ -7,6 +7,6 @@ export type {
   ChatSessionHydration,
   CreateChatOptions,
   CreateChatSessionOptions,
-} from './session/session.js'
+} from './chat/session.js'
 export {rpcStream, StreamReconnectLimitError} from '@tanstack/ai-client'
 export type {ConnectConnectionAdapter, QueuedMessage, SubscribeConnectionAdapter} from '@tanstack/ai-client'

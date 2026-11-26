@@ -4,7 +4,6 @@ export default defineConfig({
   sourcemap: true,
   entry: {
     'promise/promise': 'src/promise/promise.ts',
-    rpc: 'src/rpc.ts',
     host: 'src/host.ts',
     'effect/effect': 'src/effect/effect.ts',
     'effect/permission': 'src/effect/permission.ts',

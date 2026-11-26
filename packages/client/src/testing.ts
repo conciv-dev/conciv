@@ -1,11 +1,11 @@
 import {createORPCClient} from '@orpc/client'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
-import {createFakeEngine} from './fake-engine.js'
-import type {RpcClient} from './rpc-client.js'
+import {createFakeEngine} from './testing/fake-engine.js'
+import type {RpcClient} from './connection/rpc-client.js'
 
-export {createFakeEngine} from './fake-engine.js'
-export {FakeLLM} from './fake-llm.js'
+export {createFakeEngine} from './testing/fake-engine.js'
+export {FakeLLM} from './testing/fake-llm.js'
 export type {
   FakeAsk,
   FakeBundle,
@@ -30,7 +30,7 @@ export type {
   FakeSession,
   FakeSynthetic,
   FakeTool,
-} from './fake-types.js'
+} from './testing/fake-types.js'
 
 export type StoryConnectionOptions = {
   chunks?: ChatEvent[]

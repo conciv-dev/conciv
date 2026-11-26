@@ -1,4 +1,4 @@
-import type {PluginInfo} from '@conciv/backend-plugin-api'
+import type {PluginInfo} from '@conciv/client/plugin'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 
 export type EnableState = {

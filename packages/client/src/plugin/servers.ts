@@ -1,4 +1,4 @@
-import type {ConcivClient} from '../client/promise/promise.js'
+import type {ConcivClient} from './conciv.js'
 
 export interface ServerRef {
   readonly id: string
