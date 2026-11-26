@@ -103,6 +103,9 @@ export const ConcivConfigSchema = z.object({
   hubAccess: HubAccessSchema.optional(),
   systemPrompt: z.union([z.string(), z.boolean()]).optional(),
   claudeSessionId: z.string().optional(),
+  logLevel: LogLevelSchema.optional().describe(
+    'The lowest engine and widget log level kept: off (the default), error, warn, info, debug or trace',
+  ),
 })
 
 export type ConcivConfig = z.infer<typeof ConcivConfigSchema>

@@ -519,6 +519,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       configProvider,
       engineId,
       log: opts.log,
+      logLevel: opts.cfg.logLevel,
     }))
   const releaseObservability = (): Promise<void> | undefined =>
     givenObservability === undefined ? observability.dispose() : undefined

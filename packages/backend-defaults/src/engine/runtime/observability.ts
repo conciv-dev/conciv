@@ -5,27 +5,26 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, type Context} from 'effect'
 import corePackage from '../../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'
-import {readLogLevel, type LogLevel} from '@conciv/types/config-types'
+import type {LogLevel} from '@conciv/types/config-types'
 import type {LogOptions} from '../../util/observability/host-sink.js'
 import type {Interface as LogLevelInterface} from '../../util/observability/log-level.js'
 
 const OtlpExporterConfig = Config.all({
   endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
   headers: Config.option(Config.String('OTEL_EXPORTER_OTLP_HEADERS')),
-  level: Config.option(Config.String('CONCIV_LOG_LEVEL')),
 })
 
 function provideObservability(input: ObservabilityInput) {
   return Layer.unwrap(
     OtlpExporterConfig.pipe(
-      Effect.map(({endpoint, headers, level}) =>
+      Effect.map(({endpoint, headers}) =>
         Observability.layer(
           {
             endpoint: Option.getOrUndefined(endpoint),
             headers: Option.getOrUndefined(headers),
             version: corePackage.version,
             instance: input.engineId,
-            level: readLogLevel({env: Option.getOrUndefined(level), config: input.logLevel}),
+            level: input.logLevel,
           },
           input.log?.emit,
         ),

@@ -1,5 +1,5 @@
 import {CHAT_SYSTEM_PROMPT} from './lib/chat-system-prompt.js'
-import type {ConcivConfig} from '@conciv/types/config-types'
+import {readLogLevel, type ConcivConfig, type LogLevel} from '@conciv/types/config-types'
 import {
   isHarnessSessionId,
   isSessionId,
@@ -24,6 +24,7 @@ export interface ResolvedConcivConfig {
   plugins: NonNullable<ConcivConfig['plugins']>
   policies: NonNullable<ConcivConfig['policies']>
   permissions: NonNullable<ConcivConfig['permissions']>
+  logLevel: LogLevel
 }
 
 function shortPermissions(permission: ConcivConfig['permission']): NonNullable<ConcivConfig['permissions']> {
@@ -75,6 +76,7 @@ const EnvFallbacksConfig = Config.all({
   CONCIV_HARNESS: envValue('CONCIV_HARNESS'),
   CONCIV_SESSION_ID: envValue('CONCIV_SESSION_ID'),
   CONCIV_CLAUDE_SESSION_ID: envValue('CONCIV_CLAUDE_SESSION_ID'),
+  CONCIV_LOG_LEVEL: envValue('CONCIV_LOG_LEVEL'),
 })
 
 export function resolveConfig(
@@ -94,5 +96,6 @@ export function resolveConfig(
     plugins: options.plugins ?? [],
     policies: options.policies ?? [],
     permissions: [...shortPermissions(options.permission), ...(options.permissions ?? [])],
+    logLevel: readLogLevel({env: env.CONCIV_LOG_LEVEL, config: options.logLevel}),
   }
 }

@@ -2,6 +2,7 @@ import {description, name, route, version} from '@bomb.sh/router'
 import cliManifest from '../package.json' with {type: 'json'}
 import {authRoute} from './auth.js'
 import {envelopeFlag} from './envelope.js'
+import {logLevelFlag, verboseFlag} from './log-flags.js'
 import {initCommand} from './init.js'
 import {mcpRoute} from './mcp.js'
 import {pluginRoute} from './plugin.js'
@@ -14,6 +15,8 @@ export const main = route(
   version(cliManifest.version),
   envelopeFlag,
   tabFlag,
+  verboseFlag,
+  logLevelFlag,
   toolsRoute,
   initCommand,
   authRoute,
