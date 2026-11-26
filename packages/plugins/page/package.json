@@ -36,6 +36,10 @@
       "types": "./dist/renderer.d.ts",
       "import": "./dist/renderer.js"
     },
+    "./engine-builtins": {
+      "types": "./dist/engine-builtins.d.ts",
+      "import": "./dist/engine-builtins.js"
+    },
     "./builtins": {
       "types": "./dist/builtins.d.ts",
       "import": "./dist/builtins.js"
