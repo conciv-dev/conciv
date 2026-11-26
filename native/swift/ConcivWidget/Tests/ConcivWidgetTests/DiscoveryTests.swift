@@ -110,6 +110,35 @@ final class DiscoveryTests: XCTestCase {
     XCTAssertTrue(fallback.path.hasSuffix("/.conciv/dev-endpoint.json"))
   }
 
+  func testEnvEndpointTakesThePairingTokenOnlyForTheSameOrigin() {
+    let pairing = url("file:///tmp/dev-endpoint.json")
+    let json = #"{"apiBase":"http://127.0.0.1:4599","token":"secret","pid":77}"#
+    let paired = ConcivDiscoverer(
+      pairingFileURL: pairing,
+      readFile: { $0 == pairing ? Data(json.utf8) : nil },
+      probe: { _ in false }
+    )
+    let same = paired.envEndpoint(apiBase: url("http://127.0.0.1:4599/"))
+    XCTAssertEqual(same, ConcivEndpoint(apiBase: url("http://127.0.0.1:4599/"), token: "secret", pid: 77))
+    XCTAssertEqual(
+      ConcivDiscovery.pageURL(for: same),
+      url("http://127.0.0.1:4599/widget?conciv_auth_token=secret")
+    )
+
+    let otherPort = paired.envEndpoint(apiBase: url("http://127.0.0.1:5000"))
+    XCTAssertEqual(otherPort, ConcivEndpoint(apiBase: url("http://127.0.0.1:5000"), token: nil, pid: nil))
+    let otherHost = paired.envEndpoint(apiBase: url("http://localhost:4599"))
+    XCTAssertEqual(otherHost, ConcivEndpoint(apiBase: url("http://localhost:4599"), token: nil, pid: nil))
+
+    let unpaired = ConcivDiscoverer(pairingFileURL: pairing, readFile: { _ in nil }, probe: { _ in false })
+    XCTAssertEqual(
+      unpaired.envEndpoint(apiBase: url("http://127.0.0.1:4599")),
+      ConcivEndpoint(apiBase: url("http://127.0.0.1:4599"), token: nil, pid: nil)
+    )
+    let garbage = ConcivDiscoverer(pairingFileURL: pairing, readFile: { _ in Data("not json".utf8) }, probe: { _ in false })
+    XCTAssertNil(garbage.envEndpoint(apiBase: url("http://127.0.0.1:4599")).token)
+  }
+
   func testDiscoverPrefersHealthyPairingFile() {
     let pairing = url("file:///tmp/dev-endpoint.json")
     let json = #"{"apiBase":"http://127.0.0.1:4599","token":"secret","pid":77}"#

@@ -117,7 +117,7 @@ public enum ConcivWidget {
   @MainActor
   private static func mountEnvOrDiscovered(to window: UIWindow, generation: Int, launcher: ConcivLauncher) {
     if let apiBase = ConcivDiscovery.envApiBase() {
-      mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: nil, pid: nil), launcher: launcher)
+      mount(to: window, endpoint: discoverer.envEndpoint(apiBase: apiBase), launcher: launcher)
       return
     }
     discoverDriver(discoverer) { endpoint in

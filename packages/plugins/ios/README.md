@@ -94,7 +94,8 @@ on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop docu
 `SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
 picks up). The value is the engine's own apiBase with no `/widget` suffix: the SDK appends
 the `/widget` route itself, so passing a URL that already ends in `/widget` would load
-`/widget/widget`. It carries no token. Set `concivUrl` in this plugin's options to override it, again as the API base
+`/widget/widget`. It carries no token: the SDK takes the token (and pid) from the pairing file when
+that file's `apiBase` has the same origin. Set `concivUrl` in this plugin's options to override it, again as the API base
 without `/widget`.
 
 ## Pairing file and discovery
@@ -126,7 +127,7 @@ the global path. Set `CONCIV_URL` to pin the engine explicitly.
 
 Every engine url but `/health`, the `auth.*` procedures and the `/widget` page needs the
 engine token as the `?conciv_auth_token=` query (no header, no path prefix). A page with
-no token (a probed base, or `CONCIV_URL`, which carries none) opens untrusted and asks the
+no token (a probed base, or `CONCIV_URL` with no pairing file for its origin) opens untrusted and asks the
 user to log in. A `401`/`404` on the page load means the base no longer serves this
 engine's page; the SDK surfaces a visible re-pair prompt, and tapping it re-reads the
 pairing file and re-attaches. There is no silent token refresh, and the token never appears

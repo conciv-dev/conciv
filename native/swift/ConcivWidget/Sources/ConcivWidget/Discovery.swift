@@ -167,6 +167,17 @@ public struct ConcivDiscoverer {
     self.probe = probe
   }
 
+  // The endpoint for an env-injected base (CONCIV_URL carries no token). When the pairing
+  // file names the same origin, its token and pid belong to that engine, so the page logs
+  // in with them; otherwise the base mounts tokenless and the page asks the user to log in.
+  public func envEndpoint(apiBase: URL) -> ConcivEndpoint {
+    guard let data = readFile(pairingFileURL),
+          let paired = ConcivDiscovery.parsePairingFile(data),
+          ConcivDiscovery.origin(of: paired.apiBase) == ConcivDiscovery.origin(of: apiBase)
+    else { return ConcivEndpoint(apiBase: apiBase, token: nil, pid: nil) }
+    return ConcivEndpoint(apiBase: apiBase, token: paired.token, pid: paired.pid)
+  }
+
   public func discover() -> ConcivEndpoint? {
     if let data = readFile(pairingFileURL),
        let endpoint = ConcivDiscovery.parsePairingFile(data),
