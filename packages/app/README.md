@@ -12,7 +12,7 @@ that opens it:
    timeout.
 2. If the socket opens, that tab rides the websocket for core rpc AND every plugin's rpc
    for the rest of its life. Mid-session drops never change transport: the
-   connection re-dials the websocket and `ClientRetryPlugin` re-issues the calls.
+   connection re-dials the websocket and `RetryLinkPlugin` re-issues the calls.
 3. Every chat turn rides the same socket: `chat.send` streams the run, and a resubscribe after a drop
    resumes it from its last event id.
 

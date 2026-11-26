@@ -51,4 +51,4 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:saveStoppedTurn` - on abort saves the partial assistant messages and marks the run `failed` if an error was seen.
 - `chat-server.ts:createChatServer` - keeps an in-process `live` run map and an `InMemoryLockStore`.
 - `quickjs-thread.ts:quickJSThreadDriver` - starts one worker thread when the driver is created and keeps it; the worker imports `@tanstack/ai-isolate-quickjs` and loads the QuickJS WASM module before it reports ready. Workers are unref'd while idle, so they never hold the process open.
-- `delivery.ts:send` / `join` - async generators over the in-memory `memoryStream` log; each event carries its log offset as its event id, a resend of a known run id tails it instead of running it again (`seenRun`).
+- `delivery.ts:send` / `join` - async generators over the in-memory `memoryStream` log; each event carries its log offset as its event id (oRPC's `withEventMeta`, which the client's retry resumes from as `lastEventId`), a resend of a known run id tails it instead of running it again (`seenRun`).
