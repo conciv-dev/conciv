@@ -15,7 +15,7 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {mapValues, memoize, once} from 'es-toolkit'
-import {bundledLanguagesInfo} from 'shiki/langs'
+import {bundledLanguages, bundledLanguagesInfo} from 'shiki/langs'
 import CodeXml from 'lucide-solid/icons/code-xml'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
@@ -447,8 +447,7 @@ const codeBlockView = memoize((language: string): FenceView => (props) => (
 ))
 
 function highlightableLanguage(language: string): string {
-  backendReadyTick()
-  return ensureBackend()?.isSupported(language) ? language : 'text'
+  return Object.hasOwn(bundledLanguages, language) ? language : 'text'
 }
 
 const MarkdownStreamingContext = createContext<() => boolean>(() => false)
