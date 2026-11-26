@@ -4,25 +4,9 @@
 
 Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand asset lookup, GitHub star count, the try-it session server functions and live widget mounting, and React media-query hooks.
 
-## Interface
-
-- `source`, `markdownPathToSlugs`, `slugsToMarkdownPath`, `getLLMText` (`source.ts`): fumadocs loader over `content/docs`
-- `getTrySession` (GET), `dismissTry` (POST) (`try-session.functions.ts`): `createServerFn` handlers for the try-it token and dismissal cookies
-- `mountLiveWidget({widgetOpen, router})` (`mount-live-widget.ts`): loads `@conciv/embed` and composes the try-it plugin with its token, mounts the widget, and keeps the panel in step with the root `?try` param
-- `panelCommands` (`panel-commands.ts`): the site's event-bus client for the widget panel's `open`/`close`/`toggle` commands
-- `shouldAutoOpen`, `shouldDismissOnClose`, `tryButtonLabel` (`try-state.ts`)
-- `pairResponse(token, origin)` (`pair-text.ts`): markdown instructions for `npx @conciv/try --token <token>`
-- `renderOgImageResponse`, `OG_IMAGE_CACHE_HEADERS` (`og-render.server.ts`), `loadOgFonts` (`og-fonts.server.ts`), `buildOgTree` (`og-template.tsx`), `clampOgText`, `MAX_OG_TITLE_LENGTH`, `MAX_OG_DESCRIPTION_LENGTH` (`og-limits.ts`)
-- `seo` (`seo.ts`), `buildRootJsonLd`, `buildDocsBreadcrumb`, `buildDocsPageJsonLd` (`structured-data.ts`), `buildDocsHead` (`docs-head.ts`)
-- `SITE`, `DEFAULT_TITLE`, `DEFAULT_DESCRIPTION`, `docsPageUrl`, `docsOgImageUrl`, `canonicalHeadTags`, `buildSitemapXml` (`site-urls.ts`)
-- `brandAssetUrl`, `BRAND_COLOURS`, `LOGO_LAYOUTS`, `LOGO_FORMATS`, `downloadFiles`, `resolveTone` and related (`brand-assets.ts`)
-- `parseStarCount`, `formatStarCount`, `starsResponseSchema` (`star-count.ts`); `useStarCount` (`star-count-store.ts`)
-- `rootSearchSchema` (`search-schemas.ts`): `widget?: boolean`, `try?: 1`
-- `sourceAnnotations(root)`, `annotateSiteFile` (`source-annotations.ts`): build-only Vite plugin adding source locations to JSX under `src/`
-- `docsRoute`, `gitConfig`, `repoUrl` (`shared.ts`), `baseOptions` (`layout.shared.tsx`), `cn` (`utils.ts`), `useIsMobile`, `useMediaQuery`, `useReducedMotion`, `easeOut`, `gsapEaseOut`
-
 ## Invariants
 
+- `mount-live-widget.ts`: the widget is `@conciv/app` with `@conciv/plugin-try-it` composed in, all loaded by dynamic import.
 - `try-session.functions.ts:getTrySession`: the token cookie must parse as a UUID, otherwise a new `crypto.randomUUID()` is issued
 - `try-session.functions.ts:writeTryCookie`: cookies are `httpOnly`, `secure`, `sameSite: 'lax'`, 24 h
 - `try-state.ts:shouldAutoOpen`: auto-opens only when not dismissed, no `?try`, no widget present and `widgetOpen`

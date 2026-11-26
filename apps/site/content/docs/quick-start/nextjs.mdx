@@ -3,10 +3,10 @@ title: Next.js
 description: Add conciv to a Next.js app.
 ---
 
-Next.js needs three small wires: the config wrapper, the server register hook, and the client
-widget.
+Next.js needs three pieces: `withConciv` around your config, an `instrumentation.ts` that starts the engine, and an
+`instrumentation-client.ts` that adds the widget.
 
-<Tabs items={['init', 'Manual']}>
+<Tabs items={['init', 'By hand']}>
 
 <Tab value="init">
 
@@ -14,16 +14,14 @@ widget.
 npx @conciv/cli@latest init
 ```
 
-init detects Next.js from your package.json, installs `@conciv/it` with your package manager, wraps
-your next config with `withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts`.
-If it cannot prove the shape of your config, it prints the exact snippet to paste instead.
-
-init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
-`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
+init finds Next.js in your `package.json`, installs `@conciv/it`, wraps the default export of your next config with
+`withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts` in the project folder. It does not
+overwrite an instrumentation file that already holds something else. If it cannot read the shape of your config, it
+prints the snippet to paste instead. See [Quick start](/docs/quick-start) for what it asks.
 
 </Tab>
 
-<Tab value="Manual">
+<Tab value="By hand">
 
 <Steps>
 <Step>
@@ -37,8 +35,6 @@ init prints the whole plan and asks once before it writes anything; `--yes` appr
 ```bash
 pnpm add -D @conciv/it
 ```
-
-Under `trustPolicy: no-downgrade`, add `trustPolicyExclude: ['solid-js']` to your `pnpm-workspace.yaml`: Solid 1.x releases are published without provenance and Solid 2 releases with it, and pnpm compares trust by publish date.
 
 </Tab>
 
@@ -74,6 +70,8 @@ const nextConfig: NextConfig = {}
 export default withConciv(nextConfig)
 ```
 
+Options go in the second argument of `withConciv`. See [Configuration](/docs/configuration).
+
 </Step>
 <Step>
 
@@ -87,30 +85,45 @@ export {register} from '@conciv/it/plugin/nextjs'
 import '@conciv/it/plugin/nextjs/widget'
 ```
 
-</Step>
-<Step>
-
-### Run and open
-
-```bash
-next dev
-```
-
-Open the app and click the conciv button.
+Put them in the folder that holds your `app` or `pages` folder: the project root, or `src/`.
 
 </Step>
 </Steps>
-
-These three files sit at your project root next to `next.config.ts`:
 
 <Files>
   <File name="next.config.ts" />
   <File name="instrumentation.ts" />
   <File name="instrumentation-client.ts" />
+  <Folder name="app" />
 </Files>
 
 </Tab>
 
 </Tabs>
+
+<Steps>
+<Step>
+
+### Start your dev server
+
+```bash
+next dev
+```
+
+`withConciv` picks the engine port when Next.js loads your config, and `register` starts the engine on it. See
+[Configuration](/docs/configuration#port) for how the port is chosen.
+
+</Step>
+<Step>
+
+### Open your app and log in
+
+Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
+See [Logging in](/docs/usage/logging-in).
+
+</Step>
+</Steps>
+
+`next build` and `next start` do not start the engine, and the widget does not start in a production build.
 
 Next: [Usage](/docs/usage) to see what the agent can do.

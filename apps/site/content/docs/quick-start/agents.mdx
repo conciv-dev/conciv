@@ -1,92 +1,50 @@
 ---
 title: Connect your agents
-description: Teach coding agents the conciv CLI.
+description: Let the coding agent in your own terminal see and drive your open conciv tabs.
 ---
 
-Agents use the conciv CLI directly. `conciv tools` is self-describing: agents run
-`conciv tools --help` to discover every command, and the CLI finds your running dev server itself.
-No MCP config, no addresses, nothing to maintain.
+The chat in the panel runs its own harness. Your own terminal agent, such as Claude Code or Codex in another window,
+is separate. Teach it the conciv CLI and connect it to conciv, and it can find your open conciv tabs and use the same
+tools the chat uses.
 
-<Tabs items={['init', 'Manual']}>
+`conciv init` does this for you. You can also do it by hand.
 
-<Tab value="init">
+## What init sets up
 
-```bash
-npx @conciv/cli@latest init
-```
+<TypeTable
+  type={{
+    'AGENTS.md': {
+      required: true,
+      type: 'every harness',
+      description:
+        'A marked conciv section between <!-- conciv:start --> and <!-- conciv:end -->, ending with a "Set up for:" line naming the harnesses you picked. Re-running init updates it in place, and shows it as already wired when it is current.',
+    },
+    'CLAUDE.md': {
+      required: true,
+      type: 'claude',
+      description:
+        'The same section when you keep a CLAUDE.md that does not import AGENTS.md. With claude picked and no CLAUDE.md, init creates one holding @AGENTS.md.',
+    },
+    '.conciv/claude-connect': {
+      required: true,
+      type: 'claude',
+      description:
+        "A Claude Code plugin, conciv-connect, with a conciv skill and an MCP bridge, installed with Claude Code's plugin manager for this project only.",
+    },
+    'conciv-hub': {
+      required: true,
+      type: 'claude, codex, gemini-cli, opencode',
+      description: "An MCP server added to that agent's own config, one per agent you picked to connect.",
+    },
+  }}
+/>
 
-init scans for installed harnesses (claude, codex, gemini-cli, opencode, pi) and lists what it found in the plan
-it prints before doing anything - `● claude` for a harness it will teach, `○ codex (not found)` for
-one that is not installed. Pick `Adjust` at the prompt to choose the harnesses in a multiselect.
+The section in `AGENTS.md` tells the agent to use `conciv tools page ...` for anything in the running browser, and to
+run `conciv tools --help` for every command. If init cannot write it (for example the file has a start marker with no
+end marker), it prints the section as a card for you to paste.
 
-Approving the plan writes a marked conciv section into AGENTS.md (and CLAUDE.md if you keep one),
-whether or not any harness was found; the section names the harnesses you picked in a
-`Set up for:` line. Re-running init updates that section in place and reports it as
-`already wired` when it is current.
-
-claude is the one harness with a deeper integration: init generates the plugin files under
-`.conciv/claude-connect` and installs them through claude's native plugin manager, scoped to the
-project. If the claude CLI is not selected the step resolves as `skipped: not selected`, and if the
-plugin manager fails init prints the two commands to run yourself.
-
-init writes the marketplace, the plugin manifest, the MCP bridge, and a `conciv` skill that tells
-claude to reach for the conciv CLI before any browser MCP tool, but no `.mcp.json`: the conciv
-dev server writes that manifest when it connects to a claude session, so the plugin always points at
-the address that is actually serving.
-
-init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
-`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
-
-</Tab>
-
-<Tab value="Manual">
-
-### Teach your agents the conciv CLI
-
-Paste this section into AGENTS.md (and CLAUDE.md if you keep one):
-
-```md
-<!-- conciv:start -->
-
-## conciv
-
-This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (`conciv tools page ...`). Use browser MCP tools only when a conciv command cannot do what you need.
-
-### When to use conciv instead of the browser MCP
-
-Use the browser MCP for plain navigation, clicks and screenshots. For anything about why the page
-looks or behaves the way it does, use conciv first. Every command prints JSON. Start with
-`conciv tools page snapshot` to get a ref or a selector for the element you care about.
-
-- Which component rendered an element, and the source file and line: `conciv tools page locate --selector <selector>`
-- Props, state, hooks and context of a live component: `conciv tools page inspect --selector <selector>`
-- Every mounted instance of a component by name: `conciv tools page find <ComponentName>`
-- A value that stays stale, a list that does not refresh, cached data: `conciv tools page inspect --name <ComponentName>`, then `conciv tools page eval <expression>` to read the store or query cache on `window`
-- An element that cannot be clicked or is not visible: `conciv tools page query --selector <selector>` for its box and styles, `conciv tools page eval <expression>` with `getComputedStyle` and `elementFromPoint`
-- Browser console errors and warnings: `conciv tools page console`
-- Unexpected re-renders or a memo that never updates: `conciv tools page track --action start`, reproduce, then `conciv tools page track --action report [--name <ComponentName>]`, then `conciv tools page track --action stop`
-- Module graph and transformed source: `conciv plugin call server graph --data '{"file":"<file>"}'`, `conciv plugin call server transform --data '{"url":"<url>"}'`
-
-Run `conciv tools --help` for every command. Every command needs the project's conciv dev server running.
-
-### MCP sandbox
-
-conciv is also connected via MCP. Capabilities are discovered with the `discover_tools` tool, never a static list.
-
-<!-- conciv:end -->
-```
-
-### Install the conciv claude plugin
-
-The plugin files are generated, not hand-written, so this one piece goes through init:
-
-```bash
-npx @conciv/cli@latest init
-```
-
-Pick claude at the prompt. init writes `.conciv/claude-connect`, including the `conciv` skill, and installs the
-plugin for you.
-Run these commands yourself only if init reports the step as manual:
+The Claude Code plugin's bridge reads the engine's address from `.conciv/mcp-endpoint.json`, which the engine writes
+when it starts. If the plugin install fails, init prints the commands to run yourself:
 
 ```bash
 claude plugin marketplace add .conciv/claude-connect
@@ -94,11 +52,43 @@ claude plugin install conciv-connect@conciv --scope local
 claude plugin update conciv-connect@conciv --scope local
 ```
 
-init writes no `.mcp.json` under the plugin. The conciv dev server writes that manifest when it
-connects to a claude session, so the plugin points at the address that is actually serving.
+## Connect by hand
 
-</Tab>
+`conciv mcp connect` adds `conciv-hub` to that agent's MCP config. It takes `claude`, `codex`, `gemini-cli` or
+`opencode`.
 
-</Tabs>
+```bash
+npx @conciv/cli@latest mcp connect claude
+```
 
-Next: [Usage](/docs/usage) to see what the agent can do.
+On success it prints `{"ok":true,"data":{"connected":"claude"}}`.
+
+<TypeTable
+  type={{
+    'mcp connect <agent>': {required: true, type: 'command', description: 'Adds conciv to that agent CLI.'},
+    'mcp disconnect <agent>': {
+      required: true,
+      type: 'command',
+      description:
+        'Stops conciv answering that agent and removes conciv from that agent CLI. For opencode the entry stays in opencode.json, and conciv refuses it until you connect again.',
+    },
+    'mcp list': {required: true, type: 'command', description: 'The agents connected to conciv.'},
+    'mcp serve --agent <agent>': {
+      required: true,
+      type: 'command',
+      description:
+        'The MCP server the agent runs over stdio. connect registers it for you as npx -y @conciv/cli@<version> mcp serve --agent <agent>; you do not run it yourself.',
+    },
+  }}
+/>
+
+The connected agent gets three MCP tools: `list_tabs` lists the open conciv tabs of every running dev server on this
+machine, and `execute_typescript` and `discover_tools` run on the tab you name with `tab`.
+
+The panel shows the same connections: a **Connected agents** row above the composer, and a **Connect agents** menu in the
+composer toolbar.
+
+## Letting an agent in
+
+By default a connected agent can use any open tab with no question. Set `hubAccess: 'project'` to have the tab ask
+first. See [Configuration](/docs/configuration) and [Approvals](/docs/usage/approvals).

@@ -1,86 +1,221 @@
 ---
 title: Configuration
-description: The conciv() options and the common ways to set them.
+description: Every conciv option, its default, and the environment variables that set some of them.
 icon: Settings
 ---
 
-Pass options to the plugin. Every field is optional.
+Pass options where you add conciv. Every option is optional.
 
 ```ts title="vite.config.ts"
-import conciv from '@conciv/it/plugin/vite'
-
-conciv({
-  harness: 'claude',
-  enabled: process.env.NODE_ENV !== 'production',
-})
+conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}})
 ```
+
+Next.js takes them as the second argument, `withConciv(nextConfig, options)`. webpack and Rspack take them as the
+plugin's argument, `conciv.default(options)` in a CommonJS config.
 
 ## Options
 
 <TypeTable
   type={{
-    enabled: {type: 'boolean', default: 'true', description: 'Mount the agent. Gate it on dev mode in real apps.'},
-    harness: {type: 'string', default: '"claude"', description: 'Harness adapter id, such as claude or codex.'},
-    systemPrompt: {type: 'string', default: 'built-in', description: 'Appended to each agent turn.'},
-    previewId: {type: 'string', default: '"local"', description: 'Correlates a resumable session.'},
-    sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
+    enabled: {
+      type: 'boolean',
+      default: 'true',
+      description: 'false turns conciv off: no engine starts and no widget is added.',
+    },
+    harness: {
+      type: 'string',
+      default: '"claude"',
+      description: 'The harness a new chat starts with: claude, codex, opencode, gemini-cli or pi. See Harnesses.',
+    },
     port: {
       type: 'number',
-      default: 'auto; on Next.js, webpack and Rspack, a port picked per project, from 24170 up',
-      description:
-        'Preferred engine port. With no port, Next.js, webpack and Rspack prefer the port the project last used, else one picked from the project folder (one of 1000 from 24170 up), so two projects rarely ask for the same port. When it is taken, the engine falls back to a free port, so a second dev server still boots. The Vite dev server falls back when the engine starts; the Next.js integration and the webpack/Rspack plugin pick the free port before they build the widget, so the widget and the engine always use the same port.',
+      default: 'see below',
+      description: 'The engine port.',
     },
-    stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
+    widget: {
+      type: '{modal?, quickTerminal?} | false',
+      default: 'both layouts on',
+      description:
+        'The two layouts. false adds no widget to the page; the engine still runs, for a widget you render yourself.',
+    },
+    plugins: {
+      type: '(string | [string, options])[]',
+      default: '[]',
+      description:
+        'Plugins to load: a package name or a path, or [name, options] where every option value is JSON. See Plugins.',
+    },
+    systemPrompt: {
+      type: 'string | boolean',
+      default: "conciv's built-in prompt",
+      description: 'The prompt conciv gives the harness. See below.',
+    },
+    permission: {
+      type: "'allow' | 'deny' | 'ask' | object",
+      default: 'none',
+      description: 'Permission rules in short form. See below.',
+    },
+    permissions: {
+      type: '{action, resource, effect}[]',
+      default: '[]',
+      description: 'Permission rules in full form, applied after permission.',
+    },
+    policies: {
+      type: '{action, resource, effect}[]',
+      default: '[]',
+      description:
+        'Rules that allow or deny whole kinds of use, such as plugin.use for a plugin. effect is allow or deny.',
+    },
+    hubAccess: {
+      type: '"open" | "project"',
+      default: '"open"',
+      description:
+        'Whether an agent connected from outside, such as your own terminal agent, has to be allowed in the tab first. See Connect your agents.',
+    },
+    sessionId: {
+      type: 'string',
+      default: 'none',
+      description:
+        'A conciv session id (ses_...). The engine makes sure this session exists when it starts. Any other value stops the engine with an error.',
+    },
+    claudeSessionId: {
+      type: 'string',
+      default: 'none',
+      description:
+        'A harness session id: up to 128 letters, digits, "_" and "-". The engine makes sure a conciv session for it exists when it starts.',
+    },
+    stateRoot: {
+      type: 'string',
+      default: 'the project root',
+      description: 'The folder that holds the .conciv state folder.',
+    },
+    homeDir: {
+      type: 'string',
+      default: 'your platform data folder',
+      description: 'Where conciv keeps the data it shares across projects, such as the agents you connected.',
+    },
     devEndpointDir: {
       type: 'string',
       default: '~/.conciv',
-      description: 'Directory holding dev-endpoint.json, the pairing file the iOS SDK reads.',
-    },
-    widget: {
-      type: 'object',
-      default: 'both layouts on',
-      description: 'Widget layouts: modal (corner panel) and quickTerminal (top drop-down). Both on by default.',
+      description: 'The folder for dev-endpoint.json, the file the iOS SDK reads to find the engine.',
     },
   }}
 />
 
-<Callout>`claudeSessionId` is deprecated. Use `sessionId`.</Callout>
+### port
 
-## Common tasks
+<Tabs items={['Vite', 'Next.js, webpack and Rspack']}>
+  <Tab value="Vite">
+    Without `port`, the engine takes the port it used last time in this project, or a free one. With `port`, the engine
+    tries it and takes a free port when it is in use, with the warning `conciv: port <port> is already in use, the
+    engine is listening on http://127.0.0.1:<other> instead`.
+  </Tab>
+  <Tab value="Next.js, webpack and Rspack">
+    The port is picked before the widget is built, so the widget and the engine use the same one. It is `port` if you
+    set it, else the port the engine used last time in this project, else a port picked from the project folder (one
+    of 1000 from 24170 up), so two projects rarely ask for the same one. When that port is in use, a free port is taken
+    instead.
+  </Tab>
+</Tabs>
 
-### Gate to dev only
+The engine listens on `127.0.0.1` only, and writes the port it took to `.conciv/server.json`.
 
-```ts
-conciv({enabled: process.env.NODE_ENV !== 'production'})
-```
+### widget
 
-### Switch harness
-
-```ts
-conciv({harness: 'codex'})
-```
-
-See [Harnesses](/docs/harnesses) for the full list.
-
-### Widget layouts
-
-Two layouts ship, both on by default: the corner `modal` and the top drop-down `quickTerminal`.
-Configure or disable each under `widget`.
-
-```ts
-conciv({widget: {modal: {position: 'top-left'}}}) // move the corner button
-conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // set the hotkey(s)
-conciv({widget: {quickTerminal: false}}) // corner modal only
-conciv({widget: {modal: false}}) // quick terminal only
-conciv({widget: false}) // no widget on the page, the engine still starts
-```
-
-`modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left`,
-`bottom-right` (default), and the button is also draggable. See the
-[Quick Terminal](/docs/usage/quick-terminal) guide for the drop-down layout.
-
-### Custom system prompt
+`modal` is the corner panel and its button. `quickTerminal` is the sheet that drops from the top of the page. Both are
+on unless you set them to `false`.
 
 ```ts
-conciv({systemPrompt: 'Prefer Tailwind classes over inline styles.'})
+conciv({widget: {modal: {position: 'top-left'}}})
+conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}})
+conciv({widget: {quickTerminal: false}})
+conciv({widget: {modal: false}})
 ```
+
+`modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left` or `bottom-right`
+(the default). The quick terminal hotkey is ``Mod+` `` by default, and a `hotkey` set here replaces it. See
+[Quick terminal](/docs/usage/quick-terminal).
+
+`widget: false` keeps the engine and adds nothing to the page. Use it when you render the widget yourself with
+`<ConcivWidget />` from `@conciv/react`, `@conciv/preact` or `@conciv/solid`, so the page does not get two:
+
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [react(), conciv({widget: false})],
+})
+```
+
+### plugins
+
+Each entry is a package name, a path (relative paths start at the project folder), or `[name, options]`. A name with a
+leading `-` removes that plugin. See [Plugins](/docs/plugins).
+
+```ts
+conciv({
+  plugins: [
+    [
+      '@conciv/plugin-ios',
+      {
+        projectRoot: fileURLToPath(new URL('./ConcivDemo', import.meta.url)),
+        bundleId: 'dev.conciv.ConcivDemo',
+        simulator: 'iPhone 17 Pro',
+        buildMode: 'swiftc',
+        extraSourceDirs: ['../ConcivWidget/Sources/ConcivWidget'],
+      },
+    ],
+  ],
+})
+```
+
+### systemPrompt
+
+<TypeTable
+  type={{
+    'unset or true': {required: true, type: 'boolean', description: "conciv's built-in prompt."},
+    'a string': {required: true, type: 'string', description: "Your string, in place of conciv's built-in prompt."},
+    false: {required: true, type: 'boolean', description: 'No conciv prompt.'},
+  }}
+/>
+
+The engine writes the prompt to `.conciv/chat-system-prompt.txt` when it starts and gives it to the harness. Claude
+gets it appended to Claude Code's own system prompt.
+
+### permission and permissions
+
+With nobody at the tab to answer a permission card, decide ahead of time:
+
+```ts
+conciv({permission: {page_eval: 'allow'}})
+```
+
+`permission` takes three short forms: one effect for every action (`permission: 'allow'`), one effect per action
+(`permission: {page_eval: 'deny'}`), or one effect per action and resource
+(`permission: {page_eval: {'document.title': 'allow'}}`). `permissions` takes the full rules,
+`[{action, resource, effect}]`, with `allow`, `deny` or `ask` as the effect. The short forms come first and
+`permissions` after them. See [Approvals](/docs/usage/approvals).
+
+### policies
+
+```ts
+conciv({policies: [{action: 'plugin.use', resource: '*/greeter-promise', effect: 'deny'}]})
+```
+
+The actions are `provider.use`, `tool.use`, `integration.connect`, `integration.use`, `mcp.use`, `skill.use`,
+`plugin.use` and `websearch.use`.
+
+## Environment variables
+
+An option in the config wins over its variable.
+
+<TypeTable
+  type={{
+    CONCIV_HARNESS: {type: 'string', description: 'Sets harness.'},
+    CONCIV_STATE_ROOT: {type: 'string', description: 'Sets stateRoot.'},
+    CONCIV_SESSION_ID: {type: 'string', description: 'Sets sessionId.'},
+    CONCIV_CLAUDE_SESSION_ID: {type: 'string', description: 'Sets claudeSessionId.'},
+    CONCIV_HOME: {type: 'string', description: 'Sets homeDir.'},
+  }}
+/>
