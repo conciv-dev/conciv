@@ -1,5 +1,4 @@
 import type {StorybookConfig} from 'storybook-solidjs-vite'
-import {TANSTACK_AI_SOLID_DEPS} from '@internal/vitest-config'
 
 const config: StorybookConfig = {
   stories: [
@@ -31,7 +30,6 @@ const config: StorybookConfig = {
       resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
       optimizeDeps: {
         include: [
-          ...TANSTACK_AI_SOLID_DEPS.map((dependency) => `@conciv/ui-kit-chat > ${dependency}`),
           '@tanstack/solid-virtual',
           '@tiptap/core',
           '@tiptap/pm/state',

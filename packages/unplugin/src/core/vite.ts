@@ -217,7 +217,6 @@ function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine
 }
 
 const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
-  '@conciv/ui-kit-chat > @conciv/ai > @tanstack/ai > partial-json',
   '@conciv/solid-diffs > @pierre/diffs > lru_map',
   '@conciv/ui-kit-chat > mermaid > @braintree/sanitize-url',
   '@conciv/ui-kit-chat > mermaid > cytoscape-cose-bilkent',
