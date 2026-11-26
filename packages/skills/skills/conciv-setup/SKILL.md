@@ -133,7 +133,7 @@ is mounted. `rebind` does nothing unless the widget is mounted. `ConcivInit` is
 
 `mountConciv(plugins?)` is the one-shot form: it appends a `[data-conciv-script-root]` div to
 `document.body` and mounts there, and does nothing when that element already exists or inside a
-capture frame (`packages/app/src/mount.ts:134-147`). It returns no handle. conciv.dev mounts its own
+capture frame (`packages/app/src/mount.ts:132-146`). It returns no handle. conciv.dev mounts its own
 widget this way (`apps/site/src/lib/mount-live-widget.ts:65`).
 
 `@conciv/react`'s `ConcivWidget` is the reference wrapper: it creates the handle in an effect, mounts it
