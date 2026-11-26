@@ -458,7 +458,12 @@
     "bippy",
     "react-grab"
   ],
-  "ignoreUnresolvedImports": ["collections/*", "./migrations.gen.js", "./home-migrations.gen.js"],
+  "ignoreUnresolvedImports": [
+    "collections/*",
+    "./migrations.gen.js",
+    "../../src/db/migrations.gen.js",
+    "./home-migrations.gen.js"
+  ],
   "publicPackages": [
     "@conciv/harness",
     "@conciv/backend",

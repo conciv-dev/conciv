@@ -63,20 +63,29 @@ jobs:
           node-version: 26
       # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
       # artifact under any name, and a repo-wide latest-by-name lookup would let a
-      # fork PR poison the baseline. Resolve from the latest completed main-push
-      # run of this workflow that uploaded one instead, and bound the download
+      # fork PR poison the baseline. Resolve from the latest completed run of this
+      # workflow on the same-repo PR branch (its own packages, so a rename or a new
+      # heavy suite is weighed from the second run on), else the latest main push,
+      # both filtered to runs from this repository, and bound the download
       # (scheduling data only, a few KB). Completed, not successful: the summary job
       # publishes timings on a red run too (a cancelled run is skipped: its shards stopped early), and a success-only lookup froze the
       # baseline at the last green main for as long as main stayed red.
       - name: Fetch shard timings baseline
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           url=""
-          for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=10" --jq '.workflow_runs[] | select(.conclusion != "cancelled") | .id'); do
-            url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
-            if [ -n "$url" ] && [ "$url" != "null" ]; then break; fi
-          done
+          find_timings() {
+            for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=$1&event=$2&status=completed&per_page=10" --jq ".workflow_runs[] | select(.conclusion != \"cancelled\" and .head_repository.full_name == \"${GITHUB_REPOSITORY}\") | .id"); do
+              url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
+              if [ -n "$url" ] && [ "$url" != "null" ]; then return; fi
+            done
+            url=""
+          }
+          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ] && [ -n "$HEAD_BRANCH" ]; then find_timings "$HEAD_BRANCH" pull_request; fi
+          if [ -z "$url" ]; then find_timings main push; fi
           if [ -n "$url" ] && [ "$url" != "null" ]; then
             curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url" || true
             unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
@@ -251,17 +260,13 @@ jobs:
         with:
           pattern: untested-sources
           path: untested-sources
-      - run: node packages/publish/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --untested untested-sources --coverage-output coverage
-        if: github.event_name == 'pull_request'
       - run: node packages/publish/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --untested untested-sources --coverage-output coverage --timings ci-test-timings.json
-        if: github.event_name == 'push'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: coverage/
           if-no-files-found: ignore
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: github.event_name == 'push'
         with:
           name: ci-test-timings
           path: ci-test-timings.json

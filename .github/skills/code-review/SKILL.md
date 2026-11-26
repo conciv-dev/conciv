@@ -12,7 +12,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 ## Code laws
 
 - Functions, not classes. Sole exception: the local `DelegatingTextAdapter` subclass behind
-  `makeTextAdapter` in `packages/ai/src/adapters/adapters.ts`, which the library's typing
+  `makeTextAdapter` in `packages/harness/src/adapters/adapters.ts`, which the library's typing
   forces (`BaseTextAdapter` is the imported base class it extends).
 - No IIFEs unless explicitly required.
 - ZERO code comments in TS/JS. The `conciv/no-comments` lint rule autofix-deletes them, so code must
@@ -186,15 +186,15 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 ## Boundaries and security
 
 - Every untrusted input is zod-validated where it enters, not just request bodies. RPC procedures
-  declare their input schema with `oc.input(...)` in `packages/contract/src/contract.ts`; a plain
+  declare their input schema with `oc.input(...)` in `packages/protocol/src/contract.ts`; a plain
   Hono route parses each untrusted piece it reads (body, route params, query, headers) through a zod
-  schema (e.g. `NativeFileSchema.safeParse(c.req.param('file'))` in
-  `packages/core/src/api/native-page.ts`). Flag a new route or procedure that consumes any of them
+  schema (e.g. `ChunkFileSchema.safeParse(c.req.param('file'))` in
+  `packages/backend-defaults/src/engine/api/widget-page.ts`). Flag a new route or procedure that consumes any of them
   unvalidated.
 - The core dev server binds `127.0.0.1` only.
 - Never log or commit credentials/tokens.
-- Loosening the sandbox policy (`defineSandboxPolicy({default: 'ask'})` in `packages/ai/src/server/chat-server.ts`) or
-  the session permission rules (`packages/core/src/runtime/permission-cards.ts`): keep them conservative.
+- Loosening the sandbox policy (`defineSandboxPolicy({default: 'ask'})` in `packages/backend-defaults/src/ai/chat-server.ts`) or
+  the session permission rules (`packages/backend-defaults/src/engine/runtime/permission-cards.ts`): keep them conservative.
 - Vendored third-party code, or patches to dependencies.
 
 ## Whiteboard landmine
