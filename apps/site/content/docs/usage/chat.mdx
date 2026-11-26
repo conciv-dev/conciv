@@ -1,10 +1,17 @@
 ---
 title: Chat
-description: Talk to the agent about the page you are looking at, and manage its sessions.
+description: Ask the agent about the page you are on, queue your next message, and switch sessions and models.
 ---
 
-The chat talks to the harness, running in your project. When you say "this" or "here", conciv's instructions tell the
-agent to read the rendered page before it edits anything.
+Type what you want in the composer and press Enter. Say "this" or "here" and the agent reads the page you are on before
+it changes anything:
+
+```text
+Why is this list empty when I am logged out?
+```
+
+The agent runs in your project, through your own agent CLI (Claude Code by default). See
+[Harnesses](/docs/harnesses) for the others.
 
 <ImageZoom
   src="/screenshots/chat-thread.png"
@@ -13,48 +20,43 @@ agent to read the rendered page before it edits anything.
   height={1080}
 />
 
-## The composer
+## Send a message
 
-<TypeTable
-  type={{
-    Enter: {required: true, type: 'key', description: 'Sends the message.'},
-    'Shift Enter': {required: true, type: 'key', description: 'A new line.'},
-    Escape: {required: true, type: 'key', description: 'Stops the running turn.'},
-    '/': {
-      required: true,
-      type: 'key',
-      description: "Opens the commands: conciv's /model, a plugin's commands, and the harness's own on Claude.",
-    },
-    '@': {
-      required: true,
-      type: 'key',
-      description: 'Mentions a skill, an agent, a tool, another session or a project file.',
-    },
-  }}
-/>
+- **Enter** sends the message.
+- **Shift Enter** starts a new line.
+- **Escape** stops the agent while it works.
 
-The buttons beside it:
+Your draft is saved for each session, so it comes back after a reload.
 
-- **Add an attachment**: add a file, or paste one. Images attach only on Claude; the other harnesses take no images.
-- **Select an element from the page**: click an element on your page to attach it, with its source file when conciv
-  can find it. See [Page control](/docs/usage/page-control).
-- **Start a new session**.
-- **Compress the conversation**: asks the agent to shorten the conversation so far. Claude runs its own `/compact`;
-  the other harnesses get a prompt to summarize the key decisions, the current state and the open threads.
-- **Connect agents**: shown when an agent CLI on your machine can be connected to this tab.
-- **Stop generating**: while a turn runs.
+## Attach a file or an element
 
-A plugin can add its own buttons here, such as the whiteboard's **Whiteboard** and **Comment**.
+Click **Add an attachment** to add a file, or paste one into the composer. Images reach the agent only on Claude.
 
-A message holds at most 16 parts, its text and its attachments together; past that, conciv says "Too many
-attachments. Remove some and send again." Your draft is saved per session on the engine, so it comes back after a
-reload.
+Click **Select an element from the page**, then click an element in your app. It is pinned to your message, with its
+source file when conciv can find it:
 
-## While a turn runs
+```text
+Make this button match the primary button style.
+```
 
-What you send while the agent works waits in a queue under the composer. The first 3 show, with a count for the rest.
-Each has **Steer**, which sends it now, and **Remove**. **Stop generating** stops the turn and puts the queued messages
-back in your draft, unsent.
+See [Page control](/docs/usage/page-control) for what the agent does with it.
+
+## Use commands and mentions
+
+Type `/` to open the commands. You get conciv's own, such as `/model`, plus those of your plugins. On Claude you also
+get Claude Code's own commands.
+
+Type `@` to mention something by name: a skill, an agent, a tool, another session or a file in your project. Pick it
+from the list and it joins your message.
+
+## Send while the agent works
+
+A message you send while the agent works waits in a queue under the composer. Each queued message has two buttons:
+
+- **Steer** sends it now, into the running turn.
+- **Remove** drops it.
+
+**Stop generating** stops the turn. The queued messages go back into your draft, unsent.
 
 <ImageZoom
   src="/screenshots/chat-queue.png"
@@ -63,26 +65,18 @@ back in your draft, unsent.
   height={1080}
 />
 
-## When the agent asks you [#generative-ui]
+## Answer the agent's questions [#generative-ui]
 
-The agent can put real controls in the thread instead of asking in plain text. It calls its `conciv_ui` tool with one
-of four kinds:
+When the agent needs a decision, it puts a card in the thread instead of asking in plain text. A card can hold:
 
-<TypeTable
-  type={{
-    choices: {
-      required: true,
-      type: 'kind',
-      description: 'Options to pick from. It can let you pick several, or type your own under Other.',
-    },
-    confirm: {required: true, type: 'kind', description: 'A yes or no question.'},
-    diff: {required: true, type: 'kind', description: 'A proposed change to apply.'},
-    form: {required: true, type: 'kind', description: 'Fields to fill in.'},
-  }}
-/>
+- options to pick from, one or several, with an **Other** field for your own answer
+- a yes or no question
+- a proposed change to apply
+- a few fields to fill in
 
-The agent waits up to two minutes for your answer. After that it goes on without it, and your answer reaches it as a
-later message.
+```text
+Add a dark mode toggle. Ask me where it should go.
+```
 
 <ImageZoom
   src="/screenshots/chat-choices.png"
@@ -91,14 +85,19 @@ later message.
   height={1080}
 />
 
-## Sessions
+Answer within two minutes and the agent goes on with your answer. Later, it goes on without it, and your answer
+arrives as a new message.
 
-The session picker lists your sessions under Today, Yesterday and Earlier, and searches them on the engine. Turn on
-**All projects** to search beyond this project. It lists the harness's own sessions from this project too, such as a
-Claude Code session you started in your terminal, when the harness keeps them (see [Harnesses](/docs/harnesses)).
-Rest on a row, with the pointer or the arrow keys, for a preview. A match from another project offers **Copy resume
-command**, the command that resumes it there. Rename a session with the **Rename session** button beside its title in the panel
-header.
+## Find a session
+
+Open the session picker to see your sessions under Today, Yesterday and Earlier. Type to search them.
+
+- Turn on **All projects** to search your other projects too.
+- Rest on a row, with the pointer or the arrow keys, to preview it.
+- A session from another project has **Copy resume command**, to continue it there.
+
+The list also holds sessions you started in your agent CLI, outside the browser, when the harness keeps them. Rename
+the current session with **Rename session** in the panel header.
 
 <ImageZoom
   src="/screenshots/chat-session-picker.png"
@@ -107,11 +106,12 @@ header.
   height={1080}
 />
 
-## Model and harness
+## Switch the model
 
-The model menu lists the models of every harness conciv found, and the effort levels of the current model when it has
-them. Picking a model of another harness switches the session to that harness. In a chat that already has messages,
-conciv asks first: "Switch harness?", with an estimate of how many tokens of history it sends.
+Open the model menu. It lists the models of every agent CLI conciv found, and the effort levels of the current model.
+
+Picking a model of another CLI switches the session to that CLI. If the chat already has messages, conciv asks first,
+with an estimate of how much history it sends along.
 
 <ImageZoom
   src="/screenshots/chat-model-menu.png"
@@ -120,9 +120,39 @@ conciv asks first: "Switch harness?", with an estimate of how many tokens of his
   height={1080}
 />
 
-## The Terminal tab
+## Shorten a long chat
 
-On a harness that has a terminal (Claude today), the panel has a pinned **Terminal** tab: the harness CLI itself, running
-in your project for this session. The CLI starts the first time you open the tab. Escape with the focus in the
-terminal interrupts the CLI when it is busy. The tab comes from the terminal plugin, which conciv ships and always
-loads.
+Click **Compress the conversation** when a chat gets long. conciv asks the agent to sum up the decisions, the current
+state and the open threads. On Claude it runs Claude Code's own `/compact` instead.
+
+## Use the Terminal tab
+
+On Claude, the panel has a pinned **Terminal** tab. It runs Claude Code itself, in your project, for this session.
+
+The CLI starts the first time you open the tab. Press Escape in the terminal to interrupt it while it works.
+
+## Details
+
+<Accordions type="single">
+  <Accordion title="Too many attachments. Remove some and send again.">
+    A message holds at most 16 parts, its text and its attachments together. Remove some attachments, or send them in
+    two messages.
+  </Accordion>
+  <Accordion title="Connect agents">
+    The **Connect agents** button shows when an agent CLI on your machine can join this tab. See [Connect your
+    agents](/docs/quick-start/agents).
+  </Accordion>
+  <Accordion title="Buttons from plugins">
+    A plugin can add its own buttons beside the composer. The whiteboard plugin adds **Whiteboard** and **Comment**.
+  </Accordion>
+  <Accordion title="Only some CLIs keep past sessions">
+    Sessions you started outside the browser show only when the harness keeps a history conciv can read. See
+    [Harnesses](/docs/harnesses).
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Page control](/docs/usage/page-control): point at an element and have it changed.
+- [Approvals](/docs/usage/approvals): what the agent asks before it acts.
+- [Quick terminal](/docs/usage/quick-terminal): the chat as a drop-down sheet with panes.
