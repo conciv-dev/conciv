@@ -8,6 +8,8 @@ export * from './solid.js'
 
 export * from './reactive.js'
 
+export * from './mount.js'
+
 export type {Context, SetupContext} from './context.js'
 
 export * as Plugin from './plugin.js'

@@ -14,6 +14,7 @@ export default defineConfig({
         '../ui-kit-terminal/src',
         '../ui-kit-tap/src',
         '../frontend-app-api/src',
+        '../frontend-plugin-api/src',
         '../ui-kit-chat-tools/src/core-cards',
         '../plugins/page/src',
         '../plugins/terminal/src',
