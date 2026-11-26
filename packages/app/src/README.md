@@ -5,7 +5,7 @@
 Mounts the conciv widget into a shadow root on the host page. `createConciv` (`mount.ts`) is the handle the framework wrappers and the plugin loader use; `mountConciv` is the plain-script entry; `native-entry.ts` is the iOS native-page entry; `builtins.ts` lists the browser plugins the widget ships.
 
 - `mount-impl.tsx:mountImpl` builds a `Platform` (the api base from `init`, else `window.__CONCIV_API_BASE__`, the `conciv-api-base` meta tag or a loopback or same-origin `?core=`; servers mode when there is none and plugins are given), makes the one engine connection of the mounted widget (`createBrowserEngine` of `@internal/frontend-defaults`) and renders `ConcivApp` from `@internal/frontend-defaults`.
-- `native-entry.ts` owns the scope of the `@conciv/plugin-ios` native service (`@conciv/plugin-ios/client` `makeNativeService`), composes its `setup` in as the `ios` plugin and hands its `grabProvider` to `createConciv`, and mounts the widget on `[data-conciv-native-root]` (or `document.body`).
+- `native-entry.ts` owns the scope of `@conciv/plugin-ios/builtins` `builtins`, composes its built-ins list in, hands its `grabProvider` and `apiBase` to `createConciv`, and mounts the widget on `[data-conciv-native-root]` (or `document.body`).
 - Outside a production build, `builtins.ts` adds the `conciv.simulation.ui` built-in (`@internal/frontend-defaults/drive`), the widget half of drive mode; it runs only when the engine lists that plugin.
 
 ## Invariants

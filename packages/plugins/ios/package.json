@@ -36,9 +36,9 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+    "./builtins": {
+      "types": "./dist/builtins.d.ts",
+      "import": "./dist/builtins.js"
     },
     "./package.json": "./package.json"
   },

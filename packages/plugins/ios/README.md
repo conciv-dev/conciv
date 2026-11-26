@@ -26,12 +26,11 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 
 - `./rpc`: the zod schemas of the versioned page and native messages (`PageToNativeSchema`, `NativeToPageSchema`,
   `BridgeMessageSchema`) and their types, the single source the Swift `BridgeMessages.swift` mirrors.
-- `./client`: `makeNativeService`, a scoped Effect that, on a page whose `window.webkit.messageHandlers.concivBridge`
-  exists, starts the bridge and returns the native service (`undefined` on any other page, which then gets nothing).
-  The service's `setup` is the browser part `@conciv/app`'s native page composes in as the `ios` plugin: a
-  `page.overlay` `Slot` that alerts when the app speaks bridge versions this widget does not support. Its
-  `grabProvider` picks native views through the bridge. `nativePageBase` derives the engine api base from the native
-  page's location.
+- `./builtins`: `builtins`, a scoped Effect that, on a page whose `window.webkit.messageHandlers.concivBridge`
+  exists, starts the bridge and returns the built-ins `@conciv/app`'s native page composes in (an empty list on any
+  other page): the `ios` plugin, a `page.overlay` `Slot` that alerts when the app speaks bridge versions this widget
+  does not support. Its `grabProvider` picks native views through the bridge (`undefined` off the bridge), and
+  `apiBase` is the engine api base derived from the native page's location.
 - Side effect: the service's scope owns `window.__concivNative`, the `conciv:panel-toggled` listener, the panel
   event-bus client and the fibers that follow the bridge; it posts to the app through the handler and dispatches
   `conciv:rebind` when the app hands over a new api base. Closing the scope removes all of them.
