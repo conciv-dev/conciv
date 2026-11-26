@@ -22,7 +22,7 @@ import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {SessionId} from '@conciv/types/chat-types'
-import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from './page-types.js'
+import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema, type PageQueueResult} from './page-types.js'
 import {ACCESS, disconnectedBeforeDispatch, reconcilePagePermissions, selectTarget} from './machine.js'
 import {PageQueue} from './queue.js'
 import type {GrabStore} from './grabs.js'
@@ -162,17 +162,16 @@ function timedOut(action: Work, timeoutMs: number) {
 
 const SessionNotFound = Predicate.isTagged('Session.NotFoundError')
 
-export function queueJobNotice(
-  job: {readonly id: string; readonly status: string; readonly output?: string; readonly error?: string},
-  queueId: string,
-) {
-  const state = job.status === 'running' ? 'cancelled' : job.status
-  const body = job.status === 'running' ? 'Interrupted by server restart.' : (job.output ?? job.error ?? state)
+function queueJobNotice(jobID: string, result: PageQueueResult) {
   return {
-    description: `Queued page actions ${state}`,
-    text: body,
-    metadata: {source: 'page-queue', jobID: job.id, queueId, state},
+    description: `Queued page actions ${result.status}`,
+    text: queueNotice(result),
+    metadata: {source: 'page-queue', jobID, queueId: result.queueId, state: result.status},
   }
+}
+
+function queueJobId(queueId: string) {
+  return `pq_${queueId}`
 }
 
 const withLane = <K, A, E>(lanes: RcMap.RcMap<K, Semaphore.Semaphore>, key: K, effect: Effect.Effect<A, E>) =>
@@ -402,10 +401,9 @@ export const make = Effect.fn('PageConnection.make')(function* (
     play: playQueue,
     journal: (sessionId, change) => records.append(sessionId, change),
     started: (entry) =>
-      Effect.gen(function* () {
-        const id = `pq_${entry.queueId}`
-        const job = yield* ctx.job.start({
-          id,
+      ctx.job
+        .start({
+          id: queueJobId(entry.queueId),
           type: 'page-queue',
           title: 'Queued page actions',
           metadata: {toolCallId: entry.toolCallId, origin: entry.origin},
@@ -413,27 +411,34 @@ export const make = Effect.fn('PageConnection.make')(function* (
           background: true,
           run: Deferred.await(entry.done).pipe(Effect.map(queueNotice)),
         })
-        const notificationID = job.notificationID
-        if (entry.origin === 'hub' || notificationID === undefined) return
-        yield* Effect.gen(function* () {
-          const {info} = yield* ctx.job.wait({id})
-          if (!info || info.status === 'cancelled') return
-          yield* ctx.session
-            .synthetic({id: notificationID, sessionID: entry.sessionId, ...queueJobNotice(info, entry.queueId)})
-            .pipe(Effect.catchIf(SessionNotFound, () => Effect.void))
-          yield* ctx.job.completeBackground(notificationID)
-        }).pipe(
-          Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not reach its session`, cause)),
-          Effect.forkIn(work),
-        )
-      }).pipe(Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not start its job`, cause))),
+        .pipe(
+          Effect.asVoid,
+          Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not start its job`, cause)),
+        ),
+    delivered: (queueId) =>
+      ctx.job
+        .wait({id: queueJobId(queueId)})
+        .pipe(
+          Effect.flatMap(({info}) =>
+            info?.notificationID === undefined ? Effect.void : ctx.job.completeBackground(info.notificationID),
+          ),
+        ),
     finished: (entry) => {
-      if (entry.result === null) return Effect.void
       const {sessionId, queueId, toolCallId, result} = entry
+      if (result === null) return Effect.void
+      const notify = Effect.gen(function* () {
+        const {info} = yield* ctx.job.wait({id: queueJobId(queueId)})
+        if (info?.notificationID === undefined || info.status === 'cancelled') return
+        yield* ctx.session
+          .synthetic({id: info.notificationID, sessionID: sessionId, ...queueJobNotice(info.id, result)})
+          .pipe(Effect.catchIf(SessionNotFound, () => Effect.void))
+        yield* ctx.job.completeBackground(info.notificationID)
+      }).pipe(Effect.catchCause((cause) => Effect.logWarning(`Queue ${queueId} could not reach its session`, cause)))
       return Effect.forkIn(
         queues.settle(sessionId, [queueId]).pipe(
           Effect.andThen(registration.events.emit('queue.finished', {sessionId, queueId, toolCallId, result})),
           Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)),
+          Effect.andThen(entry.origin === 'hub' ? Effect.void : notify),
         ),
         work,
       ).pipe(Effect.asVoid)

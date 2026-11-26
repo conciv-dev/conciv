@@ -82,6 +82,7 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
   play: Play
   journal: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) => Effect.Effect<void, unknown>
   started: (entry: QueueEntry) => Effect.Effect<void>
+  delivered: (queueId: string) => Effect.Effect<void>
   finished: (entry: QueueEntry) => Effect.Effect<void>
   syncMs?: number
 }) {
@@ -199,6 +200,9 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
     const claimed = yield* claim(sessionId, queueId, waitMs)
     if (claimed.status === 'playing') return claimed
     yield* settle(sessionId, [queueId])
+    yield* deps
+      .delivered(queueId)
+      .pipe(Effect.catchCause((cause) => Effect.logWarning(`Reporting queue ${queueId} failed`, cause)))
     return claimed
   })
 
