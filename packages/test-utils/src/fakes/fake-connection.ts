@@ -1,4 +1,4 @@
-import {call as callProcedure, isProcedure, ORPCError, type AnyRouter} from '@orpc/server'
+import {call as callProcedure, ORPCError, Procedure, type AnyRouter} from '@orpc/server'
 import {createORPCClient, type ClientLink} from '@orpc/client'
 import {
   createConnectionState,
@@ -32,7 +32,7 @@ function unauthorizedCall(): never {
 }
 
 function refusedTrust(error: unknown): boolean {
-  return error instanceof ORPCError && error.status === 401
+  return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
 }
 
 export type Access = {
@@ -75,7 +75,8 @@ export function fakeConnection(
   }
   const invoke = async (path: readonly string[], input: unknown, signal: AbortSignal | undefined): Promise<unknown> => {
     const procedure = lookup(router, path)
-    if (!isProcedure(procedure)) throw new ORPCError('NOT_FOUND', {message: `no procedure at ${path.join('.')}`})
+    if (!(procedure instanceof Procedure))
+      throw new ORPCError('NOT_FOUND', {message: `no procedure at ${path.join('.')}`})
     await access.up?.promise
     const sent = state.current.token
     if (path[0] !== 'auth' && !accepts(access, sent)) {

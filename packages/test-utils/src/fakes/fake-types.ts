@@ -1,4 +1,4 @@
-import type {ContractProcedure, InferSchemaInput, InferSchemaOutput} from '@orpc/contract'
+import type {ProcedureContract, InferSchemaInput, InferSchemaOutput} from '@orpc/contract'
 import type {contract, DraftRow} from '@conciv/protocol'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import type {ChatCommand, ChatModels} from '@conciv/types/chat-types'
@@ -10,19 +10,19 @@ export type Promisable<T> = T | Promise<T>
 export type Call = {readonly signal: AbortSignal | undefined}
 
 type Handler<P> =
-  P extends ContractProcedure<infer Input, infer Output, infer _Errors, infer _Meta>
+  P extends ProcedureContract<infer Input, infer Output, infer _Errors>
     ? (input: InferSchemaOutput<Input>, call: Call) => Promisable<InferSchemaInput<Output>>
     : never
 
 type Handlers<Router> = {
-  [Key in keyof Router]?: Router[Key] extends ContractProcedure<infer _I, infer _O, infer _E, infer _M>
+  [Key in keyof Router]?: Router[Key] extends ProcedureContract<infer _I, infer _O, infer _E>
     ? Handler<Router[Key]>
     : Handlers<Router[Key]>
 }
 
 export type FakeEngineHandlers = Handlers<typeof contract>
 
-type Output<P> = P extends ContractProcedure<infer _I, infer O, infer _E, infer _M> ? InferSchemaInput<O> : never
+type Output<P> = P extends ProcedureContract<infer _I, infer O, infer _E> ? InferSchemaInput<O> : never
 
 type PluginContract = (typeof contract)['plugin']
 
