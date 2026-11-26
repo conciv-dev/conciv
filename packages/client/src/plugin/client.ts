@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {EngineTrust} from '../connection/engine-connection.js'
-import type {RpcClient} from '../connection/rpc-client.js'
+import type {ContractClient} from '../connection/rpc-client.js'
 import {contract} from '@conciv/protocol'
 import * as SharedEvents from './shared-events.js'
 import type {ConcivEvent} from './events.js'
@@ -21,10 +21,10 @@ type ClientConnection = {
 }
 
 export function make(
-  raw: RpcClient,
+  raw: ContractClient,
   options: ClientConnectionOptions,
-): Omit<RpcClient, 'event'> & {
-  rpc: RpcApi & {call: RpcClient['plugin']['call']}
+): Omit<ContractClient, 'event'> & {
+  rpc: RpcApi & {call: ContractClient['plugin']['call']}
   event: ReturnType<typeof SharedEvents.make<ConcivEvent>>
   connection: ClientConnection
 } {
@@ -54,7 +54,7 @@ export function make(
     plugin: raw.plugin,
     experimental: raw.experimental,
     event: raw.event,
-  } satisfies {readonly [Group in keyof typeof contract]: RpcClient[Group]}
+  } satisfies {readonly [Group in keyof typeof contract]: ContractClient[Group]}
   return {
     ...groups,
     rpc: Object.assign(makeRpc(raw, events, options.server), {call: raw.plugin.call}),
@@ -87,7 +87,7 @@ export const defaultIdleTimeout = 45_000
 const UntrustedSchema = z.object({code: z.literal('UNAUTHORIZED')})
 
 async function* received(
-  raw: RpcClient,
+  raw: ContractClient,
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,
@@ -112,7 +112,7 @@ async function* received(
 }
 
 async function* attempted(
-  raw: RpcClient,
+  raw: ContractClient,
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,

@@ -1,6 +1,6 @@
 import {createORPCClient} from '@orpc/client'
 import {z} from 'zod'
-import type {RpcClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import type {FakeEngine} from '@conciv/client/testing'
 import type {SessionMeta} from '@conciv/protocol'
 import {SessionId} from '@conciv/types/chat-types'
@@ -8,8 +8,8 @@ import {PANE_SESSION} from './sample-data.js'
 
 const AnsweredSchema = z.object({answered: z.literal(true), value: z.json()})
 
-function engineClient(engine: FakeEngine): RpcClient {
-  return createORPCClient<RpcClient>(engine.connect().link)
+function engineClient(engine: FakeEngine): ContractClient {
+  return createORPCClient<ContractClient>(engine.connect().link)
 }
 
 export async function sendFromElsewhere(engine: FakeEngine, text: string): Promise<void> {

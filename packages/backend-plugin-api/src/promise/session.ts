@@ -1,7 +1,7 @@
 import type {SessionId} from '@conciv/types/chat-types'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import type {JsonSchema} from 'effect'
-import type {RpcCallOptions} from '@conciv/client/plugin'
+import type {RpcCallOptions} from '@conciv/client'
 import type {
   InstructionEntryInfo,
   PromptMention,

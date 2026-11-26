@@ -1,5 +1,5 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import type {ConcivClient} from '@conciv/client/plugin'
+import type {ConcivClient} from '@conciv/client'
 
 import type {Json} from '@conciv/types/json'
 

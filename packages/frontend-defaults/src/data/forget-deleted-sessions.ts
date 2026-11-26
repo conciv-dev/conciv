@@ -1,6 +1,6 @@
 import {observable, type Accessor} from 'solid-js'
 import {Cause, Effect, Fiber, Queue, Schema, Stream} from 'effect'
-import type {ConcivClient} from '@conciv/client/plugin'
+import type {ConcivClient} from '@conciv/client'
 
 type EngineEvent = ReturnType<ConcivClient['event']['subscribe']> extends AsyncIterable<infer Event> ? Event : never
 

@@ -1,8 +1,8 @@
-import type {RpcApi, RpcCallOptions} from '@conciv/client/plugin'
+import type {RpcApi, RpcCallOptions} from '@conciv/client'
 import type * as Rpc from '@conciv/protocol/schema/rpc'
 import type {Registration} from './registration.js'
 
-export type {RpcEventPayload} from '@conciv/client/plugin'
+export type {RpcEventPayload} from '@conciv/client'
 
 export interface RpcCallContext<M extends Rpc.Method> {
   readonly signal: AbortSignal

@@ -17,10 +17,10 @@ import {z} from 'zod'
 import {useLocation, useParams, useRouteContext, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
-import type {RpcClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
-import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/client/plugin'
+import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/client'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import type {
   Layout,
@@ -38,7 +38,7 @@ import type {
   ToastOptions,
 } from '@conciv/frontend-plugin-api'
 import {Style} from '@conciv/frontend-plugin-api'
-import appManifest from '../../../package.json' with {type: 'json'}
+import {version as appVersion} from '../../../package.json' with {type: 'json'}
 import {
   useApiBase,
   useAppData,
@@ -151,9 +151,12 @@ export function createHostApis() {
   const appData = useAppData()
   const client = appData.client
   const data = createServerData(appData.utils)
-  const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}), {
-    server: () => UNAVAILABLE,
-  })
+  const unavailable = Conciv.make(
+    createORPCClient<ContractClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}),
+    {
+      server: () => UNAVAILABLE,
+    },
+  )
 
   const connection = useRouteContext({strict: false, select: (context) => context.connection})
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connection()?.(), connected()))
@@ -329,7 +332,7 @@ export function createHostApis() {
     }),
     app: () => ({
       name: 'conciv',
-      version: appManifest.version,
+      version: appVersion,
       channel: import.meta.env.DEV ? 'dev' : 'prod',
       platform: 'web',
       packaged: false,

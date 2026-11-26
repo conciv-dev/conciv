@@ -2,7 +2,7 @@ import {createORPCClient} from '@orpc/client'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import {createFakeEngine} from './testing/fake-engine.js'
-import type {RpcClient} from './connection/rpc-client.js'
+import type {ContractClient} from './connection/rpc-client.js'
 
 export {createFakeEngine} from './testing/fake-engine.js'
 export {FakeLLM} from './testing/fake-llm.js'
@@ -114,7 +114,7 @@ export function storyConnection(options: StoryConnectionOptions = {}): ConnectCo
       },
     },
   })
-  const chat = createORPCClient<RpcClient>(engine.connection.link).chat
+  const chat = createORPCClient<ContractClient>(engine.connection.link).chat
   return {
     async *connect(messages, _data, abortSignal, runContext) {
       const runId = runContext?.runId ?? 'story-run'

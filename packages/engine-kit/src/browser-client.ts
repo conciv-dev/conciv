@@ -1,6 +1,6 @@
-import {makeBrowserEngineConnection, makeEngineRpcClient, type RpcClient} from '@conciv/client'
+import {makeBrowserEngineConnection, makeEngineRpcClient, type ContractClient} from '@conciv/client'
 
-export type BrowserClient = {rpc: RpcClient; close: () => void}
+export type BrowserClient = {rpc: ContractClient; close: () => void}
 
 export function browserClient(apiBase: string, options: {token?: string; session?: () => string} = {}): BrowserClient {
   const connection = makeBrowserEngineConnection(apiBase, {token: options.token})

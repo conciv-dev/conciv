@@ -1,4 +1,4 @@
-import type {RpcClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import type {SettingsScope} from '@conciv/protocol'
 import type {AsyncStorage, SyncStorage} from '@solid-primitives/storage'
 import type {StoreType} from '@conciv/frontend-plugin-api'
@@ -453,7 +453,12 @@ function browserBacking(target: BrowserTarget, normalize: Normalize, local: Loca
   }
 }
 
-function engineBacking(target: EngineTarget, rpc: RpcClient, normalize: Normalize, canCommit: () => boolean): Backing {
+function engineBacking(
+  target: EngineTarget,
+  rpc: ContractClient,
+  normalize: Normalize,
+  canCommit: () => boolean,
+): Backing {
   const reading = new AbortController()
 
   if (getOwner()) onCleanup(() => reading.abort())
@@ -505,7 +510,7 @@ function removeFrom(
   })
 }
 
-export function removePersisted(target: PersistTarget, rpc: RpcClient, local: LocalPersistence) {
+export function removePersisted(target: PersistTarget, rpc: ContractClient, local: LocalPersistence) {
   const failed = (key: string) => (error: unknown) => console.error(`[persistence] remove failed for ${key}`, error)
 
   if (target.kind === 'browser') return removeFrom(local.view(target.storage), target, failed)
@@ -517,7 +522,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
   target: PersistTarget,
   schema: S,
   initial: NoInfer<StandardSchemaV1.InferOutput<S>>,
-  rpc: RpcClient,
+  rpc: ContractClient,
   local: LocalPersistence,
   encode?: Encode<S>,
 ): PersistedWithReady<StoreType<S>> {

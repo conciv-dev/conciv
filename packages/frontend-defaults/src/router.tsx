@@ -5,7 +5,13 @@ import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability, type ChatConnectionOptions} from '@conciv/client'
 import {createRoot, getOwner, onCleanup, runWithOwner, untrack, type JSX, createMemo, onMount} from 'solid-js'
-import type {EngineConnection, EngineConnectionTimings, EngineTrust, RpcClient, TrustListener} from '@conciv/client'
+import type {
+  EngineConnection,
+  EngineConnectionTimings,
+  EngineTrust,
+  ContractClient,
+  TrustListener,
+} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import {routeTree} from './routeTree.gen'
 import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
@@ -62,7 +68,7 @@ export type PanelKeyStatus = 'listed' | 'unlisted' | 'pending'
 type PanelKeyLookup = (input: {readonly sessionId: string; readonly key: string}) => PanelKeyStatus
 
 export type ConcivRouterContext = {
-  rpc: RpcClient
+  rpc: ContractClient
   environment: ConcivEnvironment
   settings: ConcivSettings
   queryClient: QueryClient
@@ -89,7 +95,7 @@ export type ConcivRouterContext = {
 }
 
 export type ConcivRouterConfig = {
-  rpc: RpcClient
+  rpc: ContractClient
   history: RouterHistory
   environment: ConcivEnvironment
   settings: ConcivSettings

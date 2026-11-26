@@ -16,9 +16,9 @@ import {tempDir} from '@internal/vitest-config/temp-dir'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {ConcivConfig} from '@conciv/types/config-types'
 import {concivStateDir} from '@conciv/types/state-types'
-import {makeBrowserEngineConnection, makeEngineRpcClient, type RpcClient} from '@conciv/client'
+import {makeBrowserEngineConnection, makeEngineRpcClient, type ContractClient} from '@conciv/client'
 
-type BrowserRpcClient = {rpc: RpcClient; close: () => void}
+type BrowserRpcClient = {rpc: ContractClient; close: () => void}
 
 type Engine = ChildProcessByStdio<null, Readable, Readable>
 type Hung = {engine: Engine; lines: AsyncIterator<string>}

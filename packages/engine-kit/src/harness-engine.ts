@@ -7,7 +7,7 @@ import {ConfigProvider, type Layer} from 'effect'
 import {isMatch} from 'es-toolkit/compat'
 import {rpcStream} from '@conciv/client/chat'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
-import {makeRpcClient, type RpcClient} from '@conciv/client'
+import {makeRpcClient, type ContractClient} from '@conciv/client'
 import {browserClient} from './browser-client.js'
 import {type EngineStaleness} from '@conciv/protocol'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -169,7 +169,7 @@ type Turns = {
   closeAll: () => void
 }
 
-type Engine = {rpc: RpcClient; apiBase: string; token: string; turns: Turns; tools: ToolClients}
+type Engine = {rpc: ContractClient; apiBase: string; token: string; turns: Turns; tools: ToolClients}
 
 type Started = StartedBackend
 
@@ -239,7 +239,7 @@ async function readTurn(
   ended()
 }
 
-function makeTurns(rpc: RpcClient): Turns {
+function makeTurns(rpc: ContractClient): Turns {
   const open: OpenTurn[] = []
   const connection = rpcStream((_messages, _data, signal, input) =>
     streamed(rpc.chat.send({sessionId: input.threadId, runId: input.runId, messages: input.messages}, {signal})),
@@ -276,7 +276,11 @@ function failedTool(name: string, call: Promise<unknown>): Promise<HarnessEngine
   )
 }
 
-async function asSession(engine: Engine, sessionId: string, use: (rpc: RpcClient) => Promise<void>): Promise<void> {
+async function asSession(
+  engine: Engine,
+  sessionId: string,
+  use: (rpc: ContractClient) => Promise<void>,
+): Promise<void> {
   const browser = browserClient(engine.apiBase, {token: engine.token, session: () => sessionId})
   try {
     await use(browser.rpc)

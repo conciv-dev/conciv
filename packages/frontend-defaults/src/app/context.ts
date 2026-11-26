@@ -1,6 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {QueryClient, ChatSession} from '@conciv/client'
-import type {RpcClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
@@ -15,7 +15,7 @@ import type {ServerBinding} from '@internal/frontend-app-api/plugin/servers'
 import type {LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
 
 export type AppContextValue = {
-  rpc: RpcClient
+  rpc: ContractClient
   settings: ConcivSettings
   environment: ConcivEnvironment
   data: AppData
@@ -47,7 +47,7 @@ function useAppScope<Selected>(hook: string, select: (app: AppContextValue) => S
   return select(value)
 }
 
-export function useRpc(): RpcClient {
+export function useRpc(): ContractClient {
   return useAppScope('useRpc', (app) => app.rpc)
 }
 

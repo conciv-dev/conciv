@@ -1,4 +1,4 @@
-import type {PluginInfo} from '@conciv/client/plugin'
+import type {PluginInfo} from '@conciv/client'
 
 export function pluginLabel(plugin: PluginInfo) {
   if (plugin.id) return plugin.id

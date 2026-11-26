@@ -1,4 +1,21 @@
 export * from './settings/settings.js'
+export type {SelectedEvent, SubscribeOptions} from './plugin/shared-events.js'
+export type {PluginInfo} from './plugin/plugin-info.js'
+export type {ClientConnectionOptions, ClientConnectionStatus, ConcivClient, ConcivEvent} from './plugin/conciv.js'
+export type {
+  PluginRpcClient,
+  RpcApi,
+  RpcArguments,
+  RpcCallOptions,
+  RpcEventPayload,
+  RpcMethod,
+  RpcQueryArguments,
+  RpcQueryKey,
+} from './plugin/rpc.js'
+export type {RpcApi as EffectRpcApi, RpcClient as EffectRpcClient} from './plugin/effect-rpc.js'
+export type {ServerRef, Servers} from './plugin/servers.js'
+export {Conciv} from './plugin/conciv.js'
+export {makeRpc, rpcMethod} from './plugin/rpc.js'
 export * from './connection/browser-transport.js'
 export * from './connection/rpc-client.js'
 export * from './chat/chat-connection.js'
@@ -21,20 +38,20 @@ export {
 } from '@tanstack/solid-query'
 import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from './chat.js'
-import type {RpcClient} from './connection/rpc-client.js'
+import type {ContractClient} from './connection/rpc-client.js'
 import type {EngineTrust} from './connection/engine-connection.js'
 import {chatConnection, type ChatConnectionOptions} from './chat/chat-connection.js'
 export type {ChatSession} from './chat.js'
 import {createTanstackQueryUtils, type RouterUtils} from '@orpc/tanstack-query'
 
-export function makeQueryUtils(client: RpcClient): RouterUtils<RpcClient> {
+export function makeQueryUtils(client: ContractClient): RouterUtils<ContractClient> {
   return createTanstackQueryUtils(client)
 }
 
 export type QueryUtils = ReturnType<typeof makeQueryUtils>
 
 export type UseChatSessionOptions = {
-  rpc: RpcClient
+  rpc: ContractClient
   trust: EngineTrust | undefined
   sessionId: string
   connection?: ChatConnectionOptions

@@ -1,4 +1,4 @@
-import type {RpcCallOptions} from '@conciv/client/plugin'
+import type {RpcCallOptions} from '@conciv/client'
 import type {PublicRef} from '@conciv/protocol/schema/location'
 import type * as Model from '@conciv/protocol/schema/model'
 import type {Transform} from './registration.js'

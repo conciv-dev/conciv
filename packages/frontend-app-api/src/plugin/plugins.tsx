@@ -2,7 +2,7 @@ import {onCleanup, untrack} from 'solid-js'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import type {BridgePluginExperimental, BridgePluginExperimentals} from './startup'
-import type {ConcivClient} from '@conciv/client/plugin'
+import type {ConcivClient} from '@conciv/client'
 import {pluginDefinition} from './module'
 import {
   createPluginExperimentalState,

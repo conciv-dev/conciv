@@ -1,6 +1,6 @@
 import {createDefu} from 'defu'
 import {z} from 'zod'
-import type {RpcClient} from '../connection/rpc-client.js'
+import type {ContractClient} from '../connection/rpc-client.js'
 import type {SettingsScope, SettingsSnapshot} from '@conciv/protocol'
 
 export type SettingsStore<T extends object = Record<string, unknown>> = {
@@ -55,7 +55,7 @@ export function mergeSettings(
 }
 
 export function createClientSettings<T extends object = Record<string, unknown>>(
-  rpc: RpcClient,
+  rpc: ContractClient,
   namespace: string,
   signal?: AbortSignal,
 ): Settings<T> {
@@ -68,7 +68,7 @@ export function createClientSettings<T extends object = Record<string, unknown>>
 type SettingsTarget = {scope: SettingsScope; namespace: string}
 
 function mirroredState(
-  rpc: RpcClient,
+  rpc: ContractClient,
   target: SettingsTarget,
   signal: AbortSignal | undefined,
 ): () => Promise<SettingsState> {

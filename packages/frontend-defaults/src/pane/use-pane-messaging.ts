@@ -1,7 +1,7 @@
 import {createMemo} from 'solid-js'
 import {z} from 'zod'
 import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
-import type {RpcClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import type {QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
 import type {UiAnswerValue} from '@conciv/types/ui-types'
 import type {AppData} from '../data/app-data.js'
@@ -61,7 +61,7 @@ function recordedFailure(chat: ChatSession): RecordedFailure | undefined {
 }
 
 type PaneMessagingDeps = {
-  rpc: RpcClient
+  rpc: ContractClient
   sessionId: string
   chat: ChatSession
   appData: AppData

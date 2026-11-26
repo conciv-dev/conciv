@@ -10,7 +10,7 @@ import Folder from 'lucide-solid/icons/folder'
 import MessageCircle from 'lucide-solid/icons/message-circle'
 import {Command} from '@conciv/frontend-plugin-api'
 import type {ChatCommand, ChatTool} from '@conciv/types/chat-types'
-import type {RpcClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import {isCancelledError} from '@conciv/client'
 import type {InferClientOutputs} from '@orpc/client'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
@@ -102,7 +102,7 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
   return {name: typed.slice(1, separator), input: typed.slice(separator).trim()}
 }
 
-type RpcOutputs = InferClientOutputs<RpcClient>
+type RpcOutputs = InferClientOutputs<ContractClient>
 
 const SKILL_ICON: RichTextFieldTriggerItem['icon'] = {component: BookOpen, name: 'Skill'}
 

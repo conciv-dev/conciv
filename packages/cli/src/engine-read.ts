@@ -1,7 +1,7 @@
 import {checkEngines, type EngineRow} from '@conciv/home'
 import {z} from 'zod'
 import {ORPCError} from '@orpc/client'
-import {engineTooOld, makeRpcClient, type RpcClient} from '@conciv/client'
+import {engineTooOld, makeRpcClient, type ContractClient} from '@conciv/client'
 import type {Project, SessionMeta} from '@conciv/protocol'
 import {SessionId} from '@conciv/types/chat-types'
 import {Definition as Page, type State} from '@conciv/plugin-page/rpc'
@@ -80,7 +80,7 @@ export function homeRead(home: string, reading: Promise<Checked>): Promise<Check
 }
 
 export function pageCall<const Method extends keyof PageMethods & string>(
-  rpc: RpcClient,
+  rpc: ContractClient,
   method: Method,
   input: z.input<PageMethods[Method]['input']>,
   options: Signal,
@@ -88,7 +88,7 @@ export function pageCall<const Method extends keyof PageMethods & string>(
   return rpc.plugin.call({rpcId: Page.id, method, input}, options)
 }
 
-async function readState(rpc: RpcClient, sessionId: SessionId, options: Signal): Promise<State> {
+async function readState(rpc: ContractClient, sessionId: SessionId, options: Signal): Promise<State> {
   return Page.methods['tabs.list'].output.parse(await pageCall(rpc, 'tabs.list', {sessionId}, options))
 }
 
@@ -139,7 +139,12 @@ async function engineTabs(row: EngineRow): Promise<TabsListing> {
   }
 }
 
-async function sessionTab(rpc: RpcClient, project: Project, sessionId: SessionId, options: Signal): Promise<TabRow[]> {
+async function sessionTab(
+  rpc: ContractClient,
+  project: Project,
+  sessionId: SessionId,
+  options: Signal,
+): Promise<TabRow[]> {
   const [meta, state] = await Promise.all([readMeta(rpc, sessionId, options), readState(rpc, sessionId, options)])
   if (meta === null || meta.hidden) return []
   const focusedFirst = [
@@ -169,7 +174,7 @@ async function sessionTab(rpc: RpcClient, project: Project, sessionId: SessionId
   ]
 }
 
-function readMeta(rpc: RpcClient, sessionId: SessionId, options: Signal): Promise<SessionMeta | null> {
+function readMeta(rpc: ContractClient, sessionId: SessionId, options: Signal): Promise<SessionMeta | null> {
   return rpc.sessions.get({sessionId}, options).catch((error: unknown) => {
     if (error instanceof ORPCError && error.code === 'NOT_FOUND') return null
     throw error

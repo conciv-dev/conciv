@@ -1,5 +1,5 @@
 import type {SessionId} from '@conciv/types/chat-types'
-import type {RpcCallOptions} from '@conciv/client/plugin'
+import type {RpcCallOptions} from '@conciv/client'
 import type {AssertInput} from '../permission.js'
 import type {Effect, Source} from '@conciv/protocol/schema/permission'
 import type {Hooks} from './registration.js'

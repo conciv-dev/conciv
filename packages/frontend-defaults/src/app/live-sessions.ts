@@ -2,7 +2,7 @@ import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'sol
 import {difference, partition, uniq} from 'es-toolkit'
 import {type QueryClient, useChatSession, type ChatSession} from '@conciv/client'
 import {createStore, unwrap} from 'solid-js/store'
-import type {EngineConnection, RpcClient} from '@conciv/client'
+import type {EngineConnection, ContractClient} from '@conciv/client'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/types/chat-event-types'
 import type {QueuedMessage} from '@conciv/types/chat-message-types'
 import type {AppData} from '../data/app-data.js'
@@ -36,7 +36,7 @@ export type LiveSessions = {
 
 export type LiveSessionsDeps = {
   active: Accessor<string | null>
-  rpc: RpcClient
+  rpc: ContractClient
   connection: Accessor<EngineConnection | undefined>
   generation: Accessor<number>
   appData: AppData

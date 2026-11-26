@@ -14,7 +14,7 @@ import {
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import {pluginIdAvailable} from '@internal/frontend-app-api/plugin/installed'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
-import type {ConcivClient} from '@conciv/client/plugin'
+import type {ConcivClient} from '@conciv/client'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase, useAppData, useEnvironment} from '../../app/context'
 import type {BuiltinPlugins} from './builtins'

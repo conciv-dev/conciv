@@ -4,7 +4,7 @@ import {isReachabilityError, useQuery, type EngineConnection} from '@conciv/clie
 import {useChildMatches, useRouteContext, useRouter} from '@tanstack/solid-router'
 import lt from 'semver/functions/lt'
 import valid from 'semver/functions/valid'
-import appManifest from '../../package.json' with {type: 'json'}
+import {version as appVersion} from '../../package.json' with {type: 'json'}
 import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {useNotices} from './notice-context.js'
@@ -16,7 +16,7 @@ import {lockedMessage} from './engine-lock-messages.js'
 const ENGINE_STALE_MESSAGE =
   'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.'
 
-const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
+const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appVersion} but the conciv engine is older. Update your @conciv packages to ${appVersion}, then restart your dev server.`
 
 const ENGINE_UNREACHABLE_KEY = 'engine-unreachable'
 const ENGINE_UNREACHABLE_MESSAGE = 'conciv lost connection to the engine.'
@@ -79,7 +79,7 @@ export function engineVersionQueryOptions(
 
 export function engineOlderThanWidget(version: string | null): boolean {
   const engine = version === null ? null : valid(version)
-  return engine === null || lt(engine, appManifest.version)
+  return engine === null || lt(engine, appVersion)
 }
 
 export function EngineUnreachableNotice(): JSX.Element {

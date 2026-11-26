@@ -9,12 +9,12 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@conciv/client'
-import {Conciv, type ConcivClient} from '@conciv/client/plugin'
+import {Conciv, type ConcivClient} from '@conciv/client'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {forgetDeletedSessions} from './forget-deleted-sessions.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type SessionMeta} from '@conciv/protocol'
-import type {EngineTrust, RpcClient} from '@conciv/client'
+import type {EngineTrust, ContractClient} from '@conciv/client'
 
 const PendingAttachmentSchema = z.object({
   id: z.string(),
@@ -29,7 +29,7 @@ export type PendingDraftAttachment = z.infer<typeof PendingAttachmentSchema>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
-type SessionPage = Awaited<ReturnType<RpcClient['sessions']['list']>>
+type SessionPage = Awaited<ReturnType<ContractClient['sessions']['list']>>
 
 function withoutSessionOnPage<Page extends {sessions: readonly {id: string}[]}>(page: Page, sessionId: string): Page {
   if (!page.sessions.some((session) => session.id === sessionId)) return page
@@ -94,7 +94,7 @@ export type AppData = {
 }
 
 export function makeAppData(
-  rpc: RpcClient,
+  rpc: ContractClient,
   queryClient: QueryClient,
   drafts: DraftStore | null,
   lockedOut: () => boolean,

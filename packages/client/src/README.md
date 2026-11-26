@@ -2,14 +2,14 @@
 
 ## Overview
 
-Source for @conciv/client: oRPC TanStack Query utils, a chat connection that carries every turn on `rpc.chat.send` and every rejoin on `rpc.chat.join` over the browser rpc socket and merges three event sources (its turns' subscription and two `rpc.chat.events` streams), and engine reachability tracking wired into TanStack's onlineManager.
+Source for @conciv/client: one client, `ConcivClient` (`Conciv.make`), over the plain oRPC contract client, oRPC TanStack Query utils, a chat connection that carries every turn on `rpc.chat.send` and every rejoin on `rpc.chat.join` over the browser rpc socket and merges three event sources (its turns' subscription and two `rpc.chat.events` streams), and engine reachability tracking wired into TanStack's onlineManager.
 
 ## Layout
 
 - `connection/`: the engine socket, its connection machine, trust, reachability and the typed oRPC client.
 - `chat/`: the Solid chat session and the chat connection that carries it over the rpc socket.
 - `settings/`: settings queries.
-- `plugin/`: the plugin client (`Conciv.make`, `ConcivClient`, plugin rpc, the shared event stream, `ServerRef`/`Servers`). Browser and engine both use it, so it lives here and not in `@conciv/backend-plugin-api`; it imports nothing from a backend package.
+- `plugin/`: `Conciv.make` and its `ConcivClient`, the one client every reader uses (the widget UI, the plugin host and plugins as `ctx.client`, the engine's server list, the cli): the contract's groups over the plain contract client (`ContractClient`, `connection/rpc-client.ts`), typed plugin rpc (`client.rpc(definition)`, a `PluginRpcClient`), and the shared event stream, plus `ServerRef`/`Servers`. Exported from the main entry `@conciv/client`; browser and engine both use it, and it imports nothing from a backend package.
 - `testing/`: the fake engine behind `@conciv/client/testing`.
 - The src root holds the entry files only, one per `package.json` export.
 
@@ -21,6 +21,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 - `finishedOnItsLifecycle` (`chat/chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own `aborted` run lifecycle (a stopped run, which has no `RUN_FINISHED`/`RUN_ERROR`) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating; a completed or failed run ends on its own `RUN_FINISHED`/`RUN_ERROR`, which the server sends after the lifecycle
 - `merged` (`chat/chat-connection.ts`): aborts all sources when any finishes
 - `sessionEvents` (`chat/chat-connection.ts`): an `rpc.chat.events` stream the engine refuses with `UNAUTHORIZED` (opened while logged out, or failed by a revoke) is not a chat error: it waits until the api base's trust is `trusted` again and subscribes anew, as the push socket's reconnect did
+- `SharedEvents.make` (`plugin/shared-events.ts`): one event subscription shared by every reader; each (re)open starts with `server.connected`, which a reader that joins late also gets, its cue to resync; a reader 4096 events behind is failed
 - `registerReachabilitySource` (`connection/reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects

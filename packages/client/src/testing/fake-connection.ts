@@ -14,7 +14,7 @@ import type {
   RpcClientContext,
   TrustListener,
 } from '../connection/engine-connection.js'
-import type {RpcClient} from '../connection/rpc-client.js'
+import type {ContractClient} from '../connection/rpc-client.js'
 import {lookup} from './fake-router.js'
 import type {FakeConnectOptions} from './fake-types.js'
 
@@ -105,7 +105,7 @@ export function fakeConnection(
   const link: ClientLink<RpcClientContext> = {
     call: (path, input, callOptions) => invoke(path, input, callOptions.signal),
   }
-  const auth = createORPCClient<RpcClient>(link).auth
+  const auth = createORPCClient<ContractClient>(link).auth
   const trustWithToken = async (token: string): Promise<boolean> => {
     const {trusted} = await auth.trust({token})
     dispatch(trusted ? {type: 'trusted', token} : {type: 'trust-refused', token})

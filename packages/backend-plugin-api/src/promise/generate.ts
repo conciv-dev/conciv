@@ -1,4 +1,4 @@
-import type {RpcCallOptions} from '@conciv/client/plugin'
+import type {RpcCallOptions} from '@conciv/client'
 import type {Json} from '@conciv/types/json'
 import type {Ref} from '@conciv/protocol/schema/model'
 

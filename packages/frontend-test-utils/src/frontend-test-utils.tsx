@@ -13,7 +13,7 @@ import {
   useQuery,
 } from '@conciv/client'
 import {createFakeEngine, type FakeEngine} from '@conciv/client/testing'
-import {Conciv, type ConcivClient} from '@conciv/client/plugin'
+import {Conciv, type ConcivClient} from '@conciv/client'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import {
