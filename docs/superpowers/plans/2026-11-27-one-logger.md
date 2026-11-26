@@ -167,15 +167,24 @@ path). It does ship the storage and the reads:
 - `evlog/memory`: `createMemoryDrain({store, maxEvents: 1000})` ring buffer; `readMemoryLogs({store, since, until,
   level, filter, limit})`.
 
-Steps:
+Steps (maintainer: "can't we store it in our db?" Yes: the engine's own database, not evlog's files or memory):
 
-- The one sink (Task 2) writes through `createFsDrain` into the engine's existing log folder (the one
-  `util/observability/logging.ts` `file(...)` uses today) and `createMemoryDrain` (`maxEvents` 2000). Every log entry,
-  engine and client, is one `WideEvent` (level, timestamp, message, fields, `source`). This replaces the hand-written file
-  logger; the format on disk becomes evlog's NDJSON.
+- Storage is a table in the engine database `backend-defaults` owns (beside the chat tables and the migration
+  history; add a drizzle migration the way the existing ones are made, `gen-migrations`). Shape it as evlog's own table
+  for self-hosted storage (`@evlog/nuxthub` `evlog_events`, read 2026-11-27): `log_events` with `id` (text PK),
+  `timestamp`, `level`, `source` ('engine' | 'client'), `service`, `message`, `method`, `path` (rpc procedure), `status`,
+  `duration_ms`, `request_id`, `session_id`, `error`, `data` (JSON text of the remaining fields), `created_at`; indexes
+  on `timestamp`, `level`, `source`, `session_id`, `request_id`, `created_at`.
+- The one sink (Task 2) writes every entry, engine and client, through one custom evlog drain
+  (`evlog.dev/extend/custom-drains`) inside evlog's batching pipeline (`createDrainPipeline`, its default batch size and
+  interval), so a burst is one insert. The insert never logs (no recursion): a failed insert is dropped and counted.
+  Nothing is written while the level is `off`. This replaces the hand-written file logger; no fs or memory adapter.
+- Retention: default 7 days, config `logRetention` (`'7d'`, `'24h'`), one delete on engine start and then every half of
+  the window (the `@evlog/nuxthub` schedule), as an Effect fiber the engine owns.
 - Contract: `logs.query({since?, until?, level?: LogLevel[], source?: 'engine' | 'client', text?, sessionId?, limit (default
-  200, max 2000)})` reads the memory ring first and falls back to `readFsLogs` for older ranges; `text` and `sessionId`
-  become the `filter` predicate. `logs.tail({level?, source?})` streams new events (`tailFsLogs`, as an async iterator).
+  200, max 2000)})` is one drizzle query on `log_events` (filters become WHERE clauses on the indexed columns; `text`
+  matches `message` and `data`), newest first. `logs.tail({level?, source?})` streams new events as they are inserted
+  (an Effect `PubSub` the drain publishes to, as an async iterator).
   Both `.effect` handlers once the oRPC 2 PR lands; plain handlers until then.
 - Outside agent: through the hub like any procedure, and `conciv logs [--level <l>] [--since <time>] [--grep <text>]
   [--follow]` in the CLI.
