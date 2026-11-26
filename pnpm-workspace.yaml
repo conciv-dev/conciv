@@ -159,6 +159,7 @@ catalog:
   es-toolkit: '^1.53.0'
   eslint-plugin-playwright: 2.12.1
   eslint-plugin-solid: 0.18.1
+  fumadocs-twoslash: 4.0.5
   fuzzysort: 3.1.0
   get-port: '^7.2.0'
   glob: 13.0.5

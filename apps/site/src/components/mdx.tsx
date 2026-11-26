@@ -1,6 +1,7 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import * as TabsComponents from 'fumadocs-ui/components/tabs'
 import * as FilesComponents from 'fumadocs-ui/components/files'
+import * as Twoslash from 'fumadocs-twoslash/ui'
 import {Step, Steps} from 'fumadocs-ui/components/steps'
 import {TypeTable} from 'fumadocs-ui/components/type-table'
 import {Accordion, Accordions} from 'fumadocs-ui/components/accordion'
@@ -13,6 +14,7 @@ function getMDXComponents(components?: MDXComponents) {
     ...defaultMdxComponents,
     ...TabsComponents,
     ...FilesComponents,
+    ...Twoslash,
     Step,
     Steps,
     TypeTable,
