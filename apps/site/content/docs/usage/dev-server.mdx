@@ -1,55 +1,120 @@
 ---
 title: Dev server
-description: The agent reads the dev server's config, module graph and served code through the engine's server tools.
+description: Ask the agent how your dev server sees your code, and have it restart the server.
 ---
 
-The engine's built-in server tools let the agent ask the dev server about itself: its resolved config, where it listens,
-how an import resolves, a file's place in the module graph, and the code it serves. It can also open a file in your
-editor. They are part of the engine itself (the `server` RPC), so there is nothing to install.
+Ask the agent about your dev server when a build question comes up:
 
-The agent calls these as code-mode tools (`server_config`, `server_urls`, `server_resolve`, `server_graph`,
-`server_transform`, `server_restart`, and `open`). You call the same methods from a terminal with
-[`conciv plugin call server`](/docs/plugins/terminal).
+```text
+Why does @/components/Header resolve to the wrong file from src/routes/index.tsx?
+```
 
-## Methods
+The agent asks the running dev server itself. It does not guess from your config files. The dev server tools are
+built in: nothing to install.
 
-<TypeTable
-  type={{
-    config: {type: 'no input', description: 'The resolved `root`, `base`, `mode`, `aliases` and `plugins`.'},
-    urls: {type: 'no input', description: 'Where the dev server listens: `local` and `network` URLs.'},
-    resolve: {
-      type: '{spec, importer?}',
-      description: 'Where an import specifier resolves, as `{id}`. `id` is `null` when it does not resolve.',
-    },
-    graph: {type: '{file}', description: 'Each module of the file with its `url`, `importers` and `importedModules`.'},
-    transform: {type: '{url}', description: 'The transformed code the dev server serves for a URL, as `{code}`.'},
-    open: {
-      type: '{file, line?, column?}',
-      description:
-        'Opens the file in your editor, at the line and column when given. `column` is used only with a `line`.',
-    },
-  }}
-/>
+## Ask how the server is set up
+
+The agent reads the resolved config: the root, the base path, the mode, the aliases and the plugins.
+
+```text
+Which Vite plugins are active, and what aliases are set?
+```
+
+It also knows where the server listens, on this machine and on your network:
+
+```text
+What URL do I open on my phone to see this app?
+```
+
+## Ask where an import goes
+
+The agent asks the server how an import resolves, as if from a given file:
+
+```text
+Where does "@/lib/auth" resolve to from src/routes/login.tsx?
+```
+
+## Ask what a file pulls in
+
+The agent reads a file's place in the module graph: what it imports, and what imports it.
+
+```text
+Which modules import src/lib/store.ts? I want to know what a change there touches.
+```
+
+## See the code the server serves
+
+The agent reads the code the dev server sends to the browser for a URL, after every plugin ran:
+
+```text
+Show me what /src/main.ts looks like after the transform. Is the env variable inlined?
+```
+
+## Open a file in your editor
+
+```text
+Open src/routes/index.tsx at line 12 in my editor.
+```
+
+## Restart the server
+
+```text
+Restart the dev server, then check the page loads.
+```
+
+A restart asks you first, with a [Permission card](/docs/usage/approvals). Allow it, and the server restarts and
+bundles its dependencies again.
+
+## Ask from your terminal
+
+The same questions work from a terminal, with `conciv plugin call server` and the question's name:
+
+```bash
+conciv plugin call server urls
+```
+
+It prints the answer as JSON:
+
+```json
+{"ok": true, "data": {"local": ["http://localhost:5173/"], "network": ["http://192.168.1.20:5173/"]}}
+```
+
+The other questions take their input as JSON after `--data`:
 
 ```bash
 conciv plugin call server config
-conciv plugin call server urls
-conciv plugin call server resolve --data '{"spec":"@/components/Header","importer":"src/routes/index.tsx"}'
-conciv plugin call server graph --data '{"file":"src/routes/index.tsx"}'
+conciv plugin call server resolve --data '{"spec":"@/lib/auth","importer":"src/routes/login.tsx"}'
+conciv plugin call server graph --data '{"file":"src/lib/store.ts"}'
 conciv plugin call server transform --data '{"url":"/src/main.ts"}'
 conciv plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
 ```
 
-## Restart
+- `config` and `urls` take no input.
+- `resolve` takes the import and, optionally, the file it is imported from. It answers `null` when nothing matches.
+- `graph` takes a file. `transform` takes the URL the browser asks for.
+- `open` takes a file, and optionally a line and a column.
 
-Restarting the dev server is the `server_restart` tool only: it has no RPC method, because it asks you first. The
-agent calls it with `force: true` for a full restart.
+A restart is not on this list. It always goes through the agent, so you get the card first.
 
-## Errors
+## Details
 
-| `type`                | Cause                                                                |
-| --------------------- | -------------------------------------------------------------------- |
-| `BUNDLER_UNAVAILABLE` | No dev server is attached to conciv.                                 |
-| `BUNDLER_FAILED`      | The dev server failed the request. `data.message` holds its message. |
+<Accordions type="single">
+  <Accordion title="no dev server is attached to conciv">
+    The engine has no dev server to ask. This happens when the engine runs on its own, without your bundler. Start
+    conciv through your dev server. Opening a file in your editor still works.
+  </Accordion>
+  <Accordion title="The dev server failed the request">
+    The dev server itself refused the question, for example a transform that throws. From the terminal, the error's
+    `data.message` holds the dev server's own message.
+  </Accordion>
+  <Accordion title="The tool names">
+    In code mode the tools are called `external_server_*`, such as `external_server_resolve`. You see these names in
+    the tool cards in the thread.
+  </Accordion>
+</Accordions>
 
-`config` and `urls` fail only with `BUNDLER_UNAVAILABLE`. `open` never fails this way: it needs no dev server.
+## Next
+
+- [Page control](/docs/usage/page-control): the page the server serves.
+- [CLI](/docs/cli): every `conciv` command.
+- [Plugins](/docs/plugins): add your own questions with a plugin.
