@@ -308,6 +308,7 @@ describe.concurrent('session.synthetic', () => {
     })
     const widget = makeRpcClient(engine.address.apiBase, {token: engine.address.token})
     const {sessionId} = await widget.sessions.create({})
+    await widget.sessions.rename({sessionId, title: 'Plant shelf'})
     const changes = (await widget.tabs.changes())[Symbol.asyncIterator]()
     await changes.next()
     const secondWidget = new AbortController()
@@ -359,8 +360,9 @@ describe.concurrent('session.synthetic', () => {
       data: [{id: 'queue-1', status: 'running'}],
     })
 
+    const reopenEnded = Promise.allSettled([reopen])
     await engine.restart()
-    await Promise.allSettled([reopen])
+    await reopenEnded
     await expect(widget.jobs.wait({ids: ['queue-1'], waitMs: 0})).resolves.toEqual({
       data: [{id: 'queue-1', status: 'cancelled', error: 'Interrupted by server restart.'}],
     })
