@@ -61,6 +61,11 @@ The browser talks to the engine over one oRPC websocket per tab, at `/rpc-ws`. E
 settings, plugin calls, and the chat stream of a running turn. If the socket drops, the widget dials it again and
 re-sends the calls in flight, and a running turn resumes from its last event.
 
+Each open widget is a browser tab the engine knows. The widget calls `tabs.open` for the session it shows, and keeps
+the call open while that session is on screen; when the widget goes, its socket drops, or it moves to another session,
+the tab closes. The engine stores the open tabs and lists them with `tabs.list`, whatever plugins are installed. The
+page plugin acts inside those tabs, and `conciv tools tabs` and a connected agent's `list_tabs` read the same list.
+
 The engine serves these routes:
 
 <TypeTable
@@ -144,7 +149,7 @@ everything in it except `settings/`.
     'conciv.db': {
       required: true,
       type: 'file',
-      description: 'Sessions, chat history, saved permission answers and the event log, in SQLite.',
+      description: 'Sessions, chat history, saved permission answers, the open browser tabs, background jobs and the event log, in SQLite.',
     },
     'mcp-endpoint.json': {
       required: true,

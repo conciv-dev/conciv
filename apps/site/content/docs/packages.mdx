@@ -38,12 +38,14 @@ In more detail:
   API, `@conciv/frontend-plugin-api` the browser part's. See [Plugins](/docs/plugins).
 - **App API.** On the engine side: the plugin host, the tool service, permissions and hooks. On the widget side: the
   definitions the app and plugins share, plugin loading and persistence.
-- **Defaults.** `@conciv/backend-defaults` is the engine: its HTTP, rpc, MCP and login surface, chat and code mode.
+- **Defaults.** `@conciv/backend-defaults` is the engine: its HTTP, rpc, MCP and login surface, chat, code mode, the
+  open browser tabs and jobs.
   `@internal/frontend-defaults` is the widget shell: router, pane, composer, sessions and settings. Neither ships a
   plugin.
-- **App.** The plugins conciv ships are listed in one place per side. `@conciv/backend` calls `createBackend` from
-  `@conciv/backend-defaults` with `plugins: [page]`. `@conciv/app` lists the page and terminal browser parts in
-  `packages/app/src/builtins.ts`, and builds the widget bundle.
+- **App.** The plugins conciv ships are listed in one place per side, from each built-in's own list.
+  `@conciv/backend` calls `createBackend` from `@conciv/backend-defaults` with the page plugin's `./engine-builtins`
+  list. `@conciv/app` composes the page and terminal plugins' `./builtins` lists in `packages/app/src/builtins.ts`, and
+  builds the widget bundle from `packages/app/src/global-entry.ts`. See [Built-in plugins](/docs/plugins/built-ins).
 
 The layout is Backstage's: a plugin depends only on a small, stable API, and the product is the defaults plus a list of
 plugins, so a plugin can be added or removed without touching the engine or the shell.
@@ -55,7 +57,7 @@ code lives only there, never in the defaults or the app.
 
 | Package                       | What it adds                                                                                       |
 | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@conciv/plugin-page`         | The connection to your page, its tools, and the cards in the widget. Shipped in both apps.         |
+| `@conciv/plugin-page`         | The agent's actions inside an open tab: its tools and their cards. Shipped in both apps.           |
 | `@internal/plugin-terminal`   | The session's terminal tab, over the engine's terminal. Shipped in `@conciv/app`.                  |
 | `@conciv/plugin-test-runner`  | Runs your tests and streams each run into the Tests tab. See [Live tests](/docs/usage/live-tests). |
 | `@conciv/plugin-recorder`     | Records the page with rrweb and gives the agent an action log with keyframes.                      |
@@ -72,7 +74,7 @@ The plugins conciv ships are on [Built-in plugins](/docs/plugins/built-ins).
 | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `@conciv/protocol`   | The oRPC contract between widget and engine, and the zod schemas both sides share.                                   |
 | `@conciv/types`      | Wire types and constants, such as the `.conciv` folder name and the rpc socket path.                                 |
-| `@conciv/client`     | The browser's connection to the engine and its rpc client..                                                          |
+| `@conciv/client`     | The browser's connection to the engine, its rpc client and plugins' rpc client. `./chat` holds the chat session.     |
 | `@conciv/home`       | The per-user home registry. See [The home folder](#the-home-folder).                                                 |
 | `@conciv/harness`    | The harness adapters: Claude Code, Codex, Gemini CLI, opencode and Pi. See [Harnesses](/docs/harnesses).             |
 | `@conciv/serve`      | The node HTTP server the engine listens with. It binds `127.0.0.1` only.                                             |

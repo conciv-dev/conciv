@@ -35,11 +35,12 @@ perf projects:
 import {defineConfig} from 'vitest/config'
 import {experimental} from '@conciv/frontend-plugin-api/vite'
 import conciv from '@conciv/unplugin/vite'
+import UnoCSS from 'unocss/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig({
   publicDir: false,
-  plugins: [experimental(), conciv(), concivTest({browser: true})],
+  plugins: [UnoCSS(), experimental(), conciv(), concivTest({browser: true})],
 })
 ```
 
@@ -366,19 +367,17 @@ test('the TanStack tab list names the focused tab', async ({createEngine}) => {
 
 ## Unit tests
 
-A unit test calls the code with no engine and no widget. The page plugin's connection machine is a plain function:
+A unit test calls the code with no engine and no widget. The page plugin picks the tab a call acts on from the
+engine's tab list with a plain function:
 
 ```ts title="packages/plugins/page/test/unit/machine.unit.test.ts"
-describe('a page that attaches is offered to the agent', () => {
-  it('grants the page permissions, tells the page it is attached and serves calls on its tab', () => {
-    const sessionId = SessionId.parse('ses_checkout')
-    const started = transitionConnection(createConnectionState(), {
-      type: 'attach.started',
-      sessionId,
-      attempt: 1,
-      connectionId: 'checkout',
-    })
-    expect(started.effects).toEqual([{type: 'sync-permissions', sessionId, attempt: 2, allow: true}])
+describe('with several tabs open, a call goes to the tab the user focused last', () => {
+  it('serves the focused tab, a named tab, refuses an unknown tab and falls back when the focused tab closes', () => {
+    const opened = {tabs: [checkout, cart], focusedTabId: checkout.id}
+
+    expect(selectTarget(opened, undefined)).toEqual({ok: true, tab: checkout})
+    expect(selectTarget(opened, cart.id)).toEqual({ok: true, tab: cart})
+    expect(selectTarget({tabs: [cart], focusedTabId: null}, undefined)).toEqual({ok: true, tab: cart})
   })
 })
 ```

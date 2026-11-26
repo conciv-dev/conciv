@@ -85,6 +85,10 @@ On success it prints `{"ok":true,"data":{"connected":"claude"}}`.
 The connected agent gets three MCP tools: `list_tabs` lists the open conciv tabs of every running dev server on this
 machine, and `execute_typescript` and `discover_tools` run on the tab you name with `tab`.
 
+Work a call leaves running, such as a queue of page actions, is a job on the engine. Its result comes back at the top
+of the first `execute_typescript` reply on that tab after it ends, once. An agent whose MCP client supports tasks gets a task
+instead, which completes when the job ends.
+
 The panel shows the same connections: a **Connected agents** row above the composer, and a **Connect agents** menu in the
 composer toolbar.
 

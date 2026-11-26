@@ -9,31 +9,71 @@ rest you add in the `plugins` option (see [Add a plugin](/docs/plugins#add-a-plu
 
 ## On by default
 
-The shipped engine, `@conciv/backend`, starts with the page plugin's engine part:
+A built-in plugin lists what a host composes from it in a `./builtins` export, as opencode's built-ins do, and the
+hosts compose those lists. No host names a built-in's id or functions. The page plugin's engine list is its
+`./engine-builtins` export:
+
+```ts title="packages/plugins/page/src/engine-builtins.ts"
+import page from './page.js'
+
+export const builtins: readonly [typeof page] = [page]
+```
+
+The shipped engine, `@conciv/backend`, starts with it:
 
 ```ts title="packages/backend/src/start.ts"
 export function start({simulation, ...opts}: StartOpts): Promise<Engine> {
-  return createBackend({...opts, plugins: [page], simulation: simulation === true ? startSimulation : undefined})
+  return createBackend({
+    ...opts,
+    plugins: [...pageEngineBuiltins],
+    simulation: simulation === true ? startSimulation : undefined,
+  })
 }
 ```
 
-The widget, `@conciv/app`, lists the browser parts it bundles:
+The widget's lists are the page plugin's and the terminal plugin's `./builtins` exports: each entry is an id, the
+browser part, whether it has an engine part, and an optional tool group. The page plugin's groups its tool calls into
+one card per session:
+
+```ts title="packages/plugins/page/src/builtins.ts"
+export const builtins: readonly [PageBuiltin] = [
+  {
+    id: 'conciv.page',
+    plugin: pageRenderer,
+    engineHalf: true,
+    toolGroup: {entry: pageSessionEntry, createGrouper: createPageSessionGrouper},
+  },
+]
+```
+
+The widget, `@conciv/app`, composes them:
 
 ```ts title="packages/app/src/builtins.ts"
+const plugins: readonly Builtin[] = [...terminalBuiltins, ...pageBuiltins]
+
 export const builtins: BuiltinPlugins = {
-  entries: compose({terminal: staticEntry(terminal), 'conciv.page': staticEntry(page)}),
-  engineHalf: ['conciv.page'],
-  toolGroups: [{plugin: 'conciv.page', entry: pageSessionEntry, createGrouper: createPageSessionGrouper}],
+  entries: [...plugins.map(staticEntry), ...driveEntries],
+  engineHalf: [
+    ...plugins.flatMap((plugin) => (plugin.engineHalf === true ? [plugin.id] : [])),
+    ...driveEntries.map((entry) => entry.id),
+  ],
+  toolGroups: plugins.flatMap((plugin) => (plugin.toolGroup ? [{...plugin.toolGroup, plugin: plugin.id}] : [])),
 }
 ```
+
+`driveEntries` is the widget's drive mode, in dev builds only (see [Simulation and drive mode](/docs/simulation)).
+The widget bundle's entry is `packages/app/src/global-entry.ts`, which mounts the widget with these built-ins. The
+built-ins' classes are in the widget's own sheet: the app's `uno.config.ts` scans the page, terminal and iOS plugins'
+`src` with the widget's own folders.
 
 ### Page
 
 `@conciv/plugin-page`, published, id `conciv.page`. The agent's connection to the page you have open: its tools read
-and drive the live page (the tabs, snapshots, screenshots, the console, DOM reads, forms and queued page actions), its
+and drive the live page (snapshots, screenshots, the console, DOM reads, forms and queued page actions), its
 skill teaches the agent to
 use them, and its browser part runs the page operations and draws their cards in the thread. It also exports
-`pageTestPlugin` from `./test-utils` for other plugins' tests. See [Page control](/docs/usage/page-control).
+`pageTestPlugin` from `./test-utils` for other plugins' tests. It acts inside a browser tab and holds no tab list of its own: the open tabs are the
+engine's (see [Browser tabs](/docs/plugins/engine#browser-tabs)). See [Page control](/docs/usage/page-control).
 
 ### Terminal
 
