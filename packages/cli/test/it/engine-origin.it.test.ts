@@ -2,25 +2,23 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {test as it} from '@conciv/backend-test-utils'
-import page from '@conciv/plugin-page'
 import {cli} from '../utils/cli.js'
 
 describe('discovery', () => {
   it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async ({
     createEngine,
   }) => {
-    const project = await createEngine({}, {plugins: [page]})
-    const other = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
+    const project = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
+    const other = await createEngine({})
     await project.write('src/app/main.ts', 'export {}\n')
 
     const fromEnv = await cli(['tools', '--help'], {cwd: project.root, engine: other})
     expect(fromEnv.exitCode).toBe(0)
-    expect(fromEnv.stdout).toMatch(/^ {2}shelf +the shelf tools the running dev server serves/m)
+    expect(fromEnv.stdout).not.toMatch(/^ {2}shelf /m)
 
     const fromSubfolder = await cli(['tools', '--help'], {cwd: join(project.root, 'src', 'app')})
     expect(fromSubfolder.exitCode).toBe(0)
-    expect(fromSubfolder.stdout).toMatch(/^ {2}page +the page tools the running dev server serves/m)
-    expect(fromSubfolder.stdout).not.toMatch(/^ {2}shelf /m)
+    expect(fromSubfolder.stdout).toMatch(/^ {2}shelf +the shelf tools the running dev server serves/m)
 
     const nowhere = await cli(['tools', '--help'])
     expect(nowhere.exitCode).toBe(1)

@@ -438,6 +438,20 @@ export function fromPromise(plugin: Plugin.Plugin) {
             list: (sessionId) => run(host.browserTabs.list(sessionId)),
             sessions: () => run(host.browserTabs.sessions()),
           },
+          job: {
+            start: ({run: work, cancel, ...input}) =>
+              run(
+                host.job.start({
+                  ...input,
+                  run: Effect.tryPromise(work),
+                  ...(cancel === undefined ? {} : {cancel: Effect.promise(cancel)}),
+                }),
+              ),
+            get: (id) => run(host.job.get(id)),
+            wait: (input) => run(host.job.wait(input)),
+            cancel: (id) => run(host.job.cancel(id)),
+            completeBackground: (notificationID) => run(host.job.completeBackground(notificationID)),
+          },
           session: {
             hook: (name, callback) =>
               register(host.session.hook(name, (event) => Effect.promise(() => Promise.resolve(callback(event))))),

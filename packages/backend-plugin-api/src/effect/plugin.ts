@@ -11,6 +11,7 @@ import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
 import type {RpcDomain} from './rpc.js'
 import type {SessionDomain} from './session.js'
+import type {JobDomain} from './job.js'
 import type {SkillDomain} from './skill.js'
 import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
@@ -38,6 +39,7 @@ export interface Context {
   }
   readonly rpc: RpcDomain
   readonly browserTabs: BrowserTabDomain
+  readonly job: JobDomain
   readonly session: SessionDomain
   readonly skill: SkillDomain
   readonly storage: StorageDomain

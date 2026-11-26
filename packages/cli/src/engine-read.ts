@@ -3,8 +3,8 @@ import {z} from 'zod'
 import {ORPCError} from '@orpc/client'
 import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
 import type {Project, SessionMeta} from '@conciv/protocol'
+import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 import {SessionId} from '@conciv/types/chat-types'
-import {Definition as Page, type State} from '@conciv/plugin-page/rpc'
 
 export const ENGINE_READ_MS = 2_000
 
@@ -51,8 +51,6 @@ export type TabsListing = z.infer<typeof TabsListingSchema>
 
 type TabRow = TabsListing['tabs'][number]
 
-type PageMethods = typeof Page.methods
-
 type Signal = {signal: AbortSignal}
 
 export function askAgain(home: string, silent: Silent): Promise<Checked> {
@@ -79,17 +77,8 @@ export function homeRead(home: string, reading: Promise<Checked>): Promise<Check
   })
 }
 
-export function pageCall<const Method extends keyof PageMethods & string>(
-  rpc: EngineClient,
-  method: Method,
-  input: z.input<PageMethods[Method]['input']>,
-  options: Signal,
-): Promise<unknown> {
-  return rpc.plugin.call({rpcId: Page.id, method, input}, options)
-}
-
-async function readState(rpc: EngineClient, sessionId: SessionId, options: Signal): Promise<State> {
-  return Page.methods['tabs.list'].output.parse(await pageCall(rpc, 'tabs.list', {sessionId}, options))
+function readState(rpc: EngineClient, sessionId: SessionId, options: Signal): Promise<BrowserTabList> {
+  return rpc.tabs.list({sessionId}, options)
 }
 
 export function askTab<Row extends {apiBase: string; token: string}>(
@@ -126,13 +115,11 @@ async function engineTabs(row: EngineRow): Promise<TabsListing> {
   const rpc = makeRpcClient(row.apiBase, {token: row.token})
   const options = {signal: AbortSignal.timeout(ENGINE_READ_MS)}
   try {
-    const [project, attached] = await Promise.all([
+    const [project, open] = await Promise.all([
       rpc.meta.project(undefined, options),
-      pageCall(rpc, 'sessions.attached', {}, options).then((listed) =>
-        Page.methods['sessions.attached'].output.parse(listed),
-      ),
+      rpc.tabs.sessions(undefined, options),
     ])
-    const rows = await Promise.all(attached.map((sessionId) => sessionTab(rpc, project, sessionId, options)))
+    const rows = await Promise.all(open.map((sessionId) => sessionTab(rpc, project, sessionId, options)))
     return {tabs: rows.flat(), unreachable: []}
   } catch (error) {
     return {tabs: [], unreachable: [{root: row.root, error: engineTooOld(error) ? TOO_OLD : errorText(error)}]}
@@ -147,11 +134,7 @@ async function sessionTab(
 ): Promise<TabRow[]> {
   const [meta, state] = await Promise.all([readMeta(rpc, sessionId, options), readState(rpc, sessionId, options)])
   if (meta === null || meta.hidden) return []
-  const focusedFirst = [
-    ...state.tabs.filter((tab) => tab.id === state.focusedTabId),
-    ...state.tabs.filter((tab) => tab.id !== state.focusedTabId),
-  ]
-  const browserTabs = focusedFirst.map((tab) => ({
+  const browserTabs = state.tabs.map((tab) => ({
     id: tab.id,
     href: tab.url,
     pageTitle: tab.title,

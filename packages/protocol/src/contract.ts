@@ -23,6 +23,8 @@ import {TtyServerControlSchema} from '@conciv/types/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 import {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from './schema/browser-tab.js'
+import {Schema as EffectSchema} from 'effect'
+import * as Job from './schema/job.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -33,6 +35,25 @@ interface ChatEventStream extends Schema<
 const ChatEventStreamSchema: ChatEventStream = eventIterator(StreamChunkSchema)
 
 const SessionIdInput = z.object({sessionId: SessionId})
+
+const JobId = z.string().min(1).max(256)
+
+const JobListInput = SessionIdInput.extend({toolCallIds: z.array(z.string().min(1).max(256)).max(256).optional()})
+
+const JobWaitInput = z.object({ids: z.array(JobId).min(1).max(256), waitMs: z.number().int().min(0).max(30_000)})
+
+const JobList = EffectSchema.toStandardSchemaV1(EffectSchema.Struct({data: EffectSchema.Array(Job.Info)}))
+
+const JobWaited = z.object({
+  data: z.array(
+    z.object({
+      id: z.string(),
+      status: z.enum(['running', 'completed', 'error', 'cancelled']),
+      output: z.string().optional(),
+      error: z.string().optional(),
+    }),
+  ),
+})
 const RunIdSchema = z.string().min(1)
 const ChatSendInput = SessionIdInput.extend({
   runId: RunIdSchema,
@@ -476,6 +497,10 @@ export const contract = {
     list: oc.input(SessionIdInput).output(BrowserTabList),
     sessions: oc.output(z.array(SessionId)),
     changes: oc.output(eventIterator(BrowserTabsChange)),
+  },
+  jobs: {
+    list: oc.input(JobListInput).output(JobList),
+    wait: oc.input(JobWaitInput).output(JobWaited),
   },
   settings: {
     all: oc.input(SettingsInput).output(SettingsSnapshotSchema),

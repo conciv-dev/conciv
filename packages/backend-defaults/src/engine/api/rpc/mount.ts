@@ -22,6 +22,7 @@ import type {McpVars} from '../mcp.js'
 import type {ProjectDeps} from '../../lib/project.js'
 import type {ManagedRuntime} from 'effect'
 import type * as Tab from '@conciv/backend-app-api/core/tab'
+import type * as Job from '@conciv/backend-app-api/core/job'
 import type {
   Agent,
   Bus,
@@ -65,6 +66,7 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | SessionInbox.Interface
   | Session.Interface
   | Tab.Interface
+  | Job.Interface
   | Identifier.Maker,
   never
 >
