@@ -9,7 +9,7 @@ import type {BuiltinPlugins} from '@internal/frontend-defaults'
 type Builtin = {
   readonly id: string
   readonly plugin: Plugin.Definition
-  readonly engineHalf?: boolean
+  readonly server?: boolean
   readonly toolGroup?: ToolGroup
 }
 
@@ -28,8 +28,8 @@ const plugins: readonly Builtin[] = [...terminalBuiltins, ...pageBuiltins]
 
 export const builtins: BuiltinPlugins = {
   entries: [...plugins.map(staticEntry), ...driveEntries],
-  engineHalf: [
-    ...plugins.flatMap((plugin) => (plugin.engineHalf === true ? [plugin.id] : [])),
+  serverBuiltins: [
+    ...plugins.flatMap((plugin) => (plugin.server === true ? [plugin.id] : [])),
     ...driveEntries.map((entry) => entry.id),
   ],
   toolGroups: plugins.flatMap((plugin) => (plugin.toolGroup ? [{...plugin.toolGroup, plugin: plugin.id}] : [])),

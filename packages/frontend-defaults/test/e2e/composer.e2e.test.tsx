@@ -843,7 +843,7 @@ describe('drive mode', () => {
       onTestFinished(() => connection.dispose())
       await mountShell({
         engine: {apiBase: engine.address.apiBase, connection},
-        plugins: [{id: 'conciv.simulation.ui', plugin: {setup: drive}, builtin: true, engineHalf: true}],
+        plugins: [{id: 'conciv.simulation.ui', plugin: {setup: drive}, builtin: true, server: true}],
       })
       const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
       const driver = await engine.drive()

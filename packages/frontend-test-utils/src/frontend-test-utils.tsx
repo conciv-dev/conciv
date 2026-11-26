@@ -45,7 +45,7 @@ export type TestPlugin = {
   readonly plugin: Plugin.Definition
   readonly options?: PluginOptions
   readonly builtin?: boolean
-  readonly engineHalf?: boolean
+  readonly server?: boolean
   readonly toolGroup?: ToolGroup
 }
 

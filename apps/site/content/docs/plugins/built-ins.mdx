@@ -22,7 +22,7 @@ The widget, `@conciv/app`, lists the browser parts it bundles:
 ```ts title="packages/app/src/builtins.ts"
 export const builtins: BuiltinPlugins = {
   entries: compose({terminal: staticEntry(terminal), 'conciv.page': staticEntry(page)}),
-  engineHalf: ['conciv.page'],
+  serverBuiltins: ['conciv.page'],
   toolGroups: [{plugin: 'conciv.page', entry: pageSessionEntry, createGrouper: createPageSessionGrouper}],
 }
 ```

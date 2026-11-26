@@ -8,7 +8,7 @@ export type DeclaredToolGroup = ToolGroup & {readonly plugin: string}
 
 export type BuiltinPlugins = {
   readonly entries: readonly Entry[]
-  readonly engineHalf: readonly string[]
+  readonly serverBuiltins: readonly string[]
   readonly toolGroups?: readonly DeclaredToolGroup[]
 }
 
@@ -22,7 +22,7 @@ const shellBuiltins = compose({grab: {windowEntry: () => Promise.resolve({defaul
 export function withShellBuiltins(builtins: BuiltinPlugins | undefined): BuiltinPlugins {
   return {
     entries: [...shellBuiltins, ...(builtins?.entries ?? [])],
-    engineHalf: builtins?.engineHalf ?? [],
+    serverBuiltins: builtins?.serverBuiltins ?? [],
     toolGroups: builtins?.toolGroups ?? [],
   }
 }

@@ -134,7 +134,7 @@ export function PluginRoot(
         client: apis.engine.client,
         apiBase,
         builtins: local,
-        engineHalf: builtins.engineHalf,
+        serverBuiltins: builtins.serverBuiltins,
         connection: () => untrack(connection)?.(),
       })
 

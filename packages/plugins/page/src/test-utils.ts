@@ -8,6 +8,6 @@ export const pageTestPlugin: {
   readonly id: string
   readonly plugin: Plugin.Definition
   readonly builtin: boolean
-  readonly engineHalf: boolean
+  readonly server: boolean
   readonly toolGroup: {readonly entry: typeof pageSessionEntry; readonly createGrouper: typeof createPageSessionGrouper}
 } = {...page, builtin: true}

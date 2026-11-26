@@ -5,7 +5,7 @@ import {createPageSessionGrouper, pageSessionEntry} from './client.js'
 type PageBuiltin = {
   readonly id: string
   readonly plugin: Plugin.Definition
-  readonly engineHalf: boolean
+  readonly server: boolean
   readonly toolGroup: {readonly entry: typeof pageSessionEntry; readonly createGrouper: typeof createPageSessionGrouper}
 }
 
@@ -13,7 +13,7 @@ export const builtins: readonly [PageBuiltin] = [
   {
     id: 'conciv.page',
     plugin: pageRenderer,
-    engineHalf: true,
+    server: true,
     toolGroup: {entry: pageSessionEntry, createGrouper: createPageSessionGrouper},
   },
 ]
