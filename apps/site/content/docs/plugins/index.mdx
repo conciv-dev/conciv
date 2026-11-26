@@ -17,30 +17,25 @@ plugin's RPC methods from a terminal with [`conciv plugin call`](/docs/plugins/t
 
 ## Add a plugin in the conciv options
 
-List plugins in the `plugins` option of `conciv()`. An entry is a string, or `[name, options]`:
+List plugins in the `plugins` option of `conciv()` by package name. An entry is a string, or `[name, options]`:
 
-```ts title="apps/examples/tanstack-start/vite.config.ts"
-const testRunnerPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-test-runner/package.json')))
-const tanstackPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-tanstack/package.json')))
-
+```ts title="vite.config.ts"
 conciv({
-  widget: {quickTerminal: {hotkey: 'Alt+k'}},
-  plugins: [testRunnerPlugin, tanstackPlugin, recorderPlugin, whiteboardPlugin],
-}),
+  plugins: ['@conciv/plugin-test-runner', ['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]],
+})
 ```
 
-```ts title="packages/plugins/tanstack/README.md"
-plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]]
-```
+A plugin of your own is listed as a path to its folder that starts with `./`, such as `'./tools/my-plugin'`. It
+resolves against the project folder the engine runs in (Vite's `root`, else the folder the dev server started in),
+not against the config file.
 
 What the engine does with each entry:
 
-- An absolute path loads the plugin from that folder. The example above passes the folder of a package installed in
-  the project, so the engine loads the copy in `node_modules`.
-- A path that starts with `./` or `../` resolves from the project folder. A `file://` URL works too. A configured
+- Any string that is not a path is a package name. The engine installs that package from npm into its own cache
+  folder and loads it from there, not from your project's `node_modules`.
+- A path that starts with `./` or `../` resolves from the project folder, and an absolute path or a `file://` URL is
+  used as it is. The engine loads the plugin from that folder. A configured
   path must be a folder: a file is skipped with the warning `configured plugin path must be a directory`.
-- Any other string is a package name. The engine installs that package from npm into its own cache folder and loads
-  it from there, not from your project's `node_modules`.
 - A string that starts with `-` turns off the plugin with that id, for example one loaded from `conciv/plugins`.
 - Every option value must be JSON: a string, number, boolean, null, array or object. The engine part reads them as
   `ctx.options`, and so does the browser part.
