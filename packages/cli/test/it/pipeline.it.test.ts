@@ -18,6 +18,11 @@ describe('dry run', () => {
       plan: /^Install @conciv\/it +package\.json\nWire next\.js +next\.config\.mjs, instrumentation\.ts, instrumentation-client\.ts\n/,
     },
     {
+      fixture: 'next-src-shop',
+      files: ['next.config.mjs', 'package.json', 'src'],
+      plan: /^Install @conciv\/it +package\.json\nWire next\.js +next\.config\.mjs, src\/instrumentation\.ts, src\/instrumentation-client\.ts\n/,
+    },
+    {
       fixture: 'webpack-shop',
       files: ['package.json', 'webpack.config.js'],
       plan: /^Install @conciv\/it +package\.json\nWire the webpack config +webpack\.config\.js\n/,
