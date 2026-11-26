@@ -34,7 +34,8 @@ import {PluginContext} from '@conciv/frontend-plugin-api/host'
 import {usePluginHost, type Item} from './host'
 import {createLinkCheck} from './link-check'
 import {createStyleSheet} from '../lib/style-sheet'
-import {fenceSelector, PLUGIN_AREA_ATTRIBUTE} from '../lib/plugin-fence'
+import {fenceSelector} from '../lib/plugin-fence'
+import {PluginArea} from './plugin-area'
 
 export function Contribution(props: {
   plugin: string
@@ -48,7 +49,7 @@ export function Contribution(props: {
   return (
     <Show when={host.context(props.plugin)} keyed fallback={props.fallback?.()}>
       {(context) => (
-        <div {...{[PLUGIN_AREA_ATTRIBUTE]: props.plugin}} class="contents">
+        <PluginArea plugin={props.plugin}>
           <ErrorBoundary
             fallback={(error, reset) => {
               onMount(() => {
@@ -61,7 +62,7 @@ export function Contribution(props: {
           >
             <PluginContext.Provider value={context}>{untrack(props.children)}</PluginContext.Provider>
           </ErrorBoundary>
-        </div>
+        </PluginArea>
       )}
     </Show>
   )
