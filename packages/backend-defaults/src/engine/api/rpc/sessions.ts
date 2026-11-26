@@ -23,6 +23,7 @@ import type {
 } from '@conciv/types/harness-types'
 import {resolveHarnessLogin, resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {sessions} from '@conciv/backend-app-api/core/session/sql'
+import * as Session from '@conciv/backend-app-api/core/session'
 import {
   ensureRow,
   listSessionMetas,
@@ -300,6 +301,12 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
   return {
     list: os.sessions.list.handler(({input}) => listedSessionPage(chat, search, input)),
     changes: os.sessions.changes.handler(({signal}) => search.changes(signal)),
+    outsideNotices: os.sessions.outsideNotices.handler(({input, signal}) =>
+      deps.pluginHost.runPromise(
+        Session.Service.use((sessions) => sessions.outsideNotices(input)),
+        {signal},
+      ),
+    ),
     search: os.sessions.search.handler(async ({input}) => {
       const page = await searchedSessionPage(chat, search, input)
       return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: formatResume(chat, hit)}))}

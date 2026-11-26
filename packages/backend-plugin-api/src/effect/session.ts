@@ -78,6 +78,8 @@ export interface SessionHooks {
   readonly 'experimental.idle': SessionIdle
 }
 
+export type SessionOutsideCall = {readonly sessionId: SessionId; readonly toolCallId: string}
+
 export type SessionDomain = {
   readonly list: (input?: SessionListInput) => Effect.Effect<
     {
@@ -110,6 +112,8 @@ export type SessionDomain = {
   }) => Effect.Effect<{readonly interrupted: boolean}, unknown>
   readonly update: (input: SessionUpdateInput) => Effect.Effect<void, unknown>
   readonly wait: (input: SessionInput) => Effect.Effect<void, unknown>
+  readonly expectOutside: (input: SessionOutsideCall) => Effect.Effect<void>
+  readonly notifyOutside: (input: SessionOutsideCall & {readonly text: string}) => Effect.Effect<void>
   readonly instructions: {
     readonly entry: {
       readonly list: (input: SessionInput) => Effect.Effect<ReadonlyArray<InstructionEntryInfo>, unknown>

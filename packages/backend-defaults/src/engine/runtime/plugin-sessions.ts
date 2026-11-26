@@ -10,7 +10,9 @@ import {
   type ReasoningEffort,
   type SessionRecord,
 } from '@conciv/types/chat-types'
-import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/backend-app-api'
+import {Agent, Bus, type KV, Session, SessionErrors} from '@conciv/backend-app-api'
+import * as Database from '@conciv/backend-app-api/core/database/database'
+import * as OutsideNotice from '../../core/session/outside-notice.js'
 import {SessionInbox, SessionSynthetic} from '../../backend-defaults.js'
 import * as Model from '@conciv/protocol/schema/model'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
@@ -163,6 +165,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
     Effect.gen(function* () {
       const inbox = yield* SessionInbox.Service
       const ids = yield* Identifier.Service
+      const outside = yield* OutsideNotice.make(yield* Bus.Service, (yield* Database.Service).db, ids)
       const synthetic = SessionSynthetic.make({get: found}, inbox, ids, (sessionId) =>
         Effect.promise(() => started().chat.plane.wake(sessionId)),
       )
@@ -282,6 +285,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
             }),
           ),
         synthetic,
+        expectOutside: (input) => found(input.sessionId).pipe(Effect.andThen(outside.expect(input))),
+        notifyOutside: (input) => found(input.sessionId).pipe(Effect.andThen(outside.notify(input))),
+        outsideNotices: outside.collect,
         wait: (sessionId) =>
           found(sessionId).pipe(Effect.andThen(() => Effect.promise(() => started().chat.plane.settled(sessionId)))),
         interrupt: (sessionId) =>

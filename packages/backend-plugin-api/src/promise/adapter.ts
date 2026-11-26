@@ -102,6 +102,12 @@ const SessionSyntheticSchemas = {
   }),
   output: SessionInbox.Synthetic,
 }
+const SessionOutsideCallSchemas = passingUnknownKeys({sessionId: Session.Id, toolCallId: Schema.String})
+const SessionOutsideNoticeSchemas = passingUnknownKeys({
+  sessionId: Session.Id,
+  toolCallId: Schema.String,
+  text: Schema.String,
+})
 const SessionInterruptSchemas = passingUnknownKeys({sessionId: Session.Id, resume: Schema.optional(Schema.Boolean)})
 const InstructionEntryPutSchemas = passingUnknownKeys({
   sessionId: Session.Id,
@@ -454,6 +460,8 @@ export function fromPromise(plugin: Plugin.Plugin) {
             interrupt: adaptMethod(SessionInterruptSchemas, host.session.interrupt),
             update: adaptMethod(SessionUpdateSchemas, host.session.update),
             wait: adaptMethod(SessionIdSchemas, host.session.wait),
+            expectOutside: adaptMethod(SessionOutsideCallSchemas, host.session.expectOutside),
+            notifyOutside: adaptMethod(SessionOutsideNoticeSchemas, host.session.notifyOutside),
             instructions: {
               entry: {
                 list: adaptMethod(SessionIdSchemas, host.session.instructions.entry.list),

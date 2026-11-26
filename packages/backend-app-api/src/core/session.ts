@@ -38,6 +38,13 @@ type SyntheticInput = {
   resume?: boolean
 }
 
+type OutsideCall = {sessionId: SessionId; toolCallId: string}
+
+type OutsideNotices = {
+  readonly notices: Array<{readonly id: string; readonly toolCallId: string; readonly text: string}>
+  readonly pending: Array<string>
+}
+
 type CompactInput = {id?: string; delivery?: SessionInboxDelivery} & {sessionId: SessionId}
 
 export interface Interface {
@@ -65,6 +72,13 @@ export interface Interface {
   readonly synthetic: (
     input: SyntheticInput,
   ) => Effect.Effect<SessionInbox.Synthetic, NotFoundError | SyntheticConflictError>
+  readonly expectOutside: (input: OutsideCall) => Effect.Effect<void, NotFoundError>
+  readonly notifyOutside: (input: OutsideCall & {text: string}) => Effect.Effect<void, NotFoundError>
+  readonly outsideNotices: (input: {
+    sessionId: SessionId
+    toolCallIds?: ReadonlyArray<string>
+    waitMs: number
+  }) => Effect.Effect<OutsideNotices>
   readonly wait: (id: SessionId) => Effect.Effect<void, NotFoundError>
   readonly interrupt: (sessionId: SessionId, options?: {readonly resume?: boolean}) => Effect.Effect<boolean>
 }
