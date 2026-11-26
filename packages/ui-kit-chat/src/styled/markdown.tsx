@@ -3,7 +3,7 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
-  Index,
+  For,
   Match,
   onCleanup,
   onMount,
@@ -303,7 +303,7 @@ function HastElementView(props: {element: HastElement}): JSX.Element {
       class={hastClass(props.element.properties.class ?? props.element.properties.className)}
       style={hastStyle(props.element.properties.style)}
     >
-      <Index each={props.element.children}>{(child) => <HastNodeView node={child()} />}</Index>
+      <For each={props.element.children}>{(child) => <HastNodeView node={child} />}</For>
     </Dynamic>
   )
 }
@@ -311,7 +311,7 @@ function HastElementView(props: {element: HastElement}): JSX.Element {
 function HastNodeView(props: {node: HastChild}): JSX.Element {
   return (
     <Switch>
-      <Match when={props.node.type === 'text' ? props.node : undefined}>{(text) => <>{text().value}</>}</Match>
+      <Match when={props.node.type === 'text' ? props.node : undefined}>{(text) => text().value}</Match>
       <Match when={props.node.type === 'element' ? props.node : undefined}>
         {(element) => <HastElementView element={element()} />}
       </Match>
