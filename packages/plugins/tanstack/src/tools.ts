@@ -6,7 +6,8 @@ import type {RpcClient} from '@conciv/backend-plugin-api/effect/rpc'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
 import type {SystemError} from '@conciv/protocol/schema/rpc'
 import * as Tool from '@conciv/protocol/schema/tool'
-import {Definition as PageDefinition, State, TabId} from '@conciv/plugin-page/rpc'
+import {BrowserTabId, BrowserTabList} from '@conciv/protocol/schema/browser-tab'
+import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {DiagnosticsService} from './diagnostics.js'
 import {
   BundlerUnavailable,
@@ -30,11 +31,11 @@ const pageOptions = {...options, permission: 'page'}
 
 const JsonObject = z.record(z.string(), z.json())
 
-const Targeted = z.object({tabId: TabId.optional()})
+const Targeted = z.object({tabId: BrowserTabId.optional()})
 
 type Page = RpcClient<typeof PageDefinition, SystemError>
 
-type PageError = Effect.Error<ReturnType<Page['operate']>> | Effect.Error<ReturnType<Page['tabs.list']>>
+type PageError = Effect.Error<ReturnType<Page['operate']>>
 
 const UNTRUSTED = {type: 'text' as const, text: UNTRUSTED_NOTE}
 
@@ -103,7 +104,7 @@ function invalidResult(operation: Operation, error: z.ZodError) {
 }
 
 export const register = Effect.fn('TanstackTools.register')(function* (
-  ctx: Pick<Context, 'tool' | 'skill' | 'rpc'>,
+  ctx: Pick<Context, 'tool' | 'skill' | 'rpc' | 'browserTabs'>,
   tanstack: Capabilities,
 ) {
   const page = ctx.rpc(PageDefinition)
@@ -185,13 +186,10 @@ export const register = Effect.fn('TanstackTools.register')(function* (
       description:
         "List this session's browser tabs and the tab the user focused last. A call without a tabId goes to that tab.",
       input: z.object({}),
-      output: State,
+      output: BrowserTabList,
       options: {...pageOptions, namespace: 'tanstack.tabs'},
       execute: (_input, tool) =>
-        page['tabs.list']({sessionId: tool.sessionId}).pipe(
-          Effect.map((output) => ({output, content: [UNTRUSTED]})),
-          Effect.mapError(pageFailure('tabs.list')),
-        ),
+        ctx.browserTabs.list(tool.sessionId).pipe(Effect.map((output) => ({output, content: [UNTRUSTED]}))),
     })
     Operations.forEach((operation) => {
       editor.add({
