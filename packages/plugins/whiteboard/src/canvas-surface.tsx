@@ -18,6 +18,8 @@ const CANVAS_STYLES = excalidrawCss
   .replaceAll(/:root\[dir=(ltr|rtl)\]/g, ':host(:dir($1))')
   .replaceAll(/:root(?=\s*\{)/g, ':host')
 
+const INBOX_CORNER = 'fixed inset-3 flex flex-col items-end pointer-events-none'
+
 const EXCALIDRAW_INSIDE_MARKER = 'data-prevent-outside-click'
 
 const OPEN_CHAT_LAYER =
@@ -67,9 +69,11 @@ function CanvasView(
       />
       <Portal mount={props.layer}>
         <Show when={props.visible}>
-          <InboxToggle />
           <PinsLayer />
-          <Inbox />
+          <div class={INBOX_CORNER}>
+            <InboxToggle />
+            <Inbox />
+          </div>
         </Show>
         <ThreadPopover visible={props.visible} />
       </Portal>
