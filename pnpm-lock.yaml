@@ -24,6 +24,9 @@ catalogs:
     '@effect/sql-sqlite-node':
       specifier: 4.1.0
       version: 4.1.0
+    '@effect/vitest':
+      specifier: 4.1.0
+      version: 4.1.0
     '@excalidraw/excalidraw':
       specifier: ^0.18.1
       version: 0.18.1
@@ -2299,6 +2302,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../engine-kit
@@ -3371,6 +3377,9 @@ importers:
       '@conciv/frontend-plugin-api':
         specifier: workspace:^
         version: link:../../frontend-plugin-api
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../../engine-kit
@@ -3480,6 +3489,9 @@ importers:
       '@conciv/backend-test-utils':
         specifier: workspace:*
         version: link:../../backend-test-utils
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/frontend-app-api':
         specifier: workspace:*
         version: link:../../frontend-app-api
@@ -4323,6 +4335,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -6036,6 +6051,12 @@ packages:
     resolution: {integrity: sha512-Z8PxzlVlfp5JCGYAg9CwehHkvLEwMf/NF7htdDkKy65G4vE78ARkDMUSyeIzZ1zpadMxbbCEUJ2FM9M5/0Nxgg==}
     peerDependencies:
       effect: ^4.1.0
+
+  '@effect/vitest@4.1.0':
+    resolution: {integrity: sha512-+APF69oTYgGj5WCewowk1/udepH74xz4ONyH7d+UfcK0SrF3osiSwsWEyODUpJvWd6MIk5F5PcFJiE4evMuG2A==}
+    peerDependencies:
+      effect: ^4.1.0
+      vitest: '>=5.0.0 <6.0.0'
 
   '@electric-sql/pglite@0.3.16':
     resolution: {integrity: sha512-mZkZfOd9OqTMHsK+1cje8OSzfAQcpD7JmILXTl5ahdempjUDdmg4euf1biDex5/LfQIDJ3gvCu6qDgdnDxfJmA==}
@@ -20126,6 +20147,11 @@ snapshots:
   '@effect/sql-sqlite-node@4.1.0(effect@4.1.0)':
     dependencies:
       effect: 4.1.0
+
+  '@effect/vitest@4.1.0(effect@4.1.0)(vitest@5.1.0)':
+    dependencies:
+      effect: 4.1.0
+      vitest: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   '@electric-sql/pglite@0.3.16':
     optional: true
