@@ -1,11 +1,12 @@
 ---
 title: Logging in
-description: The first time a browser opens conciv, it asks for a code from your dev server's terminal.
+description: Let a browser use conciv by typing the code your dev server prints.
 ---
 
-conciv can read your project, run commands and open your editor, so the engine only answers browsers it trusts. The
-first time a browser opens the panel, conciv asks for a 6-digit code, and the engine prints that code in the terminal
-running your dev server.
+The first time a browser opens conciv, you log it in with a 6-digit code. Your dev server prints the code in its
+terminal. You do this once per browser.
+
+The engine can read your project and run commands, so it answers only browsers you let in.
 
 ## Log in with the code
 
@@ -14,8 +15,8 @@ running your dev server.
 
 ### Open the panel
 
-A browser that has not logged in shows the conciv button with an **Unauthorized** badge. Click it. The **Authorize
-conciv** dialog opens instead of the chat: "Enter the 6-digit code printed in the terminal running your dev server."
+A browser that is not logged in shows the conciv button with an **Unauthorized** badge. Click it. The **Authorize
+conciv** dialog opens and asks for the code.
 
 <ImageZoom
   src="/screenshots/login-locked-launcher.png"
@@ -34,70 +35,84 @@ conciv** dialog opens instead of the chat: "Enter the 6-digit code printed in th
 </Step>
 <Step>
 
-### Read the code in your terminal
+### Find the code in your terminal
 
-Opening the dialog asks the engine for a code. The engine prints it in a box with five lines:
+Opening the dialog makes the engine print a box in the terminal running your dev server:
 
-- `conciv: a browser asks to connect to this engine`
-- `From:` the browser, its version and system, and the page origin it asks from: `<browser> <version> | <system> at
-  <origin>`
-- `Code:` the six digits
-- `Link:` the page origin with the code in its address, `#conciv_otp=<code>`
-- `Expires:` the time the code stops working
+```text
+╭──────────────────────────────────────────────────────╮
+│ conciv: a browser asks to connect to this engine     │
+│ From:    Chrome 142 | macOS at http://localhost:5173 │
+│ Code:    482913                                      │
+│ Link:    http://localhost:5173/#conciv_otp=482913    │
+│ Expires: 10:42:07                                    │
+╰──────────────────────────────────────────────────────╯
+```
+
+- **From** is the browser that asks, and the page it asks from. Check it is yours.
+- **Code** is what you type.
+- **Link** logs the browser in without typing (see the next section).
+- **Expires** is when the code stops working, 5 minutes from now.
 
 </Step>
 <Step>
 
 ### Type the code
 
-Type the six digits. conciv sends them when the last digit is in, and the chat opens. The browser keeps its login, so
-the next visit goes straight to the chat.
+Type the six digits. conciv sends them when the last digit is in, and the chat opens. The browser stays logged in, so
+next time the chat opens at once.
 
 </Step>
 </Steps>
 
-<Callout title="The code">
-  A code works once and lives 5 minutes. Opening the dialog again while a code is live reuses it. After 5 wrong tries
-  the code is dropped: click **Send a new code** and the engine prints a fresh one.
-</Callout>
+## Log in with a link
 
-## Log in with the link
+Open the **Link** from the box in the browser you want to log in. conciv reads the code from the address, logs the
+browser in, and removes the code from the address bar.
 
-The `Link:` line is your page with the code in its address. Open it in the browser you want to log in. conciv reads the
-code on load, logs the browser in, then removes the code from the address bar.
-
-To get a link without opening the dialog first, run `conciv auth link` with the page's address, from your project
-folder:
+To get a link without opening the dialog, run this in your project folder, with your page's address:
 
 ```bash
 conciv auth link http://localhost:5173/
 ```
 
-It prints JSON: `data.link` is the page address with `conciv_otp=<code>` added to its `#` part (a `#` part the address
-already has is kept), and `data.expiresAt` is when the code stops working, in milliseconds since 1970.
+It prints the link as JSON:
 
-When the dev server starts it links the CLI as `.conciv/bin/conciv` in your project, so `.conciv/bin/conciv auth link`
-works without installing `@conciv/cli` globally. The command reads `.conciv/server.json` (in the folder you run it from,
-or a parent) to find the engine, so the dev server must have started there at least once.
+```json
+{"ok": true, "data": {"link": "http://localhost:5173/#conciv_otp=482913", "expiresAt": 1795776127000}}
+```
 
-## See and revoke logged-in browsers
+- `link` is your address with the code added after `#`.
+- `expiresAt` is when the code stops working, in milliseconds since 1970.
 
-Each logged-in browser is a row in `.conciv/trusted-browsers.json`, with an `id`, a `hash` of its token, the
-`browser`, the `origin` it logged in from, and `grantedAt`. List them:
+No global install is needed. The dev server puts the command in your project as `.conciv/bin/conciv`.
+
+## See who is logged in
+
+Run `conciv auth revoke` with nothing after it:
 
 ```bash
 conciv auth revoke
 ```
 
-Revoke one by its `id`, or all of them with `--all`:
+It lists each logged-in browser under `trusted`, with its `id`, the browser, the page it logged in from, and when.
+
+## Log a browser out
+
+Pass the browser's `id` to log out one browser:
 
 ```bash
 conciv auth revoke <id>
+```
+
+Or log out every browser:
+
+```bash
 conciv auth revoke --all
 ```
 
-A revoked browser is cut off at once: the panel shows "This browser is no longer authorized to use conciv." with a **Log
-in** button that opens the code dialog again.
+The browser is cut off at once. Its panel says "This browser is no longer authorized to use conciv." and shows a **Log
+in** button.
 
 <ImageZoom
   src="/screenshots/login-revoked.png"
@@ -110,20 +125,20 @@ in** button that opens the code dialog again.
 
 <Accordions type="single">
   <Accordion title="Log in to use conciv on this page.">
-    This browser has no login for this engine. Click **Log in** and enter the code from your terminal.
+    This browser is not logged in to this engine. Click **Log in** and type the code from your terminal.
   </Accordion>
   <Accordion title="This browser is no longer authorized to use conciv.">
-    Someone ran `conciv auth revoke` for this browser, or with `--all`. Click **Log in** to log in again.
+    Someone logged this browser out with `conciv auth revoke`. Click **Log in** to log in again.
   </Accordion>
   <Accordion title="That code didn't match. Check your terminal and try again.">
-    The digits differ from the code in the newest box in your terminal. After 5 misses the code is dropped; click **Send
-    a new code**.
+    The digits differ from the newest box in your terminal. After 5 wrong tries the code is dropped. Click **Send a new
+    code**.
   </Accordion>
   <Accordion title="That code expired. Send a new code and use the one your terminal prints.">
-    The code is older than 5 minutes, or it was dropped after 5 misses. Click **Send a new code**.
+    The code is older than 5 minutes, or it was dropped after 5 wrong tries. Click **Send a new code**.
   </Accordion>
   <Accordion title="Could not ask the dev server for a code. Please try again.">
-    The engine did not answer the dialog. Check that the dev server is running, then click **Send a new code**.
+    The engine did not answer. Check that the dev server is running, then click **Send a new code**.
   </Accordion>
   <Accordion title="conciv lost connection to the engine.">
     The engine stopped answering, usually because the dev server stopped. Start it again and click **Retry**.
@@ -133,7 +148,29 @@ in** button that opens the code dialog again.
   </Accordion>
 </Accordions>
 
-## Vite DevTools
+## Details
 
-With Vite DevTools in your Vite plugins, conciv opens as a panel in the DevTools dock, and the DevTools page logs itself
-in. No code is asked for. It shows in `conciv auth revoke` as `via Vite DevTools`.
+<Accordions type="single">
+  <Accordion title="A code works once">
+    A code logs in one browser, once. Opening the dialog again while a code is live shows the same code. **Send a new
+    code** makes the engine print a fresh one.
+  </Accordion>
+  <Accordion title="Where the logins are kept">
+    Each logged-in browser is one row in `.conciv/trusted-browsers.json`, in your project. The file holds a hash of
+    each browser's token, never the token itself.
+  </Accordion>
+  <Accordion title="conciv auth says no engine state was found">
+    The command reads `.conciv/server.json` to find the engine. The dev server writes it when it starts. Run the
+    command in your project folder, after the dev server has started there once.
+  </Accordion>
+  <Accordion title="Vite DevTools logs in for you">
+    With Vite DevTools in your Vite plugins, conciv opens as a panel in the DevTools dock. That page logs itself in,
+    with no code. It shows in the `conciv auth revoke` list as `via Vite DevTools`.
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Chat](/docs/usage/chat): send your first message.
+- [CLI](/docs/cli): every `conciv auth` option.
+- [Troubleshooting](/docs/troubleshooting): more messages and their fixes.
