@@ -1,0 +1,233 @@
+---
+title: Share an RPC method
+description: Let your plugin's browser part, a terminal or another plugin call methods on its engine part, and follow its events.
+---
+
+An RPC method is a function your engine part answers and anything else calls by name: your browser part, a
+terminal with `conciv plugin call`, or another plugin. Use one when your panel needs data from the engine, or when a
+button in the widget should make the engine do something.
+
+This page builds a plant shelf: a `count` method that reads the stock, and a `sell` method that can fail.
+
+## Declare the contract
+
+The contract names the methods, their input and output, and the errors they can fail with. Put it in its own file,
+so the engine part and the browser part both import it:
+
+```ts twoslash title="conciv/plugins/plant-shelf/rpc.ts"
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+```
+
+- `id` is the name callers use. A terminal call is `conciv plugin call plant-shelf count`.
+- Each method has an input schema and an output schema. The engine checks both.
+- `errors` lists the ways a method can fail on purpose, each with the data it carries. Here the sell method fails
+  with `sold-out` and says which plant.
+- `events` are messages the engine part sends to everyone listening. Here `sold` carries the new stock.
+
+## Answer the methods
+
+Register handlers for the contract in your engine part:
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```ts twoslash title="conciv/plugins/plant-shelf/server.ts"
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+// @filename: server.ts
+// ---cut---
+import {Plugin, type RpcRegistration} from '@conciv/backend-plugin-api'
+import {Shelf} from './rpc'
+
+export default Plugin.define({
+  id: 'plant-shelf',
+  async setup(ctx) {
+    let count = 3
+    const shelf: RpcRegistration<typeof Shelf> = await ctx.rpc.register(Shelf, {
+      count: async ({plant}) => ({plant, count}),
+      sell: async ({plant}, call) => {
+        if (count === 0) return call.error('sold-out', `${plant} is sold out`, {plant})
+        count -= 1
+        await shelf.events.emit('sold', {plant, count})
+        return {plant, count}
+      },
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="Effect">
+
+```ts twoslash title="conciv/plugins/plant-shelf/server.ts"
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+// @filename: server.ts
+// ---cut---
+import {Effect, Ref} from 'effect'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
+import {Shelf} from './rpc'
+
+export default Plugin.define({
+  id: 'plant-shelf',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const count = yield* Ref.make(3)
+      const shelf: RpcRegistration<typeof Shelf> = yield* ctx.rpc.register(Shelf, {
+        count: ({plant}) => Ref.get(count).pipe(Effect.map((left) => ({plant, count: left}))),
+        sell: ({plant}, call) =>
+          Effect.gen(function* () {
+            const left = yield* Ref.get(count)
+            if (left === 0) return yield* Effect.fail(call.error('sold-out', `${plant} is sold out`, {plant}))
+            yield* Ref.set(count, left - 1)
+            yield* shelf.events
+              .emit('sold', {plant, count: left - 1})
+              .pipe(Effect.catchCause((cause) => Effect.logError('a sold event was not delivered', cause)))
+            return {plant, count: left - 1}
+          }),
+      })
+    }).pipe(Effect.orDie),
+})
+```
+
+</Tab>
+</Tabs>
+
+- `ctx.rpc.register` answers every method of the contract. Each handler gets the checked input.
+- `call.error` makes one of the method's declared errors: its name, a message, and its data.
+- In the Promise tab a handler returns that error. In the Effect tab it fails with it.
+- `shelf.events.emit` sends an event to everyone listening.
+- `shelf` has its type written out, `RpcRegistration`, because a handler uses the registration it belongs to.
+- What a handler returns is checked against the method's `output` before it goes back to the caller.
+
+## Call it from the browser part
+
+Your browser part calls the methods through `ctx.client`, typed from the same contract:
+
+```tsx twoslash title="plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+// @filename: plugin-experimental.tsx
+// ---cut---
+import {Command, Plugin} from '@conciv/frontend-plugin-api'
+import {Shelf} from './rpc'
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Command, {
+      id: 'count-ferns',
+      title: 'Count the ferns',
+      run: async () => {
+        const stock = await ctx.client.rpc(Shelf).count({plant: 'fern'})
+        ctx.toast.show({title: `${stock.count} ferns on the shelf`})
+      },
+    })
+  },
+})
+```
+
+- `ctx.client.rpc(Shelf)` gives one typed function per method. `count` takes the input and resolves to the output.
+- Read `ctx.client` where you call it. The widget makes a new client after the engine restarts.
+- The browser part is written with Solid components and plain async functions.
+
+## Follow the events
+
+Subscribe to an event by its full name, `rpc.<contract id>.<event>`:
+
+```ts twoslash title="plugin-experimental.tsx"
+import {Plugin} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    const follow = async () => {
+      for await (const event of ctx.client.event.subscribe({types: ['rpc.plant-shelf.sold'], signal: ctx.signal})) {
+        console.log('sold', event.data)
+      }
+    }
+    void follow()
+  },
+})
+```
+
+- `subscribe` yields each event as it arrives. Here it yields `rpc.plant-shelf.sold`.
+- `ctx.signal` ends the loop when the plugin reloads or stops.
+- `event.data` is what the engine part sent with the event. Check it with your schema before you use it.
+
+After the engine connection comes back you also get a `server.connected` event. Read your data again then, since
+you may have missed events.
+
+## Call it from a terminal
+
+The same methods answer from a terminal:
+
+```bash
+conciv plugin call plant-shelf count --data '{"plant": "fern"}'
+```
+
+```json
+{"ok": true, "data": {"plant": "fern", "count": 3}}
+```
+
+See [Call your plugin from a terminal](/docs/plugins/guides/terminal).
+
+<Accordions>
+<Accordion title="Error names the engine keeps for itself">
+
+An error name that starts with `rpc.` is reserved. `Rpc.define` throws on one.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Add a panel](/docs/plugins/guides/panel): show the data in a tab next to the chat.
+- [Call your plugin from a terminal](/docs/plugins/guides/terminal): every flag and every error.
