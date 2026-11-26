@@ -1,0 +1,403 @@
+---
+title: Testing a plugin
+description: A plugin tests everything about itself from its own package, against the real engine or the fake one, in node or the browser, with the same calls.
+---
+
+A plugin tests all of itself from its own package: its tools, its RPC, its skill, its tab, its cards. It runs those
+tests against the real engine or a fake one, in node or in a browser, and the calls are the same in each. The test
+utilities hand it every fake it needs, so a plugin's own `test/utils` holds only its sample data.
+
+| Package                         | Published  | What it gives a test                                                                                          |
+| ------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
+| `@conciv/backend-test-utils`    | yes        | `test` with the `createEngine` fixture (the real engine), `TestLLM`, `pluginDirectory`                        |
+| `@conciv/client/testing`        | yes        | `createFakeEngine()` and `FakeLLM`: a fake engine that answers like the real one                              |
+| `@internal/frontend-test-utils` | no         | `renderInTestApp`, `createExtensionTester`, `useFakeEngine`; `renderTestApp` and `servePluginBundle` (`/app`) |
+| a plugin's `./test-utils`       | per plugin | that plugin's fakes for other plugins' tests, for example `pageTestPlugin`                                    |
+
+## Where a test lives
+
+Every package has `test/unit`, `test/it`, `test/e2e`, `test/fixtures` and `test/utils`. The file name carries its
+folder's kind:
+
+| File                           | Runs in                             | For                                                             |
+| ------------------------------ | ----------------------------------- | --------------------------------------------------------------- |
+| `test/unit/x.unit.test.ts`     | node (or happy-dom), starts nothing | functions, models, reducers, machines                           |
+| `test/it/x.it.test.ts`         | node, starts real things            | the engine with the plugin: tools, RPC, skill, files, processes |
+| `test/e2e/x.e2e.test.tsx`      | vitest browser mode, Chromium       | the plugin's screens: its tab, cards, pills, in the widget      |
+| `test/e2e/x.perf.e2e.test.tsx` | browser mode, Chromium and Firefox  | frame-gap budgets, kept out of the normal run                   |
+
+A behaviour is tested once, in the cheapest place that proves it: unit, then it, then e2e.
+
+The package's one `vite.config.ts` adds the test projects with `concivTest()`. `browser: true` adds the browser and
+perf projects:
+
+```ts title="packages/plugins/test-runner/vite.config.ts"
+import {defineConfig} from 'vitest/config'
+import {experimental} from '@conciv/frontend-plugin-api/vite'
+import conciv from '@conciv/unplugin/vite'
+import {concivTest} from '@internal/vitest-config/conciv-test'
+
+export default defineConfig({
+  publicDir: false,
+  plugins: [experimental(), conciv(), concivTest({browser: true})],
+})
+```
+
+`concivTest()` gives each run its own home folder, removed after, with none of the developer's secrets or `CONCIV_*`
+variables. A unit test runs in node unless the package passes `environment: 'happy-dom'`.
+
+## The real engine
+
+`test` from `@conciv/backend-test-utils` is vitest's `test` with a `createEngine` fixture. `createEngine(config, start)`
+starts the real engine on a free port, with a scripted model in place of the agent's CLI. `config` is the product's own
+conciv config, so a test adds the plugin the way a user does:
+
+```ts title="packages/plugins/test-runner/test/it/tools.it.test.ts"
+import {describe} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+import {TestLLM} from '@conciv/backend-test-utils'
+
+describe("the agent runs the project's tests", () => {
+  test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async ({
+    createEngine,
+    expect,
+  }) => {
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-test-runner']},
+      {directory: 'test/fixtures/plant-shop'},
+    )
+    await engine.reply(TestLLM.text('I will run them'))
+    await engine.session.send('Run the tests')
+
+    const [request] = await engine.requests()
+    expect(request?.system.join('\n')).toContain('    <id>test-runner</id>')
+    expect(request?.tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['test_runner_run', 'test_runner_status']),
+    )
+    expect(await engine.session.tool('test_runner_status').call({})).toEqual({
+      summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0},
+      failures: [],
+      tests: [],
+    })
+    expect(await engine.session.tool('test_runner_run').call({pattern: 'cart'})).toMatchObject({
+      summary: {passed: 1, failed: 0, skipped: 0},
+      failures: [],
+      tests: [{name: 'a fern in the cart costs 12', state: 'pass'}],
+    })
+  })
+})
+```
+
+In `createEngine`, a package name in `config.plugins` is the copy installed for the package under test, found by
+`pluginDirectory`. A path that starts with `./` is read from the package folder.
+
+`start` holds what is not product config: `directory` (the project the engine runs in), `plugins`, `timeouts`,
+`harnesses`, `env`, `fs`, `clock` and `tokensPerSecond`. The engine the fixture starts ships no plugin, so a test
+passes the plugins it needs. `start.plugins` takes plugin objects or package names, and a name loads that package's
+`.` export. The TanStack plugin's test needs the page plugin too:
+
+```tsx title="packages/plugins/tanstack/test/e2e/tanstack.e2e.test.tsx"
+const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {plugins: ['@conciv/plugin-page']})
+```
+
+The fixture stops every engine its test started when the test ends, pass or fail. A test never stops one itself.
+
+### What the engine gives the test
+
+| Call                                       | Does                                                                  |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| `engine.reply(...replies)`                 | queues the scripted model's next replies, each a `TestLLM` reply      |
+| `engine.session.send(text)`                | sends a message in the session, as the user does                      |
+| `engine.session.tool(name).call(input)`    | calls a tool in the session and answers its output                    |
+| `engine.session.tool(name).failure(input)` | calls a tool that must fail and answers the failure                   |
+| `engine.session.stop()`                    | stops the running turn                                                |
+| `engine.requests()`                        | the requests the model got: system prompt, tools, messages            |
+| `engine.rpc.call(id, method, input)`       | calls a plugin's RPC method                                           |
+| `engine.rpc.failure(id, method, input)`    | calls one that must fail and answers its `type`, `message` and `data` |
+| `engine.event(type, match)`                | waits for the next event of that type: `.arrived`                     |
+| `engine.gate()`                            | holds the next reply until the test releases it                       |
+| `engine.restart()`                         | restarts the engine                                                   |
+
+### TestLLM
+
+`TestLLM.text`, `TestLLM.toolCall`, `TestLLM.failAfter` and `TestLLM.hang` are the replies the scripted model gives.
+A tool call runs the real tool, so a test sees the plugin's permission ask:
+
+```ts title="packages/plugins/ios/test/it/tools.it.test.ts"
+const engine = await createEngine({
+  plugins: [['@conciv/plugin-ios', {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
+})
+
+await engine.reply(TestLLM.toolCall('c1', 'ios_build', {}))
+const buildAsked = await engine.event('permission.asked')
+const building = engine.session.send('Build the app')
+await expect(buildAsked.arrived).resolves.toMatchObject({data: {action: 'ios_build', resources: ['*']}})
+await engine.session.stop()
+await building
+expect(await engine.requests()).toHaveLength(1)
+```
+
+A reply that fails part way, and a reply held with `engine.gate()`. The engine's own tests use the same calls:
+
+```ts title="packages/backend-defaults/test/it/session.it.test.ts"
+await engine.reply(TestLLM.text('First answer'))
+await engine.session.send('one')
+await engine.reply(TestLLM.failAfter(new Error('the model is down')))
+await expect(engine.session.send('two')).rejects.toThrow('the model is down')
+const gate = await engine.gate()
+await engine.reply(TestLLM.text('Never shown'))
+const held = engine.session.send('three')
+await gate.started
+await engine.session.stop()
+await held
+```
+
+`TestLLM.hang()` is a reply that never ends, so the turn stays running until it is stopped.
+
+### RPC and events
+
+```ts title="packages/plugins/test-runner/test/it/tools.it.test.ts"
+const started = await engine.event('rpc.test-runner.event', {data: {type: 'run-start', runId: 'r1'}})
+
+const endless = engine.rpc.call('test-runner', 'run', {})
+expect((await started.arrived).data).toMatchObject({
+  type: 'run-start',
+  files: expect.arrayContaining([expect.stringContaining('watering.test.js')]),
+})
+```
+
+### In the browser
+
+The same `test` works in browser mode. The package's `browser` export condition gives a fixture whose engine runs in
+node, reached through vitest browser commands that `concivTest({browser: true})` registers from
+`@conciv/backend-test-utils/vitest`. Only data crosses to node: a function reply other than `hang()`, a harness
+adapter, or a plugin object is refused, so in browser mode plugins go by package name.
+
+## The widget around a plugin
+
+`@internal/frontend-test-utils` mounts the widget's real shell in the test's browser, against the real engine or the
+fake one.
+
+### renderInTestApp
+
+`renderInTestApp({plugins, engine})` is a small host with one plugin's parts and the shell's chrome off, for a
+plugin's own screens. Here the Tests tab follows a run on the real engine:
+
+```tsx title="packages/plugins/test-runner/test/e2e/tests-panel.e2e.test.tsx"
+import {screen, within} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
+import {test, type EngineFixtures} from '@conciv/backend-test-utils'
+import {renderInTestApp, useFakeEngine} from '@internal/frontend-test-utils'
+import testRunner from '../../src/plugin-experimental.js'
+
+describe('the Tests tab', () => {
+  const RUNNER = {plugins: ['@conciv/plugin-test-runner']}
+
+  const TEST_RUNNER = {id: '@conciv/plugin-test-runner', plugin: testRunner}
+
+  const testsTab = async (createEngine: EngineFixtures['createEngine']) => {
+    const engine = await createEngine(RUNNER, {directory: 'test/fixtures/greenhouse'})
+    const app = await renderInTestApp({engine, plugins: [TEST_RUNNER]})
+    return {engine, app}
+  }
+
+  test('a run stopped from outside ends in the tab with the results it had', async ({createEngine}) => {
+    const user = userEvent.setup()
+    const {engine} = await testsTab(createEngine)
+
+    await user.click(await screen.findByRole('tab', {name: 'Tests'}))
+    const panel = await screen.findByRole('tabpanel', {name: 'Tests'})
+    const run = engine.rpc.call('test-runner', 'run', {})
+    expect(await within(panel).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+
+    expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
+    await run
+    expect(await within(panel).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+    expect(within(panel).queryByText(/^Running tests/)).not.toBeInTheDocument()
+  })
+})
+```
+
+The app it returns reads the composer: `app.composer.text()` is what a click on Fix this put there.
+
+### renderTestApp
+
+`renderTestApp({plugins, engine})` from `@internal/frontend-test-utils/app` renders the full shell with the given
+plugins, for journeys through the chat. `engine` is the fake engine, a real engine from `createEngine`, or `'none'`.
+
+### createExtensionTester
+
+`createExtensionTester({plugins}).renderToolCards(...cards)` draws tool cards on their own, from a call's props:
+
+```tsx title="packages/plugins/tanstack/test/e2e/tanstack.e2e.test.tsx"
+const card = (tool: string, output: unknown) => ({
+  tool,
+  input: {},
+  metadata: {},
+  status: 'completed',
+  output: JSON.stringify(output),
+})
+await createExtensionTester({plugins: [{id: '@conciv/plugin-tanstack', plugin: tanstack}]}).renderToolCards(
+  card('tanstack_route_manifest', [
+    {path: '/', kind: 'layout', dynamic: false, file: '/workspace/src/routes/__root'},
+    {path: '/plants/$plantId', kind: 'page', dynamic: true, file: '/workspace/src/routes/plants.$plantId.tsx'},
+  ]),
+  card('tanstack_server_fn_trace', {traces: [], functions: []}),
+)
+
+const cards = screen.getByRole('list', {name: 'Tool cards'})
+const manifest = within(cards).getByRole('button', {name: /Read the route manifest/, expanded: true})
+expect(within(manifest).getByText('2 routes')).toBeVisible()
+```
+
+A plugin entry in these calls is `{id, plugin}`, plus `options`, and `builtin: true` for a plugin the widget ships
+built in.
+
+## The fake engine
+
+`createFakeEngine()` from `@conciv/client/testing` is a fake engine built on the real RPC contract. It answers like the
+real engine: sessions and paging, past CLI sessions, compaction, harness models, run events, permission asks, plugin
+bundles. `useFakeEngine(engine)` hands it to the render, disposes it when the test ends, and fails the test if the app
+asked it for something no test gave it.
+
+`FakeLLM` scripts the fake's replies: `text`, `toolCall` (with the result the tool answers), `toolError`, `thinking`,
+`failAfter`, `hang`. `plugins: {<id>: handlers}` answers a plugin's own RPC, `engine.emit('rpc.<id>.<event>', data)`
+sends its events, and `servePluginBundle` serves the plugin's built bundle as the engine does, so the shell loads it
+through its real loader:
+
+```tsx title="packages/plugins/test-runner/test/e2e/tests-panel.e2e.test.tsx"
+const ran = Promise.withResolvers<TestRunResult>()
+const runState = createTestRunState()
+const TEST_RUNNER_BUILD = {
+  id: 'test-runner',
+  dist: import.meta.glob<string>(['../../dist/*.cjs', '../../dist/*.cjs.manifest.json'], {
+    query: '?raw',
+    import: 'default',
+  }),
+}
+const engine = useFakeEngine(
+  createFakeEngine(
+    servePluginBundle(TEST_RUNNER_BUILD, {
+      directory: '/workspace/plant-shop',
+      plugins: {'test-runner': runState.handlers},
+    }),
+  ),
+)
+engine.reply(
+  FakeLLM.toolCall('c1', 'test_runner_run', {}, () => ran.promise),
+  FakeLLM.toolCall('c2', 'test_runner_status', {}, run),
+  FakeLLM.text('One test fails'),
+  FakeLLM.toolError('c3', 'test_runner_run', {}, UNAVAILABLE),
+  FakeLLM.text('Vitest is not installed'),
+)
+await renderTestApp({engine})
+
+await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Run the tests')
+await user.click(screen.getByRole('button', {name: 'Send message'}))
+const started: TestEvent[] = [
+  {type: 'run-start', runId: 'r1', files: [cart.file, discount.file]},
+  {type: 'test', ...cart},
+]
+runState.events.push(...started)
+started.forEach((event) => engine.emit('rpc.test-runner.event', event))
+expect(await screen.findByText(/^Test run in progress/)).toBeVisible()
+```
+
+`handlers` overrides one engine procedure for one test. The terminal plugin answers the engine's pty procedures this
+way:
+
+```tsx title="packages/plugins/terminal/test/e2e/terminal.e2e.test.tsx"
+const engine = useFakeEngine(
+  createFakeEngine({
+    harnesses: [models],
+    handlers: {
+      experimental: {
+        persistentPty: {
+          create: ({sessionId, size}) => ({
+            id: 'pty_0123456789ABCDEFGHJKMNPQRS',
+            sessionId,
+            size: size ?? {cols: 80, rows: 24},
+            busy: false,
+          }),
+          resize: () => ({ok: true}),
+          write: () => ({ok: true}),
+          remove: () => ({ok: true}),
+        },
+      },
+    },
+  }),
+)
+await renderTestApp({engine, plugins: [{id: 'terminal', plugin: terminal, builtin: true}]})
+```
+
+When the fake cannot do something a test needs, the fix is to make the fake answer as the real engine does.
+
+## A plugin's own test utilities
+
+A plugin that other plugins' tests need ships its fakes as a `./test-utils` export, as Backstage's
+`@backstage/plugin-catalog-react/testUtils` does. Other plugins import them, and nothing makes them again.
+
+- `@conciv/plugin-page/test-utils` exports `pageTestPlugin`, the page plugin's browser part as the widget ships it:
+  built in, with its engine half and its tool group.
+- `@conciv/plugin-test-runner/test-utils` exports `createTestRunState()`: the last run and its events, with `handlers`
+  for the fake engine's `plugins` option. The Tests tab test above uses it.
+
+```tsx title="packages/plugins/tanstack/test/e2e/tanstack.e2e.test.tsx"
+import {pageTestPlugin} from '@conciv/plugin-page/test-utils'
+
+test('the TanStack tab list names the focused tab', async ({createEngine}) => {
+  const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {plugins: ['@conciv/plugin-page']})
+  const control = await engine.event('rpc.experimental.page.control')
+  await renderTestApp({
+    engine,
+    plugins: [pageTestPlugin],
+  })
+  await control.arrived
+
+  expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
+    tabs: [{focused: true, visible: true}],
+  })
+})
+```
+
+## Unit tests
+
+A unit test calls the code with no engine and no widget. The page plugin's connection machine is a plain function:
+
+```ts title="packages/plugins/page/test/unit/machine.unit.test.ts"
+describe('a page that attaches is offered to the agent', () => {
+  it('grants the page permissions, tells the page it is attached and serves calls on its tab', () => {
+    const sessionId = SessionId.parse('ses_checkout')
+    const started = transitionConnection(createConnectionState(), {
+      type: 'attach.started',
+      sessionId,
+      attempt: 1,
+      connectionId: 'checkout',
+    })
+    expect(started.effects).toEqual([{type: 'sync-permissions', sessionId, attempt: 2, allow: true}])
+  })
+})
+```
+
+## How a test is written
+
+- It does what a user does. It finds elements by role, label and text, and acts with `user-event`. It reads no CSS,
+  DOM or geometry, and uses no class, id or test-id locators.
+- It asserts with the jest-dom matchers: one visible match is `getByRole(...)` and then `toBeVisible()`.
+- It mocks nothing: no `vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal` or `vi.stubEnv`. A fake is a real
+  implementation the product accepts: the scripted model, the fake engine, an in-memory store.
+- It sleeps for nothing. A product timer a test must cross is an option the product reads, as the try-it plugin's
+  `probeMs`; fake timers are allowed.
+- One `describe` per user flow, with the steps in one test. Inputs go in `it.each` or `it.for` tables.
+- It writes no app state outside its temp folders, and adds no `afterEach` for a fixture: the fixtures and the render
+  helpers clean up.
+
+## A plugin outside this repo
+
+`@conciv/backend-test-utils` and `@conciv/client/testing` are published, so a plugin in its own repo can start the
+real engine with `createEngine`, script it with `TestLLM`, and use the fake engine. `@internal/frontend-test-utils`
+and `@internal/vitest-config` are private: they are not published, and the frontend utilities' package points at its
+TypeScript source and depends on the widget's private packages. A plugin outside this repo cannot install them, so it
+has no `renderInTestApp`, `renderTestApp` or `concivTest()` today. The browser commands that browser-mode
+`createEngine` needs are exported from `@conciv/backend-test-utils/vitest`, but registering them is `concivTest()`'s
+job.

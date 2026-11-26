@@ -1,0 +1,96 @@
+---
+title: Built-in plugins
+description: The plugins conciv ships in the widget and the engine, and the other first-party plugins you add yourself.
+---
+
+Every plugin conciv makes lives in its own package under
+[`packages/plugins`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins). Two are on in every widget. The
+rest you add in the `plugins` option (see [Add a plugin](/docs/plugins#add-a-plugin-in-the-conciv-options)).
+
+## On by default
+
+The shipped engine, `@conciv/backend`, starts with the page plugin's engine part:
+
+```ts title="packages/backend/src/start.ts"
+export function start({simulation, ...opts}: StartOpts): Promise<Engine> {
+  return createBackend({...opts, plugins: [page], simulation: simulation === true ? startSimulation : undefined})
+}
+```
+
+The widget, `@conciv/app`, lists the browser parts it bundles:
+
+```ts title="packages/app/src/builtins.ts"
+export const builtins: BuiltinPlugins = {
+  entries: compose({terminal: staticEntry(terminal), 'conciv.page': staticEntry(page)}),
+  engineHalf: ['conciv.page'],
+  toolGroups: [{plugin: 'conciv.page', entry: pageSessionEntry, createGrouper: createPageSessionGrouper}],
+}
+```
+
+### Page
+
+`@conciv/plugin-page`, published, id `conciv.page`. The agent's connection to the page you have open: its tools read
+and drive the live page (the tabs, snapshots, screenshots, the console, DOM reads, forms and queued page actions), its
+skill teaches the agent to
+use them, and its browser part runs the page operations and draws their cards in the thread. It also exports
+`pageTestPlugin` from `./test-utils` for other plugins' tests. See [Page control](/docs/usage/page-control).
+
+### Terminal
+
+`@internal/plugin-terminal`, private, id `terminal`. The browser part of the session's CLI terminal: a pinned Terminal
+tab in the session's pane, for a session whose harness has a terminal. The shell process itself stays in the engine.
+It has no engine part and nothing to configure.
+
+## Added in the plugins option
+
+### Test runner
+
+`@conciv/plugin-test-runner`, published. Runs the project's tests (vitest by default, or playwright with the `runner`
+option), streams each run live in a Tests tab, and shows the finished run as a card in the thread. See
+[Live tests](/docs/usage/live-tests) and [Test runners](/docs/test-runners).
+
+### Recorder
+
+`@conciv/plugin-recorder`, published. Keeps a short recording of the page while a recording is live, and gives the
+agent an action log with keyframe screenshots through the `recording_start`, `recording_stop` and `recording_pull`
+tools. Its Recorder tab replays the recording, starts a new one, and exports it as a video.
+
+```ts title="packages/plugins/recorder/README.md"
+plugins: [['@conciv/plugin-recorder', {masking: 'inputs', windowMinutes: 10, console: true}]]
+```
+
+### TanStack
+
+`@conciv/plugin-tanstack`, published. For a TanStack Router or Start app: code-mode tools that read the dev server's
+build errors, the route manifest and recent server-function calls, a skill, a chip in the session status area, and
+cards for its tools.
+
+```ts title="packages/plugins/tanstack/README.md"
+plugins: ['@conciv/plugin-tanstack']
+```
+
+### Whiteboard
+
+`@internal/plugin-whiteboard`, private and not published yet. A canvas you and the agent share, with comments and pins
+anchored to your source, kept in the storage the engine keeps for the plugin. A Whiteboard pill above the composer
+opens it. The example app adds it by its folder path. See [Whiteboard](/docs/usage/whiteboard).
+
+### iOS
+
+`@conciv/plugin-ios`, published. Builds, runs, screenshots and reads the logs of a native iOS app on the simulator.
+`ios_build` and `ios_run` ask before each call. Its `./client` export is the bridge the widget's native page uses to
+talk to the app. Without options every tool answers that the plugin is not configured.
+
+```ts title="packages/plugins/ios/README.md"
+plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]]
+```
+
+See [iOS](/docs/quick-start/ios).
+
+## Composed by a host
+
+### Try it
+
+`@conciv/plugin-try-it`, published. A browser part only, which conciv.dev composes into its own widget with a pairing
+token. It offers the widget a conciv engine the visitor starts on their own machine, and covers the panel with the
+connect steps until that engine answers. It is not added through the `plugins` option.
