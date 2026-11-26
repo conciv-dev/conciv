@@ -41,6 +41,8 @@ import {
   type SessionRef,
   type SetupContext,
   type Token,
+  type TokenValue,
+  type PluginIconName,
 } from '@conciv/frontend-plugin-api'
 import type {QueryClient} from '@conciv/client'
 import type {ConcivClient} from '@conciv/client'
@@ -67,7 +69,7 @@ import {
 } from './instance-machine'
 import {createStartupGate, type InstalledSource} from './startup'
 import {assertStoreDefinition} from '../persistence/schema'
-import {createSessionStore, storeName, whenLoaded, type StoreLoads} from './stores'
+import {createSessionStore, loadedHandle, storeName, whenLoaded, type StoreLoads} from './stores'
 
 type Contribution = {key: string; registry: string; plugin: string; value: Accessor<unknown>}
 
@@ -110,7 +112,31 @@ type HostState = {
 
 const activationTimeout = 30_000
 
-type Stores = Record<string, Persisted<object> | ((session: SessionRef) => Persisted<object>)>
+type Stores = Record<
+  string,
+  Persisted<object, object> | ((session: SessionRef) => Persisted<object, object | undefined>)
+>
+
+function createOnFirstRead<T>(create: <K extends keyof T>(name: K) => T[K]) {
+  const created: {-readonly [K in keyof T]?: {readonly value: T[K]}} = {}
+
+  return <K extends keyof T>(name: K): T[K] => {
+    const existing = created[name]
+
+    if (existing) return existing.value
+
+    const made = {value: create(name)}
+
+    created[name] = made
+
+    return made.value
+  }
+}
+
+function pluginIconName(id: string): PluginIconName
+function pluginIconName(id: string): string {
+  return id
+}
 
 const pending: Absent = {status: 'pending'}
 
@@ -305,7 +331,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
 
   const dialog = useDialog()
 
-  const factories = {
+  const factories: {readonly [K in keyof HostApis]: HostApiFactory<HostApis[K]>} = {
     ...input.apis,
     links: () => links,
     dialogs: (plugin, _, context, register): Dialogs => {
@@ -412,7 +438,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
           ask<T | undefined>(undefined, (answer) => <PluginSelectDialog options={options} done={answer} />),
       }
     },
-  } satisfies {readonly [K in keyof HostApis]: HostApiFactory<HostApis[K]>}
+  }
 
   const dispatch = (event: PluginHostEvent<Instance>) => {
     queue.push(event)
@@ -571,7 +597,8 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
 
     const lives = new Map<string, Accessor<Live<unknown>>>()
 
-    const liveOf = (token: Token) => {
+    function liveOf<T extends Token>(token: T): Accessor<Live<TokenValue<T>>>
+    function liveOf(token: Token): Accessor<Live<unknown>> {
       const existing = lives.get(token.id)
 
       if (existing) return existing
@@ -591,13 +618,15 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
       source,
     }))
 
-    const icons = Object.fromEntries(declared.map((icon) => [icon.name, icon.id]))
+    const icons = Object.fromEntries(declared.map((icon) => [icon.name, pluginIconName(icon.id)]))
 
     own(iconRegistry.registerIcons(Object.fromEntries(declared.map((icon) => [icon.id, icon.source]))))
 
     const experimental = input.plugin?.(plugin)
 
-    const context = {
+    const api = createOnFirstRead<HostApis>((name) => factories[name](plugin, root, context, register, !experimental))
+
+    const context: InstanceContext = {
       id: plugin,
       get options() {
         return experimental?.options ?? input.options?.(plugin) ?? {}
@@ -650,38 +679,74 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
       use: liveOf,
       stores,
       icons,
+      get layout() {
+        return api('layout')
+      },
+      get sessions() {
+        return api('sessions')
+      },
+      get screen() {
+        return api('screen')
+      },
+      get storage() {
+        return api('storage')
+      },
+      get system() {
+        return api('system')
+      },
+      get desktop() {
+        return api('desktop')
+      },
+      get dialogs() {
+        return api('dialogs')
+      },
+      get toast() {
+        return api('toast')
+      },
+      get tabs() {
+        return api('tabs')
+      },
+      get attention() {
+        return api('attention')
+      },
+      get commands() {
+        return api('commands')
+      },
+      get links() {
+        return api('links')
+      },
+      get ui() {
+        return api('ui')
+      },
+      get app() {
+        return api('app')
+      },
+      get appearance() {
+        return api('appearance')
+      },
+      get overlay() {
+        return api('overlay')
+      },
+      get router() {
+        return api('router')
+      },
+      get keybinds() {
+        return api('keybinds')
+      },
+      get servers() {
+        return api('servers')
+      },
     }
-
-    const created = new Map<string, HostApis[keyof HostApis]>()
-
-    Object.defineProperties(
-      context,
-      Object.fromEntries(
-        Object.entries(factories).map(([name, create]) => [
-          name,
-          {
-            enumerable: true,
-            get() {
-              if (!created.has(name)) created.set(name, create(plugin, root, typed, register, !experimental))
-
-              return created.get(name)
-            },
-          },
-        ]),
-      ),
-    )
-
-    const typed = context as unknown as InstanceContext
 
     const sessions: ReturnType<typeof createSessionStore<object>>[] = []
 
     return {
       definition,
-      context: typed,
+      context,
       root,
       own,
       prepare() {
-        const storage = typed.storage
+        const storage = context.storage
 
         const loaded = windowStores(definition).flatMap(([name, declaration]) => {
           assertStoreDefinition(storeName(plugin, name), declaration.schema, declaration.initial, declaration.encode)
@@ -695,7 +760,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
           if (declaration.scope === 'global' || declaration.scope === 'project') {
             const handle = storage.store(name, {...options, scope: declaration.scope})
 
-            stores[name] = handle
+            stores[name] = loadedHandle(handle, declaration.initial)
 
             return [whenLoaded(handle, input.storeLoads)]
           }
@@ -703,7 +768,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
           const store = createSessionStore({
             open: (session) => storage.store(name, {...options, scope: {session}}),
             owner: root,
-            sessions: typed.sessions,
+            sessions: context.sessions,
             loads: input.storeLoads,
           })
 
