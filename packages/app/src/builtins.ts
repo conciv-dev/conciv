@@ -1,32 +1,41 @@
 import {compose, type Entry} from '@conciv/frontend-plugin-api/host'
 import type {Plugin} from '@conciv/frontend-plugin-api'
-import page from '@conciv/plugin-page/renderer'
-import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
-import terminal from '@internal/plugin-terminal/client'
+import {builtins as pageBuiltins} from '@conciv/plugin-page/builtins'
+import {builtins as terminalBuiltins} from '@internal/plugin-terminal/builtins'
 import {BUILTINS_UPDATED} from '@internal/frontend-app-api/plugin/hmr'
+import type {ToolGroup} from '@internal/frontend-app-api'
 import type {BuiltinPlugins} from '@internal/frontend-defaults'
 
-function staticEntry({setup, ...declarations}: Plugin.Definition): Omit<Entry, 'id'> {
-  return {...declarations, windowEntry: setup && (() => Promise.resolve({default: setup}))}
+type Builtin = {
+  readonly id: string
+  readonly plugin: Plugin.Definition
+  readonly engineHalf?: boolean
+  readonly toolGroup?: ToolGroup
+}
+
+function staticEntry({id, plugin: {setup, ...declarations}}: Builtin): Entry {
+  return {...declarations, id, windowEntry: setup && (() => Promise.resolve({default: setup}))}
 }
 
 const DRIVE = 'conciv.simulation.ui'
 
-const driveEntries: Readonly<Record<string, Omit<Entry, 'id'>>> =
+const driveEntries: readonly Entry[] =
   process.env.NODE_ENV === 'production'
-    ? {}
-    : {[DRIVE]: {windowEntry: () => import('@internal/frontend-defaults/drive')}}
+    ? []
+    : compose({[DRIVE]: {windowEntry: () => import('@internal/frontend-defaults/drive')}})
+
+const plugins: readonly Builtin[] = [...terminalBuiltins, ...pageBuiltins]
 
 export const builtins: BuiltinPlugins = {
-  entries: compose({terminal: staticEntry(terminal), 'conciv.page': staticEntry(page), ...driveEntries}),
-  engineHalf: process.env.NODE_ENV === 'production' ? ['conciv.page'] : ['conciv.page', DRIVE],
-  toolGroups: [{plugin: 'conciv.page', entry: pageSessionEntry, createGrouper: createPageSessionGrouper}],
+  entries: [...plugins.map(staticEntry), ...driveEntries],
+  engineHalf: [
+    ...plugins.flatMap((plugin) => (plugin.engineHalf === true ? [plugin.id] : [])),
+    ...driveEntries.map((entry) => entry.id),
+  ],
+  toolGroups: plugins.flatMap((plugin) => (plugin.toolGroup ? [{...plugin.toolGroup, plugin: plugin.id}] : [])),
 }
 
 if (import.meta.hot)
-  import.meta.hot.accept('@internal/plugin-terminal/client', (module) => {
-    if (module)
-      window.dispatchEvent(
-        new CustomEvent(BUILTINS_UPDATED, {detail: compose({terminal: staticEntry(module.default)})}),
-      )
+  import.meta.hot.accept('@internal/plugin-terminal/builtins', (module) => {
+    if (module) window.dispatchEvent(new CustomEvent(BUILTINS_UPDATED, {detail: module.builtins.map(staticEntry)}))
   })

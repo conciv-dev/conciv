@@ -7,9 +7,8 @@ export default defineConfig({
   plugins: [solid(), concivTest({browser: true})],
   build: {
     lib: {
-      entry: fileURLToPath(new URL('src/client.tsx', import.meta.url)),
+      entry: {builtins: fileURLToPath(new URL('src/builtins.ts', import.meta.url))},
       formats: ['es'],
-      fileName: () => 'client.js',
     },
     rollupOptions: {
       external: [/^solid-js/, /^zod/, /^effect/, /^@conciv\//, /^@orpc\//, /^@solid-primitives\//, /^lucide-solid/],

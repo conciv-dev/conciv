@@ -19,10 +19,10 @@ that opens it:
 ## Interface
 
 - `package.json:exports["."]` - `dist/mount.js` with types in `dist/mount.d.ts`.
-- `src/builtins.ts` - the browser plugins the widget ships (the page renderer and the terminal), listed in one place.
+- `src/builtins.ts` - the browser plugins the widget ships, composed from the built-ins list each plugin package exports (the page and the terminal) plus the drive entry; it names no plugin id.
 - `vite.config.ts` - two Vite build environments, built in order by `builder.buildApp`.
-  - `client`: the library build of `src/mount.ts` to `mount.js` (ES format, shared packages external). `@internal/frontend-defaults`, the page plugin's browser entries (`@conciv/plugin-page/client`, `@conciv/plugin-page/renderer`) and the private `@internal/plugin-terminal` are bundled in (`INLINED_PREFIXES`).
-  - `widget`: one code-split ES build of `test/fixtures/global-entry.ts` and `src/native-entry.ts` into shared chunks under `dist/widget/`, plus the classic-script loaders `conciv-widget.global.js` and `conciv-widget-native.global.js` that `import()` their entry chunk relative to `document.currentScript.src`. Rolldown cannot code-split IIFE output, so the loader is what keeps a plain `<script src>` working. No source maps. Serving a loader means serving `dist/widget/` beside it, same origin (module chunks need CORS cross-origin).
+  - `client`: the library build of `src/mount.ts` to `mount.js` (ES format, shared packages external). `@internal/frontend-defaults`, the page plugin's built-ins list (`@conciv/plugin-page/builtins`) and the private terminal plugin's (`@internal/plugin-terminal/builtins`) are bundled in (`INLINED_PREFIXES`).
+  - `widget`: one code-split ES build of `src/global-entry.ts` and `src/native-entry.ts` into shared chunks under `dist/widget/`, plus the classic-script loaders `conciv-widget.global.js` and `conciv-widget-native.global.js` that `import()` their entry chunk relative to `document.currentScript.src`. Rolldown cannot code-split IIFE output, so the loader is what keeps a plain `<script src>` working. No source maps. Serving a loader means serving `dist/widget/` beside it, same origin (module chunks need CORS cross-origin).
 - Source: [src](./src/README.md).
 
 ## Invariants
