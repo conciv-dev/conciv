@@ -14,6 +14,8 @@ import type {SessionDomain} from './session.js'
 import type {SkillDomain} from './skill.js'
 import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
+import type {SessionId} from '@conciv/types/chat-types'
+import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
 export interface Context {
   readonly app: App | undefined
@@ -31,11 +33,17 @@ export interface Context {
     readonly list: (requestOptions?: RpcCallOptions) => Promise<{location: PublicRef; data: PluginInfo[]}>
   }
   readonly rpc: RpcDomain
+  readonly browserTabs: BrowserTabDomain
   readonly session: SessionDomain
   readonly skill: SkillDomain
   readonly storage: StorageDomain
   readonly tool: ToolDomain
   readonly servers: Servers
+}
+
+export interface BrowserTabDomain {
+  readonly list: (sessionId: SessionId) => Promise<BrowserTabList>
+  readonly sessions: () => Promise<SessionId[]>
 }
 
 export type Cleanup = () => Promise<void> | void
