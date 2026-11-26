@@ -1,0 +1,182 @@
+---
+title: Test your plugin
+description: Start a real conciv engine with your plugin in a test, script the agent's replies, and drive the widget in a browser test.
+---
+
+Test your plugin the way the user uses it: a real engine loads your plugin, a scripted model plays the agent, and
+your test checks what the agent and the user get back. No mocks.
+
+This page tests the `project_version` tool from [Plugins](/docs/plugins), and the `release_ship` tool from
+[Ask for permission](/docs/plugins/guides/permission).
+
+<Steps>
+<Step>
+
+### Install the test utilities
+
+```package-install
+-D @conciv/backend-test-utils @internal/vitest-config vitest
+```
+
+- `@conciv/backend-test-utils` starts a real engine in a test and scripts the agent's replies.
+- `@internal/vitest-config` sets up vitest for conciv tests.
+
+</Step>
+<Step>
+
+### Set up vitest
+
+Add the conciv test setup to your Vite config:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vitest/config'
+import {concivTest} from '@internal/vitest-config/conciv-test'
+
+export default defineConfig({
+  plugins: [concivTest()],
+})
+```
+
+- `concivTest()` gives each test run its own conciv home folder, removed after. Your own login and settings never
+  reach a test.
+- Tests are collected from three folders under test: unit, it and e2e. Put engine tests in `test/it`.
+
+</Step>
+<Step>
+
+### Call your tool on a real engine
+
+```ts twoslash title="test/it/project-version.it.test.ts"
+import {expect} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+
+test('the agent reads the project version', async ({createEngine}) => {
+  const engine = await createEngine({plugins: ['./conciv/plugins/project-version']}, {directory: '.'})
+
+  expect(await engine.session.tool('project_version').call({})).toMatchObject({version: expect.any(String)})
+})
+```
+
+- `test` is vitest's `test` with a `createEngine` fixture.
+- `createEngine` starts the real engine on a free port. Its first argument is your conciv config, so you add your
+  plugin the way a user does.
+- `directory: '.'` runs the engine in your project folder. The plugin path resolves from there.
+- `engine.session.tool(name).call(input)` calls the tool in a session and resolves to its output.
+
+The fixture stops every engine the test started when the test ends, pass or fail.
+
+</Step>
+<Step>
+
+### Script the agent
+
+`TestLLM` plays the agent. Queue its replies, then send a message as the user:
+
+```ts twoslash title="test/it/release.it.test.ts"
+import {expect} from 'vitest'
+import {test, TestLLM} from '@conciv/backend-test-utils'
+
+test('shipping a branch asks the user first', async ({createEngine}) => {
+  const engine = await createEngine({plugins: ['./conciv/plugins/release']}, {directory: '.'})
+  await engine.reply(TestLLM.toolCall('c1', 'release_ship', {branch: 'main'}))
+  const asked = await engine.event('permission.asked')
+
+  const shipping = engine.session.send('Ship main')
+
+  await expect(asked.arrived).resolves.toMatchObject({data: {action: 'release_ship', resources: ['main']}})
+  await engine.session.stop()
+  await shipping
+})
+```
+
+- `engine.reply` queues what the model says next. `TestLLM.toolCall` makes it call your tool with this input.
+- `engine.event` starts listening for an event before it happens. `asked.arrived` resolves when it does.
+- `engine.session.send` sends a message as the user. The turn runs your real tool, so the permission ask is real.
+- `engine.session.stop` stops the turn, as the user's Stop button does.
+
+`TestLLM.text` makes a plain text reply. Use it after a tool call to end the turn.
+
+</Step>
+<Step>
+
+### Drive the widget in a browser test
+
+A browser test renders the real widget against the real engine. Here the agent calls `project_version`, and the test
+checks the user sees the card:
+
+```tsx twoslash title="test/e2e/project-version.e2e.test.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// @filename: plugin-experimental.tsx
+import {Plugin, ToolRegistry} from '@conciv/frontend-plugin-api'
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ToolRegistry, {name: 'project_version', render: () => <p>Project version</p>})
+  },
+})
+// @filename: test.tsx
+import '@testing-library/jest-dom/vitest'
+// ---cut---
+import {expect} from 'vitest'
+import {screen} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
+import {test, TestLLM} from '@conciv/backend-test-utils'
+import {renderTestApp} from '@internal/frontend-test-utils/app'
+import versionCard from './plugin-experimental'
+
+test('the user sees the version card', async ({createEngine}) => {
+  const user = userEvent.setup()
+  const engine = await createEngine({plugins: ['./conciv/plugins/project-version']}, {directory: '.'})
+  await engine.reply(TestLLM.toolCall('c1', 'project_version', {}), TestLLM.text('Here is the version'))
+  await renderTestApp({engine, plugins: [{id: 'project-version', plugin: versionCard}]})
+
+  await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'What version is this?')
+  await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+  expect(await screen.findByText('Project version')).toBeVisible()
+})
+```
+
+- `renderTestApp` renders the whole widget, chat included, with your plugin's browser part.
+- `plugins` takes your browser part with its plugin id.
+- The test finds the composer by its label and types into it with `user-event`, as a user does.
+- `findByText` waits until the card shows.
+
+Browser tests need vitest's browser mode. Turn it on with `concivTest({browser: true})`.
+
+</Step>
+</Steps>
+
+## How to write a good plugin test
+
+- Do what a user does. Find elements by role, label and text. Act with `user-event`.
+- Check what the user sees with `toBeVisible` and the other jest-dom matchers.
+- Mock nothing. The scripted model and the real engine are the fakes.
+- Put one user flow in one test, step after step.
+
+<Accordions>
+<Accordion title="More TestLLM replies">
+
+- `TestLLM.failAfter(error)`: the model fails part way through its reply.
+- `TestLLM.hang()`: a reply that never ends, so the turn runs until it is stopped.
+- `engine.gate()`: holds the next reply until the test lets it go.
+
+</Accordion>
+<Accordion title="Read what the model was sent">
+
+`engine.requests()` lists every request the model got: its system prompt, its tools and its messages. Use it to
+check your skill or tool reached the agent.
+
+</Accordion>
+<Accordion title="Call your RPC methods">
+
+`engine.rpc.call(id, method, input)` calls one of your plugin's RPC methods. `engine.rpc.failure(...)` calls one that
+must fail and resolves to its error.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Add a tool](/docs/plugins/guides/tool): the tools these tests call.
+- [Plugin API reference](/docs/plugins/reference): every `ctx` domain.
