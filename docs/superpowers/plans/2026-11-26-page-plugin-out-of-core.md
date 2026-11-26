@@ -49,6 +49,10 @@
 - One reconnect path: the widget's attach rides the engine client's single retry path (`client/src/connection/engine-connection.ts` `retryDelay`). Page's own back-off (`plugins/page/src/attachment-machine.ts:32-53`) is deleted, not moved.
 - Naming: `MountedSession.tab` already exists (`frontend-defaults/src/runtime/plugin/mounted-session.ts:336`, `tab = id`, the panel tab) and `ctx.tabs` already exists in the widget plugin API (`host-apis.tsx:367`, panel view tabs). The new concept is the **browser tab**: contract group `tabs`, engine service `Tab`, engine plugin view `ctx.browserTabs`, widget field `MountedSession.browserTab`. Never reuse the widget's `tab`/`tabs` names.
 
+## Vocabulary (lint `conciv/banned-vocabulary` bans `attach` and `presence`, `packages/oxlint-plugin/src/vocabulary.js:165-180`)
+
+The held call is `tabs.open` (returns `'closed' | 'replaced'`), not attach. Events `tab.opened`, `tab.updated`, `tab.closed`; table column `open`; `tabs.sessions()` lists sessions with an open tab (was `attached`); `Tab.Service.open/update/list/sessions/changes`; `BrowserTabOpen` input (was `BrowserTabAttach`). Every later task uses these names; wherever this plan still says attach/attached/detached, read open/opened/closed.
+
 ## How the tab table stays valid (as opencode)
 
 - Table = projection of durable events written in the event's transaction (opencode `bus.ts:107` `commit`, `bus.ts:883` `project`; ours `backend-app-api/src/core/bus.ts:109,159,833`, used by `backend-defaults/src/core/session/projector.ts:53-88`). The projector is the table's only writer.
