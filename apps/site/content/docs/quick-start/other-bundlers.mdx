@@ -1,15 +1,35 @@
 ---
 title: Rollup and esbuild
-description: conciv does not run with Rollup or esbuild yet.
+description: conciv does not run with Rollup or esbuild yet. Serve your app with Vite instead.
 ---
 
-<Callout type="warn">
-  `@conciv/it/plugin/rollup` and `@conciv/it/plugin/esbuild` exist but do nothing: they do not start the engine or add
-  the widget.
-</Callout>
+conciv does not run with Rollup or esbuild yet. Serve your app with Vite, and add conciv there. Vite builds with
+Rollup, so most Rollup apps move over with few changes.
 
-`conciv init` on a Rollup or esbuild project installs `@conciv/it`, then prints a card that says so instead of wiring
-your config.
+Once your app runs on Vite, copy this prompt into your coding agent:
 
-To use conciv, serve your app with Vite and add conciv to the Vite config. Vite uses Rollup under the hood, so most
-Rollup apps can move to the Vite plugin directly. See [Vite](/docs/quick-start/vite).
+<SetupPrompt framework="vite" />
+
+See [Vite](/docs/quick-start/vite) for the manual steps.
+
+## Edge cases
+
+<Accordions>
+<Accordion id="entries" title="The Rollup and esbuild plugin entries">
+
+`@conciv/it/plugin/rollup` and `@conciv/it/plugin/esbuild` exist, but do nothing. They start no engine and add no
+widget.
+
+</Accordion>
+<Accordion id="init" title="Running conciv init on a Rollup or esbuild project">
+
+init installs `@conciv/it`. Then it prints a card that says the entry does nothing today, and points you to Vite. It
+does not edit your config.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Vite](/docs/quick-start/vite): the full setup once your app runs on Vite.
+- [Quick start](/docs/quick-start): every framework conciv supports.
