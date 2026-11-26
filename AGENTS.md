@@ -59,8 +59,9 @@ Rules that hold the layout:
   Backstage's own `plugin-app` dev-depends on `frontend-test-utils`, a dev loop; ours may not.
 - Turbo order comes from real dependencies alone: every package task depends on `^build`, with no cross-package
   `pkg#task`, no `build:types` and no `kit-runtime` task. A build-order problem is fixed by a real dependency, never
-  by a turbo edge. The root package depends on no workspace package: root scripts run a tool by its file
-  (`pnpm conciv-publish`, `pnpm conciv-ci-shards`, `pnpm conciv-bundle-size`), so editing a tool selects only it.
+  by a turbo edge (`conciv-publish check-turbo-depends-on`, CI repo checks). The root package depends on no workspace
+  package: root scripts run a tool by its file (`pnpm conciv-publish`, `pnpm conciv-ci-shards`,
+  `pnpm conciv-bundle-size`), so editing a tool selects only it.
 - No module-level state anywhere, product or test code: no module-level `Map`/`Set`/`WeakMap`/`WeakSet`, no
   module-level `let`, no module-level engine, connection, store, queue or registry, no `globalThis` writes
   (`conciv/no-module-state`). State is created by its owner and passed in: an id maker made once at engine start
@@ -207,7 +208,9 @@ Tests are laid out as Backstage's and run as opencode's. The plan and its rules 
   package's internals.
 - A behaviour lives in the cheapest place that proves it, and only there: unit, then it, then e2e (browser mode), then
   the root `e2e/` host app. Happy-dom is for code that mounts nothing, as opencode (`_ref/opencode/packages/app/happydom.ts`).
-- Only `packages/cli`'s own tests spawn the CLI, as opencode's `packages/cli`. No other package depends on `@conciv/cli`.
+- Only `packages/cli`'s own tests and the root `e2e/init` suite spawn the CLI, as opencode's `packages/cli`. The one
+  package that depends on `@conciv/cli` is `@conciv/unplugin`, and it never runs it: `bin-shim.ts` links the CLI's bin
+  into the engine's `PATH` so the agent the engine starts can run `conciv`.
 - A framework app under `e2e/` holds ONE test: the user signs in and the widget opens with no error in that framework.
   It gets a second test only for something that broke in that framework, named in its title. Behaviour that needs the
   real built widget in a real browser but is not about a framework (reload, real windows and downloads, the file
