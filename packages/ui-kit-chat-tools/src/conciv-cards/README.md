@@ -1,4 +1,4 @@
-# tools/src/cards
+# ui-kit-chat-tools/src/conciv-cards
 
 ## Overview
 
@@ -6,8 +6,8 @@ SolidJS tool-card renderers for the chat thread. `UiCard` renders interactive pr
 
 ## Interface
 
-- `UiCard(props: ToolCardProps)` (`ui-card.tsx`): header `Rendered <kind>` with a status dot; renders Choices (buttons, or a form when `multiSelect` / `allowOther`), Confirm (Approve `'yes'` / Deny `'no'`), Diff (Apply `'apply'` / Reject `'reject'`) or Form (text/select fields to a record); shows the answer once settled.
-- `OpenCard(props: ToolCardProps)` (`../cards.tsx`): titled `Open in editor`, subtitle is the last 2 path segments (prefixed `…/`) plus `:line`.
+- `ui-card.tsx`: `UiCard`, header `Rendered <kind>` with a status dot; renders Choices, Confirm (Approve `'yes'` / Deny `'no'`), Diff (Apply `'apply'` / Reject `'reject'`) or Form; shows the answer once settled.
+- `../conciv-cards.tsx`: `OpenCard`, titled `Open in editor`, subtitle the last 2 path segments (prefixed `…/`) plus `:line`; and the `concivToolCards` list.
 
 ## Invariants
 
@@ -25,4 +25,5 @@ SolidJS tool-card renderers for the chat thread. `UiCard` renders interactive pr
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/tools` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat-tools` from the repo root (turbo builds the package and its dependencies first)
+- Typecheck and lint: `cd packages/ui-kit-chat-tools && pnpm typecheck`, then `pnpm lint` at the repo root

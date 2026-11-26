@@ -1,4 +1,4 @@
-# primitives/thread
+# ui-kit-chat/src/primitives/thread
 
 ## Overview
 
@@ -6,10 +6,7 @@ Headless `Thread` compound: viewport with virtualized turns, messages, scroll-to
 
 ## Interface
 
-- `thread.tsx:Thread` - `{Root, Viewport, ViewportFooter, Messages, MessageByIndex, Unstable_MessageById, ScrollToBottom, Suggestion, Suggestions, Empty, If}`; exported as `ThreadPrimitive`; type `MessagesComponents`.
-- `viewport-context.tsx:ViewportProvider`, `useThreadViewport`, `useOptionalThreadViewport`, `useSendFromUser`; types `ViewportContextValue`, `ThreadScroller`.
-- `turn-estimate.tsx:TurnEstimateProvider`, `useTurnEstimator`; `viewport-internal.tsx:ViewportInternalProvider`, `useViewportInternal`.
-- `virtualize-threshold.ts:VIRTUALIZE_THRESHOLD` (15).
+- `thread.tsx`: the `Thread` compound, exported as `ThreadPrimitive`; `viewport-context.tsx`, `viewport-internal.tsx` and `turn-estimate.tsx`: the viewport and turn-estimate contexts; `virtualize-threshold.ts`: the turn count past which the thread virtualizes.
 
 ## Invariants
 
@@ -23,4 +20,4 @@ Headless `Thread` compound: viewport with virtualized turns, messages, scroll-to
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

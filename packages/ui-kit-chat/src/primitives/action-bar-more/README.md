@@ -1,4 +1,4 @@
-# primitives/action-bar-more
+# ui-kit-chat/src/primitives/action-bar-more
 
 ## Overview
 
@@ -6,7 +6,7 @@ Headless overflow menu for the action bar, built on `Menu` from `@conciv/ui-kit-
 
 ## Interface
 
-- `action-bar-more.tsx:ActionBarMore` - `{Root, Trigger, Content, Item, Separator}`; also exported as `ThreadListItemMore`.
+- `action-bar-more.tsx`: the `ActionBarMore` compound, also exported as `ThreadListItemMore`.
 
 ## Invariants
 
@@ -18,4 +18,4 @@ Headless overflow menu for the action bar, built on `Menu` from `@conciv/ui-kit-
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -2,16 +2,19 @@
 
 ## Overview
 
-Client data layer used inside @conciv/it: typed oRPC query utilities, a chat connection and reachability helpers, with no UI. It ships `dist` and `skills`.
+The browser's engine connection and data layer, used inside @conciv/it: the oRPC client over the engine's rpc
+socket, TanStack Query utilities, the chat connection and session, engine reachability, and the fake engine for
+tests. No UI. It ships `dist` and `skills`.
 
 ## Interface
 
-- `exports['.']` (`package.json`): ./dist/index.js; no bin; `files` dist and skills
-- `tsdown.config.ts`: entry src/index.ts, esm, bundles @tanstack/ai and @tanstack/ai-solid, and bundles @tanstack/solid-query, @tanstack/query-core and @orpc/tanstack-query into the JS while the d.ts keeps importing them
-- `src/index.ts` re-exports the TanStack Query surface the widget and plugins use (useQuery, useInfiniteQuery, useMutation, useMutationState, useQueryClient, useIsFetching, QueryClient, QueryClientProvider, keepPreviousData, QueryMutationObserver, CreateMutationResult, QueryKey) and `createTanstackQueryUtils`
-- `vitest.config.ts`: node project `client` over test/**/*.test.ts
+- `exports` (`package.json`): `.` (the connection, rpc client, query utils, chat connection, reachability), `./chat`
+  (the Solid chat session over `@tanstack/ai-solid`) and `./testing` (`createFakeEngine`, `FakeLLM` and story
+  connections). No bin.
+- `tsdown.config.ts`: bundles `@tanstack/ai`, `@tanstack/ai-solid`, `@tanstack/solid-query`, `@tanstack/query-core`
+  and `@orpc/tanstack-query` into `.` and `./testing`; `./chat` inlines `@tanstack/ai-client` and `@tanstack/ai-solid`.
 - Subdirectories:
-  - src: [./src/README.md](./src/README.md) - query utils, chat connection, reachability
+  - src: [./src/README.md](./src/README.md) - connection, chat connection, reachability
   - solid-query skill: [./skills/client/solid-query/SKILL.md](./skills/client/solid-query/SKILL.md) - @tanstack/solid-query and oRPC usage rules
 
 ## Invariants
@@ -19,6 +22,7 @@ Client data layer used inside @conciv/it: typed oRPC query utilities, a chat con
 - `type: module` (`package.json`): ESM only, attw profile esm-only
 - `description` (`package.json`): internal to @conciv/it, not installed directly
 - One TanStack Query copy at runtime: this bundle is it, carrying the TanStack/query#11230 patch from `patches/`. Everything outside packages/client imports TanStack Query from `@conciv/client` (`no-restricted-imports` in `.oxlintrc.json`); a direct import would resolve a second, unpatched copy with its own QueryClient context and onlineManager
+- The fake engine (`./testing`) is built with oRPC's `implement(contract)` on the real `@conciv/protocol` contract; when a test needs something it cannot do, the fake is extended to match the real engine.
 
 ## Side Effects
 

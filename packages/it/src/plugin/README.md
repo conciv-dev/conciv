@@ -4,13 +4,6 @@
 
 One entry file per bundler subpath of `@conciv/it/plugin/*`. Each re-exports the matching hook of the shared unplugin instance, or the Next.js helpers from `@conciv/unplugin`.
 
-## Interface
-
-- `vite.ts` / `webpack.ts` / `rspack.ts` / `rollup.ts` / `esbuild.ts` - default export `unplugin.<bundler>` from `../plugin-instance.js`; `vite.ts` also re-exports the `ConcivConfig` type.
-- `nextjs.ts` - re-exports `@conciv/unplugin/nextjs` (`withConciv`, `register`, `CONCIV_DEFAULT_PORT`).
-- `nextjs-edge.ts` - re-exports `register` from `@conciv/unplugin/nextjs`.
-- `nextjs-widget.ts` - side-effect import of `@conciv/unplugin/nextjs/widget`.
-
 ## Invariants
 
 - None

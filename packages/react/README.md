@@ -25,13 +25,12 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Interface
 
-- `package.json:exports["."]` - `dist/index.js` with types in `dist/index.d.ts`.
+- `package.json:exports["."]` - `dist/react.js` with types in `dist/react.d.ts`; dependency `@conciv/app`.
 - Source: [src](./src/README.md).
-- Test fixture: `test/fixtures/host/`, the Vite page the integration test drives.
 
 ## Invariants
 
-- None
+- The build prepends `'use client';` to the bundle (`tsdown.config.ts`).
 
 ## Side Effects
 
@@ -39,4 +38,4 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/react` from the repo root (turbo builds the package and its dependencies first) (builds the fixture with `vite.fixture.config.ts`, then runs vitest)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/react` from the repo root (the package has no tests yet)

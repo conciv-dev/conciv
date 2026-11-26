@@ -1,223 +1,207 @@
 ---
-title: Browser SDK
-description: The browser part of a plugin, the registries it adds to, and how it calls its engine part.
+title: Browser part
+description: The browser part of a plugin with @conciv/frontend-plugin-api. The registries it adds to, how it calls its engine part, and how it is built.
 ---
 
-The browser part runs in the widget. Import it from `@conciv/plugin/experimental`. It is written with
-[Solid](https://www.solidjs.com).
+The browser part runs in the widget. It is written with [Solid](https://www.solidjs.com) and
+`@conciv/frontend-plugin-api`.
 
-## Build it
-
-`experimental()` from `@conciv/plugin/experimental/vite` builds `src/plugin-experimental.tsx` into
-`dist/plugin-experimental.cjs`:
-
-```ts title="packages/plugins/test-runner/vite.config.ts"
-import {defineConfig} from 'vite'
-import {experimental} from '@conciv/plugin/experimental/vite'
-
-export default defineConfig({
-  publicDir: false,
-  plugins: [experimental()],
-})
-```
-
-Export the bundle as `./plugin-experimental` from the package. A plugin folder in the project ships it as
-`plugin-experimental.cjs` or `plugin-experimental.js` beside its engine part.
-
-During development, run the same build with `vite build --watch` from the plugin's dev script. Each build reloads only
-that plugin in the widget: the page does not reload, and the draft in the composer stays.
-
-The build keeps the modules the widget provides external: `effect`, `zod`, `solid-js`, `solid-js/web`,
-`solid-js/store`, `@conciv/client`, `@conciv/plugin/experimental`, `@conciv/plugin/experimental/page`,
-`@conciv/plugin/experimental/grab` and `@conciv/plugin/rpc`. An import of another `effect`, `solid-js` or `@conciv`
-module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance.
-Import `useQuery`, `useMutation` and `useQueryClient` from `@conciv/client`, which the widget provides, so a view
-reads through the same query cache as the widget. No plugin imports a `@tanstack/*` Query package. An `import()` becomes a chunk the widget loads the first time it runs.
+| Import                             | What it has                                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| `@conciv/frontend-plugin-api`      | `Plugin`, the registries (`Panel`, `Slot`, `ComposerPill`, ...), `usePlugin`, types |
+| `@conciv/frontend-plugin-api/vite` | `experimental()`, the Vite build of the browser part                                |
+| `@conciv/frontend-plugin-api/page` | `Page`, the page plugin's API, and `PageOperation`                                  |
+| `@conciv/frontend-plugin-api/grab` | the element grab helpers                                                            |
+| `@conciv/frontend-plugin-api/host` | `compose`, for an app that mounts the widget with its own plugins                   |
 
 ## Define it
 
-`Plugin.define({setup})` is the default export. It has no id: the widget gives it the engine part's id as `ctx.id`.
-`setup` runs synchronously. Everything it adds with `ctx.add(Registry, item)` is withdrawn when the plugin reloads or
-stops.
+`Plugin.define({setup})` is the default export of `src/plugin-experimental.tsx`. It declares no id: the widget gives
+it the engine part's id as `ctx.id`. `setup` runs synchronously. Everything it adds with `ctx.add(Registry, item)` is
+removed when the plugin reloads or stops, and `ctx.signal` aborts then.
 
-The whiteboard's browser part, whole:
+The test runner's browser part adds the Tests tab:
 
-```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
-import {onCleanup} from 'solid-js'
-import {createStore} from 'solid-js/store'
-import {render} from 'solid-js/web'
-import {useQuery} from '@conciv/client'
-import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
-import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
-
-export default Plugin.define({
+```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
+const runner: Plugin.Definition = Plugin.define({
   setup(ctx) {
-    const [canvas, setCanvas] = createStore({open: false, engaged: false})
-    const surface = useQuery(() => ({
-      queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
-      queryFn: () => import('./client/canvas-surface.js').then((module) => module.default),
-      enabled: canvas.engaged,
-      retry: false,
-      refetchOnWindowFocus: false,
-    }))
-    const close = (): void => setCanvas('open', false)
-    const overlay: Slot = {
-      at: 'page.overlay',
-      hides: false,
-      render: () => <WhiteboardNotices ctx={ctx} surface={surface} />,
-    }
-    const pill: ComposerPill = {
-      id: 'whiteboard-open',
-      order: 20,
-      show: () => ({
-        label: 'Whiteboard',
-        icon: 'presentation',
-        title: 'Open the whiteboard canvas',
-        run: () => {
-          if (!surface.isError) {
-            setCanvas({engaged: true, open: !canvas.open})
-            return
-          }
-          setCanvas('open', true)
-          void surface.refetch()
-        },
-      }),
-    }
-    onCleanup(
-      render(
-        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} close={close} />,
-        document.createDocumentFragment(),
+    const runtime = ManagedRuntime.make(Layer.empty)
+    onCleanup(() => void runtime.dispose())
+    const tab: PanelTab = {
+      id: 'tests',
+      title: 'Tests',
+      pinned: true,
+      label: () => (
+        <>
+          <ctx.ui.Icon name="flask-conical" size="small" />
+          Tests
+        </>
       ),
-    )
-    ctx.add(ComposerPill, pill)
-    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
-    ctx.add(Slot, () => (canvas.open ? overlay : undefined))
+    }
+
+    ctx.add(Panel, {
+      id: 'tests',
+      region: 'pane',
+      list: () => [tab],
+      render: (props) => {
+        const run = followRunView(runtime, ctx.client)
+        return (
+          <TestsPanel
+            ui={ctx.ui}
+            run={run()}
+            directory={props.session.directory}
+            canOpen={ctx.desktop !== undefined}
+            onOpen={(error) => openFailure(ctx, runtime, error)}
+            onFix={(error) => fixFailure(error, props.screen, props.session, props.session.directory)}
+          />
+        )
+      },
+    })
   },
 })
+
+export default runner
 ```
 
 `ctx.add` takes an item, or a function that returns one. The widget runs the function again when what it reads
-changes, and an `undefined` result adds nothing: the whiteboard's overlay slot is there only while the canvas is open.
+changes, and an `undefined` result adds nothing. `ctx.ui` holds the widget's own components (`Icon`, `Button`,
+`SettingsRow`, ...), so a plugin draws as the widget does.
 
 ## Call the engine part
 
-`ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the [RPC contract](/docs/plugins/engine#rpc):
+`ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the [RPC contract](/docs/plugins/engine#rpc).
+The client is new after the engine restarts, so read `ctx.client` where you call it:
 
-```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
-const load = async (client: Client, signal: AbortSignal) => {
-  try {
-    const runner = client.rpc(TestRunner)
-    const result = await runner.status(undefined, {signal})
-    if (!signal.aborted) dispatch({type: 'status', result})
-    const current = await runner.current(undefined, {signal})
-    if (!signal.aborted) dispatch({type: 'current', ...current})
-  } catch (error) {
-    if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
-  }
+```ts title="packages/plugins/test-runner/src/follow.ts"
+function readRun(client: Client) {
+  return Effect.tryPromise({
+    try: async (signal) => {
+      const runner = client.rpc(TestRunner)
+      const status = await runner.status(undefined, {signal})
+      const current = await runner.current(undefined, {signal})
+      return {status, current}
+    },
+    catch: (cause) => makeReadFailed({cause}),
+  })
 }
 ```
 
-The engine part's events arrive on `client.event.subscribe`, as `rpc.<id>.<event>`:
+The engine part's events arrive on `client.event.subscribe`, as `rpc.<id>.<event>`. A `server.connected` event comes
+after the engine connection comes back, so the test runner reads the run again then:
 
-```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
-const follow = async (client: Client, signal: AbortSignal) => {
-  try {
-    for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
-      if (event.type === 'server.connected') {
-        dispatch({type: 'connected'})
-        void load(client, signal)
-        continue
-      }
-      const parsed = TestEventSchema.safeParse(event.data)
-      if (parsed.success) dispatch(parsed.data)
-      else console.error('[test-runner] a live test event did not match its schema', parsed.error)
-    }
-  } catch (error) {
-    if (!signal.aborted) console.error('[test-runner] the live test events stopped', error)
-  }
+```ts title="packages/plugins/test-runner/src/follow.ts"
+const TEST_EVENT = 'rpc.test-runner.event'
+
+function decodeEvent(event: {readonly type: string; readonly data?: unknown}): TestRunnerFollowMachine.FollowEvent {
+  if (event.type === 'server.connected') return {type: 'server-connected'}
+  const parsed = TestEventSchema.safeParse(event.data)
+  return parsed.success ? {type: 'event', event: parsed.data} : {type: 'event-invalid', error: parsed.error}
 }
+```
+
+```ts title="packages/plugins/test-runner/src/follow.ts"
+yield *
+  Stream.fromAsyncIterable(client.event.subscribe({types: [TEST_EVENT]}), (cause) => makeStreamFailed({cause})).pipe(
+    Stream.runForEach((event) => dispatch(decodeEvent(event))),
+    Effect.catch((error) => dispatch({type: 'stream-failed', error: error.cause})),
+  )
+```
+
+Import `useQuery`, `useMutation` and `useQueryClient` from `@conciv/client`, which the widget provides, so a view reads
+through the widget's own query cache. The whiteboard loads its canvas this way, the first time the user opens it:
+
+```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
+const surface = useQuery(() => ({
+  queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
+  queryFn: () => import('./canvas-surface.js').then((module) => module.default),
+  enabled: canvas.engaged,
+  retry: false,
+  refetchOnWindowFocus: false,
+}))
 ```
 
 ## Registries
 
 ### Panel
 
-A panel adds tabs to the session pane. `list` returns the tabs to show, and `render` draws a tab's content:
+A panel adds tabs to the session's pane. `list` returns the tabs to show, and `render` draws a tab's content. The test
+runner's panel is in [Define it](#define-it). `list` gets `open`, the plugin's tab ids stored in the strip: return the
+ones that still apply, plus any `pinned` tab.
+
+### ToolRegistry
+
+A tool card draws the calls of one tool in the thread. `render` gets the call's `tool`, `input`, `status`, `output`
+and `metadata`. A tool with no card draws the widget's generic card, and a failed call draws `errorComponent`, or the
+error card when there is none.
+
+The test runner draws both of its direct tools with one card component, `render`:
 
 ```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
-const tab: PanelTab = {
-  id: 'tests',
-  title: 'Tests',
-  pinned: true,
-  label: () => (
-    <>
-      <ctx.ui.Icon name="flask-conical" size="small" />
-      Tests
-    </>
-  ),
-}
+ctx.add(ToolRegistry, {name: 'test_runner_run', render})
+ctx.add(ToolRegistry, {name: 'test_runner_status', render})
 ```
-
-```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
-ctx.add(Panel, {
-  id: 'tests',
-  region: 'pane',
-  list: () => [tab],
-  render: (props) => (
-    <TestsPanel
-      ui={ctx.ui}
-      run={run}
-      directory={props.session.directory}
-      canOpen={ctx.desktop !== undefined}
-      onOpen={openFailure}
-      onFix={(error) => fixFailure(error, props.screen, props.session, props.session.directory)}
-    />
-  ),
-})
-```
-
-`list` gets `open`, the plugin's tab ids stored in the strip. Return the ones that still apply, plus any `pinned` tab.
 
 ### Slot
 
 A slot puts content at a fixed place in the widget:
 
 ```tsx title="packages/plugins/tanstack/src/plugin-experimental.tsx"
-ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} />})
+ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} logo={ctx.icons.logo} />})
 ```
 
-| `at`                | Where                             | `render` input                           |
-| ------------------- | --------------------------------- | ---------------------------------------- |
-| `window.bottom`     | the bottom of the widget window   | none                                     |
-| `session.header`    | a session's header                | `session`, `screen`, `active`, `compact` |
-| `session.status`    | above a session's composer        | `session`, `screen`                      |
-| `session.panel.end` | the end of a session's status bar | `session`, `screen`                      |
-| `page.overlay`      | over the page                     | none                                     |
+| `at`             | Where                           | `render` input                           |
+| ---------------- | ------------------------------- | ---------------------------------------- |
+| `window.bottom`  | the bottom of the widget window | none                                     |
+| `session.header` | a session's header              | `session`, `screen`, `active`, `compact` |
+| `session.status` | a session's status area         | `session`, `screen`                      |
+| `page.overlay`   | over the page                   | none                                     |
 
-A `page.overlay` slot holds the focus unless it sets `hides: false`.
+A `page.overlay` slot holds the focus inside it unless it sets `hides: false`. The whiteboard adds its overlay only
+while the canvas is visible:
+
+```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
+ctx.add(Slot, () => (visible() ? overlay : undefined))
+```
 
 ### ComposerPill
 
-A pill sits above a session's composer. `show` returns the pill, or `undefined` to show none there; `order` sorts the
-pills. The whiteboard's pill in [Define it](#define-it) opens the canvas from `run`.
+A pill sits above a session's composer. `show` returns the pill, or `undefined` to show none there, and `order` sorts
+the pills:
+
+```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
+const pill: ComposerPill = {
+  id: 'whiteboard-open',
+  order: 20,
+  show: () => ({
+    label: 'Whiteboard',
+    icon: 'presentation',
+    title: 'Open the whiteboard canvas',
+    run: () => dispatchCanvas({type: 'toggled', surfaceFailed: surface.isError}),
+  }),
+}
+```
 
 A pill can instead open a list of `rows`, each with a `label` and its own `run`, or your own content through `menu`.
 
 ### SettingsPage
 
-A settings page adds to the widget's settings:
+A settings page adds to the widget's settings. The whiteboard adds one row to the General section:
 
-```js title="apps/conciv/test/conciv.browser.test.tsx"
-const text = (value) => () => Object.assign(document.createElement('p'), {textContent: value})
-ctx.add(SettingsPage, {id: 'prefs', title: 'Alpha prefs', render: text('Alpha prefs body')})
+```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
 ctx.add(SettingsPage, {
-  id: 'inline',
+  id: 'canvas-background',
   page: 'general',
   section: 'general',
-  title: 'Inline',
-  render: text('Alpha row in general'),
+  title: 'Whiteboard canvas background',
+  entries: [
+    {
+      id: CANVAS_BACKGROUND_ROW,
+      title: 'Canvas background',
+      keywords: 'whiteboard canvas background transparent solid',
+    },
+  ],
+  render: () => <CanvasBackgroundRow />,
 })
-ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: text('Alpha section on general')})
 ```
 
 | Fields                                  | Adds                          |
@@ -226,5 +210,58 @@ ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: tex
 | `page: 'general'`                       | a section on the General page |
 | `page: 'general'`, `section: 'general'` | a row in the General section  |
 
-Frame a page of your own with `ctx.ui.SettingsLayout`, a section with `ctx.ui.SettingsSection`, and a row with
-`ctx.ui.SettingsRow`, so it renders as the widget's own settings do.
+`entries` are what the settings search finds. Frame a page of your own with `ctx.ui.SettingsLayout`, a section with
+`ctx.ui.SettingsSection`, and a row with `ctx.ui.SettingsRow`, so it renders as the widget's own settings do.
+
+### Command
+
+A command runs from a keybind or a slash command:
+
+```ts title="packages/frontend-plugin-api/src/registries.ts"
+ctx.add(Command, {id: 'toggle', bind: 'mod+shift+e', title: 'Toggle', run: () => toggle()})
+```
+
+## Build it
+
+`experimental()` from `@conciv/frontend-plugin-api/vite` builds `src/plugin-experimental.tsx` into
+`dist/plugin-experimental.cjs`, with one chunk per dynamic `import()` and Vite's manifest beside it. The test runner's
+one Vite config builds the bundle and sets up its tests:
+
+```ts title="packages/plugins/test-runner/vite.config.ts"
+import {defineConfig} from 'vitest/config'
+import {experimental} from '@conciv/frontend-plugin-api/vite'
+import conciv from '@conciv/unplugin/vite'
+import {concivTest} from '@internal/vitest-config/conciv-test'
+
+export default defineConfig({
+  publicDir: false,
+  plugins: [experimental(), conciv(), concivTest({browser: true})],
+})
+```
+
+Export the bundle as `./plugin-experimental` from the package. A plugin folder in the project ships it as
+`plugin-experimental.cjs` or `plugin-experimental.js` beside its engine part. The widget loads the bundle and its
+chunks from the engine, over its engine connection.
+
+The build keeps the modules the widget provides external, and Node built-ins:
+
+```ts title="packages/frontend-plugin-api/src/modules.ts"
+export const pluginSharedModules = [
+  'effect',
+  '@conciv/frontend-plugin-api',
+  '@conciv/backend-plugin-api/rpc',
+  'zod',
+] as const
+
+export const pluginWindowModules = [
+  'solid-js',
+  'solid-js/web',
+  'solid-js/store',
+  '@conciv/client',
+  '@conciv/frontend-plugin-api/page',
+  '@conciv/frontend-plugin-api/grab',
+] as const
+```
+
+An import of any other `effect/...`, `solid-js/...` or `@conciv/...` module fails the build: the widget does not
+provide it, and a bundled copy would not share the widget's instance.

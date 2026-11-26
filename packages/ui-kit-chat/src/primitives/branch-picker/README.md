@@ -1,4 +1,4 @@
-# primitives/branch-picker
+# ui-kit-chat/src/primitives/branch-picker
 
 ## Overview
 
@@ -6,8 +6,7 @@ Headless branch picker for navigating message branches.
 
 ## Interface
 
-- `branch-picker.tsx:BranchPicker` - `{Root, Previous, Next, Count, Number}`; exported as `BranchPickerPrimitive`.
-- `branch-picker.tsx:BranchProvider`, `branch-picker.tsx:useBranch`, type `BranchState` (`count`, `index`, `previous`, `next`).
+- `branch-picker.tsx`: the `BranchPicker` compound and its branch context, exported as `BranchPickerPrimitive`.
 
 ## Invariants
 
@@ -19,4 +18,4 @@ Headless branch picker for navigating message branches.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

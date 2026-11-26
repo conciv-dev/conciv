@@ -8,7 +8,7 @@ React version of the conciv logo: the full lockup (mark plus wordmark) and the s
 
 - `ConcivLockup({className?, interactive = false})` (`conciv-lockup.tsx`): 249.46x56.26 viewBox SVG with `role="img"` and `aria-label="conciv"`. With `interactive` it renders the internal `InteractiveLockup`, otherwise the static `LockupSvg`.
 - `ConcivMark({className?})` (`conciv-lockup.tsx`): static 64x64 mark SVG filled with `MARK_COLOR` (`#D7263D`).
-- DOM hooks: `data-conciv-part="cursor"` on the cursor path and `data-conciv-part="antenna"` on the antenna group (`conciv-lockup.tsx`). The browser tests select these through `test/browser/lockup-dom.ts`.
+- DOM hooks: `data-conciv-part="cursor"` on the cursor path and `data-conciv-part="antenna"` on the antenna group (`conciv-lockup.tsx`).
 
 ## Invariants
 
@@ -27,4 +27,4 @@ React version of the conciv logo: the full lockup (mark plus wordmark) and the s
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/brand-react` from the repo root (turbo builds the package and its dependencies first) (Vitest project `brand-react-browser`); typecheck with `pnpm exec turbo run typecheck --filter=@conciv/brand-react`.
+- Typecheck: `pnpm exec turbo run typecheck --filter=@internal/brand-react` from the repo root (the package has no tests yet)

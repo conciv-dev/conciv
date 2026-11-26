@@ -2,15 +2,7 @@
 
 ## Overview
 
-The Solid compound component over the core service, with the same slots as the React wrapper. Built by `tsdown.config.ts` and, as preserved JSX, by `tsdown.solid-source.config.ts` into `dist/solid`.
-
-## Interface
-
-- `index.ts:Mascot` - `MascotRoot` with `Head`, `Eyes`, `Antenna`, `Binary`, `Effect` attached.
-- `index.ts` - re-exports `useMascotContext`, the prop types, the core config types, `robotLayers` and `robotSkin`.
-- `mascot-root.tsx:MascotRoot` - root element; `use-mascot.ts:createMascotHost` creates the service and slot tracking.
-- `mascot-effect.tsx:MascotEffect` / `mascot-binary.tsx:MascotBinary` - effect slots.
-- `mascot-props.ts:MascotProps` / `MascotLayerProps` / `MascotFollowPartProps` / `MascotBinaryProps`, `composeRefs`, `mergeStyle`.
+The Solid compound component over the core service (`solid.ts`: `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots), with the same slots as the React wrapper. Built by `tsdown.config.ts` and, as preserved JSX, by `tsdown.solid-source.config.ts` into `dist/solid`.
 
 ## Invariants
 
@@ -24,5 +16,5 @@ The Solid compound component over the core service, with the same slots as the R
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `test/e2e`)
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)
 - Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)

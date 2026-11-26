@@ -31,7 +31,8 @@ conciv plugin call test-runner status
 conciv plugin call test-runner run --data '{"patterns":["math"]}'
 ```
 
-Ask the dev server where it listens, through the server plugin. See [Dev server](/docs/usage/dev-server):
+Ask the dev server where it listens, through the engine's own `server` contract. See
+[Dev server](/docs/usage/dev-server):
 
 ```bash
 conciv plugin call server urls
@@ -39,21 +40,27 @@ conciv plugin call server urls
 
 ## Output
 
-A method that answers prints one envelope and exits `0`:
+A method that answers prints one envelope and exits `0`. The CLI's own test calls the `count` method of a test plugin:
 
-```json
-{"ok": true, "data": "hi"}
+```ts title="packages/cli/test/it/plugin.it.test.ts"
+const counted = await cli(['plugin', 'call', 'plant-shelf', 'count', '--data', '{"plant": "fern"}'], {engine})
+expect(counted.exitCode).toBe(0)
+expect(JSON.parse(counted.stdout)).toEqual({ok: true, data: {plant: 'fern', count: 1}})
 ```
 
-A failure prints `{"ok": false, "error": ...}` and exits `1`. A method's declared error carries its name as `type`,
-its `message` and its `data`:
+A failure prints `{"ok": false, "error": ...}` and exits `1`. A method's declared error carries the error's name as
+`type`, with its `message` and `data`:
 
-```json
-{
-  "ok": false,
-  "error": {"kind": "user", "code": "PLUGIN_RPC", "type": "limited", "message": "try later", "data": {"retryAfter": 5}}
-}
+```ts title="packages/cli/test/it/plugin.it.test.ts"
+const soldOut = await cli(['plugin', 'call', 'plant-shelf', 'sell', '-d', '{"plant": "fern"}'], {engine})
+expect(soldOut.exitCode).toBe(1)
+expect(JSON.parse(soldOut.stdout)).toEqual({
+  ok: false,
+  error: {kind: 'user', message: 'fern is sold out', code: 'PLUGIN_RPC', type: 'sold-out', data: {plant: 'fern'}},
+})
 ```
+
+The engine answers these `type`s itself:
 
 | `type`                 | Cause                                       |
 | ---------------------- | ------------------------------------------- |
@@ -61,9 +68,30 @@ its `message` and its `data`:
 | `rpc.method_not_found` | The contract has no such method.            |
 | `rpc.invalid_input`    | `--data` does not match the method's input. |
 
-`--data` that is not JSON is refused before anything is sent.
+A failure inside the plugin, or an output that does not match the method's schema, comes back with the code
+`PLUGIN_RPC_INTERNAL` and the type `rpc.internal` or `rpc.invalid_output`.
+
+`--data` that is not JSON is refused before anything is sent:
+
+```ts title="packages/cli/test/it/plugin.it.test.ts"
+expect(JSON.parse(refused.stdout)).toEqual({
+  ok: false,
+  error: {
+    kind: 'user',
+    message: '--data is not JSON: {plant: fern}',
+    hint: "pass the method's input as JSON, for example --data '{}'",
+  },
+})
+```
 
 ## Which engine answers
 
-The command finds the engine of the project you run it in. Outside a project it uses a running engine registered on
-this machine. It calls as the project's owner, outside any session. It takes no `--tab`.
+The command looks for the engine in this order:
+
+1. `CONCIV_PORT`, when it is set. `CONCIV_TOKEN`, when set, is the token it sends.
+2. The `.conciv/server.json` of the folder you run it in, or of the nearest folder above it that has one.
+3. The last running engine registered on this machine.
+4. Port `5173` on `127.0.0.1`, when no engine is registered at all.
+
+It calls outside any session, and takes no `--tab`. When nothing answers, it prints `No conciv dev server on <host>.`
+with a hint to start your app.

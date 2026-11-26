@@ -2,12 +2,7 @@
 
 ## Overview
 
-Builds the single conciv unplugin instance that the bundler entries share.
-
-## Interface
-
-- `plugin-instance.ts:unplugin` - `createConcivUnplugin` with `embedEntry` (the resolved `@conciv/embed`) and `widgetPageDir` (its folder).
-- Subdirectories: [plugin](./plugin/README.md).
+Builds the single conciv unplugin instance that the bundler entries in [plugin/](./plugin/README.md) share: `plugin-instance.ts` calls `createConcivUnplugin` with `embedEntry` (the resolved `@conciv/app`) and `widgetPageDir` (its folder).
 
 ## Invariants
 

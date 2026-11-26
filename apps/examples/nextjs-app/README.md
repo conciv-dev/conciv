@@ -41,18 +41,12 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Interface
-
-- `withConciv(nextConfig)` (`next.config.ts`): wraps the Next config with the conciv plugin from `@conciv/it/plugin/nextjs`
-- The example loads the workspace test-runner plugin by path; an app outside this repo uses `plugins: ['@conciv/plugin-test-runner']`.
-- `register` (`instrumentation.ts`): re-export of `@conciv/it/plugin/nextjs` server instrumentation hook
-- `instrumentation-client.ts`: side-effect import of `@conciv/it/plugin/nextjs/widget`, loads the widget in the browser
-- `eslintConfig` (`eslint.config.mjs`): `eslint-config-next` core-web-vitals and typescript presets
-- Subdirectories: [app](./app/README.md), [conciv](./conciv/README.md)
-
 ## Invariants
 
+- `next.config.ts` wraps the Next config with `withConciv` from `@conciv/it/plugin/nextjs` and loads the workspace plugins `@conciv/plugin-test-runner`, `@conciv/plugin-tanstack` and `@internal/plugin-whiteboard` by their `node_modules` path; an app outside this repo names a plugin by package, e.g. `plugins: ['@conciv/plugin-test-runner']`.
+- `instrumentation.ts` re-exports `register` from `@conciv/it/plugin/nextjs`; `instrumentation-client.ts` imports `@conciv/it/plugin/nextjs/widget`.
 - `eslint.config.mjs`: `.next/**`, `out/**`, `build/**`, `next-env.d.ts` are ignored by lint
+- Subdirectories: [app](./app/README.md)
 
 ## Side Effects
 

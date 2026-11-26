@@ -23,14 +23,6 @@ To build this application for production:
 pnpm build
 ```
 
-## Testing
-
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
-
-```bash
-pnpm test
-```
-
 ## Styling
 
 This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
@@ -39,10 +31,9 @@ This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
 
 If you prefer not to use Tailwind CSS:
 
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `pnpm add @tailwindcss/vite tailwindcss --dev`
+1. Replace the Tailwind import in `src/styles.css` with your own styles
+2. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
+3. Uninstall the packages: `pnpm remove @tailwindcss/vite tailwindcss`
 
 ## Routing
 
@@ -182,33 +173,23 @@ function PeopleComponent() {
 
 Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
 
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
 # Learn More
 
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
 
 For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
 
-## Interface
-
-- `vite.config.ts` default export: plugins `devtools`, `tailwindcss`, `tanstackStart`, `viteReact`, `conciv(...)`
-- `conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}})` (`vite.config.ts`): conciv core on its persisted port (or a free one), quick terminal on `Alt+k`
-- `CONCIV_NITRO` env (`vite.config.ts`): `1` adds the `nitro/vite` plugin
-- The example loads the workspace test-runner plugin by path; an app outside this repo uses `plugins: ['@conciv/plugin-test-runner']`.
-- scripts (`package.json`): `dev`, `build`, `plugin:build`, `plugin:watch`, `generate-routes`, `typecheck`, `lint`
-- While editing the deploy plugin's browser part, run `pnpm plugin:watch` in a second terminal.
-- Subdirectories: [conciv](./conciv/README.md), [src](./src/README.md)
-
 ## Invariants
 
-- `vite.config.ts`: no iOS plugin; the iOS overlay demo lives in [native/swift](../../../native/swift/README.md) so web sessions here never get the iOS system prompt
+- `vite.config.ts` adds `conciv(...)` from `@conciv/it/plugin/vite` with the quick terminal on `Alt+k`, and loads the workspace plugins `@conciv/plugin-test-runner`, `@conciv/plugin-tanstack`, `@conciv/plugin-recorder` and `@internal/plugin-whiteboard` by their package folder; an app outside this repo names a plugin by package, e.g. `plugins: ['@conciv/plugin-test-runner']`.
+- `CONCIV_NITRO=1` adds the `nitro/vite` plugin.
+- `pnpm dev` builds the deploy plugin's browser part (`plugin:build`), then runs `plugin:watch` and `vite dev --port 3000` side by side.
+- No iOS plugin: the iOS overlay demo lives in [native/swift](../../../native/swift/README.md) so web sessions here never get the iOS system prompt.
+- Subdirectories: [conciv](./conciv/README.md), [src](./src/README.md)
 
 ## Side Effects
 
-- `vite.config.ts:conciv`: the dev server starts a conciv core
+- `vite.config.ts:conciv`: the dev server starts a conciv engine
 
 ## Verification
 

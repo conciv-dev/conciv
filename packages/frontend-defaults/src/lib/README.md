@@ -1,4 +1,4 @@
-# lib
+# frontend-defaults/src/lib
 
 ## Overview
 
@@ -6,23 +6,18 @@ DOM and browser helpers: shadow root styling with fonts, host theme detection, d
 
 ## Interface
 
-- `styleRoot`, `registerFonts`, `registerWind4Properties` (`shadow.ts`): every app root gets the fonts on the document; a shadow root also adopts the widget stylesheet and its CSS properties go to the document
-- `widgetStyles`, `widgetSheet()` (`widget-styles.ts`): the widget CSS text and the one constructed `CSSStyleSheet` built from it for the page's `document`
-- `createHostTheme`, `applySchemeClass`, `applySkinClass`, `themeClasses`, `HostTheme`, `ColorScheme` (`color-scheme.ts`)
-- `createDraggablePosition({initial, storageKey})`, `DraggablePosition`, `LauncherAnchor`, `launcherPlacement`, `panelPlacement` (`draggable-position.ts`): the launcher's drag, a port of the TanStack Devtools floating trigger: a press past 4px drags with the grab point under the pointer, a release throws with friction and wall bounce, a release within 72px of a corner pins it there (holding still 2s on a corner switches that corner off for the drag, Shift steers to the corner the drag heads for), a release anywhere else stays put, a drag past an edge hides it into a tab, Escape drops the gesture; arrows nudge the focused launcher and Shift with an arrow sends it to a corner. `LauncherAnchor` holds the collapsed launcher's `left`, `right` and `top` plus the screen-half `corner`; `growsTowardStart(labelWidth)` is true when the opened pill (collapsed launcher plus the label's natural width) would cross the right margin from the launcher's resting left (or its live drag position), so hovering never flips it; `launcherPlacement` places the launcher by `left` and `top` so its pill grows to the right, or by `right` and `top` when it grows toward the start, so the robot never moves; `panelPlacement` opens the chat panel toward the free side of the launcher's screen half, aligned to its right edge on the right half; `panelFrame(size)` gives that panel's viewport rectangle from the launcher's live position and the panel's measured size, with no layout read
-- `clamp`, `cornerAt`, `cornerCoords`, `directionCorner`, `quadrantCorner`, `offScreenEdge`, `stepAxis`, `throwPath`, `toPercent`, `toPixels`, `parsePlacement`, `presetPlacement` (`draggable-physics.ts`): the pure geometry and throw physics behind the drag, and the stored placement schema
-- `createMediaQuery(query)`, `PHONE_MEDIA_QUERY` (`media-query.ts`): `(max-width: 520px)`
-- `hostFocusTarget`, `hostPageHasFocus` (`host-focus.ts`)
-- `toRawHotkey(binding)` (`hotkey.ts`): `parseHotkey` from `@tanstack/hotkeys`
-- `sessionPickerSearchSchema` (`session-search-schemas.ts`): the root route's search params, `open`, the session picker's `sessionSearch` term and its `allProjects` flag
-- `QuickSearchSchema`, `quickPaneIds`, `quickSearchFor` (`quick-search.ts`): `panes` (comma-separated session ids) and `focus` search params
-- `setShutter(router, open)` (`routes/__root.tsx`): sets or clears the `open` search param with `replace: true`
+- `shadow.ts`, `widget-styles.ts`: every app root gets the fonts on the document; a shadow root also adopts the one widget stylesheet and its CSS properties go to the document.
+- `color-scheme.ts`: the host page's theme (scheme and skin).
+- `draggable-position.ts`, `draggable-physics.ts`: the launcher's drag, a port of the TanStack Devtools floating trigger, and the pure geometry, throw physics and stored placement schema behind it.
+- `host-focus.ts`, `hotkey.ts`, `leave-screen.ts`, `widget-layer.ts`: focus lookup on the host page, hotkey parsing (`@tanstack/hotkeys`), leaving a session's screen, the widget's z-index.
+- `session-search-schemas.ts`, `quick-search.ts`: the root route's search params (`open`, `sessionSearch`, `allProjects`) and the quick terminal's (`panes`, `focus`).
+- The media query helper lives in `@internal/frontend-app-api/lib/media-query`.
 
 ## Invariants
 
 - `widget-styles.ts:widgetSheet`: es-toolkit `once`, so the page's `document` gets one sheet, made on first call; every widget root in it (widget, plugin overlays) adopts the same object; the picture-in-picture window makes and holds its own (`shell/pip.ts`) and no root carries the CSS text in a `<style>`; `@property` and `@font-face` stay in `document.head` (`registerWind4Properties`, `registerFonts`)
 - `quick-search.ts:quickPaneIds`: only values passing `isSessionId` are kept; invalid `panes`/`focus` fall back to `''`/`0`
-- `routes/__root.tsx:setShutter`: closed is represented by an absent `open` param, never `open=false`
+- `../routes/__root.tsx:setShutter`: closed is represented by an absent `open` param, never `open=false`
 - `draggable-physics.ts:parsePlacement`: anything that is not a preset string or a valid placement reads as `undefined`, so the configured position wins; percents outside 0 to 100 are rejected
 
 ## Side Effects
@@ -30,8 +25,8 @@ DOM and browser helpers: shadow root styling with fonts, host theme detection, d
 - `draggable-position.ts:createDraggablePosition`: reads and writes the placement (a corner, a free spot as a percent of the free space, or a hidden edge, as JSON; a stored preset string from before still reads as that corner) under `storageKey` through `readStorage`/`writeStorage` from `@conciv/ui-kit-system`; window pointer and Escape listeners; pointer capture on the pressed launcher; a Web Animations settle or throw on release, skipped under reduced motion
 - `shadow.ts:styleRoot`: adds the fonts to the document for any root; for a shadow root it also sets `adoptedStyleSheets` to the widget sheet and adds the CSS properties to the document
 - `color-scheme.ts:createHostTheme`: `MutationObserver` on `document.body` and `documentElement` class changes
-- `routes/__root.tsx:setShutter`: router navigation that replaces the history entry
+- `../routes/__root.tsx:setShutter`: router navigation that replaces the history entry
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck test --filter=@conciv/app` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=@internal/frontend-defaults` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

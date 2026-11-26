@@ -6,24 +6,21 @@ Package internal to @conciv/it that provides Solid terminal components on xterm.
 
 ## Interface
 
-- `exports['.']` (`package.json`): ./dist/index.js
-- `scripts` (`package.json`): build (`vite build && tsc -p tsconfig.build.json`), typecheck, lint, test, publint, attw
-- `vite.config.ts`: `solidLibConfig` with entry src/index.tsx
-- `vitest.config.ts`: Playwright Chromium browser project over test/**/*.test.tsx with a control-server global setup
+- `exports['.']` (`package.json`): ./dist/ui-kit-terminal.js
+- `scripts` (`package.json`): build (`vite build && tsc -p tsconfig.build.json`), typecheck, publint, attw; no `test` script
+- `vite.config.ts`: `solidLibConfig` from `@internal/vite-config` with entry src/ui-kit-terminal.tsx
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - terminal model and components
 
 ## Invariants
 
-- `vite.config.ts`: @conciv/_, solid-js and @xterm/_ are external, except the xterm CSS which is bundled
+- `vite.config.ts`: @conciv/\*, solid-js and @xterm/\* are external, except the xterm CSS which is bundled
 - `peerDependencies` (`package.json`): solid-js
 
 ## Side Effects
 
-- `vitest.config.ts`: reads VITEST_MAX_WORKERS (default 3); tests start a control server and Chromium
 - `build` script (`package.json`): writes dist/
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-terminal` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/ui-kit-terminal && pnpm typecheck`, then `pnpm lint` at the repo root

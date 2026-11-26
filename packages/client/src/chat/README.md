@@ -1,4 +1,4 @@
-# ai/src/session
+# client/src/session
 
 ## Overview
 
@@ -6,12 +6,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 
 ## Interface
 
-- `session.ts:createChat` - returns `useChat(options)`.
-- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `decide`, a `sendMessage` that rejects when a queued Stop took the send back or the engine refused it, and accessors `error`, `withdrawn`, `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `loadFailed`, `pendingApprovals`, and `readHarness(messageId)`.
-- `session.ts:CreateChatSessionOptions` - `sessionId`, `connect(callbacks)`, `stop(runIds)`, `decide(approvalId, reply)` (reply is `once`, `always` or `reject`), optional `onError`.
-- `session.ts:ChatSessionConnection` - a `SubscribeConnectionAdapter` plus `refresh(before?)` (the newest page, or the page before a cursor) and `close()`.
-- `session.ts:ChatSessionCallbacks` - `onLifecycle`, `onHydrated`, `onRunError`, `onApprovalAsk`, `joinsRun`.
-- `session.ts:ChatSessionHydration` / `Chat` / `CreateChatOptions` - exported types.
+- `session.ts`: `createChatSession` takes the session id, a `connect(callbacks)` that returns the connection, and the `stop` and `decide` network callbacks; the caller supplies the transport. Exported through `chat.ts` (`@conciv/client/chat`).
 
 ## Invariants
 
@@ -36,5 +31,5 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ai` from the repo root (turbo builds the package and its dependencies first)
-- Run: `pnpm exec turbo run typecheck --filter=@conciv/ai` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/client` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/client` from the repo root (turbo builds the package and its dependencies first)

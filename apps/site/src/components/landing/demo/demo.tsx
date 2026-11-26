@@ -135,7 +135,7 @@ export function Demo() {
     dispatch({type: 'push', message: {kind: 'tool', label: 'patch', detail: scenario.patchDetail}})
     dispatch({type: 'patch'})
     applyPatch(el, scenario.apply)
-    dispatch({type: 'push', message: {kind: 'result', text: 'done: 1 element changed, saved to source'}})
+    dispatch({type: 'push', message: {kind: 'result', text: 'done: 1 element changed'}})
   }
 
   const runLocal = async (text: string) => {

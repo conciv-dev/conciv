@@ -2,17 +2,12 @@
 
 ## Overview
 
-Codex CLI harness, published as `./codex`. It chats through `codex` from `@conciv/ai/server`, reads models and the default model from `CODEX_HOME` files, and reads session history from Codex's SQLite state DB and rollout JSONL files.
-
-## Interface
-
-- `codex(provider)` (`index.ts`): reads `CODEX_HOME` as Effect Config under the provider (`codexHome`: an unset value falls back to `~/.codex`, an empty one is kept); id/binName `'codex'`, displayName `'Codex'`; capabilities resume true, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; `resume.command({nativeId})` is `codex resume <nativeId>`.
-- `codex.chatConfig` (`index.ts`): its adapter builds a fresh `codexRunAdapter(deps, toolCount)` (`index.ts`) for every model step, from that step's `options.tools`: codexAdapter with `sandboxMode: 'workspace-write'`, `approvalPolicy: 'never'`; a step that offers tools adds `mcp_servers.tanstack.default_tools_approval_mode = "approve"`; env through `definedEntries`; `sessionId` when resuming.
-- `codexHome(env)`, `codexModels(dir)`, `codexDefaultModel(dir)` (`models.ts`).
-- `stateDbPath(home)` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot(home)` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(home, sessionId)`, `codexHistory(home)` `{messages, tail, observe, withinProject, contextTokens, list, meta}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project. Message ids are `${sessionId}:o<byte offset of the line that opened the message>`. `tail` checks the first `session_meta` cwd, then reads backwards through `tailLines`: a safe boundary is a non-blank user message with no later tool output whose call sits above it; the cursor is the boundary's byte offset as a decimal string. `list({cwd}, page)` reads the `threads` rows of that cwd, `list({everywhere: true}, page)` every unarchived row; each meta carries the row's `cwd`.
+Codex CLI harness, published as `./codex` (`codex.ts`). It chats through `codex` from `../adapters`, reads models and the default model from `CODEX_HOME` files, and reads session history from Codex's SQLite state DB and rollout JSONL files.
 
 ## Invariants
 
+- Each model step gets a fresh Codex adapter built from that step's tools, with `sandboxMode: 'workspace-write'` and `approvalPolicy: 'never'` (Codex never asks); a step that offers tools adds `mcp_servers.tanstack.default_tools_approval_mode = "approve"` (`codexRunAdapter`, `codex.ts`).
+- History reads the rollout's first `session_meta` line for its cwd and answers `[]` when that cwd is not the project; message ids are `${sessionId}:o<byte offset of the line that opened the message>`; a `tail` cursor is the boundary's byte offset as a decimal string (`history.ts`).
 - `codexModels` validates `models_cache.json` with `ModelsCacheSchema`, keeps `visibility === 'list'` entries sorted by `priority`, and falls back to `adapterCodexModels` on failure (`models.ts`).
 - `codexDefaultModel` reads top-level `model = "..."` only before the first `[table]` header of `config.toml`; fallbacks are the first cached model, then `adapterCodexModels[0]`.
 - `rolloutPath` prefers the thread row's `rollout_path`, else scans for `-<id>.jsonl`; both must be inside `$CODEX_HOME` (`containedPath`).
@@ -22,7 +17,7 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 
 ## Side Effects
 
-- Reads `$CODEX_HOME` (default `~/.codex`) `models_cache.json` and `config.toml` without blocking, only when `models()`, `defaultModel()` or `login()` is called (`codexModels(home)`, `codexDefaultModel(home)`, `codexUsesOpenaiLogin(home)`, `models.ts`, `index.ts`); `codex(provider)` reads no file. A turn without a chosen model reads its default from the home in the turn's harness env (`codexChatConfig`).
+- Reads `$CODEX_HOME` (default `~/.codex`) `models_cache.json` and `config.toml` without blocking, only when `models()`, `defaultModel()` or `login()` is called (`models.ts`, `codex.ts`); `codex(provider)` reads no file. A turn without a chosen model reads its default from the home in the turn's harness env.
 - Opens `$CODEX_HOME/state_5.sqlite` read-only with `node:sqlite` `DatabaseSync` (`queryRows`).
 - Reads rollout JSONL files and recursively scans `$CODEX_HOME/sessions` (`rolloutEntries`, `listSessions`); `withinProject` and `tail` read only the head (`readHead`, 64 KiB).
 - The chat adapter runs the codex CLI with the caller's env.

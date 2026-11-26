@@ -6,7 +6,7 @@ The per-user conciv home registry, internal to `@conciv/it`: `home.db` on `node:
 
 ## Interface
 
-- `package.json:exports["."]` - `src/home.ts`: `concivHome`, `prepareHome`, `openHomeDb`, `closeHomeDb`, `withHomeDb`, `readHomeDb`, the engine and hub queries, `checkEngines`.
+- `.` (`src/home.ts`) is the home db and its queries. The migration lock `home.db` opens under is `@conciv/types/migration-lock`, shared with the engine's `conciv.db` (`@conciv/backend-defaults`).
 - `drizzle.config.ts` - schema `src/registry/home-schema.ts`, migrations out to `./drizzle` (`pnpm --filter @conciv/home exec drizzle-kit generate`).
 - Subdirectories: [src](./src/README.md).
 
@@ -20,7 +20,3 @@ The per-user conciv home registry, internal to `@conciv/it`: `home.db` on `node:
 
 - `prepareHome` creates the home folder (`0700`), `home.db` and `home.lock` (`0600`); see [src](./src/README.md).
 - `src/scripts/gen-migrations.ts` overwrites `src/registry/home-migrations.gen.ts`.
-
-## Verification
-
-- Run: `pnpm exec turbo run test --filter=@conciv/home` from the repo root (turbo builds the package and its dependencies first)

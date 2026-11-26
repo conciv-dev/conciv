@@ -29,18 +29,13 @@ edit both the demo app and the SDK sources.
    ```
 
    The app finds the engine through the pairing file `~/.conciv/dev-endpoint.json`, or by probing port
-   4599 first. Run only one conciv dev server while you use the demo: every dev core writes that
+   4599 first. Run only one conciv dev server while you use the demo: every dev engine writes that
    pairing file, and the last one started wins.
-
-## Interface
-
-- `conciv({port: 4599, plugins: [['@conciv/plugin-ios', {...}]]})` (`vite.config.ts`): engine on port 4599 (the first port
-  the Swift SDK probes), iOS plugin with `bundleId: 'dev.conciv.ConcivDemo'`,
-  `simulator: 'iPhone 17 Pro'`, `buildMode: 'swiftc'`
-- scripts (`package.json`): `dev`, `typecheck`, `lint`
 
 ## Invariants
 
+- `vite.config.ts` runs `conciv({port: 4599, ...})`, the first port the Swift SDK probes, with `@conciv/plugin-ios`
+  set to `bundleId: 'dev.conciv.ConcivDemo'`, `simulator: 'iPhone 17 Pro'` and `buildMode: 'swiftc'`
 - `vite.config.ts`: the iOS `projectRoot` is `./ConcivDemo` and `extraSourceDirs` is
   `../ConcivWidget/Sources/ConcivWidget` (relative to `projectRoot`); moving either breaks the iOS plugin
 - The engine's cwd is this folder and the agent's harness may only write inside it, so every Swift file the

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Source for @conciv/client: one client, `ConcivClient` (`Conciv.make`), over the plain oRPC contract client, oRPC TanStack Query utils, a chat connection that carries every turn on `rpc.chat.send` and every rejoin on `rpc.chat.join` over the browser rpc socket and merges three event sources (its turns' subscription and two `rpc.chat.events` streams), and engine reachability tracking wired into TanStack's onlineManager.
+Source for @conciv/client: one client, `ConcivClient` (`Conciv.make`), over the plain oRPC contract client, oRPC TanStack Query utils, a chat connection that carries every turn on `rpc.chat.send` and every rejoin on `rpc.chat.join` over the browser rpc socket and merges four event sources (its turns' subscription, the session's `rpc.chat.events` stream, the runs that stream announces and the runs handed over to it), and engine reachability tracking wired into TanStack's onlineManager.
 
 ## Layout
 

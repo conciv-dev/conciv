@@ -1,63 +1,76 @@
 ---
-title: Engine SDK
-description: Plugin.define, tools, Tool.Error, skills and Rpc.define for a plugin's engine part.
+title: Engine part
+description: The engine part of a plugin with @conciv/backend-plugin-api. Plugin.define, tools, skills, the RPC contract and permissions.
 ---
 
-The engine part runs inside the conciv engine. Write it with [Effect](https://effect.website) from
-`@conciv/plugin/effect`. The promise entry, `@conciv/plugin`, does the same without Effect: see
-[The promise entry](#the-promise-entry).
+The engine part runs inside the conciv engine, in node. It is written with `@conciv/backend-plugin-api`, which has two
+entries that do the same work:
 
-```bash
-pnpm add effect
-pnpm add -D @conciv/plugin
+- **The Effect entry**, `@conciv/backend-plugin-api/effect`. `Plugin.define({id, effect})`, and every `ctx` domain
+  returns an [Effect](https://effect.website). Every plugin conciv ships uses it.
+- **The promise entry**, `@conciv/backend-plugin-api`. `Plugin.define({id, setup})`, and every `ctx` domain returns a
+  `Promise`. See [The promise entry](#the-promise-entry).
+
+The engine loads both. A definition with `effect` runs as it is. A definition with `setup` is wrapped by `fromPromise`
+from `@conciv/backend-plugin-api/promise/adapter` first, so both run the same way.
+
+| Import                                         | What it has                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `@conciv/backend-plugin-api/effect`            | `Plugin`, `Skill`, `Rpc`, `Agent`, `Location`, `Model`, `Provider`       |
+| `@conciv/backend-plugin-api/effect/plugin`     | the `Context` type of `ctx`                                              |
+| `@conciv/backend-plugin-api/effect/tool`       | the tool domain's types (`ToolEditor`, `ToolDomain`)                     |
+| `@conciv/backend-plugin-api/effect/rpc`        | the RPC domain's types (`RpcHandlers`, `RpcRegistration`)                |
+| `@conciv/backend-plugin-api/effect/permission` | the permission domain's types                                            |
+| `@conciv/backend-plugin-api/effect/session`    | the session domain's types                                               |
+| `@conciv/backend-plugin-api/rpc`               | `Rpc.define`, for the contract both parts import                         |
+| `@conciv/backend-plugin-api`                   | the promise entry: `Plugin`, `Tool`, `Skill`, `Rpc` and the domain types |
+| `@conciv/backend-plugin-api/promise/adapter`   | `fromPromise`                                                            |
+| `@conciv/backend-plugin-api/host`              | what a plugin host uses to find a plugin's entry files                   |
+
+The test runner lists the plugin APIs as peer dependencies, and what its engine part runs on as dependencies:
+
+```json title="packages/plugins/test-runner/package.json"
+"dependencies": {
+  "@conciv/protocol": "workspace:^",
+  "@effect/platform-node": "catalog:",
+  "effect": "catalog:",
+  "es-toolkit": "catalog:",
+  "zod": "catalog:"
+},
+"peerDependencies": {
+  "@conciv/backend-plugin-api": "workspace:^",
+  "@conciv/frontend-plugin-api": "workspace:^",
+  "solid-js": "catalog:"
+}
 ```
 
 ## Define the plugin
 
 `Plugin.define({id, effect})` is the default export of the engine part. The engine runs `effect(ctx)` when it loads
-the plugin. Each `ctx` domain returns an `Effect`.
+the plugin:
 
-```ts title="packages/plugins/recorder/src/index.ts"
-function servicesLayer(config: RecorderConfig, directory: string) {
-  const rings = ClientRingsModel.clientRingsLayer({windowMs: config.windowMinutes * 60_000})
-  return Layer.mergeAll(
-    CaptureControlModel.captureControlLayer.pipe(Layer.provideMerge(rings)),
-    RecordingStoreModel.recordingStoreLayer(directory),
-    RendererCacheModel.rendererCacheLayer(launchChromiumRenderer),
-  )
-}
+```ts title="packages/plugins/test-runner/src/test-runner.ts"
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 
-export default Plugin.define<Scope.Scope | FileSystem.FileSystem | Path.Path>({
-  id: 'recorder',
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
-      const path = yield* Path.Path
-      const services = yield* Layer.build(servicesLayer(config, recordingsDirectory(path, ctx.location.directory)))
-      yield* Effect.gen(function* () {
-        const recordings = yield* RecordingStore
-        const control = yield* CaptureControl
-        yield* Effect.forkScoped(recordings.sweep, {startImmediately: true})
-        const announcements = yield* Queue.unbounded<Announcement>()
-        yield* register(ctx)
-        yield* ctx.skill.transform((editor) => editor.add(info))
-        const registration = yield* registerRpc(ctx.rpc, config, announcements).pipe(Effect.orDie)
-        yield* Stream.fromQueue(announcements).pipe(
-          Stream.merge(Stream.map(control.controls, (message): Announcement => ['control', message])),
-          Stream.runForEach((event) =>
-            registration.events
-              .emit(...event)
-              .pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
-          ),
-          Effect.forkScoped({startImmediately: true}),
-        )
-      }).pipe(Effect.provideContext(services))
-    }),
+export default Plugin.define<RunnerServices>({
+  id: 'test-runner',
+  effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
+    const config = testRunnerConfig.safeParse(ctx.options)
+    if (!config.success) return yield* Effect.die(config.error)
+    const adapter = getRunner(config.data.runner) ?? vitest
+    const manager = yield* adapter
+      .create(ctx.location.directory)
+      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
+    yield* register(ctx, manager)
+    yield* ctx.skill.transform((editor) => editor.add(info))
+    const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
+  }),
 })
 ```
 
-The effect runs in a scope that closes when the plugin stops or reloads. Every tool, skill and RPC handler it
-registers is removed then, and so is every service built in it, like the `Layer.build` above.
+`effect` runs in a scope that the engine closes when the plugin stops, reloads or is turned off. What it registers
+there goes with it, and so does a fiber it starts with `Effect.forkScoped`.
 
 The `ctx` fields this page uses:
 
@@ -67,46 +80,51 @@ The `ctx` fields this page uses:
     'location.directory': {type: 'string', description: 'The project folder the engine runs in.'},
     tool: {type: 'ToolDomain', description: 'Add, change and remove tools the agent calls.'},
     skill: {type: 'SkillDomain', description: 'Add, change and remove skills.'},
-    rpc: {type: 'RpcDomain', description: 'Register handlers for an RPC contract.'},
+    rpc: {type: 'RpcDomain', description: 'Register the handlers of an RPC contract.'},
+    permission: {type: 'PermissionDomain', description: 'Ask before an action with `assert`.'},
+    agent: {type: 'AgentDomain', description: 'Change the agents, for example their permission rules.'},
+    session: {type: 'SessionDomain', description: 'Read and drive sessions, and hook into them.'},
+    storage: {type: 'StorageDomain', description: 'The storage the engine keeps for the plugin.'},
   }}
 />
 
 ## Tools
 
-Add tools inside `ctx.tool.transform`. `editor.namespace` describes a group, and `editor.add` adds one tool. `execute`
-returns an `Effect` of the result:
+Add tools inside `ctx.tool.transform`. `editor.namespace` describes a group, and `editor.add` adds one tool.
+`execute` returns an `Effect` of the result:
 
-```ts title="packages/plugins/recorder/src/tools.ts"
-export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick<Context, 'tool'>) {
-  const services = yield* Effect.context<ClientRingsInterface | RendererCacheInterface>()
-  const control = yield* CaptureControl
-  const pull = (fromTs: number, toTs: number, keyframes: number) =>
-    pullWindow(fromTs, toTs, keyframes).pipe(Effect.provideContext(services))
+```ts title="packages/plugins/test-runner/src/tools.ts"
+const codeMode = {namespace: 'test_runner', codemode: true}
+const direct = {namespace: 'test_runner', codemode: false}
+
+export const register = Effect.fn('TestRunnerTools.register')(function* (
+  ctx: Pick<Context, 'tool'>,
+  manager: TestRunnerManager,
+) {
   yield* ctx.tool.transform((editor) => {
     editor.namespace({
-      name: 'recording',
-      description:
-        "Marked recordings of the user's app page: start one, act, stop it, or pull the last seconds. Each answers a semantic action log plus keyframe screenshots.",
+      name: 'test_runner',
+      description: "The project's test runner: list the test files, run them or a pattern, read the last result.",
     })
     editor.add({
-      name: 'start',
-      description:
-        "Start a marked recording of the user's app page. Waits for the page to attach and begin streaming, then returns a captureId, so acting right after it returns is safe. Use before performing page actions you want to review, then call recording_stop.",
+      name: 'list',
+      description: 'List the test files without running them.',
       input: z.object({}),
-      output: z.object({captureId: z.string(), startedAt: z.number()}),
-      options,
+      output: ListResultSchema,
+      options: codeMode,
       execute: () =>
-        Effect.gen(function* () {
-          const {captureId, startTs, appendCursor} = yield* control.startCapture
-          const covered = yield* control.awaitAppendAfter(appendCursor, START_WAIT_MS)
-          if (covered) return {output: {captureId, startedAt: startTs}}
-          yield* control.stopCapture(captureId).pipe(Effect.ignore)
-          return yield* Effect.fail(
-            Tool.makeError({
-              message: 'no page client attached within 5s; the app page with the widget must be open to record',
-            }),
-          )
-        }),
+        manager.list(false).pipe(
+          Effect.map((output) => ({output})),
+          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+        ),
+    })
+    editor.add({
+      name: 'status',
+      description: 'Read the result of the last finished run without starting one.',
+      input: z.object({}),
+      output: TestRunResultSchema,
+      options: direct,
+      execute: () => manager.status.pipe(Effect.map((output) => ({output}))),
     })
   })
 })
@@ -114,7 +132,11 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
 
 <TypeTable
   type={{
-    name: {type: 'string', description: 'Letters, digits and `_`. With a namespace, the tool is `<namespace>_<name>`.'},
+    name: {
+      type: 'string',
+      description:
+        'Letters, digits and `_`. With a namespace, the tool is `<namespace>_<name>`, for example `test_runner_status`.',
+    },
     description: {type: 'string', description: 'What the tool does. The agent reads it to decide when to call it.'},
     input: {type: 'schema', description: 'The input schema. The engine checks the input against it.'},
     output: {type: 'schema', description: 'The output schema, optional.'},
@@ -126,113 +148,116 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
     'options.codemode': {
       type: 'boolean',
       description:
-        'Defaults to code mode: the agent calls the tool from TypeScript as `external_<name>`. `false` makes it a direct tool the agent calls by name.',
+        'Unset or `true`: a code-mode tool, which the agent calls from TypeScript as `external_<namespace>_<name>`. `false`: a direct tool the agent calls by name.',
     },
   }}
 />
 
-A schema is a zod schema, any Standard Schema (Valibot, ArkType ...), an Effect Schema, or a raw JSON Schema object.
+A schema is a zod schema, any other Standard Schema (Valibot, ArkType ...), an Effect Schema, or a raw JSON Schema
+object.
 
-`execute` gets a context with `sessionId`, `agent`, the call `id`, and `progress(update)`.
+### The tool context
 
-### Tool.Error
+`execute` gets the input and a context:
 
-Fail the effect with a `Tool.Error` to fail the call with a message the agent reads. Make one with `Tool.makeError` or
-`Tool.toolError`. `metadata` travels with it:
+```ts title="packages/protocol/src/schema/tool.ts"
+export type Origin = 'hub' | 'chat'
 
-```ts title="packages/plugins/tanstack/src/tools.ts"
-function toolFailure(failure: Failure) {
-  return Tool.toolError({message: failure.message, error: failure.error, metadata: {code: failure.code}})
+export interface Context {
+  readonly sessionId: Session.Id
+  readonly agent: Agent.Id
+  readonly messageId: SessionMessage.Id | undefined
+  readonly id: CallId
+  readonly origin: Origin
+  readonly progress: (update: Metadata) => Effect.Effect<void>
+  readonly cancel?: Effect.Effect<void>
 }
 ```
 
-```ts title="packages/plugins/tanstack/src/tools.ts"
-execute: () =>
-  tanstack.buildErrors().pipe(
-    Effect.map((output) => ({output})),
-    Effect.mapError(toolFailure),
-  ),
+`origin` says where the call came from. `chat` is a call from a turn in the widget's chat. `hub` is a call from an
+agent outside the widget, which the engine knows by the `conciv-origin: hub` header on the request. The page plugin
+reads it: it tells the session that a queue of page actions finished only for a `chat` call.
+
+In the promise entry, the context is `ToolContext`: the same fields, plus a `signal` that aborts when the call is
+cancelled, and a `progress` that returns a `Promise`.
+
+### Tool.Error
+
+Fail the effect with a `Tool.Error` to fail the call with a message the agent reads. `Tool.toolError` makes one, and
+`metadata` travels with it. The plugins conciv ships import `Tool` from `@conciv/protocol/schema/tool`; the promise
+entry exports the same `Tool`.
+
+```ts title="packages/plugins/whiteboard/src/refusal.ts"
+import * as Tool from '@conciv/protocol/schema/tool'
+
+export function fail({code, ...failure}: Failure) {
+  return Effect.fail(Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}}))
+}
 ```
 
 A typed failure becomes a `Tool.Error` once, at the edge, with `catchTag`:
 
-```ts title="packages/plugins/recorder/src/tools.ts"
-execute: ({captureId, keyframes}) =>
-  Effect.gen(function* () {
-    const range = yield* control.stopCapture(captureId)
-    yield* control.awaitAppendAfter(range.appendCursor, FLUSH_WAIT_MS)
-    return yield* pull(range.startTs, range.stopTs, keyframes)
-  }).pipe(
-    Effect.catchTag('RecorderCaptureNotFound', (missing) =>
-      Effect.fail(Tool.makeError({message: `no active capture ${missing.captureId}`})),
-    ),
-  ),
+```ts title="packages/plugins/test-runner/src/tools.ts"
+function toolFailure(error: RunnerUnavailable) {
+  return Effect.fail(Tool.toolError({message: error.message, error}))
+}
 ```
 
 ## Skills
 
-Add a skill inside `ctx.skill.transform`. The agent sees its `description` and loads its `content` when it needs it.
+Add a skill inside `ctx.skill.transform`. The agent sees its `description`, and reads its `content` when it needs
+it:
 
-```ts title="packages/plugins/recorder/src/skill.ts"
-import {Skill} from '@conciv/plugin'
-import {AbsolutePath} from '@conciv/plugin/schema/schema'
+```ts title="packages/plugins/test-runner/src/skill.ts"
+import {Skill} from '@conciv/backend-plugin-api/effect'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
 
 export const info: Skill.Info = {
-  id: Skill.Id.make('recorder'),
-  name: Skill.Name.make('Recorder'),
+  id: Skill.Id.make('test-runner'),
+  name: Skill.Name.make('Test runner'),
   description:
-    "Record what happens on the user's app page and read it back as an action log with keyframe screenshots. Load it before your first recording tool call.",
-  path: AbsolutePath.make('skill://recorder/SKILL.md'),
+    "Run the project's tests: list the test files, run all of them or the files matching a pattern, and read the last result. Load it before your first test_runner tool call.",
+  path: AbsolutePath.make('skill://test-runner/SKILL.md'),
   content: [
-    '# Recorder',
+    '# Test runner',
     '',
-    "The recorder keeps a short recording of the user's app page while a recording is live. Nothing is recorded unless a recording was requested. Call its three tools from code mode; `discover_tools` shows their exact signatures.",
+    "The test runner drives the project's own test framework (vitest by default, or playwright when the plugin is configured with `runner: 'playwright'`) in a separate process in the project directory.",
   ].join('\n'),
 }
 ```
 
-```ts title="packages/plugins/recorder/src/index.ts"
+```ts title="packages/plugins/test-runner/src/test-runner.ts"
 yield * ctx.skill.transform((editor) => editor.add(info))
 ```
 
-`@conciv/plugin/effect` exports the same `Skill`. For skills written as files in the project, see
-[Skills](/docs/skills).
+For skills written as files in the project, see [Skills](/docs/skills).
 
 ## RPC
 
-An RPC contract lets the browser part, another plugin or a terminal call the engine part. Put it in its own module,
-so both parts import it.
+An RPC contract lets the browser part, another plugin or a terminal call the engine part. Put it in its own module and
+export it as `./rpc`, so both parts import it.
 
 ### Rpc.define
 
-`Rpc.define({id, methods, events})` declares the contract. Each method has an `input` and `output` schema, and
-optional named `errors`. Each event has a `schema`.
+`Rpc.define({id, methods, events})` from `@conciv/backend-plugin-api/rpc` declares the contract. Each method has an
+`input` and an `output` schema, and optional named `errors`. Each event has a `schema`.
 
-```ts title="packages/plugins/recorder/src/rpc.ts"
-import {Rpc} from '@conciv/plugin/rpc'
+```ts title="packages/plugins/test-runner/src/rpc.ts"
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
 import {z} from 'zod'
 
-export const Recorder = Rpc.define({
-  id: 'recorder',
+const unavailable = {UNAVAILABLE: z.object({available: z.literal(false), error: z.string()})}
+
+export const TestRunner = Rpc.define({
+  id: 'test-runner',
   methods: {
-    config: {input: NoInput, output: recorderConfig},
-    state: {input: NoInput, output: z.object({live: z.boolean()})},
-    reset: {input: NoInput, output: OkOutput},
-    'recordings.exportVideo': {
-      input: z.object({id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
-      output: VideoPieceOutput,
-      errors: {
-        expired: z.undefined(),
-        missing: z.undefined(),
-        'render-failed': z.undefined(),
-        unreadable: z.undefined(),
-      },
-    },
+    status: {input: NoInputSchema, output: TestRunResultSchema},
+    current: {input: NoInputSchema, output: CurrentRunSchema},
+    list: {input: ListInputSchema, output: ListResultSchema, errors: unavailable},
+    run: {input: RunArgsSchema, output: TestRunResultSchema, errors: unavailable},
+    stop: {input: NoInputSchema, output: z.object({ok: z.boolean()})},
   },
-  events: {
-    control: {schema: RecorderControlSchema},
-    appended: {schema: z.object({clientId: z.string(), cursor: z.number()})},
-  },
+  events: {event: {schema: TestEventSchema}},
 })
 ```
 
@@ -240,89 +265,148 @@ An error name that starts with `rpc.` is reserved: `Rpc.define` throws on it.
 
 ### Register the handlers
 
-`ctx.rpc.register(contract, handlers)` answers the methods. A handler gets the parsed input and a context with
-`error(name, message, data)`, which makes one of the method's declared errors, and returns an `Effect`. Each typed
-failure maps to a declared error once, at the edge:
+`ctx.rpc.register(contract, handlers)` answers the methods. A handler gets the parsed input and a call context with
+`error(name, message, data)`, which makes one of the method's declared errors. It returns an `Effect`:
 
-```ts title="packages/plugins/recorder/src/index.ts"
-'recordings.exportVideo': (input, call) =>
-  Effect.gen(function* () {
-    const file = yield* recordings.videoFile(input.id)
-    const events = yield* recordings.get(input.id)
-    yield* renderVideoFile(file, events)
-    const piece = yield* readVideoPiece(file, input.offset, MAX_FILE_BYTES)
-    return {...piece, ...VIDEO}
-  }).pipe(
-    Effect.catchTags({
-      RecorderRecordingExpired: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
-      RecorderRecordingNotFound: () => Effect.fail(call.error('missing', `There is no saved recording ${input.id}`)),
-      RecorderVideoUnrendered: () =>
-        Effect.fail(call.error('render-failed', `The recording ${input.id} could not be rendered to video`)),
-      RecorderVideoUnreadable: () =>
-        Effect.fail(call.error('unreadable', `The video of the recording ${input.id} could not be read`)),
-    }),
-    Effect.provideContext(services),
-  ),
+```ts title="packages/plugins/test-runner/src/test-runner.ts"
+function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
+  return rpc.register(TestRunner, {
+    status: () => manager.status,
+    current: () => manager.current,
+    list: (input, call) =>
+      manager
+        .list(input.failedOnly)
+        .pipe(
+          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
+            Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
+          ),
+        ),
+    stop: () => manager.stop.pipe(Effect.as(OK)),
+  })
+}
 ```
 
-The registration has `dispose` and `events.emit(name, data)`, which sends an event to every subscriber:
+The registration has `events.emit(name, data)`, which sends an event to every subscriber. A subscriber sees it as
+`rpc.<id>.<event>`, here `rpc.test-runner.event`:
 
-```ts title="packages/plugins/recorder/src/index.ts"
-const registration = yield * registerRpc(ctx.rpc, config, announcements).pipe(Effect.orDie)
+```ts title="packages/plugins/test-runner/src/test-runner.ts"
 yield *
-  Stream.fromQueue(announcements).pipe(
-    Stream.merge(Stream.map(control.controls, (message): Announcement => ['control', message])),
+  manager.events.pipe(
     Stream.runForEach((event) =>
-      registration.events.emit(...event).pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
+      registration.events
+        .emit('event', event)
+        .pipe(Effect.catchCause((cause) => Effect.logError('a live test event was not delivered', cause))),
     ),
     Effect.forkScoped({startImmediately: true}),
   )
 ```
 
-RPC methods never ask the user. An operation that must ask is a tool.
+To call these methods from the widget, see [Call the engine part](/docs/plugins/browser#call-the-engine-part). From a
+terminal, see [`conciv plugin call`](/docs/plugins/terminal).
 
-To call these methods from the widget, see [Call the engine part](/docs/plugins/browser#call-the-engine-part). From
-a terminal, see [`conciv plugin call`](/docs/plugins/terminal).
+## Permissions
+
+A tool that changes something can ask the user first. `ctx.permission.assert` checks the action against the session's
+rules: a `deny` rule fails the call, an `allow` rule lets it run, and otherwise the user gets a card in the chat and the
+call waits for the answer.
+
+```ts title="packages/plugins/whiteboard/src/refusal.ts"
+export function confirmed(
+  permission: Confirm,
+  action: string,
+  metadata: Record<string, unknown>,
+  tool: Pick<Tool.Context, 'sessionId' | 'agent' | 'messageId' | 'id'>,
+) {
+  return permission.assert({
+    action,
+    resources: ['*'],
+    save: ['*'],
+    metadata,
+    sessionId: tool.sessionId,
+    agent: tool.agent,
+    source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+  })
+}
+```
+
+The whiteboard adds `ask` rules for its destructive tools to every agent, so these calls always reach the user:
+
+```ts title="packages/plugins/whiteboard/src/refusal.ts"
+export const CONFIRMATION_RULES: Permission.Rule[] = CONFIRMED_TOOLS.map((action) => ({
+  action,
+  resource: '*',
+  effect: 'ask',
+}))
+```
+
+```ts title="packages/plugins/whiteboard/src/whiteboard.ts"
+yield * ctx.agent.transform((editor) => editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)))
+```
+
+`fallback: 'ask'` asks even when the only rule that allows the action is a catch-all `*` rule. The page plugin passes
+it for the page actions that ask.
 
 ## The promise entry
 
-`@conciv/plugin` is the same engine part without Effect. `Plugin.define` takes `setup(ctx)` instead of `effect`, and
-each `ctx` domain returns a `Promise`. `setup` may be async, and may return a cleanup that runs when the plugin stops
-or reloads.
+`@conciv/backend-plugin-api` is the same engine part without Effect. `Plugin.define` takes `setup(ctx)` instead of
+`effect`. `setup` may be async, and may return a cleanup that runs when the plugin stops or reloads. A tool's `execute`
+and an RPC handler return a `Promise`, and a handler returns `call.error(...)` to fail with a declared error. This
+plugin is the fixture of the CLI's tests:
 
-```ts title="packages/plugins/test-runner/src/index.ts"
-import {Plugin} from '@conciv/plugin'
+```ts title="packages/cli/test/fixtures/plugins/plant-shelf/server.ts"
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
+
+const Plant = z.object({plant: z.string()})
+
+const Stock = z.object({plant: z.string(), count: z.number()})
+
+const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {},
+})
 
 export default Plugin.define({
-  id: 'test-runner',
+  id: 'plant-shelf',
   async setup(ctx) {
-    const config = testRunnerConfig.parse(ctx.options)
-    const adapter = getRunner(config.runner) ?? vitest
-    const manager = adapter.create(ctx.location.directory)
-    await register(ctx.tool, manager)
-    await ctx.skill.transform((editor) => editor.add(info))
-    const registration = await registerRpc(ctx.rpc, manager)
-    const unsubscribe = manager.subscribeRaw((event) => {
-      registration.events.emit('event', event).catch((error: unknown) => {
-        console.error(`[test-runner] a live test event was not delivered: ${String(error)}`)
+    const stock = {count: 1}
+    await ctx.rpc.register(Shelf, {
+      count: async ({plant}) => ({plant, count: stock.count}),
+      sell: async ({plant}, call) => {
+        if (stock.count === 0) return call.error('sold-out', `${plant} is sold out`, {plant})
+        stock.count -= 1
+        return {plant, count: stock.count}
+      },
+    })
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'shelf_restock',
+        description: 'Restock a plant on the shelf, after the user allows it',
+        input: Plant,
+        output: z.object({plant: z.string(), restocked: z.boolean()}),
+        execute: async ({plant}, tool) => {
+          await ctx.permission.assert({
+            sessionId: tool.sessionId,
+            agent: tool.agent,
+            action: 'shelf_restock',
+            resources: [plant],
+            save: [plant],
+            metadata: {},
+            source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+            fallback: 'ask',
+          })
+          return {output: {plant, restocked: true}}
+        },
       })
     })
-    return () => {
-      unsubscribe()
-      return manager.stop()
-    }
   },
 })
 ```
 
-A tool's `execute` and an RPC handler return a `Promise`. A tool fails a call by throwing `Tool.toolError`:
-
-```ts title="packages/plugins/whiteboard/src/tool/refusal.ts"
-import {Tool} from '@conciv/plugin'
-
-type Failure = {code?: string; message: string; error?: unknown}
-
-export function fail({code, ...failure}: Failure): never {
-  throw Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}})
-}
-```
+A tool in the promise entry fails a call by throwing. A thrown `Tool.toolError(...)` reaches the agent as it is, and
+any other error becomes a `Tool.Error` with that error's message.

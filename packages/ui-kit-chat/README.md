@@ -14,16 +14,15 @@ npm install -D @conciv/it
 
 ## Interface
 
-- `package.json:exports` - `.` (`dist/index.js`), `./tools` (`dist/tools.js`), `./draft-storage` (`dist/draft-storage.js`), `./theme/tokens.css` (source CSS), `./theme/fonts`, `./theme/code-theme`.
-- `package.json:scripts` - `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw`.
+- `package.json:exports` - `.` (`dist/ui-kit-chat.js`), `./tools` (`dist/tools.js`), `./draft-storage` (`dist/draft-storage.js`), `./theme/tokens.css` (source CSS), `./theme/fonts`, `./theme/code-theme`.
+- `package.json:scripts` - `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `publint`, `attw`. No `test` script.
 - `package.json:peerDependencies` - `solid-js` `^1.9.13`.
 - Subdirectory: [src](./src/README.md) - entries, store, behaviors, primitives, styled, tools, theme.
 
 ## Invariants
 
-- `vite.config.ts:build.lib.entry` defines the five JS entries (`index`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`) and keeps `solid-js`, `zod`, `mermaid`, `@tanstack/*`, `@conciv/*`, `@pierre/diffs`, `shiki` and `@shikijs/*` external.
-- `vitest.config.ts` runs two projects: `ui-kit-chat` (node, `test/**/*.test.ts`) and `ui-kit-chat-browser` (Playwright Chromium, `test/**/*.browser.test.tsx`, `fileParallelism: false`).
-- `uno.config.ts` scans `src/**` and `../ui-kit-system/src/**` with `presetConciv`, so utility classes used in either package are generated here.
+- `vite.config.ts:build.lib.entry` defines the five JS entries (`ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`) and keeps `solid-js`, `zod`, `mermaid`, `@tanstack/*`, `@conciv/*`, `@pierre/diffs`, `shiki` and `@shikijs/*` external.
+- `uno.config.ts` scans `src` and `../ui-kit-system/src` (without tests, specs and stories) with `presetConciv`, so utility classes used in either package are generated here.
 - `CollapsibleCard` stays internal: `src/tools.tsx` does not export it and the `conciv/tool-card-shell` lint rule blocks imports of it from outside this package.
 
 ## Side Effects
@@ -32,4 +31,4 @@ npm install -D @conciv/it
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

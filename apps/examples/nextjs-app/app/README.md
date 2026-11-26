@@ -4,12 +4,6 @@
 
 Next.js App Router root layout and home page from the create-next-app template.
 
-## Interface
-
-- `RootLayout` (`layout.tsx`): default export, the `<html>`/`<body>` shell with Geist font variables
-- `metadata` (`layout.tsx`): Next.js page metadata (title, description)
-- `Home` (`page.tsx`): default export, the `/` page
-
 ## Invariants
 
 - None

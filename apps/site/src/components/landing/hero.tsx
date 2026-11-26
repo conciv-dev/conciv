@@ -20,10 +20,10 @@ export function Hero() {
         </Badge>
         <p className="mb-3 font-mono text-[13px] font-semibold uppercase tracking-[0.3em] text-primary">Conceive it.</p>
         <h1 className="od-display mb-5 text-[clamp(40px,5.2vw,62px)] font-bold leading-[1.02] tracking-[-0.03em]">
-          Claude Code, living inside your <span className="od-underline">running app</span>.
+          Your coding agent, living inside your <span className="od-underline">running app</span>.
         </h1>
         <p className="mb-8 max-w-[30ch] text-[18px] text-muted-foreground">
-          Add one plugin. Then <b className="font-semibold text-foreground">chat</b>, let it{' '}
+          Add conciv to your build. Then <b className="font-semibold text-foreground">chat</b>, let it{' '}
           <b className="font-semibold text-foreground">drive the page</b>, and{' '}
           <b className="font-semibold text-foreground">run your tests</b>, without ever leaving the thing you're
           building.

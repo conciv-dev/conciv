@@ -2,20 +2,9 @@
 
 ## Overview
 
-Builds the conciv UnoCSS preset: presetWind4 plus a typography preset themed with --chat-* CSS variables, theme tokens (colors, radius, fonts, easing, keyframes), shortcuts for motion, transitions, effects and shadows, and block rules for json-tree, density and the loader.
+`presetConciv()` (`uno-preset.ts`, preset name `@internal/uno-preset`) builds the conciv UnoCSS preset: presetWind4 (reset preflight off, variablePrefix `unx-`, class-based dark mode) plus a typography preset themed with --chat-* CSS variables, theme tokens (colors, radius, fonts, easing, keyframes), shortcuts for motion, transitions, effects and shadows, and block rules for json-tree, density and the loader.
 
-## Interface
-
-- `presetConciv({sheet})` (`index.ts`): Preset '@conciv/uno-preset'; presetWind4 with reset preflight off, variablePrefix `unx-`, class-based dark mode. `sheet: 'app'` (default) emits every theme variable and the loader preflight; `sheet: 'plugin'` emits utilities only, for a plugin sheet merged into the app's
-- `pluginSheetConfig(packageUrl)` (`index.ts`): a plugin package's whole UnoCSS config: its own `src` only, `sheet: 'plugin'`
-- `chatColors` / `chatRadius` / `chatFont` / `chatEase` (`index.ts`): re-exports of `colors`, `radius`, `font`, `ease`
-- `DENSITY_CLASS` = 'chat-density' / `densityRules` (`density.ts`)
-- `colors` (`colors.ts`), `radius` (`radius.ts`), `font` (`fonts.ts`), `ease` (`easing.ts`), `animation` (`animation.ts`): theme tokens
-- `motion` (`motion.ts`): `anim-*` and `trans-*` shortcuts
-- `effects` (`effects.ts`), `shadows` (`shadow.ts`), `shortcuts` (`shortcuts.ts`: `prose-chat`, `pad-safe`)
-- `typography` (`typography.ts`): presetTypography with a --chat-* color scheme
-- `jsonTree` (`json-tree.ts`): `json-tree` block rule
-- `loaderRules` / `loaderShortcuts` / `loaderPreflight` (`loader.ts`)
+`presetConciv({sheet: 'plugin'})` emits utilities only (no preflight, no theme variables), so a plugin's own sheet adds nothing the app's sheet already owns; `pluginSheetConfig` is a plugin package's whole UnoCSS config, scanning only its own `src`.
 
 ## Invariants
 
@@ -31,5 +20,4 @@ Builds the conciv UnoCSS preset: presetWind4 plus a typography preset themed wit
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/uno-preset` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/uno-preset && pnpm typecheck`, then `pnpm lint` at the repo root
+- Typecheck: `pnpm exec turbo run typecheck --filter=@internal/uno-preset` from the repo root (the package has no `test` script)
