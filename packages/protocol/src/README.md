@@ -6,7 +6,7 @@ Defines the oRPC `contract` router between the engine and its clients (auth, ses
 markers, chat, registry, code, meta, skill, agent, fs, plugin, experimental, event) and the zod row schemas
 those procedures use.
 
-- `contract.ts`: the router. `event.subscribe` is an eventIterator of
+- `contract.ts`: the router. `event.subscribe` is an asyncIteratorObject of
   `EventEnvelopeSchema`, the engine's one event stream; its envelope is not a typed union, the precise union is the
   SDK's type.
 - `rows.ts`: the session, draft and marker row schemas.

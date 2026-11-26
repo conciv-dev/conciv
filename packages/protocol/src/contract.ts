@@ -1,4 +1,4 @@
-import {eventIterator, oc, type Schema} from '@orpc/contract'
+import {asyncIteratorObject, oc, type Schema} from '@orpc/contract'
 import type {AsyncIteratorClass} from '@orpc/client'
 import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/types/chat-event-types'
@@ -32,7 +32,7 @@ interface ChatEventStream extends Schema<
   AsyncIteratorObject<ChatEvent, unknown, void>,
   AsyncIteratorClass<ChatEvent, unknown, void>
 > {}
-const ChatEventStreamSchema: ChatEventStream = eventIterator(StreamChunkSchema)
+const ChatEventStreamSchema: ChatEventStream = asyncIteratorObject(StreamChunkSchema)
 
 const SessionIdInput = z.object({sessionId: SessionId})
 
@@ -259,12 +259,10 @@ const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this en
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
-    status: 400,
     message: 'the plugin rpc call failed',
     data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
   },
   PLUGIN_RPC_INTERNAL: {
-    status: 500,
     message: 'the plugin rpc call failed inside the plugin',
     data: z.object({
       type: z.enum(['rpc.internal', 'rpc.invalid_output']),
@@ -292,7 +290,6 @@ export const EventEnvelopeSchema = z.object({
 
 const pluginNotFound = {
   PLUGIN_NOT_FOUND: {
-    status: 404,
     message: 'no active plugin with a ./plugin-experimental bundle',
     data: z.object({pluginId: z.string(), message: z.string()}),
   },
@@ -300,7 +297,6 @@ const pluginNotFound = {
 
 const pluginChunkNotFound = {
   PLUGIN_CHUNK_NOT_FOUND: {
-    status: 404,
     message: "no such chunk in the plugin's current build",
     data: z.object({pluginId: z.string(), file: z.string()}),
   },
@@ -416,7 +412,7 @@ const PtyOutputItemSchema = z.union([
 ])
 const PTY_WRITE_MAX = 1024 * 1024
 const ptyNotFound = {
-  PTY_NOT_FOUND: {status: 404, message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
+  PTY_NOT_FOUND: {message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
 }
 const slowConsumer = {
   SLOW_CONSUMER: {
@@ -443,7 +439,7 @@ export const contract = {
       .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
       .output(SessionPageSchema),
     search: oc.input(SessionSearchInput).output(SessionSearchPageSchema),
-    changes: oc.output(eventIterator(SessionsChangeSchema)),
+    changes: oc.output(asyncIteratorObject(SessionsChangeSchema)),
     get: oc
       .errors({...notFound, ...approvalDenied})
       .input(SessionIdInput)
@@ -496,7 +492,7 @@ export const contract = {
     state: oc.errors(tabUnavailable).input(BrowserTabOpen).output(Ok),
     list: oc.input(SessionIdInput).output(BrowserTabList),
     sessions: oc.output(z.array(SessionId)),
-    changes: oc.output(eventIterator(BrowserTabsChange)),
+    changes: oc.output(asyncIteratorObject(BrowserTabsChange)),
   },
   jobs: {
     list: oc.input(JobListInput).output(JobList),
@@ -506,7 +502,7 @@ export const contract = {
     all: oc.input(SettingsInput).output(SettingsSnapshotSchema),
     set: oc.input(SettingsKeyInput.extend({value: z.unknown()})).output(SettingsSnapshotSchema),
     delete: oc.input(SettingsKeyInput).output(SettingsSnapshotSchema),
-    changes: oc.input(SettingsInput).output(eventIterator(SettingsSnapshotSchema)),
+    changes: oc.input(SettingsInput).output(asyncIteratorObject(SettingsSnapshotSchema)),
   },
   drafts: {
     get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -561,7 +557,7 @@ export const contract = {
     tools: oc.input(SessionIdInput).output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     project: oc.output(ProjectSchema),
-    hubAgents: oc.output(eventIterator(HubAgentsSchema)),
+    hubAgents: oc.output(asyncIteratorObject(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
   },
@@ -605,7 +601,7 @@ export const contract = {
       output: oc
         .errors({...ptyNotFound, ...slowConsumer, ...approvalDenied})
         .input(PtyIdInput.extend({cursor: PtyCursorSchema.optional()}))
-        .output(eventIterator(PtyOutputItemSchema)),
+        .output(asyncIteratorObject(PtyOutputItemSchema)),
       write: oc
         .errors({...ptyNotFound, ...approvalDenied})
         .input(PtyIdInput.extend({data: z.string().min(1).max(PTY_WRITE_MAX)}))
@@ -624,6 +620,6 @@ export const contract = {
     subscribe: oc
       .errors(approvalDenied)
       .input(z.object({types: z.array(z.string().min(1)).optional()}).optional())
-      .output(eventIterator(EventEnvelopeSchema)),
+      .output(asyncIteratorObject(EventEnvelopeSchema)),
   },
 }

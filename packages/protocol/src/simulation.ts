@@ -1,4 +1,4 @@
-import {eventIterator, oc} from '@orpc/contract'
+import {asyncIteratorObject, oc} from '@orpc/contract'
 import {z} from 'zod'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import {ReasoningEffortSchema} from '@conciv/types/chat-types'
@@ -461,14 +461,16 @@ const toolErrors = {
 export const backendContract = {
   handshake,
   llm: {
-    subscribe: oc.errors({...queueFull, CONTROLLER_DISCONNECTED: {}}).output(eventIterator(LlmNotificationSchema)),
+    subscribe: oc
+      .errors({...queueFull, CONTROLLER_DISCONNECTED: {}})
+      .output(asyncIteratorObject(LlmNotificationSchema)),
     pending: oc.errors(queueFull).output(PendingSchema),
     chunk: oc.errors(invocationErrors).input(ChunkParamsSchema).output(OkSchema),
     finish: oc.errors(invocationErrors).input(FinishParamsSchema).output(OkSchema),
     disconnect: oc.errors(invocationErrors).input(DisconnectParamsSchema).output(OkSchema),
   },
   tool: {
-    register: oc.errors(toolErrors).input(ToolRegisterParamsSchema).output(eventIterator(ToolNotificationSchema)),
+    register: oc.errors(toolErrors).input(ToolRegisterParamsSchema).output(asyncIteratorObject(ToolNotificationSchema)),
     update: oc.errors(toolErrors).input(ToolUpdateParamsSchema).output(OkSchema),
     finish: oc.errors(toolErrors).input(ToolFinishParamsSchema).output(OkSchema),
     fail: oc.errors(toolErrors).input(ToolFailParamsSchema).output(OkSchema),
