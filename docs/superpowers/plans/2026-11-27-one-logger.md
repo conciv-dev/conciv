@@ -18,6 +18,28 @@ the browser, oxlint `no-console`.
 **Spec:** the maintainer's words of 2026-11-27 (quoted below) and the oRPC 2 plan's Task 17 (`feat/orpc-2`,
 `docs/superpowers/plans/2026-11-27-orpc-2-upgrade.md`), which this plan must not conflict with.
 
+## Goals checklist (the plan is not done until every box is checked by the orchestrator)
+
+- [ ] One logging API per side: engine and plugin engine parts use only `Effect.log*`; widget, plugin browser parts
+      and host-side code use only the one `log`. Proof: oxlint `no-console` is an error and passes; `git grep` for
+      `type Log =`, `log: Log`, `process.std(err|out).write` (outside **output** files of the inventory) returns nothing.
+- [ ] One output: every log, engine and browser, lands in the engine's one sink. Proof: the two Effect stacks are
+      one layer; browser logs arrive through `logs.write` with `source: 'client'`.
+- [ ] Off by default: a fresh engine with no flag, env or config logs nothing (file, stderr, sink) and the widget
+      builds no log event.
+- [ ] On by flag, env or config: `--verbose`, `--log-level <level>`, `CONCIV_LOG_LEVEL`, `conciv({logLevel})`, in that
+      precedence, computed by one function.
+- [ ] On at runtime by an agent: outside (`logs.setLevel` over the hub, `conciv logs level <level>`) and inside (the
+      `set_log_level` tool), for the engine, the widget, or both; `logs.level` shows the current levels live.
+- [ ] Every inventory row classed **log** is converted; every **output** row is untouched and listed.
+- [ ] No feature lost: every message that was logged before still exists at a level.
+- [ ] No test added where an existing journey can carry it; the test budget is unchanged or each raise is accounted.
+
+## Who runs what
+
+Agents write code and run ONLY typecheck, build, lint, format, fallow and the conciv-publish guards. Agents run NO
+tests of any kind. The orchestrator runs every test, reads the full diff, checks the goals above, and pushes.
+
 ## Task 1: Full inventory, classified (before any code)
 
 The orchestrator's count on main (d0009c974), tests, stories and dist excluded:
