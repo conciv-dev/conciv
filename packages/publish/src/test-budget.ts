@@ -22,6 +22,11 @@ const CASE_MODIFIERS = [
   'for',
   'skipIf',
   'runIf',
+  'effect',
+  'live',
+  'scoped',
+  'scopedLive',
+  'prop',
 ]
 
 const budgetSchema = z.record(z.string(), z.number().int().nonnegative())
@@ -55,6 +60,10 @@ function countTestCases(filename: string, source: string): number {
       if (node.id.type !== 'Identifier' || node.init?.type !== 'CallExpression') return
       const chain = readTestChain(node.init.callee)
       if (chain && testNames.has(chain.name) && chain.members.includes('extend')) testNames.add(node.id.name)
+      const [wrapped] = node.init.arguments
+      if (chain?.name !== 'makeMethods' || !wrapped || wrapped.type === 'SpreadElement') return
+      const wrappedChain = readTestChain(wrapped)
+      if (wrappedChain && testNames.has(wrappedChain.name)) testNames.add(node.id.name)
     },
     CallExpression(node) {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)

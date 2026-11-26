@@ -50,7 +50,10 @@ describe('the user records the page and sends it to the agent', () => {
     const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'What did I do on the page?')
     expect(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
+
+    await finished.arrived
     expect(await screen.findByText('You typed a card number and paid')).toBeVisible()
     const sent = JSON.stringify((await engine.requests()).at(-1)?.messages)
     const recordingId = /The user referenced the screen recording ([A-Za-z0-9-]+)/.exec(sent)?.[1] ?? ''

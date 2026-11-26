@@ -6,10 +6,12 @@ import {tempDir} from '@internal/vitest-config/temp-dir'
 import {assertTestsWithinBudget} from '../../src/test-budget.ts'
 
 test('a package over its budget fails with its count and budget, at budget passes, under budget asks to lower it', async () => {
-  const spec = `import {describe, expect, it, test} from 'vitest'
+  const spec = `import {makeMethods} from '@effect/vitest'
+import {describe, expect, it, test} from 'vitest'
 // test('a comment never counts', () => {})
 const note = "it('a string never counts', () => {})"
 const withUser = test.extend({user: async ({}, use) => use('ada')})
+const effectWithUser = makeMethods(it.extend({user: async ({}, use) => use('ada')}))
 describe('cases', () => {
   test('plain', () => expect(note).toBeTruthy())
   it('it form', () => {})
@@ -19,6 +21,11 @@ describe('cases', () => {
   test.each([1, 2])('each %i', () => {})
   test.skipIf(false)('skip if', () => {})
   withUser('extended', () => {})
+  it.effect('effect', () => {})
+  it.live('live', () => {})
+  it.scoped('scoped', () => {})
+  it.live.each([1, 2])('live each %i', () => {})
+  effectWithUser.live('effect extended', () => {})
   test.describe('a playwright group is not a case', () => {})
   test.use({})
 })
@@ -40,11 +47,11 @@ describe('cases', () => {
     return root
   }
 
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 7}))).rejects.toThrow(
-    '@conciv/a: 8 tests, budget 7\n\nThe budget is a review gate, not a counter to bump.',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 12}))).rejects.toThrow(
+    '@conciv/a: 13 tests, budget 12\n\nThe budget is a review gate, not a counter to bump.',
   )
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 8}))).resolves.toEqual([])
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 9}))).resolves.toEqual([
-    '@conciv/a: 8 tests, budget 9: lower it to 8 in test-budget.json',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 13}))).resolves.toEqual([])
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 14}))).resolves.toEqual([
+    '@conciv/a: 13 tests, budget 14: lower it to 13 in test-budget.json',
   ])
 })
