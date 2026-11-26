@@ -2,22 +2,17 @@
 
 ## Overview
 
-The `ConcivWidget` React component, which mounts the conciv widget from `@conciv/embed` into an anchor `<div>`.
-
-## Interface
-
-- `index.ts:ConcivWidget` - renders a `<div>` and calls `createConciv(init).mount(host)` on it with every `ConcivInit` prop.
-- `index.ts:ConcivWidgetProps` - alias of `ConcivInit`; also re-exports the `ConcivInit` and `ConcivSettingsInit` types from `@conciv/embed`.
+The `ConcivWidget` React component (`react.ts`), which mounts the conciv widget from `@conciv/app` into an anchor `<div>`. It re-exports the `ConcivInit` and `ConcivSettingsInit` types.
 
 ## Invariants
 
-- `index.ts:ConcivWidget` - remounts when `apiBase`/`settings` change by value (`JSON.stringify` key) or `plugins`/`grabProvider`/`engineToken` change by reference.
-- `index.ts:ConcivWidget` - the effect cleanup calls `handle.unmount()`.
+- `react.ts:ConcivWidget` - remounts when `apiBase`/`settings` change by value (`JSON.stringify` key) or `plugins`/`grabProvider`/`engineToken` change by reference.
+- `react.ts:ConcivWidget` - the effect cleanup calls `handle.unmount()`.
 
 ## Side Effects
 
-- `index.ts:ConcivWidget` - mounts the widget DOM inside the anchor element; a failed mount is logged with `console.error`.
+- `react.ts:ConcivWidget` - mounts the widget DOM inside the anchor element; a failed mount is logged with `console.error`.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/react` from the repo root (turbo builds the package and its dependencies first) (builds the fixture with `vite.fixture.config.ts`, then runs vitest)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/react` from the repo root (the package has no tests yet)

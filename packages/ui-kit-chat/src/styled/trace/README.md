@@ -1,4 +1,4 @@
-# styled/trace
+# ui-kit-chat/src/styled/trace
 
 ## Overview
 
@@ -6,10 +6,7 @@ Trace view components: the collapsible trace list with an SVG rail, tool and run
 
 ## Interface
 
-- `trace.tsx:Trace`, types `TraceItem`, `TraceBranch`.
-- `trace-row.tsx:TraceMark`, `TraceRing`, `TraceRunRow`, `TraceToolRow`, `TraceFoldableRow`, `TRACE_LINE`, `TRACE_INDENT`, `TRACE_MICROLABEL`.
-- `output-block.tsx:TraceOutputBlock`, `TraceBodyFrame`, type `TraceOutputTone`.
-- `permission-block.tsx:TracePermissionBlock`; `action-row.tsx:TraceActionRow`; `clamp.tsx:TraceClamp`; `rail.tsx:TraceRail`.
+- `trace.tsx`: the trace list; `trace-row.tsx`, `output-block.tsx`, `permission-block.tsx`, `action-row.tsx`, `clamp.tsx`, `rail.tsx`: its rows, output blocks, permission prompt, action row, clamped body and SVG rail.
 
 ## Invariants
 
@@ -24,4 +21,4 @@ Trace view components: the collapsible trace list with an SVG rail, tool and run
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Source root of `@conciv/brand`. This level holds only Storybook material: five `*.stories.tsx` demo files and the `brand-guidelines.mdx` docs page. The Solid logo components live in the `solid/` subdirectory; the React ones are in `@conciv/brand-react`.
+Source root of `@internal/brand`. This level holds only Storybook material: five `*.stories.tsx` demo files and the `brand-guidelines.mdx` docs page. The Solid logo components live in the `solid/` subdirectory; the React ones are in `@internal/brand-react`.
 
 ## Interface
 
@@ -12,7 +12,7 @@ Source root of `@conciv/brand`. This level holds only Storybook material: five `
 
 ## Invariants
 
-- The guidelines pin the mark fill to `#D7263D` while the wordmark follows `currentColor`; the components match this (`MARK_COLOR` on mark paths, `fill="currentColor"` on the root svg in `solid/conciv-lockup.tsx` and `@conciv/brand-react`'s `src/conciv-lockup.tsx`). This is documented, not enforced by a check.
+- The guidelines pin the mark fill to `#D7263D` while the wordmark follows `currentColor`; the components match this (`MARK_COLOR` on mark paths, `fill="currentColor"` on the root svg in `solid/conciv-lockup.tsx` and `@internal/brand-react`'s `src/conciv-lockup.tsx`). This is documented, not enforced by a check.
 
 ## Side Effects
 
@@ -20,4 +20,4 @@ Source root of `@conciv/brand`. This level holds only Storybook material: five `
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/brand` from the repo root (turbo builds the package and its dependencies first); stories are type-checked by the `typecheck` script through the include `tsconfig.json` inherits from `@conciv/tsconfig`.
+- Typecheck: `pnpm exec turbo run typecheck --filter=@internal/brand` from the repo root; stories are type-checked through the include `tsconfig.json` inherits from `@internal/tsconfig`.

@@ -53,7 +53,7 @@ consumer style that would take it over.
 
 ## Core service
 
-`@conciv/mascot` itself is framework-free — the wrappers are built on it, and a host that renders its
+`@conciv/mascot` itself is framework-free: the wrappers are built on it, and a host that renders its
 own DOM can drive it directly:
 
 ```ts
@@ -99,8 +99,8 @@ new path, at most once per animation frame however often the value changes.
 
 ## Skin
 
-Every art-coupled value — the layer images, transform origins, origin and tip fractions, the awake
-pose values, the emitter's reference antenna size — lives in one `MascotSkin`, defaulting to
+Every art-coupled value (the layer images, transform origins, origin and tip fractions, the awake
+pose values, the emitter's reference antenna size) lives in one `MascotSkin`, defaulting to
 `robotSkin`. Controllers animate generic elements, so an alternate mascot is data, not code. Pass it
 once as `createMascot(config, skin)` or `<Mascot initialSkin={skin}>`; it is read when the service is
 created.
@@ -111,8 +111,8 @@ starts.
 ## Interface
 
 - `package.json:exports` - `.`, `./solid`, `./adapter`, and `./effects/<name>` for binary, matrix, thought-cloud, pixel-bubbles, signal-rings, speech-bubble, steam, spark, spark-burst, spark-fountain, satellite, led-cone, tick-ring, signal-bars, heart, notes.
-- `tsdown.config.ts:entry` - `src/core/index.ts`, `src/core/style-merge.ts`, `src/core/adapter.ts`, `src/solid/index.ts` and each `src/core/effects/<name>.ts` (unbundled, ESM, `vite-plugin-solid`).
-- `tsdown.solid-source.config.ts` - `src/solid/index.ts` to `dist/solid` with `jsx: 'preserve'` and `.jsx` output.
+- `tsdown.config.ts:entry` - `src/core/core.ts`, `src/core/style-merge.ts`, `src/core/adapter.ts`, `src/solid/solid.ts` and each `src/core/effects/<name>.ts` (unbundled, ESM, `vite-plugin-solid`).
+- `tsdown.solid-source.config.ts` - `src/solid/solid.ts` to `dist/solid` with `.jsx` output (the `solid` export condition).
 - Source: [src](./src/README.md).
 
 ## Invariants

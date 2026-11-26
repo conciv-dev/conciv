@@ -1,8 +1,9 @@
-# @conciv/plugin
+# @conciv/backend-plugin-api
 
-The conciv plugin SDK, a port of opencode's plugin package: `Plugin.define` for a plugin's engine part and browser
-part, RPC contracts between the two, registries and stores. Conciv's built-in plugins and the app's plugin host are
-written against it.
+The conciv engine plugin API, a port of opencode's plugin package: `Plugin.define` for a plugin's engine part, the rpc
+contract helpers, and the tool and context types a plugin author imports. The browser part of a plugin is written
+against `@conciv/frontend-plugin-api`. Public and stable, no implementation: the machinery behind it is
+`@conciv/backend-app-api`.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
@@ -10,15 +11,8 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Invariants
 
-- ESM only (`type: module`); `solid-js` is a peer, `vite` and `vite-plugin-solid` are optional peers (only
-  `./experimental/vite` needs them).
-- The browser part needs `Promise.try`: Chrome and Edge 128, Firefox 134, Safari and iOS Safari 18.2 (Node 23.0.0 for tooling that evaluates it), source MDN browser-compat-data (`javascript.builtins.Promise.try`).
+- ESM only (`type: module`).
 
 ## Side Effects
 
 - None at import. `./host` reads plugin folders and imports their entry files when the host calls it.
-
-## Verification
-
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its
-  dependencies first)

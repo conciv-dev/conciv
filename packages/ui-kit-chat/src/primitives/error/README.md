@@ -1,4 +1,4 @@
-# primitives/error
+# ui-kit-chat/src/primitives/error
 
 ## Overview
 
@@ -6,7 +6,7 @@ Headless `Error` compound that renders only while the chat context holds an erro
 
 ## Interface
 
-- `error.tsx:Error` - `Object.assign(Root, {Root, Message})`; exported from the package as `ErrorPrimitive`.
+- `error.tsx`: the `Error` compound, exported from the package as `ErrorPrimitive`.
 
 ## Invariants
 
@@ -19,4 +19,4 @@ Headless `Error` compound that renders only while the chat context holds an erro
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

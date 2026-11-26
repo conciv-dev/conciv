@@ -2,24 +2,7 @@
 
 ## Overview
 
-Runs the `conciv init` pipeline. It checks the project, detects framework, package manager and agent harnesses, asks the user to approve a plan, then runs ordered steps (detect, plan, apply, verify). It backs up files and restores them on interrupt, and prints a summary with manual cards at the end.
-
-## Interface
-
-- `runInit(options, overrides?)` (`pipeline.ts`): returns `InitResult` with outcome refused, cancelled, planned (dry run) or completed
-- `runSteps(steps, settings, output)` (`pipeline.ts`): runs `InitStep`s in order and returns `LedgerEntry[]`
-- `InitStep`, `InitContext`, `RunSettings`, `InitOptions` {yes, dryRun, force, cwd}, `InitResult`, `SpawnBin`, `InitRuntime` (`pipeline.ts`)
-- `approvePlan(args)` / `PlanApproval` (`wizard.ts`): selections, cancelled or dry-run
-- `renderPlan(rows, harnesses)` (`wizard.ts`): plan text with one row per step and a Harnesses line
-- `clackOutput` / `clackPrompts` / `interactiveTerminal` (`wizard.ts`): @clack/prompts output and prompts, and the TTY/CI check
-- `detectProject(cwd)` / `detectFramework(cwd)` / `Framework` (`detect.ts`): nextjs, astro, vite, webpack, rspack, rollup, esbuild or unknown
-- `execFileOutcome(bin, args, options, onLine)` (`pipeline.ts`): spawns a process (SIGKILLed after `options.timeout` when given, so a child that ignores SIGTERM still settles) and resolves {code, output}
-- `harnessIds` / `harnessFileInits` / `harnessAgentsMdNote` (`harness-detect.ts`): from `@conciv/harness-init/registry`; installed-harness detection is `detectHarnesses` from `@conciv/harness-init/detect`
-- `captureFile` / `guardBackups` / `onInterrupt` / `interruptExitCode` (`interrupt.ts`): file backup and restore, the SIGINT, SIGTERM and SIGHUP hook, and the 128-plus-signal exit code
-- `StepStatus`, `ManualCard`, `StepNote`, `StepPlan`, `StepOutcome`, `LedgerEntry` (`ledger.ts`)
-- `emitOutro(output, entries, next)` (`pipeline.ts`), `preflight(cwd, force)` (`pipeline.ts`), `silentOutput()` (`../init.ts`)
-- Subdirectories:
-  - steps: [./steps/README.md](./steps/README.md) - the init steps
+Runs the `conciv init` pipeline. It checks the project, detects framework, package manager and agent harnesses, asks the user to approve a plan, then runs ordered steps (detect, plan, apply, verify). It backs up files and restores them on interrupt, and prints a summary with manual cards at the end. The steps live in [steps/](./steps/README.md).
 
 ## Invariants
 
@@ -41,7 +24,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit', SIGINT, SIGTERM and SIGHUP listeners and rewrite or delete backed-up files
 - `execFileOutcome` (`pipeline.ts`): spawns child processes
 - `preflight` (`pipeline.ts`): runs `git status --porcelain` with LC_ALL=C
-- `detect.ts`: reads package.json and config files; `detectHarnesses` (`@conciv/harness-init/detect`) reads PATH entries and HOME config dirs
+- `detect.ts`: reads package.json and config files; `detectHarnesses` (`@conciv/harness/init/detect`) reads PATH entries and HOME config dirs
 - `clackOutput` / `clackPrompts` (`wizard.ts`): write to the terminal and prompt for input
 
 ## Verification

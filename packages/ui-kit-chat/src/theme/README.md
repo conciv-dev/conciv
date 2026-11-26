@@ -1,4 +1,4 @@
-# theme
+# ui-kit-chat/src/theme
 
 ## Overview
 
@@ -6,10 +6,9 @@ Theme assets: the thread-side `--chat-*` CSS custom properties, the Shiki CSS-va
 
 ## Interface
 
-- `tokens.css` - `:root, :host` custom properties such as `--chat-bg`, `--chat-trace-gutter` and `--shiki-*` light-dark pairs; published as `./theme/tokens.css`.
-- `code-theme.ts:codeTheme`, `code-theme.ts:CODE_THEME_NAME` (`conciv-code`), `code-theme.ts:concivCodeTheme`; published as `./theme/code-theme`.
-- `code-theme-tokens.ts:concivCodeTheme` - `createCssVariablesTheme` with prefix `--shiki-`.
-- `fonts.ts:CHAT_FONTS` - JetBrains Mono, Archivo and Source Sans 3 faces as inline woff2 data; type `ChatFontFace`; published as `./theme/fonts`.
+- `tokens.css`: the `:root, :host` `--chat-*` custom properties and `--shiki-*` light-dark pairs; published as `./theme/tokens.css`.
+- `code-theme.ts`, `code-theme-tokens.ts`: the Shiki CSS-variables code theme (`conciv-code`); published as `./theme/code-theme`.
+- `fonts.ts`: JetBrains Mono, Archivo and Source Sans 3 faces as inline woff2 data; published as `./theme/fonts`.
 
 ## Invariants
 
@@ -23,4 +22,4 @@ Theme assets: the thread-side `--chat-*` CSS custom properties, the Shiki CSS-va
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -1,19 +1,13 @@
-# core/src/editor
+# backend-defaults/src/engine/editor
 
 ## Overview
 
-Opens source locations in an editor and debounces repeat opens.
+Opens source locations in an editor (`open.ts`); `createBackend` builds the opener from its `launchEditor` option.
 
-## Interface
+## Invariants
 
-- `makeEditorOpener(launch, windowMs, now)` / `LaunchFn` / `OpenInEditor` (`open.ts`): skips repeat opens of the same file:line:column within `windowMs`
-- `openSourceFromFrames(frames, symbolicate, open)` / `OpenSourceStatus` (`open-source.ts`): 'no-source', 'opened' or 'failed'
+- `makeEditorOpener` (`open.ts`): skips repeat opens of the same file:line:column within `windowMs`
 
 ## Side Effects
 
 - `makeEditorOpener` (`open.ts`): calls `launch`, which opens an editor
-
-## Verification
-
-- Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/core && pnpm typecheck`, then `pnpm lint` at the repo root

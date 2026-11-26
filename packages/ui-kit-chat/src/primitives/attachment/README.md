@@ -1,4 +1,4 @@
-# primitives/attachment
+# ui-kit-chat/src/primitives/attachment
 
 ## Overview
 
@@ -6,10 +6,7 @@ Attachment model, adapters (image, text, composed) and the headless `Attachment`
 
 ## Interface
 
-- `attachment.tsx:Attachment` - `{Root, Name, Thumb, Remove}`; `attachment.tsx:AttachmentProvider`, `attachment.tsx:useAttachment`.
-- `attachment-adapter.ts` types `Attachment`, `PendingAttachment`, `CompleteAttachment`, `AttachmentAdapter` (`accept`, `add`, `remove`, `send`), `AttachmentContentPart`.
-- `attachment-adapter.ts:createSimpleImageAttachmentAdapter`, `attachment-adapter.ts:createTextAttachmentAdapter`, `attachment-adapter.ts:composeAttachmentAdapters`.
-- `attachment-adapter.ts:fileToDataSource`, `attachment-adapter.ts:fileMatchesAccept`, `attachment-adapter.ts:isCompleteAttachment`, `attachment-adapter.ts:attachmentId`.
+- `attachment.tsx`: the `Attachment` parts and their context; `attachment-adapter.ts`: the attachment model and the image, text and composed adapters.
 
 ## Invariants
 
@@ -23,4 +20,4 @@ Attachment model, adapters (image, text, composed) and the headless `Attachment`
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -1,4 +1,4 @@
-# composer
+# frontend-defaults/src/composer
 
 ## Overview
 
@@ -6,14 +6,12 @@ Composer toolbar: element grab, new session, compact and the Connect agents menu
 
 ## Interface
 
-- `ComposerActions` (`actions.tsx`): grab element, new session, compact, `ConnectAgentsMenu`
-- `ConnectAgentsMenu` (`actions.tsx`): "Connect agents" menu (and the same items in the composer overflow menu) with one "Connect <name>" item per `meta.hubAgents` `installs` entry; hidden while that list is empty; an item is disabled while a connect or disconnect of that agent is pending
-- `ConnectedAgents({onDisconnected})` (`connected-agents.tsx`): the `Connected agents` group (`display: contents`, so each chip is its own item in the strip's row and wraps only when the row overflows) leading the strip above the composer, before the plugins' `session.status` slot: one chip per `meta.hubAgents` `connections` entry (Clawd for Claude, the plug icon otherwise, the name, and a `Disconnect <name>` icon button on every chip), a `Connecting <name>…` / `Disconnecting <name>…` spinner chip (`role="status"`, polite) per pending change, taken from the pending mutations' own variables so it survives a `meta.hubAgents` refresh that already dropped the row; hidden when nothing is connected, connecting or disconnecting; `onDisconnected` runs when a disconnect settles (the pane returns focus to the composer)
-- `useHubConnections()` (`hub-connections.ts`): follows `meta.hubAgents` as a live query (`experimental_liveOptions`), so a connect or disconnect made outside the widget arrives as a server push, never a poll; `installs`, `connections`, `connecting`, `disconnecting`, `connect(install)`, `disconnect(connection, onSettled)`; pending changes come from `useMutationState` over the oRPC `meta.connectHub` / `meta.disconnectHub` mutation keys, so the menu and the row (separate components) see the same pending set
-- `Clawd({class})` (`clawd/clawd.tsx`): static Claude mascot SVG, MIT, see `clawd/README.md`
-- `SessionModelPrompt({sessionId, menu, running})` (`session-model-prompt.tsx`): the composer prompt's model menu is the kit's `HarnessModelSelector` (`appearance="prompt"`) over a kit `useModelMenu` the pane owns, so `/model` can open it (`popover().setOpen(true)`); this file only feeds it: the session's own `meta.models` (`loading` / `failed` / `ready`), the `meta.harnesses` catalog as the other harnesses with its retry, the session row's model and effort (a pending pick shown at once), the run and pending-switch lock, the chat's messages for the switch confirm, the app's `announce` and layer stack
-- `SessionSelector` (`session-selector.tsx`): session combobox (`pill` | `bar`) over a virtual list with Today/Yesterday/Earlier header rows, server-side search, a clear-search button, new session (renaming lives in the panel header title)
-- `SessionPreview` (`session-preview.tsx`): the read-only preview beside the session picker; a kit `Popover` (controlled, `modal={false}`, `autoFocus={false}`, `lazyMount`, `unmountOnExit`) anchored to the picker content (`right-start`, flipping to `left-start` then `bottom-start`), titled `Preview of <title>` with the project beside it (another project's hit names its own project, reads its transcript from that project's `cwd`, and adds a kit `ClipboardCopyButton` `Copy resume command` over its own `createResumeCopy`, so it shows `Copied` on itself and never opens the row's tooltip; the button keeps its 28px look with a 44px hit area from an `after:-inset-2` pseudo-element), rendering the session through the real ui-kit-chat `Thread` over a read-only `Chat`
+- `actions.tsx`: the toolbar (grab element, new session, compact) and the "Connect agents" menu, one item per `meta.hubAgents` install.
+- `connected-agents.tsx`, `hub-connections.ts`: the connected agents row; `meta.hubAgents` is a live query, so a connect or disconnect made outside the widget arrives as a server push, never a poll.
+- `session-model-prompt.tsx`: feeds the kit's `HarnessModelSelector` (the session's models, the other harnesses, the session's model and effort).
+- `session-selector.tsx`, `session-preview.tsx`, `resume-copy.ts`: the session picker, its read-only preview and the resume-command copy for another project's hit.
+- `note-card.tsx`, `comment-note.ts`, `note-schema.ts`: the composer notes plugins attach.
+- `clawd/`: the Claude mascot SVG, see [clawd/README.md](./clawd/README.md).
 
 ## Invariants
 
@@ -35,4 +33,4 @@ Composer toolbar: element grab, new session, compact and the Connect agents menu
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck test --filter=@conciv/app` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=@internal/frontend-defaults` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

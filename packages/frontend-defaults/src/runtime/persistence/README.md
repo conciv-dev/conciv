@@ -4,6 +4,11 @@ The widget's persisted stores. Most files are copied from opencode (at commit `a
 relative to `packages/app/src/runtime/persistence/`). Names and shapes are opencode's, except for the lines under
 "Differences from opencode".
 
+The copied files are split in two: the drafts (`drafts.ts`, `drafts-machine.ts`, `leaving-copy.ts`), the last screen
+and session storage are here; `storage.ts`, `persist.ts`, `persist-machine.ts` and `schema.ts` are in
+`packages/frontend-app-api/src/persistence`. Paths like `pane/...` and `data/...` are relative to
+`packages/frontend-defaults/src`.
+
 ## Differences from opencode
 
 - A key missing from `localStorage` reads as missing and drops its entry in the read cache (`storage.ts`
@@ -15,8 +20,7 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   put that the `pagehide` flush issues was lost on a reload in Chromium and in Firefox, and the reloaded page read the
   write before it. A write whose blobs are looked up first still needs those lookups to answer before it commits.
 - `persistStore` takes a `writeLeaving` writer beside `write` (`persist.ts`): the flush when the page is left
-  (`flushPersisted(true)`, on `pagehide`) uses it; the flush when the page is hidden (`flushPersisted()`, on
-  `visibilitychange` to hidden), the batch (none for the drafts, whose store takes a zero `delay`) and the flush when the owner is disposed use `write`, so while the
+  (`flushWhenLeaving`, on `pagehide`) uses it; the flush when the page is hidden (on `visibilitychange` to hidden), the batch (none for the drafts, whose store takes a zero `delay`) and the flush when the owner is disposed use `write`, so while the
   page lives on every write stays on the chain in order and an older chain step never lands after a newer direct
   write. The source has one writer. conciv's draft writer queues each write on the
   app's one draft write chain, and a write queued behind a write still in flight never opened its transaction before
@@ -61,7 +65,7 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
 - A browser where IndexedDB cannot be opened at all (no `indexedDB`, or `indexedDB.open` throws) gets no draft store
-  (`drafts.ts` `openBrowserDraftStore`, the one entry both the standalone app and the embed use): the throw is logged
+  (`drafts.ts` `openBrowserDraftStore`, the one entry both the standalone app and the widget use): the throw is logged
   as `[conciv] drafts stay engine-only` and the app runs with drafts kept by the engine only.
 - A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod. A document that fails the check is logged and read as absent.
 - Every `media:` piece of the source's `drafts.ts` is left out (the media loaders, `setMediaBlobLoader`,

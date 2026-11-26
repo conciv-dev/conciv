@@ -1,4 +1,4 @@
-# @conciv/vitest-config
+# @internal/vitest-config
 
 ## Overview
 
@@ -6,7 +6,7 @@ Private workspace package (`private: true`) holding the one set of shared vitest
 
 ## Interface
 
-- [src/README.md](./src/README.md): `concivTest`, `ciReporters`, `readTestKind`, `tempDir`, `isolatedEnv`.
+- Source: [src/README.md](./src/README.md).
 
 ## Invariants
 

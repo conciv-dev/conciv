@@ -6,18 +6,7 @@ The framework-free mascot service. `createMascot` binds the head, eyes and anten
 
 ## Interface
 
-- `index.ts` - the `@conciv/mascot` entry: `createMascot`, `robotSkin`, `robotLayers` and the config, effect, part, curve and `EmitterRect` types.
-- `mascot.ts:createMascot(initial, skin = robotSkin)` - returns a `MascotService` with `update`, `registerParts`, `mountEffect`, `unmountEffect`, `replanEffect` (asks a mounted effect to re-plan its path, for effects that expose `replan`), `connect`, `destroy`.
-- `mascot.ts:MascotConnect` - `getRootProps`, `getHeadProps`, `getEyesProps`, `getAntennaProps`, `getEffectHostProps(id)`, each `{style, ref, release}`.
-- `config.ts:MascotConfig` / `MascotState` (`'rest' | 'awake'`) / `MascotFollow` / `MascotActivity` - config types; `followChannels`, `activityChannels`, `reduceMotion` and the timing constants (`THROB_BEATS`, `HEAD_BOB_BEATS`, `BLINK_BEATS`, `WORK_CYCLE_S`, ...).
-- `skin.ts:MascotSkin` / `robotSkin` - layer images, origins, tip fractions and reference antenna size.
-- `path.ts:CurveStyle` (`'straight' | 'arc' | 'hook' | 'fan' | 'auto'`), `measureEmitterRoom`, `resolveCurveStyle`, `emitterCurvePoints`, `detourAround` (the route that rises to the nearest edge in the way, the avoided rectangle or the viewport top, then climbs around the rectangle's nearer free side or runs along the edge), `EmitterRect`, `viewportBounds`, `stageLocalBounds`, `stageLocalRect`.
-- `tip-anchor.ts:antennaTipAnchor` / `measureAntennaLayout` / `antennaOriginOffset` - antenna tip geometry.
-- `effects/effect-support.ts:enterFromTip` / `exitIntoTip` - GSAP enter and exit tweens for effect elements.
-- `mascot.ts:rootStyle` / `headStyle` / `eyesStyle` / `antennaStyle` / `effectHostStyle` - inline style records.
-- `style-merge.ts:isGeometryProperty` / `kebabCaseProperty` / `camelCaseProperty` - style merge helpers (also a build entry).
-- `slot-contract.ts:partAlreadyProvided` / `MascotPartName` - the one-slot-per-part error.
-- `stage-sheet.ts:installStageSize` - adopts a stage stylesheet into the element's root.
+- `core.ts` is the `@conciv/mascot` entry; `adapter.ts` the `./adapter` entry framework wrappers build on.
 - Subdirectories: [effects](./effects/README.md), [parts](./parts/README.md).
 
 ## Invariants
@@ -36,5 +25,5 @@ The framework-free mascot service. `createMascot` binds the head, eyes and anten
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `test/e2e`)
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)
 - Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)

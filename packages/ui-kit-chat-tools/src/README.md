@@ -2,21 +2,18 @@
 
 ## Overview
 
-Single barrel `index.tsx` that re-exports the tool primitives and the styled tool cards, plus helpers from @conciv/ui-kit-chat/tools.
+The one entry `ui-kit-chat-tools.tsx` re-exports the tool primitives, the styled tool cards and the card lists: `builtinToolCards` (the harness tools), `concivToolCards` (`conciv-cards.tsx`: conciv's own `conciv_ui` and open-in-editor cards) and `coreToolCards` (`core-cards.tsx`: the `execute_typescript` card).
 
-## Interface
+Subdirectories:
 
-- Primitives (`index.tsx`): `Bash`, `useBash`, `parseBashOutput`, `ApplyPatch`, `useApplyPatch`, `readPatchText`, `patchInfo`, `parseClaudePatchBlocks`, `claudeBlockToUnifiedDiff`, `FileRead`, `FileEdit`, `Search`, `Todo` and their hooks
-- Helpers (`index.tsx`): `humanToolName`, `nowTitle`, `schemaParams` from @conciv/ui-kit-chat/tools; `inlineValue`, `shortenPath`, `basename`, `truncate`, `SUMMARY_KEYS`
-- Cards (`index.tsx`): `BashCard`, `ApplyPatchDiff`, `DiscoveredApisCard`, `FileReadCard`, `FileEditCard`, `SearchCard`, `TodoCard` with their `*Tool` entries
-- Inline rows and registry (`index.tsx`): `inlineTool`, `ReadInline` to `ToolCallInline`, `builtinToolCards`
-- Subdirectories:
-  - primitives: [./primitives/README.md](./primitives/README.md) - headless tool primitives
-  - styled: [./styled/README.md](./styled/README.md) - styled tool cards
+- primitives: [./primitives/README.md](./primitives/README.md) - headless tool primitives
+- styled: [./styled/README.md](./styled/README.md) - styled tool cards
+- conciv-cards: [./conciv-cards/README.md](./conciv-cards/README.md) - conciv's own cards
+- core-cards: [./core-cards/README.md](./core-cards/README.md) - the code-mode card
 
 ## Invariants
 
-- `index.tsx`: `bashTool`, `applyPatchTool`, `toolLookupTool` and `ToolLookupCard` are reachable only through `builtinToolCards`
+- `ui-kit-chat-tools.tsx`: `bashTool`, `applyPatchTool`, `toolLookupTool` and `ToolLookupCard` are reachable only through `builtinToolCards`
 
 ## Side Effects
 

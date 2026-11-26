@@ -1,4 +1,4 @@
-# primitives/selection-toolbar
+# ui-kit-chat/src/primitives/selection-toolbar
 
 ## Overview
 
@@ -6,8 +6,7 @@ Headless toolbar that appears for a non-empty text selection and can quote it in
 
 ## Interface
 
-- `selection-toolbar.tsx:SelectionToolbar` - `{Root, Quote}`.
-- `selection-toolbar.tsx:useSelectionToolbarInfo` - accessor of `SelectionInfo` (`text`, `rect`) or `null`.
+- `selection-toolbar.tsx`: the `SelectionToolbar` compound and the current selection's info.
 
 ## Invariants
 
@@ -20,4 +19,4 @@ Headless toolbar that appears for a non-empty text selection and can quote it in
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -1,4 +1,4 @@
-# core/src/cards
+# ui-kit-chat-tools/src/core-cards
 
 ## Overview
 
@@ -6,9 +6,7 @@ Solid tool card for `execute_typescript` calls: code, console logs, result and e
 
 ## Interface
 
-- `CodeRunCard` (`code-run-card.tsx`): Solid component taking `ToolCardProps`
-- `codeRunTool` (`code-run-card.tsx`): `ToolCardEntry` for `[EXECUTE_TOOL_NAME]` with `hasEmbeddedBody`
-- Stories `Running`, `Success`, `Failure`, `TransportFailure`, `ObjectResult`, `StringResult`, `Themed`, `EmbeddedSuccess`, `EmbeddedVoidResult`, `EmbeddedFailure` (`code-run-card.stories.tsx`)
+- `code-run-card.tsx`: `CodeRunCard` and its `codeRunTool` entry for `EXECUTE_TOOL_NAME` (`@conciv/protocol/execute-schemas`), listed in `../core-cards.tsx` as `coreToolCards`; `code-run-card.stories.tsx` holds its stories.
 
 ## Invariants
 
@@ -21,5 +19,5 @@ Solid tool card for `execute_typescript` calls: code, console logs, result and e
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/core && pnpm typecheck`, then `pnpm lint` at the repo root
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat-tools` from the repo root (turbo builds the package and its dependencies first)
+- Typecheck and lint: `cd packages/ui-kit-chat-tools && pnpm typecheck`, then `pnpm lint` at the repo root

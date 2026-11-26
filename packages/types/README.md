@@ -1,6 +1,6 @@
-# @conciv/protocol
+# @conciv/types
 
-Wire types shared by the conciv vite-plugin and widget.
+Wire types shared by the engine, the widget, the CLI and the plugins.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
@@ -11,8 +11,8 @@ Package root for the wire types package. It builds one ESM entry point per subpa
 ## Interface
 
 - `exports` (`package.json`): one subpath per src module, no root entry
-- `dependencies` (`package.json`): @tanstack/ai and zod
-- `scripts` (`package.json`): build (`tsdown && tsc -p tsconfig.build.json`), typecheck, lint, test, publint, attw
+- `dependencies` (`package.json`): @tanstack/ai, effect and zod
+- `scripts` (`package.json`): build (`tsdown && tsc -p tsconfig.build.json`), typecheck, publint, attw
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - schemas, types and wire constants
 
@@ -26,5 +26,4 @@ Package root for the wire types package. It builds one ESM entry point per subpa
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/protocol` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/protocol && pnpm typecheck`, then `pnpm lint` at the repo root
+- Typecheck and lint: `cd packages/types && pnpm typecheck`, then `pnpm lint` at the repo root

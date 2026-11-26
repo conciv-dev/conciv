@@ -2,20 +2,12 @@
 
 ## Overview
 
-Private CI tool that measures the gzip size of published package dists and the apps/site Cloudflare worker, and compares them to a main-branch baseline. It has no build step: the bin runs the TypeScript source directly.
-
-## Interface
-
-- `bin.conciv-bundle-size` (`package.json`): maps to ./src/cli.ts; there is no exports field
-- `scripts` (`package.json`): typecheck (tsc --noEmit), lint (oxlint)
-- `tsconfig.json`: noEmit, allowImportingTsExtensions, lib ES2024, types node
-- Subdirectories:
-  - src: [./src/README.md](./src/README.md) - the measuring CLI and library
+Private CI tool that measures the gzip size of published package dists, the widget bundle and the apps/site Cloudflare worker, and compares them to a main-branch baseline. It has no build step: the bin (`conciv-bundle-size` -> `./src/cli.ts`) runs the TypeScript source directly. Source: [src/README.md](./src/README.md).
 
 ## Invariants
 
-- `private: true` (`package.json`): never published
-- `tsconfig.json`: typechecks only src/**/\*.ts with noEmit, so the bin must run .ts directly
+- `private: true` (`package.json`): never published.
+- `tsconfig.json` extends `@internal/tsconfig/tsconfig.base.json` with `allowImportingTsExtensions`, so the bin can run `.ts` directly.
 
 ## Side Effects
 
@@ -23,4 +15,4 @@ Private CI tool that measures the gzip size of published package dists and the a
 
 ## Verification
 
-- Typecheck and lint: `cd packages/bundle-size && pnpm typecheck`, then `pnpm lint` at the repo root
+- Typecheck: `pnpm exec turbo run typecheck --filter=@conciv/bundle-size` from the repo root

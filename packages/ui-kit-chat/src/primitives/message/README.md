@@ -1,4 +1,4 @@
-# primitives/message
+# ui-kit-chat/src/primitives/message
 
 ## Overview
 
@@ -6,8 +6,7 @@ Headless `Message` compound: root, parts rendering (flat or grouped), attachment
 
 ## Interface
 
-- `message.tsx:Message` - `{Root, Parts, PartByIndex, Attachments, AttachmentByIndex, Unstable_PartsGrouped, If, Error}`; exported as `MessagePrimitive`; type `PartsComponents`.
-- `message-context.tsx:MessageProvider`, `useMessage`, `PartProvider`, `usePart`; types `MessageContextValue`, `PartContextValue`.
+- `message.tsx`: the `Message` compound, exported as `MessagePrimitive`; `message-context.tsx`: the message and part contexts.
 
 ## Invariants
 
@@ -19,4 +18,4 @@ Headless `Message` compound: root, parts rendering (flat or grouped), attachment
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

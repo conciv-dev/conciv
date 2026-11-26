@@ -25,9 +25,9 @@ Each package owns its own publish metadata (`keywords`, `repository`, `homepage`
 
 ## Interface
 
-- [src/README.md](./src/README.md): the command tree, guards, registry, sync plan, workspace graph and Swift mirror helpers.
+- [src/README.md](./src/README.md): the command tree, guards, sync plan and Swift mirror rules.
 - `bin["conciv-publish"]` -> `./src/cli.ts`, run as TypeScript with no build step; no exports map (`package.json`).
-- Scripts: `typecheck`, `lint` (`oxlint`), `test` (`vitest run`). `vitest.config.ts` uses `ciTest()`.
+- Scripts: `typecheck`, `test` (`vitest run`).
 
 ## Invariants
 
