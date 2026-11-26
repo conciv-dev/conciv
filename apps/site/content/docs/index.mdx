@@ -1,21 +1,28 @@
 ---
 title: What is conciv
-description: An AI dev agent inside your running app. Chat, page control and live tests, added by a build plugin.
+description: An AI dev agent inside your running app. It sees the page you are on and changes it for you.
 icon: PixelPage
 ---
 
-conciv puts an AI dev agent inside the app you are already running. Add one build plugin, and a conciv button appears
-in your dev build. Open it to chat with an agent that reads the page you are on, drives and edits it, and runs your
-tests, without leaving the app. The name is the pitch: say `@conciv/it` out loud, and conceive it.
+conciv puts an AI dev agent inside the app you are already running. It reads the page you are on, drives it, edits
+your source and runs your tests. You stay in the app the whole time.
 
-This is the Vite config `conciv init` writes:
+## Install
 
-```ts title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
+Copy this prompt into your coding agent, such as Claude Code or Codex. Pick your framework first.
 
-export default defineConfig({plugins: [conciv()]})
-```
+<SetupPrompt />
+
+The agent runs `conciv init`, starts your dev server and logs you in. A conciv button then shows in the corner of
+your app.
+
+Then ask your agent, in your terminal or in the conciv panel:
+
+<CopyPrompt text="Look at the page I have open in conciv. Change the main heading to say Hello from conciv. Edit the source file, then check that the page shows the new text." />
+
+<Callout>
+  conciv runs in dev builds only. The chat needs an agent CLI on your `PATH`, such as `claude`, and logged in.
+</Callout>
 
 ## What you can do
 
@@ -38,27 +45,18 @@ export default defineConfig({plugins: [conciv()]})
   <Card
     title="Whiteboard"
     href="/docs/usage/whiteboard"
-    description="A shared Excalidraw canvas over the page. You sketch, the agent draws back."
+    description="A shared canvas over the page. You sketch, the agent draws back."
   />
   <Card
     title="Approvals"
     href="/docs/usage/approvals"
-    description="Risky actions show a Permission card (Allow once or Deny) before they run."
+    description="Risky actions ask you first, with Allow once or Deny."
   />
-  <Card
-    title="Plugins"
-    href="/docs/plugins"
-    description="Give the agent new tools and the widget new panels with a plugin."
-  />
+  <Card title="Plugins" href="/docs/plugins" description="Give the agent new tools and the widget new panels." />
 </Cards>
-
-<Callout>
-  conciv is in beta and mounts in dev builds only. The chat needs a harness CLI on your `PATH`, `claude` by default.
-</Callout>
 
 ## Next
 
-<Cards>
-  <Card title="Quick start" href="/docs/quick-start" description="Add conciv to your framework in a few steps." />
-  <Card title="How it works" href="/docs/how-it-works" description="The pieces behind the widget." />
-</Cards>
+- [Quick start](/docs/quick-start): the same prompt, plus the manual steps.
+- [Connect your agents](/docs/quick-start/agents): let the agent in your terminal drive your open tabs.
+- [How it works](/docs/how-it-works): what runs where, in one picture.
