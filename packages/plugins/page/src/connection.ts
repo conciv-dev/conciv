@@ -589,7 +589,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
 
   return {
     run,
-    queues,
     runQueue,
     records: {
       ...records,

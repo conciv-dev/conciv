@@ -78,7 +78,6 @@ function toAction(queued: {tool: string}): Action {
 export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
   play: Play
   journal: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) => Effect.Effect<void, unknown>
-  syncMs?: number
 }) {
   const scope = yield* Effect.scope
   const machine = {state: createQueueState()}
