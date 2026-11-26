@@ -13,6 +13,7 @@ export type EngineConnectionTimings = {
   readonly connectionLossRetryDelayMs: number
   readonly authTimeoutMs: number
   readonly offlineGraceMs: number
+  readonly idleTimeoutMs: number
 }
 
 export const defaultEngineConnectionTimings: EngineConnectionTimings = {
@@ -24,6 +25,7 @@ export const defaultEngineConnectionTimings: EngineConnectionTimings = {
   connectionLossRetryDelayMs: 250,
   authTimeoutMs: 3000,
   offlineGraceMs: 1000,
+  idleTimeoutMs: 45_000,
 }
 
 export type ConnectionState = {

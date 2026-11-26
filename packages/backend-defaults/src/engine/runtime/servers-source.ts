@@ -1,5 +1,5 @@
 import {basename} from 'node:path'
-import {engineTooOld, makeRpcClient} from '@conciv/client'
+import {engineTooOld, makeBrowserEngineConnection, makeEngineRpcClient, type EngineConnection} from '@conciv/client'
 import {checkEngines, listEngines, prepareHome, withHomeDb, type EngineRow, type PreparedHome} from '@conciv/home'
 import {Conciv} from '@conciv/client'
 import {PluginHost} from '@conciv/backend-app-api'
@@ -21,17 +21,18 @@ type ServersSourceInput = {home: string; engineId: string}
 
 function connect(row: EngineRow, tooOld: (apiBase: string) => void): ServerRef['client'] {
   const {apiBase, token} = row
-  const client = makeRpcClient(apiBase, {
-    token,
-    interceptors: [
-      ({next}) =>
-        next().catch((error: unknown) => {
-          if (engineTooOld(error)) tooOld(apiBase)
-          throw error
-        }),
-    ],
-  })
-  return Conciv.make(client, {server: () => apiBase})
+  const connection = makeBrowserEngineConnection(apiBase, {token})
+  const link: EngineConnection['link'] = {
+    call: (path, input, options) =>
+      connection.link.call(path, input, options).catch((error: unknown) => {
+        if (engineTooOld(error)) tooOld(apiBase)
+        throw error
+      }),
+  }
+  return Conciv.make(
+    makeEngineRpcClient(() => ({...connection, link})),
+    {server: () => apiBase},
+  )
 }
 
 type HomeReach = {ok: true; home: PreparedHome} | {ok: false; error: Error}

@@ -14,7 +14,7 @@ import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {forgetDeletedSessions} from './forget-deleted-sessions.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type SessionMeta} from '@conciv/protocol'
-import type {EngineTrust, ContractClient} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 
 const PendingAttachmentSchema = z.object({
   id: z.string(),
@@ -99,10 +99,9 @@ export function makeAppData(
   drafts: DraftStore | null,
   lockedOut: () => boolean,
   server: () => string,
-  trust: () => EngineTrust | undefined,
 ): AppData {
   const utils = makeQueryUtils(rpc)
-  const client = Conciv.make(rpc, {server, trust})
+  const client = Conciv.make(rpc, {server})
   const listKeys = [utils.sessions.list.key(), utils.sessions.search.key()]
   for (const queryKey of [...listKeys, utils.sessions.get.key()]) {
     queryClient.setQueryDefaults(queryKey, {refetchOnWindowFocus: false})

@@ -29,6 +29,7 @@ import {
   Match,
   Option,
   PubSub,
+  RcRef,
   Ref,
   Scope,
   Semaphore,
@@ -104,7 +105,7 @@ function storageRefused(error: unknown): boolean {
 }
 
 function tokenStorage(): Storage | undefined {
-  return typeof localStorage === 'undefined' ? undefined : (localStorage ?? undefined)
+  return typeof window === 'undefined' ? undefined : (localStorage ?? undefined)
 }
 
 function storageEffect<A>(io: () => A, fallback: A): Effect.Effect<A> {
@@ -169,10 +170,6 @@ function unauthorized(error: unknown): boolean {
   return error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS
 }
 
-function stalled(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === 'TimeoutError'
-}
-
 function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
   if (signal === undefined) return Effect.never
   return Effect.callback<void>((resume) => {
@@ -181,6 +178,30 @@ function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
     signal.addEventListener('abort', settle, {once: true})
     return Effect.sync(() => signal.removeEventListener('abort', settle))
   })
+}
+
+export function trustedAgain(trust: EngineTrust | undefined, signal: AbortSignal | undefined): Promise<void> {
+  if (trust?.isTrusted() === true || signal?.aborted === true) return Promise.resolve()
+  return new Promise((resolve) => {
+    const settle = (): void => {
+      stopTrust()
+      signal?.removeEventListener('abort', settle)
+      resolve()
+    }
+    const stopTrust =
+      trust?.subscribe((status) => {
+        if (status === 'trusted') settle()
+      }) ?? (() => {})
+    signal?.addEventListener('abort', settle)
+  })
+}
+
+async function* heldWhileOpen<A>(output: AsyncIterable<A>, release: () => void): AsyncGenerator<A> {
+  try {
+    yield* output
+  } finally {
+    release()
+  }
 }
 
 function sourcedToken(source: EngineTokenSource): Effect.Effect<string | undefined> {
@@ -226,6 +247,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const uptimeTimer = yield* FiberHandle.make<void, never>()
   const asking = yield* Ref.make(Option.none<Deferred.Deferred<boolean, unknown>>())
   const transitions = yield* Semaphore.make(1)
+  const frames = yield* PubSub.sliding<void>(1)
 
   const current = (): ConnectionState => SubscriptionRef.getUnsafe(state)
   const disposed = (): boolean => current().socket === 'disposed'
@@ -289,11 +311,45 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     await sending.catch((error: unknown) => peer.close({id: message[0], reason: error}))
   })
 
+  const idleWatch = yield* RcRef.make({
+    acquire: PubSub.subscribe(frames).pipe(
+      Effect.flatMap((received) =>
+        PubSub.take(received).pipe(
+          Effect.timeoutOption(Duration.millis(timings.idleTimeoutMs)),
+          Effect.flatMap((frame) => (Option.isNone(frame) ? dispatch({type: 'stalled'}) : Effect.void)),
+          Effect.forever,
+          Effect.forkScoped,
+        ),
+      ),
+      Effect.asVoid,
+    ),
+  })
+
+  const watchedWhileOpen = async (call: () => Promise<unknown>): Promise<unknown> => {
+    const held = Scope.makeUnsafe()
+    const release = (): void => {
+      runDetached(Scope.close(held, Exit.void))
+    }
+    runNow(Scope.provide(RcRef.get(idleWatch), held))
+    const output = await call().catch((error: unknown) => {
+      release()
+      throw error
+    })
+    if (!isEventIterator(output)) {
+      release()
+      return output
+    }
+    return heldWhileOpen(output, release)
+  }
+
   const deliver = (raw: string | Uint8Array): Effect.Effect<void> =>
-    Effect.tryPromise({
-      try: async () => peer.message(await decodeResponseMessage(raw)),
-      catch: (error) => error,
-    }).pipe(
+    PubSub.publish(frames, undefined).pipe(
+      Effect.andThen(
+        Effect.tryPromise({
+          try: async () => peer.message(await decodeResponseMessage(raw)),
+          catch: (error) => error,
+        }),
+      ),
       Effect.catch((error) =>
         Effect.logError('[conciv] the dev server sent a frame the rpc client could not read', error).pipe(
           Effect.andThen(Effect.sync(() => peer.close({reason: error}))),
@@ -380,11 +436,17 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const retriable = (options: ClientRetryPluginAttemptOptions<RpcClientContext>): boolean =>
     !disposed() && options.signal?.aborted !== true && !(options.error instanceof ORPCError)
 
-  const retryDelay = (options: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<number> => {
-    const wait = isStreamingCall(options.path)
-      ? reopened(options.signal)
-      : Effect.sleep(Duration.millis(timings.connectionLossRetryDelayMs))
-    return run(wait.pipe(Effect.as(0)))
+  const streamRetriable = async (options: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
+    if (!unauthorized(options.error)) return retriable(options)
+    await refused(options.error, current().token)
+    return !disposed() && options.signal?.aborted !== true
+  }
+
+  const retryDelay = async (options: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<number> => {
+    if (!isStreamingCall(options.path))
+      return run(Effect.sleep(Duration.millis(timings.connectionLossRetryDelayMs)).pipe(Effect.as(0)))
+    if (unauthorized(options.error)) await trustedAgain(trust, options.signal)
+    return run(reopened(options.signal).pipe(Effect.as(0)))
   }
 
   const socketClient: StandardLinkClient<RpcClientContext> = {
@@ -420,23 +482,13 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     ],
   })
 
-  const reconnectWhenStalled = (signal: AbortSignal | undefined): void => {
-    signal?.addEventListener(
-      'abort',
-      () => {
-        if (stalled(signal.reason)) runDetached(dispatch({type: 'stalled'}))
-      },
-      {once: true},
-    )
-  }
-
   const link: ClientLink<RpcClientContext> = {
     call: (path, input, options) => {
       runDetached(dispatch({type: 'call-started'}))
-      if (isStreamingCall(path)) {
-        reconnectWhenStalled(options.signal)
-        return rpc.call(path, input, options)
-      }
+      if (isStreamingCall(path))
+        return watchedWhileOpen(() =>
+          rpc.call(path, input, {...options, context: {shouldRetry: streamRetriable, ...options.context}}),
+        )
       const deadline = now() + timings.callDeadlineMs
       const asked = options.context.shouldRetry
       const callerRetries = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {

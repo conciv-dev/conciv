@@ -1,18 +1,22 @@
-import {makeRpcClient} from '@conciv/client'
+import {Conciv, makeBrowserEngineConnection, makeEngineRpcClient, type ClientConnectionStatus} from '@conciv/client'
 import {describe, expect} from 'vitest'
 import {test as it} from '../utils/engine-test.js'
-import {Conciv, type ClientConnectionStatus} from '@conciv/client'
 
-describe('the SDK client keeps its event stream open', () => {
+describe('the SDK client keeps its event stream open over the engine socket', () => {
   it('the stream connects, comes back after the engine restarts, reopens when it goes silent, and is connecting again once the last reader leaves', async ({
     createEngine,
   }) => {
     const engine = await createEngine({}, {timeouts: {eventHeartbeatIntervalMs: 60_000}})
-    const server = () => engine.address.apiBase
-    const steady = Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
-      server,
-      reconnectDelay: 0,
+    const steadyConnection = makeBrowserEngineConnection(engine.address.apiBase, {token: engine.address.token})
+    const watchedConnection = makeBrowserEngineConnection(engine.address.apiBase, {
+      token: engine.address.token,
+      timings: {idleTimeoutMs: 50},
     })
+    const server = () => engine.address.apiBase
+    const steady = Conciv.make(
+      makeEngineRpcClient(() => steadyConnection),
+      {server},
+    )
     const steadyReading = new AbortController()
     const steadyStream = steady.event.subscribe({types: ['permission.asked'], signal: steadyReading.signal})
     const steadyEvents = steadyStream[Symbol.asyncIterator]()
@@ -35,11 +39,10 @@ describe('the SDK client keeps its event stream open', () => {
     steadyReading.abort()
     expect(steady.connection.status()).toBe('connecting')
 
-    const watched = Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
-      server,
-      idleTimeout: 50,
-      reconnectDelay: 0,
-    })
+    const watched = Conciv.make(
+      makeEngineRpcClient(() => watchedConnection),
+      {server},
+    )
     const watchedReading = new AbortController()
     const watchedStream = watched.event.subscribe({types: ['permission.asked'], signal: watchedReading.signal})
     const watchedEvents = watchedStream[Symbol.asyncIterator]()
@@ -57,5 +60,7 @@ describe('the SDK client keeps its event stream open', () => {
 
     watchedReading.abort()
     expect(watched.connection.status()).toBe('connecting')
+    steadyConnection.dispose()
+    watchedConnection.dispose()
   })
 })

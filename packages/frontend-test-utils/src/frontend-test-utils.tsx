@@ -122,7 +122,7 @@ export function bindEngine(engine: FakeEngine | RealEngine): BoundEngine {
 function engineClient(engine: BoundEngine): ConcivClient {
   return Conciv.make(
     makeEngineRpcClient(() => engine.connection),
-    {server: () => engine.apiBase, reconnectDelay: 0, trust: () => engine.connection.trust},
+    {server: () => engine.apiBase},
   )
 }
 

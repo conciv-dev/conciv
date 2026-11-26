@@ -18,7 +18,7 @@ import {
   type ApprovalAsk,
 } from '@conciv/types/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/types/chat-types'
-import type {EngineTrust, RpcClientContext} from '../connection/engine-connection.js'
+import {trustedAgain, type EngineTrust, type RpcClientContext} from '../connection/engine-connection.js'
 import {type ContractClient} from '../connection/rpc-client.js'
 import {type ChatHistoryWindow, type ChatHydration} from '@conciv/protocol'
 
@@ -187,7 +187,7 @@ function runReconnects(engine: Engine, reconnect: RunReconnect): RpcClientContex
     shouldRetry: async ({attemptIndex, lastEventId, error, signal}) => {
       if (signal === undefined || signal.aborted) return false
       if (refused(error) && (attemptIndex > 0 || lastEventId !== undefined)) {
-        await trustedAgain(engine, signal)
+        await trustedAgain(engine.trust, signal)
         return !signal.aborted
       }
       return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < reconnect.attempts
@@ -370,23 +370,6 @@ function watching(
   return noticing(merged(sources, abortSignal), options)
 }
 
-function trustedAgain(engine: Engine, signal: AbortSignal): Promise<void> {
-  const {trust} = engine
-  if (trust?.isTrusted() === true || signal.aborted) return Promise.resolve()
-  return new Promise((resolve) => {
-    const settle = (): void => {
-      stopTrust()
-      signal.removeEventListener('abort', settle)
-      resolve()
-    }
-    const stopTrust =
-      trust?.subscribe((status) => {
-        if (status === 'trusted') settle()
-      }) ?? (() => {})
-    signal.addEventListener('abort', settle)
-  })
-}
-
 function refused(error: unknown): boolean {
   return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
 }
@@ -412,7 +395,7 @@ async function* sessionEvents(
         if (signal.aborted) return
         if (refused(error)) {
           link?.dropped()
-          await trustedAgain(engine, signal)
+          await trustedAgain(engine.trust, signal)
           continue
         }
       }
