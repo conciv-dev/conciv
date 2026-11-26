@@ -16,17 +16,17 @@ catalogs:
       specifier: ^1.8.1
       version: 1.8.1
     '@effect/opentelemetry':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/platform-node':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/sql-sqlite-node':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/vitest':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@excalidraw/excalidraw':
       specifier: ^0.18.1
       version: 0.18.1
@@ -397,8 +397,8 @@ catalogs:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
     effect:
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     env-paths:
       specifier: ^3.0.0
       version: 3.0.0
@@ -1945,7 +1945,7 @@ importers:
         version: 1.170.43(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2046,10 +2046,10 @@ importers:
         version: link:../types
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)
+        version: 4.1.5(effect@4.1.5)
       '@npmcli/arborist':
         specifier: 'catalog:'
         version: 9.4.0
@@ -2067,10 +2067,10 @@ importers:
         version: 1.0.3
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       glob:
         specifier: 'catalog:'
         version: 13.0.5
@@ -2177,13 +2177,13 @@ importers:
         version: link:../types
       '@effect/opentelemetry':
         specifier: 'catalog:'
-        version: 4.1.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.0)
+        version: 4.1.5(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.5)
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)
+        version: 4.1.5(effect@4.1.5)
       '@ff-labs/fff-node':
         specifier: 'catalog:'
         version: 0.10.5
@@ -2255,10 +2255,10 @@ importers:
         version: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2276,7 +2276,7 @@ importers:
         version: 5.3.2
       unstorage:
         specifier: 'catalog:'
-        version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1)
+        version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)))(ioredis@5.11.1)
       which:
         specifier: 'catalog:'
         version: 6.0.1
@@ -2286,7 +2286,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../engine-kit
@@ -2304,7 +2304,7 @@ importers:
         version: 3.0.4
       drizzle-kit:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
+        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -2331,7 +2331,7 @@ importers:
         version: link:../types
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2386,7 +2386,7 @@ importers:
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2627,7 +2627,7 @@ importers:
         version: 6.1.7
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2673,7 +2673,7 @@ importers:
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2731,7 +2731,7 @@ importers:
         version: 1.1.0
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2858,7 +2858,7 @@ importers:
         version: 0.6.3
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2973,7 +2973,7 @@ importers:
         version: 3.3.3
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3123,7 +3123,7 @@ importers:
         version: 1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       smol-toml:
         specifier: 'catalog:'
         version: 1.9.1
@@ -3160,7 +3160,7 @@ importers:
         version: link:../types
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       env-paths:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3179,7 +3179,7 @@ importers:
         version: 26.6.6
       drizzle-kit:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
+        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -3339,7 +3339,7 @@ importers:
         version: link:../../types
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -3358,7 +3358,7 @@ importers:
         version: link:../../frontend-plugin-api
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../../engine-kit
@@ -3445,7 +3445,7 @@ importers:
         version: 0.6.1(react@19.3.1)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -3470,7 +3470,7 @@ importers:
         version: link:../../backend-test-utils
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/frontend-app-api':
         specifier: workspace:*
         version: link:../../frontend-app-api
@@ -3560,7 +3560,7 @@ importers:
         version: link:../../protocol
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -3660,7 +3660,7 @@ importers:
         version: link:../../types
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -3769,7 +3769,7 @@ importers:
         version: 2.4.6(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
@@ -3833,10 +3833,10 @@ importers:
         version: link:../../protocol
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -3930,7 +3930,7 @@ importers:
         version: 0.1.5(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4000,7 +4000,7 @@ importers:
         version: 2.20.0(preact@11.1.0)(react@19.3.1)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -4149,7 +4149,7 @@ importers:
         version: 1.1.0
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4324,7 +4324,7 @@ importers:
         version: link:../types
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.53
@@ -4345,7 +4345,7 @@ importers:
         version: 1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       ws:
         specifier: 'catalog:'
         version: 8.22.2
@@ -4355,7 +4355,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4600,7 +4600,7 @@ importers:
         version: 0.2.2
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
     devDependencies:
       '@internal/tsconfig':
         specifier: workspace:*
@@ -4633,7 +4633,7 @@ importers:
         version: 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -6051,8 +6051,8 @@ packages:
     peerDependencies:
       '@noble/ciphers': ^1.0.0
 
-  '@effect/opentelemetry@4.1.0':
-    resolution: {integrity: sha512-j9bNzQaoQvcnimBFMG0i3piEW20E8HjkXAQHTJN/XqG2e4uJ9zCv53/HCNzD7+ooFn5S4nwQy/BOXeNReMIe+A==}
+  '@effect/opentelemetry@4.1.5':
+    resolution: {integrity: sha512-npD5KIkqIh754Rofno3qdKvbAyaNVfl777fTZkdgtUlZE6VycwCng+49aWK+sGpo4B4wKDSQLsbjAoDf/13Wew==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0 <2.0.0'
@@ -6064,7 +6064,7 @@ packages:
       '@opentelemetry/sdk-trace-node': '>=2.0.0 <3.0.0'
       '@opentelemetry/sdk-trace-web': '>=2.0.0 <3.0.0'
       '@opentelemetry/semantic-conventions': '>=1.33.0 <2.0.0'
-      effect: ^4.1.0
+      effect: ^4.1.5
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -6083,28 +6083,28 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/platform-node-shared@4.1.4':
-    resolution: {integrity: sha512-DWdfphHGOFJNj/mYadgpT3jIm8aRXDcPrQiGXFBH4p2H4XmA7iYMrPsI8NxVgZ7kNX0q1+FGJZJama0tINHRAg==}
+  '@effect/platform-node-shared@4.1.5':
+    resolution: {integrity: sha512-JzlrYe4uKaBFTWihBRXo2pDjkUVB39kQpKdGfXdbp7Co5sKT8hbcjOmdB5pg/WOYESdGTddd3fxD4lwlZELbZQ==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: ^4.1.4
+      effect: ^4.1.5
 
-  '@effect/platform-node@4.1.0':
-    resolution: {integrity: sha512-v+X7moGVF9k5oMVvz0slA+NgtEod+W+oygeI285MDJgSlUCW3JcqElj+cD3rlijFZtpKhC7RLkU1GuCxjGHTpA==}
+  '@effect/platform-node@4.1.5':
+    resolution: {integrity: sha512-tFnRvxF9EKc3oU17sDHj1JeLP+TL/IkaOEl3IUk2EjgMS0x7AWs0ioUXjdNKLb3Z1LdjVfMf/DxsNh9PW5FFAg==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: ^4.1.0
-      redis: '>=5.0.0 <7.0.0'
+      effect: ^4.1.5
+      redis: '>=5.1.0 <7.0.0'
 
-  '@effect/sql-sqlite-node@4.1.0':
-    resolution: {integrity: sha512-Z8PxzlVlfp5JCGYAg9CwehHkvLEwMf/NF7htdDkKy65G4vE78ARkDMUSyeIzZ1zpadMxbbCEUJ2FM9M5/0Nxgg==}
+  '@effect/sql-sqlite-node@4.1.5':
+    resolution: {integrity: sha512-eo+1W3lX/2cT3ATzjqhya/WvnhEByjG7DWfmWSPcENG04jjywV5p0eZ+COr+4nsXTMSoA9H2TdaqYWTnXNM9Qw==}
     peerDependencies:
-      effect: ^4.1.0
+      effect: ^4.1.5
 
-  '@effect/vitest@4.1.0':
-    resolution: {integrity: sha512-+APF69oTYgGj5WCewowk1/udepH74xz4ONyH7d+UfcK0SrF3osiSwsWEyODUpJvWd6MIk5F5PcFJiE4evMuG2A==}
+  '@effect/vitest@4.1.5':
+    resolution: {integrity: sha512-18u1013wkJtSelk1ZYLc/5aUnluTQyDfi2hAemkJW1GQ9qXw4mtPSiSf0AXZPhesmGCvG1Dk2C4JYD2sz+R72w==}
     peerDependencies:
-      effect: ^4.1.0
+      effect: ^4.1.5
       vitest: '>=5.0.0 <6.0.0'
 
   '@electric-sql/pglite@0.3.16':
@@ -14303,8 +14303,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.1.0:
-    resolution: {integrity: sha512-lGx2MJJyrXA8RZb2UpQ/0Nkb5Utaimby7oD92+18noBxLPE85IFOvptdzau8dvcxAOwfwHo9iqapbKeFzqQM/Q==}
+  effect@4.1.5:
+    resolution: {integrity: sha512-xyR20KhQI0vg2gD8ILUSQRTTESEYJ0JKdP+QD8J37xbwPTqXRxFM/l0+vUVD9fuSvoYruoTqyt33C4FZv1s4TQ==}
 
   electron-to-chromium@1.5.466:
     resolution: {integrity: sha512-WkgFvScwZjvCPupYGfQr5qlKCv/Tu+GYELGMCGcoBOQbNb6nx/TqGwJyLMwcNAAy2kKJF2agjM7KZKest538JA==}
@@ -18512,6 +18512,10 @@ packages:
     resolution: {integrity: sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==}
     engines: {node: '>=22.19.0'}
 
+  undici@8.13.1:
+    resolution: {integrity: sha512-Kt7EaPjh0s93lJH/PmW3d5rhkcpUa6fS3jqZ7+YGxNd9L7Xy/i827xe4C2uhhq+pJebM4tQOl5AgHmW11G5Skg==}
+    engines: {node: '>=22.19.0'}
+
   unenv@2.0.0-rc.24:
     resolution: {integrity: sha512-i7qRCmY42zmCwnYlh9H2SvLEypEFGye5iRmEMKjcGi7zk9UquigRjFtTLz0TYqr0ZGLZhaMHl/foy1bZR+Cwlw==}
 
@@ -19073,6 +19077,18 @@ packages:
 
   ws@8.22.2:
     resolution: {integrity: sha512-/rEZ2ejown2N5gxVTHUu9bVVC7ttu0/Tgzf5hbTOixR3Fs7mbbXgn2DbdbcKgJOmpQMtrIUWivtYuVMnp/W/yA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -20178,10 +20194,10 @@ snapshots:
     dependencies:
       '@noble/ciphers': 1.3.0
 
-  '@effect/opentelemetry@4.1.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.0)':
+  '@effect/opentelemetry@4.1.5(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.5)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.43.0
-      effect: 4.1.0
+      effect: 4.1.5
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.219.0
@@ -20191,32 +20207,32 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-node': 2.8.0(@opentelemetry/api@1.9.1)
 
-  '@effect/platform-node-shared@4.1.4(effect@4.1.0)':
+  '@effect/platform-node-shared@4.1.5(effect@4.1.5)':
     dependencies:
       '@types/ws': 8.18.2
-      effect: 4.1.0
-      ws: 8.22.2
+      effect: 4.1.5
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))':
+  '@effect/platform-node@4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@effect/platform-node-shared': 4.1.4(effect@4.1.0)
-      effect: 4.1.0
+      '@effect/platform-node-shared': 4.1.5(effect@4.1.5)
+      effect: 4.1.5
       redis: 6.3.1(@opentelemetry/api@1.9.1)
-      undici: 8.12.3
+      undici: 8.13.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-sqlite-node@4.1.0(effect@4.1.0)':
+  '@effect/sql-sqlite-node@4.1.5(effect@4.1.5)':
     dependencies:
-      effect: 4.1.0
+      effect: 4.1.5
 
-  '@effect/vitest@4.1.0(effect@4.1.0)(vitest@5.1.0)':
+  '@effect/vitest@4.1.5(effect@4.1.5)(vitest@5.1.0)':
     dependencies:
-      effect: 4.1.0
+      effect: 4.1.5
       vitest: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   '@electric-sql/pglite@0.3.16':
@@ -28155,11 +28171,11 @@ snapshots:
       '@libsql/client': 0.18.0
       drizzle-orm: 0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)
 
-  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)):
+  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.18.0
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
     optional: true
 
   debounce-fn@4.0.0:
@@ -28319,9 +28335,9 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)):
+  drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)):
     optionalDependencies:
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
 
   drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1):
     optionalDependencies:
@@ -28330,13 +28346,13 @@ snapshots:
       '@opentelemetry/api': 1.9.1
     optional: true
 
-  drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7):
+  drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7):
     optionalDependencies:
-      '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
+      '@effect/sql-sqlite-node': 4.1.5(effect@4.1.5)
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.18.0
       '@opentelemetry/api': 1.9.1
-      effect: 4.1.0
+      effect: 4.1.5
       zod: 4.6.7
 
   dset@3.1.4: {}
@@ -28371,7 +28387,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.1.0: {}
+  effect@4.1.5: {}
 
   electron-to-chromium@1.5.466: {}
 
@@ -33838,6 +33854,8 @@ snapshots:
 
   undici@8.12.3: {}
 
+  undici@8.13.1: {}
+
   unenv@2.0.0-rc.24:
     dependencies:
       pathe: 2.0.3
@@ -34055,7 +34073,7 @@ snapshots:
       db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1))
       ioredis: 5.11.1
 
-  unstorage@1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1):
+  unstorage@1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)))(ioredis@5.11.1):
     dependencies:
       anymatch: 3.1.3
       chokidar: 5.0.0
@@ -34067,7 +34085,7 @@ snapshots:
       ufo: 1.6.4
     optionalDependencies:
       '@netlify/blobs': 10.7.9
-      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
+      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
       ioredis: 5.11.1
 
   untun@0.1.3:
@@ -34476,6 +34494,8 @@ snapshots:
   ws@8.22.0: {}
 
   ws@8.22.2: {}
+
+  ws@8.23.0: {}
 
   wsl-utils@0.1.0:
     dependencies:
