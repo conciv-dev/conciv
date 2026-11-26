@@ -1,37 +1,173 @@
 ---
 title: How it works
-description: The pieces behind the widget and how a turn flows.
+description: What runs where, how the widget talks to the engine, and what a turn does.
 icon: Workflow
 ---
 
-conciv has three parts. The build plugin boots an engine and injects the widget. The widget runs in
-your page. The engine talks to a headless agent.
+conciv has three running parts. Your dev server starts the engine and adds the widget to your page. The widget talks to
+the engine over one websocket. The engine runs the harness, the agent CLI behind the chat.
 
-<ImageZoom
-  src="/diagrams/how-it-works.png"
-  alt="Architecture: the widget in your app talks to the core engine over /api/* (SSE); the engine drives your coding agent (claude, codex) on your machine"
-  width={2160}
-  height={1080}
+<Mermaid
+  chart={`flowchart TB
+  subgraph browser[Your browser]
+    widget[Widget: @conciv/app]
+  end
+  subgraph machine[Your machine]
+    dev[Dev server with @conciv/it] -->|starts| engine[Engine: @conciv/backend on 127.0.0.1]
+    engine --> harness[Harness: claude, codex, ...]
+    outside[Your terminal agent] -->|conciv mcp serve| engine
+  end
+  widget <-->|oRPC over /rpc-ws, after login| engine`}
 />
 
-## The parts
+## What runs where
 
 <Cards>
-  <Card title="Plugin" description="conciv boots the engine and injects the widget script into your dev build." />
+  <Card
+    title="Build plugin"
+    description="@conciv/it in your Vite, webpack, rspack or Next.js config. In development it starts the engine and adds the widget to the pages it serves."
+  />
+  <Card
+    title="Engine"
+    description="@conciv/backend, in node, in your dev server's process. It listens on 127.0.0.1 only, on its own port."
+  />
   <Card
     title="Widget"
-    description="A chat UI in an open shadow DOM. It probes the engine and shows the conciv button when dev routes are live."
+    description="@conciv/app: the conciv button, the panel and the terminal, mounted in a shadow root on your page."
   />
-  <Card title="Engine" description="@conciv/core serves the chat, page, and test APIs on its own dev port." />
-  <Card title="Harness" description="The headless agent process behind the chat, such as Claude Code." />
+  <Card title="Harness" description="The agent CLI the engine runs a turn with, such as Claude Code. See Harnesses." />
 </Cards>
+
+When your dev server starts, the build plugin starts the engine. `@conciv/backend` calls `createBackend` from
+`@conciv/backend-defaults` with the plugins conciv ships, and the engine serves HTTP on `127.0.0.1`. With no `port` in
+your config, it takes the port it used last time (kept in `.conciv/server.json`) when that port is free, else any free
+port.
+
+Then the widget gets onto your page. Webpack and rspack add it to your build as one more entry. With Next.js, your app
+imports `@conciv/it/plugin/nextjs/widget`. With Vite, the build plugin adds three tags to each HTML page it serves:
+
+- `<meta name="conciv-api-base">` with the engine's address, `http://127.0.0.1:<port>`.
+- `<meta name="conciv-widget">` with your `widget` settings.
+- `<script type="module" src="/@conciv/widget.js">`, a module the build plugin answers itself. It imports
+  `mountConciv` from `@conciv/app` and mounts the widget.
+
+With `widget: false` only the first tag is added, for an app that renders `<ConcivWidget />` itself. A page with no
+build plugin can load the widget as a classic script instead: `@conciv/app` also builds
+`dist/conciv-widget.global.js`, which loads its chunks from the `widget/` folder beside it.
+
+## How they talk
+
+The browser talks to the engine over one oRPC websocket per tab, at `/rpc-ws`. Every widget call rides it: sessions,
+settings, plugin calls, and the chat stream of a running turn. If the socket drops, the widget dials it again and
+re-sends the calls in flight, and a running turn resumes from its last event.
+
+Each open widget is a browser tab the engine knows. The widget calls `tabs.open` for the session it shows, and keeps
+the call open while that session is on screen; when the widget goes, its socket drops, or it moves to another session,
+the tab closes. The engine stores the open tabs and lists them with `tabs.list`, whatever plugins are installed. The
+page plugin acts inside those tabs, and `conciv tools tabs` and a connected agent's `list_tabs` read the same list.
+
+The engine serves these routes:
+
+<TypeTable
+  type={{
+    '/rpc-ws': {required: true, type: 'websocket', description: "The widget's one oRPC socket."},
+    '/rpc/*': {
+      required: true,
+      type: 'HTTP',
+      description: 'The same oRPC procedures over HTTP, for node callers such as the conciv command.',
+    },
+    '/api/mcp': {required: true, type: 'MCP', description: 'The MCP endpoint for agents.'},
+    '/health': {required: true, type: 'HTTP', description: 'Open to anyone. Reports the harness and the engine id.'},
+    '/widget': {required: false, type: 'HTTP', description: 'The page the iOS app loads the widget in.'},
+  }}
+/>
+
+Every route except `/health`, the login calls and `/widget` needs a token. A browser gets one by
+[logging in](/docs/usage/logging-in) with the code the engine prints.
 
 ## A turn
 
 <Steps>
-  <Step>You ask something in the chat. The agent reads the live page to ground itself.</Step>
-  <Step>It acts: edits files, drives the DOM, or runs your tests. Output streams back into the widget.</Step>
-  <Step>Anything risky pauses for your approval before it runs.</Step>
+  <Step>
+    You send a message. The widget calls `chat.send` on the socket, which starts the run and streams its events back.
+  </Step>
+  <Step>
+    The engine's chat picks the session's harness and asks it for a text adapter, then runs the turn through TanStack
+    AI's `chat()` with conciv's tools and system prompt. The harness runs its CLI in your project folder.
+  </Step>
+  <Step>
+    The agent calls tools. A plugin's tools come from the engine's tool service, filtered by the session's permission
+    rules. The agent also finds the `conciv` command first on its `PATH`: the build plugin links it at
+    `.conciv/bin/conciv`.
+  </Step>
+  <Step>
+    When the CLI or a tool asks first, the engine's permission service holds the call and shows a permission card in the
+    widget. The call goes on once you answer. See [Approvals](/docs/usage/approvals).
+  </Step>
+  <Step>Text, tool calls and cards stream back over the same socket into the panel.</Step>
 </Steps>
 
-Next: [Quick start](/docs/quick-start) to add it, or [Usage](/docs/usage) to see each capability.
+## Plugins
+
+A plugin has an engine part and a browser part, in one package. See [Plugins](/docs/plugins).
+
+- The engine part is loaded by the engine. The plugins conciv ships are passed to `createBackend`. A plugin you add
+  to `plugins` in your config is installed and loaded by the engine when it starts. Its `./server` export, else its
+  main export, is the engine part.
+- The browser part is loaded by the widget, from the engine. The engine reads the plugin's `./plugin-experimental`
+  bundle when it loads the plugin, and the widget fetches it with the `plugin.experimental` rpc call, then evaluates
+  it with the widget's own copies of Solid, Effect and the plugin API. Lazy chunks come the same way, on demand.
+  The browser parts conciv ships are built into the widget bundle instead.
+
+## The .conciv folder
+
+The engine keeps its state in `.conciv/` at your project root. The folder has its own `.gitignore`, which ignores
+everything in it except `settings/`.
+
+<Files>
+  <Folder name=".conciv" defaultOpen>
+    <File name="server.json" />
+    <File name="trusted-browsers.json" />
+    <File name="conciv.db" />
+    <File name="mcp-endpoint.json" />
+    <File name="chat-system-prompt.txt" />
+    <Folder name="settings" />
+    <Folder name="bin">
+      <File name="conciv" />
+    </Folder>
+  </Folder>
+</Files>
+
+<TypeTable
+  type={{
+    'server.json': {
+      required: true,
+      type: 'file',
+      description: 'The engine port and token. The engine reuses the port on its next start.',
+    },
+    'trusted-browsers.json': {required: true, type: 'file', description: 'The browsers that logged in.'},
+    'conciv.db': {
+      required: true,
+      type: 'file',
+      description:
+        'Sessions, chat history, saved permission answers, the open browser tabs, background jobs and the event log, in SQLite.',
+    },
+    'mcp-endpoint.json': {
+      required: true,
+      type: 'file',
+      description: 'The MCP address the Claude Code plugin from conciv init reads.',
+    },
+    'chat-system-prompt.txt': {
+      required: false,
+      type: 'file',
+      description: 'Your systemPrompt from the config, written when the engine starts. Only there when you set one.',
+    },
+    'settings/': {required: false, type: 'folder', description: 'Project settings saved from the widget.'},
+    'bin/conciv': {required: true, type: 'link', description: 'The conciv command, put first on the harness PATH.'},
+  }}
+/>
+
+The engines running on your machine are also listed in a per-user home folder, so the `conciv` command can find them.
+See [Packages](/docs/packages#the-home-folder).
+
+Next: [Quick start](/docs/quick-start) to add it, or [Usage](/docs/usage) to see what it does.

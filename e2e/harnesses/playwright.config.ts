@@ -1,4 +1,4 @@
-import {harnessMatrixConfig} from '@conciv/e2e-utils/config'
+import {harnessMatrixConfig} from '@internal/e2e-utils/config'
 
 export default await harnessMatrixConfig({
   dir: import.meta.dirname,

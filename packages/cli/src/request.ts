@@ -7,15 +7,15 @@ import {
   CONCIV_SESSION_HEADER,
   isSessionId,
   type SessionId,
-} from '@conciv/protocol/chat-types'
-import {makeRpcClient, type RpcClient} from '@conciv/contract'
-import {initContributions} from '@conciv/harness-init/registry'
-import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
+} from '@conciv/types/chat-types'
+import {makeRpcClient, type EngineClient} from '@conciv/client'
+import {initContributions} from '@conciv/harness/init/registry'
+import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {engineOrigin} from './engine-origin.js'
 
-const OFFLINE_CODES = new Set([
+const OFFLINE_CODES = [
   'ECONNREFUSED',
   'ECONNRESET',
   'EHOSTUNREACH',
@@ -25,7 +25,7 @@ const OFFLINE_CODES = new Set([
   'EAI_AGAIN',
   'UND_ERR_SOCKET',
   'UND_ERR_CONNECT_TIMEOUT',
-])
+]
 
 const MAX_CAUSE_DEPTH = 5
 
@@ -66,7 +66,7 @@ async function sessionId(origin: string, token: string | undefined): Promise<Ses
 
 export type CliTarget = {tab: SessionId | null}
 
-type RpcCall = (rpc: RpcClient, sessionId: SessionId) => Promise<unknown>
+type RpcCall = (rpc: EngineClient, sessionId: SessionId) => Promise<unknown>
 
 type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
@@ -127,7 +127,7 @@ function offline(error: unknown, depth: number): boolean {
   if (depth > MAX_CAUSE_DEPTH) return false
   const link = LinkSchema.safeParse(error)
   if (!link.success) return false
-  if (link.data.code !== undefined && OFFLINE_CODES.has(link.data.code)) return true
+  if (link.data.code !== undefined && OFFLINE_CODES.includes(link.data.code)) return true
   if (link.data.message === 'fetch failed') return true
   return offline(link.data.cause, depth + 1)
 }

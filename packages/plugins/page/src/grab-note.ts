@@ -1,7 +1,7 @@
 import {composeGrabText, sourceLabel, type Grab, type GrabActions} from '@conciv/grab'
-import type {ComposerNote, MountedSession, Screen} from '@conciv/plugin/experimental'
-import type {GrabPicker} from '@conciv/plugin/experimental/grab'
-import type {Page} from '@conciv/plugin/experimental/page'
+import type {ComposerNote, MountedSession, Screen} from '@conciv/frontend-plugin-api'
+import type {GrabPicker} from '@conciv/frontend-plugin-api/grab'
+import type {Page} from '@conciv/frontend-plugin-api/page'
 import {fitImagePreview} from './grab-preview.js'
 import {Definition, GRAB_NOTE_ORIGIN, grabHref, type GrabId, type StoredGrab} from './rpc.js'
 

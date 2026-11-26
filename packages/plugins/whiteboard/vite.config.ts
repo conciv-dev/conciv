@@ -1,12 +1,14 @@
 import {defineConfig} from 'vitest/config'
-import {experimental} from '@conciv/plugin/experimental/vite'
+import {experimental} from '@conciv/frontend-plugin-api/vite'
 import conciv from '@conciv/unplugin/vite'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
-import {ciReporting} from '@conciv/vitest-config'
+import UnoCSS from 'unocss/vite'
+import {concivTest} from '@internal/vitest-config/conciv-test'
 
-export default defineConfig({
+export default defineConfig(({mode}) => ({
   publicDir: false,
-  test: ciReporting(),
-  plugins: [experimental(), conciv(), concivTest()],
-  define: {'process.env.NODE_ENV': JSON.stringify('production'), 'process.env.IS_PREACT': JSON.stringify('false')},
-})
+  plugins: [UnoCSS(), experimental(), conciv(), concivTest({browser: true})],
+  define: {
+    'process.env.IS_PREACT': JSON.stringify('false'),
+    ...(mode === 'test' ? {} : {'process.env.NODE_ENV': JSON.stringify('production')}),
+  },
+}))

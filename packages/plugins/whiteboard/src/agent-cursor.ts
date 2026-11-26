@@ -1,5 +1,5 @@
 import {Clock, Duration, Effect, Queue, Stream} from 'effect'
-import type {Context} from '@conciv/plugin/effect/plugin'
+import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {Store} from './store.js'
 import type {CursorEvent} from './rows.js'
 

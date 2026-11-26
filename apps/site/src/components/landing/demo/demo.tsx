@@ -20,7 +20,7 @@ import {Transcript} from './transcript'
 import {Composer} from './composer'
 import {AppPreview} from './app-preview'
 import {GhostCursor} from './ghost-cursor'
-import {ConcivLockup} from '@conciv/brand-react'
+import {ConcivLockup} from '@internal/brand-react'
 import {useDemo} from './use-demo'
 import {useLocalModel} from './use-local-model'
 import {useMeteredConnection} from './use-metered-connection'
@@ -135,7 +135,7 @@ export function Demo() {
     dispatch({type: 'push', message: {kind: 'tool', label: 'patch', detail: scenario.patchDetail}})
     dispatch({type: 'patch'})
     applyPatch(el, scenario.apply)
-    dispatch({type: 'push', message: {kind: 'result', text: 'done: 1 element changed, saved to source'}})
+    dispatch({type: 'push', message: {kind: 'result', text: 'done: 1 element changed'}})
   }
 
   const runLocal = async (text: string) => {

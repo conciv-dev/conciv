@@ -1,5 +1,5 @@
 import {description, name, option, schema} from '@bomb.sh/router'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {SessionId} from '@conciv/types/chat-types'
 
 export const tabFlag = option(
   name('tab'),

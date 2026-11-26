@@ -6,10 +6,10 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Interface
 
-- [src/README.md](./src/README.md): `SolidFileDiff`, `SolidCodeBlock`, `SolidPatchDiff`, `primeHighlightWorkerPool` and re-exported `@pierre/diffs` APIs.
-- `exports["."]` -> `./dist/index.js` + `./dist/index.d.ts`; `files: ["dist"]`; peer `solid-js` ^1.9.13; deps `@pierre/diffs` 1.6.2, `@tanstack/solid-pacer` 0.24.0 (`package.json`).
-- `vite.config.ts`: `solidLibConfig` from `@conciv/vitest-config/vite-lib`, entry `src/index.tsx`.
-- Scripts: `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`--profile esm-only`).
+- [src/README.md](./src/README.md): the components and the highlight worker pool.
+- `exports["."]` -> `./dist/solid-diffs.js` + `./dist/solid-diffs.d.ts`; `files: ["dist"]`; peer `solid-js`; deps `@pierre/diffs` 1.6.2, `@tanstack/solid-pacer` (`package.json`).
+- `vite.config.ts`: `solidLibConfig` from `@internal/vite-config`, entry `src/solid-diffs.tsx`.
+- Scripts: `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `publint`, `attw` (`--profile esm-only`). No `test` script.
 
 ## Invariants
 
@@ -22,4 +22,4 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/solid-diffs` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/solid-diffs` from the repo root

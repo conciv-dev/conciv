@@ -1,0 +1,93 @@
+{
+  "name": "@conciv/simulation",
+  "version": "0.0.22",
+  "description": "The conciv engine's simulation: the scripted agent and fixed network table an engine started in simulation is built with, the control socket a driver answers model turns and tool calls through, and the driver.",
+  "keywords": [
+    "conciv",
+    "harness",
+    "simulation",
+    "testing",
+    "testkit"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/simulation"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./test-llm": {
+      "types": "./dist/test-llm.d.ts",
+      "import": "./dist/test-llm.js"
+    },
+    "./scripted-harness": {
+      "types": "./dist/scripted-harness.d.ts",
+      "import": "./dist/scripted-harness.js"
+    },
+    "./ai-testkit": {
+      "types": "./dist/ai-testkit.d.ts",
+      "import": "./dist/ai-testkit.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/backend.d.ts",
+      "import": "./dist/backend/backend.js"
+    },
+    "./driver": {
+      "types": "./dist/driver.d.ts",
+      "import": "./dist/driver.js"
+    },
+    "./frontend": {
+      "types": "./dist/frontend.d.ts",
+      "import": "./dist/frontend.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsdown -c tsdown.types.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/backend-app-api": "workspace:^",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@effect/platform-node": "catalog:",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/server": "catalog:",
+    "@tanstack/ai": "catalog:",
+    "@tanstack/ai-client": "catalog:",
+    "@tanstack/ai-sandbox": "catalog:",
+    "effect": "catalog:",
+    "ws": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "get-port": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

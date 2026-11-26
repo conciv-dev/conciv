@@ -9,7 +9,7 @@ import {
   type PageFailure,
   type PageResult,
   isPageFailure,
-} from '@conciv/protocol/page-types'
+} from './page-types.js'
 import type {
   CssBundle,
   ElementCapture,
@@ -17,7 +17,7 @@ import type {
   PageCaptureBundle,
   ToolCaptureMode,
 } from './element-capture-types.js'
-import {toolError, isToolError} from '@conciv/protocol/tool-call-types'
+import {toolError, isToolError} from '@conciv/types/tool-call-types'
 import {
   addRef,
   buildSnapshot,

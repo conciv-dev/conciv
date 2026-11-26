@@ -1,7 +1,7 @@
 import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {UseQueryResult} from '@conciv/client'
-import type {Context} from '@conciv/plugin/experimental'
+import type {Context} from '@conciv/frontend-plugin-api'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import type {ChatCover} from './comments-model.js'

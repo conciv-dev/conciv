@@ -1,1 +1,1 @@
-export {inside, realpathOrSelf, sameCwd} from '@conciv/harness-init/paths'
+export {inside, realpathOrSelf, sameCwd} from '../init/paths.js'

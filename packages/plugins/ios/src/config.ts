@@ -5,10 +5,10 @@ import {z} from 'zod'
 const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
 const DEFAULT_DEVELOPER_DIR = '/Applications/Xcode.app/Contents/Developer'
 
-const NATIVE_SUFFIX = '/native'
+const WIDGET_SUFFIX = '/widget'
 
 const CONCIV_URL_RULE =
-  'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself, see packages/plugins/ios/README.md'
+  'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /widget itself, see packages/plugins/ios/README.md'
 
 function withoutTrailingSlashes(raw: string): string {
   return raw.replace(/\/+$/, '')
@@ -16,7 +16,7 @@ function withoutTrailingSlashes(raw: string): string {
 
 function stripNativeSuffix(raw: string): string {
   const trimmed = withoutTrailingSlashes(raw)
-  return trimmed.endsWith(NATIVE_SUFFIX) ? withoutTrailingSlashes(trimmed.slice(0, -NATIVE_SUFFIX.length)) : trimmed
+  return trimmed.endsWith(WIDGET_SUFFIX) ? withoutTrailingSlashes(trimmed.slice(0, -WIDGET_SUFFIX.length)) : trimmed
 }
 
 function isBareApiBase(raw: string): boolean {

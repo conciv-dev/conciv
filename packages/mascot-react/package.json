@@ -22,8 +22,8 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/mascot-react.d.ts",
+      "import": "./dist/mascot-react.js"
     }
   },
   "publishConfig": {
@@ -39,7 +39,7 @@
     "@conciv/mascot": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

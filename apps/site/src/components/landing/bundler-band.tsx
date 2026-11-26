@@ -5,8 +5,6 @@ const BUNDLERS = [
   {icon: '/icons/nextjs.svg', name: 'Next.js', href: '/docs/quick-start/nextjs'},
   {icon: '/icons/webpack.svg', name: 'webpack', href: '/docs/quick-start/webpack'},
   {icon: '/icons/rspack.svg', name: 'Rspack', href: '/docs/quick-start/rspack'},
-  {icon: '/icons/rollup.svg', name: 'Rollup', href: '/docs/quick-start/rollup'},
-  {icon: '/icons/esbuild.svg', name: 'esbuild', href: '/docs/quick-start/esbuild'},
   {icon: '/icons/apple.svg', name: 'iOS', href: '/docs/quick-start/ios', iconClassName: 'size-4 translate-y-[-0.5px]'},
 ]
 
@@ -26,7 +24,7 @@ export function BundlerBand() {
   return (
     <section className="border-y bg-background/50 py-4">
       <p className="mb-2.5 text-center font-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        One plugin · every bundler
+        Add it to your build
       </p>
       <LogoLoop
         logos={LOGOS}

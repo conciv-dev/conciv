@@ -2,13 +2,7 @@
 
 ## Overview
 
-Source root of `@conciv/mascot`. Its own files are the generated layer images and the Storybook stories; the service and wrappers are in the subdirectories.
-
-## Interface
-
-- `layers.gen.ts:robotLayers` - `{head, eyes, antenna}` PNG data URIs, imported by `core/skin.ts`.
-- `*.stories.tsx` - Storybook stories titled `mascot/Core` and `mascot/Effects/<Name>`, one per effect.
-- Subdirectories: [core](./core/README.md), [solid](./solid/README.md).
+Source root of `@conciv/mascot`. Its own files are the generated layer images (`layers.gen.ts`, imported by `core/skin.ts`) and the Storybook stories, one per effect; the service is in [core](./core/README.md) and the Solid wrapper in [solid](./solid/README.md).
 
 ## Invariants
 
@@ -20,5 +14,5 @@ Source root of `@conciv/mascot`. Its own files are the generated layer images an
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `test/e2e`)
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)
 - Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)

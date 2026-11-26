@@ -1,5 +1,5 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {collectFailures, expectWidgetBoots} from '@internal/e2e-utils/widget'
 
 test.describe('the browser around the widget on a vite react page', () => {
   test('the user sends a message while the browser has just gone offline, is told conciv lost connection to the engine and the message is still in the composer, and back online the send button returns with the message kept', async ({

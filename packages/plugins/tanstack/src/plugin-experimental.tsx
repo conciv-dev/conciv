@@ -5,14 +5,15 @@ import {z} from 'zod'
 import {
   Plugin,
   Slot,
+  Style,
   ToolRegistry,
   type IconName,
   type ToolComponent,
   type ToolProps,
   type Ui,
-} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
-import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
+} from '@conciv/frontend-plugin-api'
+import {OpaqueUi, type InternalUi} from '@internal/frontend-app-api'
+import {PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {tanstackToolLabel, tanstackToolName, type TanstackToolName} from './tool-labels.js'
 import {errorRingLayer} from './error-ring.js'
 import {execute} from './operations.js'
@@ -29,6 +30,7 @@ import {
   type Operation,
 } from './rpc.js'
 import {tanstackLogo} from './tanstack-logo.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const LABEL = 'TanStack inspector active'
 
@@ -545,6 +547,7 @@ const tanstackCards = {
 const tanstack: Plugin.Definition = Plugin.define({
   icons: {logo: tanstackLogo},
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const tree = ctx.use(ReactTree)
     const runtime = ManagedRuntime.make(errorRingLayer)
     runtime.runSync(runtime.contextEffect)

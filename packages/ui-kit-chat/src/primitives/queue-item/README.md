@@ -1,4 +1,4 @@
-# primitives/queue-item
+# ui-kit-chat/src/primitives/queue-item
 
 ## Overview
 
@@ -6,7 +6,7 @@ Headless parts for a queued user message: its text, a steer action that sends it
 
 ## Interface
 
-- `queue-item.tsx:QueueItem` - `{Text, Steer, Remove}`; `queue-item.tsx:QueueItemProvider`; re-exports type `QueuedMessage` from `@conciv/protocol/chat-message-types`.
+- `queue-item.tsx`: the `QueueItem` parts and their provider; re-exports the `QueuedMessage` type from `@conciv/types/chat-message-types`.
 
 ## Invariants
 
@@ -18,4 +18,4 @@ Headless parts for a queued user message: its text, a steer action that sends it
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

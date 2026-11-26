@@ -6,7 +6,7 @@
     "**/.turbo/**",
     "**/*.d.ts",
     "**/*.generated.ts",
-    "packages/extensions/design/**",
+    "**/routeTree.gen.ts",
     "apps/examples/**",
     "native/swift/**",
     "e2e/astro/**",
@@ -18,7 +18,7 @@
     "e2e/vite-solid/**",
     "e2e/vite-vanilla/**",
     "**/vitest.config.ts",
-    "packages/core/vite.config.ts",
+    "packages/backend/vite.config.ts",
     "packages/tools/vite.config.ts",
     "**/*.stories.tsx",
     "**/*.fixtures.ts",
@@ -28,23 +28,26 @@
     "zones": [
       {
         "name": "session-facade",
-        "patterns": ["packages/core/src/runtime/**", "packages/core/src/runtime.ts"]
+        "patterns": ["packages/backend-defaults/src/engine/runtime/**"]
       },
       {
         "name": "core-shared-leaf",
-        "patterns": ["packages/core/src/lib/debug.ts"]
+        "patterns": ["packages/backend-defaults/src/engine/lib/debug.ts"]
       },
       {
         "name": "core-tests",
-        "patterns": ["packages/core/src/**/*.test.ts", "packages/core/test/**"]
+        "patterns": ["packages/backend/test/**"]
       },
       {
         "name": "core-callers",
-        "patterns": ["packages/core/src/**"]
+        "patterns": ["packages/backend-defaults/src/engine/**"]
       }
     ],
     "rules": [
-      {"from": "core-tests", "allow": ["core-callers", "session-facade", "core-shared-leaf"]},
+      {
+        "from": "core-tests",
+        "allow": ["core-callers", "session-facade", "core-shared-leaf"]
+      },
       {
         "from": "core-callers",
         "allow": ["session-facade", "core-shared-leaf"]
@@ -70,7 +73,7 @@
     "maxCrap": 30,
     "thresholdOverrides": [
       {
-        "files": ["apps/conciv/src/runtime/persistence/persist-machine.ts"],
+        "files": ["packages/frontend-app-api/src/persistence/persist-machine.ts"],
         "functions": ["transitionPersistStore"],
         "maxCyclomatic": 31,
         "maxCognitive": 51,
@@ -79,13 +82,13 @@
         "reason": "copied from opencode packages/app/src/runtime/persistence/persist-machine.ts: transitionPersistStore keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/persistence/drafts-machine.ts"],
+        "files": ["packages/frontend-defaults/src/runtime/persistence/drafts-machine.ts"],
         "functions": ["transitionDraftRetention"],
         "maxCognitive": 20,
         "reason": "copied from opencode packages/app/src/runtime/persistence/drafts-machine.ts: transitionDraftRetention keeps the source's shape; draft local-first plan, ported whole by ruling"
       },
       {
-        "files": ["apps/conciv/src/runtime/persistence/drafts.ts"],
+        "files": ["packages/frontend-defaults/src/runtime/persistence/drafts.ts"],
         "functions": ["encode", "decode"],
         "maxCyclomatic": 20,
         "maxCognitive": 23,
@@ -93,13 +96,13 @@
         "reason": "copied from opencode packages/app/src/runtime/persistence/drafts.ts: encode and decode keep the source's shape; draft local-first plan, ported whole by ruling"
       },
       {
-        "files": ["apps/conciv/src/runtime/persistence/persist.ts"],
+        "files": ["packages/frontend-app-api/src/persistence/persist.ts"],
         "functions": ["persistStore"],
         "maxUnitSize": 113,
         "reason": "copied from opencode packages/app/src/runtime/persistence/persist.ts: persistStore keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/attach-machine.ts"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/attach-machine.ts"],
         "functions": ["transitionHostApiAttach"],
         "maxCyclomatic": 22,
         "maxCognitive": 29,
@@ -107,97 +110,97 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/attach-machine.ts: transitionHostApiAttach keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/bundle-source.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/bundle-source.ts"],
         "functions": ["createBundleSource"],
         "maxUnitSize": 291,
         "reason": "follows opencode packages/desktop/src/main/plugin/host.ts:186 createHost (resources, the copied machine driven by dispatch and perform, watch, list, bundle read, manager) with conciv substitutions inside; Day ruling 115"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/bundle-source.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/bundle-source.ts"],
         "functions": ["perform"],
         "maxCrap": 38,
         "reason": "a copy with substitutions of opencode packages/desktop/src/main/plugin/host.ts:446 perform; Day ruling 115"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack-machine.ts"],
         "functions": ["closeTarget"],
         "maxCrap": 57,
         "reason": "copied from opencode packages/ui/src/context/dialog-machine.ts: closeTarget keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
         "functions": ["<arrow>"],
         "maxUnitSize": 81,
         "reason": "copied from opencode packages/ui/src/context/dialog.tsx: the arrow at :177 inside node, inside mount keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
         "functions": ["init"],
         "maxUnitSize": 211,
         "reason": "copied from opencode packages/ui/src/context/dialog.tsx: init keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
         "functions": ["initialFocus"],
         "maxCrap": 32,
         "reason": "copied from opencode packages/ui/src/overlays/dialog/dialog.tsx:144 (the onOpenAutoFocus handler's target choice): initialFocus keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
         "functions": ["mount"],
         "maxUnitSize": 102,
         "reason": "copied from opencode packages/ui/src/context/dialog.tsx: mount keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
         "functions": ["node"],
         "maxUnitSize": 82,
         "reason": "copied from opencode packages/ui/src/context/dialog.tsx: node, inside mount keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
         "functions": ["run"],
         "maxCrap": 44,
         "reason": "copied from opencode packages/ui/src/context/dialog.tsx: run keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/dialogs.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/dialogs.tsx"],
         "functions": ["PluginSelectDialog"],
         "maxUnitSize": 106,
         "reason": "copied from opencode packages/app/src/runtime/plugin/dialogs.tsx: PluginSelectDialog keeps the source's shape; put onto the kit Dialog and TextField parts; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/extension-plugins.tsx"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/extension-plugins.tsx"],
         "functions": ["OwnServerPlugins"],
         "maxUnitSize": 121,
         "reason": "copied from opencode packages/app/src/runtime/plugin/extension-plugins.tsx: OwnServerPlugins keeps the source's shape; edited under Night ruling 51, Day rulings 91, 92; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/extension-plugins.tsx"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/extension-plugins.tsx"],
         "functions": ["row"],
         "maxUnitSize": 66,
         "reason": "copied from opencode packages/app/src/runtime/plugin/extension-plugins.tsx: row keeps the source's shape; edited under Night ruling 51, Day rulings 91, 92; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host-apis.tsx"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/host-apis.tsx"],
         "functions": ["createHostApis"],
         "maxUnitSize": 265,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host-apis.tsx: createHostApis keeps the source's shape; edited under ruling A, Night rulings 22, 52, 67, Day ruling 82; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host-apis.tsx"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/host-apis.tsx"],
         "functions": ["createPluginAttachment"],
         "maxUnitSize": 259,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host-apis.tsx: createPluginAttachment keeps the source's shape; edited under ruling A, Night rulings 22, 52, 67, Day ruling 82; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/host-machine.ts"],
         "functions": ["follow"],
         "maxCrap": 50,
         "reason": "copied from opencode packages/desktop/src/main/plugin/host-machine.ts: follow keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/host-machine.ts"],
         "functions": ["transitionHost"],
         "maxCyclomatic": 32,
         "maxCognitive": 39,
@@ -206,43 +209,43 @@
         "reason": "copied from opencode packages/desktop/src/main/plugin/host-machine.ts: transitionHost keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/host.tsx"],
         "functions": ["createHost"],
         "maxUnitSize": 591,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: createHost keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/host.tsx"],
         "functions": ["createInstance"],
         "maxUnitSize": 191,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: createInstance keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/host.tsx"],
         "functions": ["dialogs"],
         "maxUnitSize": 102,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: dialogs keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/host.tsx"],
         "functions": ["open"],
         "maxUnitSize": 75,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: open, inside dialogs, inside createHost keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/host.tsx"],
         "functions": ["run"],
         "maxCrap": 38,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: run keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/instance-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/instance-machine.ts"],
         "functions": ["next"],
         "maxCrap": 64,
         "reason": "copied from opencode packages/app/src/runtime/plugin/instance-machine.ts: next keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/instance-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/instance-machine.ts"],
         "functions": ["transitionPluginHost"],
         "maxCyclomatic": 37,
         "maxCognitive": 48,
@@ -251,7 +254,7 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/instance-machine.ts: transitionPluginHost keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/link-check-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/link-check-machine.ts"],
         "functions": ["transitionLinkCheck"],
         "maxCyclomatic": 21,
         "maxCognitive": 24,
@@ -259,44 +262,44 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/link-check-machine.ts: transitionLinkCheck keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/link-check.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/link-check.ts"],
         "functions": ["createLinkCheck"],
         "maxUnitSize": 65,
         "reason": "copied from opencode packages/app/src/runtime/plugin/link-check.ts: createLinkCheck keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/located-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/located-machine.ts"],
         "functions": ["transitionLocatedWrites"],
         "maxCognitive": 26,
         "reason": "copied from opencode packages/app/src/runtime/plugin/located-machine.ts: transitionLocatedWrites keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/machine.ts"],
         "functions": ["preferences"],
         "maxCognitive": 25,
         "maxCrap": 89,
         "reason": "copied from opencode packages/app/src/runtime/plugin/machine.ts: preferences keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/mounted-session.ts"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/mounted-session.ts"],
         "functions": ["createMountedSession"],
         "maxUnitSize": 206,
         "reason": "follows opencode packages/app/src/runtime/plugin/mounted-session.ts:53 createMountedSession (the write queue, the frozen session object in its own root, the publish order) with conciv substitutions inside; Day ruling 115"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/panels.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/panels.tsx"],
         "functions": ["createRegion"],
         "maxUnitSize": 141,
         "reason": "copied from opencode packages/app/src/runtime/plugin/panels.tsx: createRegion keeps the source's shape; edited under rulings A and C, Night ruling 49; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/panels.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/panels.tsx"],
         "functions": ["RegionContent"],
         "maxUnitSize": 122,
         "reason": "copied from opencode packages/app/src/runtime/plugin/panels.tsx: RegionContent keeps the source's shape; edited under rulings A and C, Night ruling 49; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/plugin-experimental-machine.ts"],
         "functions": ["transitionPluginExperimental"],
         "maxCyclomatic": 24,
         "maxCognitive": 29,
@@ -304,74 +307,74 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-gui-machine.ts transitionPluginGui, renamed: transitionPluginExperimental keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/plugins.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/plugins.tsx"],
         "functions": ["PluginExperimentalLoader"],
         "maxUnitSize": 88,
         "reason": "copied from opencode packages/app/src/runtime/plugin/plugins.tsx PluginGuiLoader, renamed: PluginExperimentalLoader keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/render.tsx"],
+        "files": ["packages/frontend-app-api/src/plugin/render.tsx"],
         "functions": ["createCodeBlocks"],
         "maxUnitSize": 106,
         "reason": "copied from opencode packages/app/src/runtime/plugin/render.tsx: createCodeBlocks keeps the source's shape; edited under Night rulings 16, 67; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/root.tsx"],
+        "files": ["packages/frontend-defaults/src/runtime/plugin/root.tsx"],
         "functions": ["PluginRoot"],
         "maxUnitSize": 99,
         "reason": "copied from opencode packages/app/src/runtime/plugin/root.tsx: PluginRoot keeps the source's shape; edited under Night rulings 67, 79, Day rulings 82, 83; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/startup.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/startup.ts"],
         "functions": ["createStartupGate"],
         "maxUnitSize": 84,
         "reason": "copied from opencode packages/app/src/runtime/plugin/startup.ts: createStartupGate keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/stores.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/stores.ts"],
         "functions": ["createSessionStore"],
         "maxUnitSize": 69,
         "reason": "copied from opencode packages/app/src/runtime/plugin/stores.ts: createSessionStore keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/stores.ts"],
+        "files": ["packages/frontend-app-api/src/plugin/stores.ts"],
         "functions": ["persistedHandle"],
         "maxUnitSize": 66,
         "reason": "copied from opencode packages/app/src/runtime/plugin/stores.ts: persistedHandle keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["packages/plugin-host/src/**"],
+        "files": ["packages/backend-app-api/src/**"],
         "maxCognitive": 24,
         "maxCrap": 110,
         "reason": "copied from opencode: the copy keeps opencode's shape"
       },
       {
-        "files": ["packages/plugin-host/src/core/bus.ts"],
+        "files": ["packages/backend-app-api/src/core/bus.ts"],
         "maxCyclomatic": 40,
         "maxCognitive": 30,
         "maxCrap": 400,
         "reason": "copied whole from opencode core/src/bus.ts: commitDurableEvent and publishAll keep opencode's shape"
       },
       {
-        "files": ["packages/plugin-host/src/util/flock.ts"],
+        "files": ["packages/backend-app-api/src/util/flock.ts"],
         "maxCognitive": 30,
         "reason": "copied whole from opencode util/src/flock.ts: tryAcquireLockDir keeps opencode's shape"
       },
       {
-        "files": ["packages/plugin-host/src/codemode/tool-runtime.ts"],
+        "files": ["packages/backend-defaults/src/codemode/tool-runtime.ts"],
         "maxCognitive": 26,
         "maxCrap": 110,
         "reason": "copied from opencode codemode/src/tool-runtime.ts: rank keeps opencode's shape"
       },
       {
-        "files": ["packages/plugin-host/src/core/image/photon-normalize.ts"],
+        "files": ["packages/backend-defaults/src/core/image/photon-normalize.ts"],
         "maxCyclomatic": 25,
         "maxCognitive": 30,
         "maxCrap": 110,
         "reason": "copied whole from opencode core/src/image/photon-normalize.ts: normalize keeps opencode's shape"
       },
       {
-        "files": ["packages/plugin-host/src/core/plugin/module.ts"],
+        "files": ["packages/backend-app-api/src/core/plugin/module.ts"],
         "maxCyclomatic": 35,
         "maxCrap": 250,
         "reason": "copied from opencode core/src/plugin/module.ts: load keeps opencode's shape"
@@ -389,7 +392,7 @@
         "reason": "perform keeps the source's single dispatch switch, opencode gui-plugins/src/browser/chromium.ts:718-726"
       },
       {
-        "files": ["packages/plugin/src/client/shared-events.ts"],
+        "files": ["packages/client/src/plugin/shared-events.ts"],
         "maxCrap": 32,
         "reason": "copied from opencode packages/client/src/shared-events.ts: run keeps opencode's shape"
       },
@@ -411,6 +414,7 @@
   },
   "overrides": [],
   "ignoreDependencies": [
+    "@internal/test-utils",
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",
     "@parcel/watcher-linux-arm64-glibc",
@@ -419,8 +423,7 @@
     "@parcel/watcher-linux-x64-musl",
     "@parcel/watcher-win32-arm64",
     "@parcel/watcher-win32-x64",
-    "@tanstack/ai-event-client",
-    "@tanstack/store",
+    "@conciv/plugin-tanstack",
     "@oxlint/plugins",
     "@tanstack/solid-virtual",
     "@tiptap/core",
@@ -441,9 +444,9 @@
     "remend",
     "unified",
     "@shikijs/langs-precompiled",
-    "@conciv/brand",
+    "@internal/brand",
     "@conciv/client",
-    "@conciv/embed",
+    "@conciv/app",
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/plugin-ios",
@@ -456,38 +459,44 @@
     "bippy",
     "react-grab"
   ],
-  "ignoreUnresolvedImports": ["collections/*", "./migrations.gen.js", "./home-migrations.gen.js"],
+  "ignoreUnresolvedImports": [
+    "collections/*",
+    "./migrations.gen.js",
+    "../../src/db/migrations.gen.js",
+    "./home-migrations.gen.js"
+  ],
   "publicPackages": [
-    "@conciv/harness-init",
-    "@conciv/core",
-    "@conciv/embed",
-    "@conciv/grab",
     "@conciv/harness",
+    "@conciv/backend",
+    "@conciv/app",
+    "@conciv/grab",
     "@conciv/it",
     "@conciv/mascot",
     "@conciv/mascot-react",
     "@conciv/unplugin",
-    "@conciv/plugin",
-    "@conciv/plugin-host",
+    "@conciv/backend-plugin-api",
+    "@conciv/backend-app-api",
     "@conciv/plugin-ios",
     "@conciv/plugin-page",
     "@conciv/plugin-recorder",
     "@conciv/plugin-tanstack",
     "@conciv/plugin-test-runner",
     "@conciv/plugin-try-it",
-    "@conciv/plugin-whiteboard",
+    "@internal/plugin-whiteboard",
     "@conciv/preact",
-    "@conciv/protocol",
+    "@conciv/types",
     "@conciv/react",
     "@conciv/solid",
     "@conciv/solid-diffs",
     "@conciv/solid-streamdown",
-    "@conciv/tools",
     "@conciv/ui-kit-chat",
     "@conciv/ui-kit-chat-tools",
     "@conciv/ui-kit-system",
     "@conciv/ui-kit-tap",
-    "@conciv/chat"
+    "@conciv/backend-defaults",
+    "@conciv/backend-test-utils",
+    "@conciv/protocol",
+    "@conciv/frontend-plugin-api"
   ],
   "ignoreExports": [
     {
@@ -499,39 +508,39 @@
       "exports": ["*"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/host.tsx",
+      "file": "packages/frontend-app-api/src/plugin/host.tsx",
       "exports": ["PluginInput"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/dialog-stack.tsx",
+      "file": "packages/frontend-app-api/src/plugin/dialog-stack.tsx",
       "exports": ["FocusReturn", "useDialogLayer"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/dialog-stack-machine.ts",
+      "file": "packages/frontend-app-api/src/plugin/dialog-stack-machine.ts",
       "exports": ["DIALOG_EXIT_MS"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/host-machine.ts",
+      "file": "packages/frontend-app-api/src/plugin/host-machine.ts",
       "exports": ["WATCH_RETRY_MS", "LIST_TIMEOUT_MS"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/mobile.tsx",
+      "file": "packages/frontend-defaults/src/runtime/plugin/mobile.tsx",
       "exports": ["MobileEntry"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/root.tsx",
+      "file": "packages/frontend-defaults/src/runtime/plugin/root.tsx",
       "exports": ["useHostApis"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/stores.ts",
+      "file": "packages/frontend-app-api/src/plugin/stores.ts",
       "exports": ["locatedHandle"]
     },
     {
-      "file": "packages/plugin/src/**",
+      "file": "packages/backend-plugin-api/src/**",
       "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions"]
     },
     {
-      "file": "packages/plugin-host/src/**",
+      "file": "packages/backend-app-api/src/**",
       "exports": [
         "Id",
         "Interface",
@@ -548,63 +557,63 @@
       ]
     },
     {
-      "file": "packages/plugin-host/src/core/agent.ts",
+      "file": "packages/backend-app-api/src/core/agent.ts",
       "exports": ["Agent", "Color", "Editor", "Event", "Info", "Name"]
     },
     {
-      "file": "packages/plugin-host/src/core/app.ts",
+      "file": "packages/backend-app-api/src/core/app.ts",
       "exports": ["Info", "make"]
     },
     {
-      "file": "packages/plugin-host/src/core/codemode/instructions.ts",
+      "file": "packages/backend-defaults/src/core/codemode/instructions.ts",
       "exports": ["make"]
     },
     {
-      "file": "packages/plugin-host/src/core/session/inbox.ts",
+      "file": "packages/backend-defaults/src/core/session/inbox.ts",
       "exports": ["make"]
     },
     {
-      "file": "packages/plugin-host/src/core/config/markdown.ts",
+      "file": "packages/backend-defaults/src/core/config/markdown.ts",
       "exports": ["parse"]
     },
     {
-      "file": "packages/plugin-host/src/core/config/plugin/skill-file.ts",
+      "file": "packages/backend-defaults/src/core/config/plugin/skill-file.ts",
       "exports": ["parse"]
     },
     {
-      "file": "packages/plugin-host/src/core/filesystem.ts",
+      "file": "packages/backend-defaults/src/core/filesystem.ts",
       "exports": ["Content"]
     },
     {
-      "file": "packages/plugin-host/src/core/image.ts",
+      "file": "packages/backend-app-api/src/core/image.ts",
       "exports": ["Editor"]
     },
     {
-      "file": "packages/plugin-host/src/core/image/photon-normalize.ts",
+      "file": "packages/backend-defaults/src/core/image/photon-normalize.ts",
       "exports": ["Content"]
     },
     {
-      "file": "packages/plugin-host/src/core/instructions/index.ts",
+      "file": "packages/backend-app-api/src/core/instructions/instructions.ts",
       "exports": ["Delta", "Hash", "Key", "Removed", "Source", "Values", "make", "removed"]
     },
     {
-      "file": "packages/plugin-host/src/core/kv.ts",
+      "file": "packages/backend-app-api/src/core/kv.ts",
       "exports": ["Entry"]
     },
     {
-      "file": "packages/plugin-host/src/core/location.ts",
+      "file": "packages/backend-app-api/src/core/location.ts",
       "exports": ["Info"]
     },
     {
-      "file": "packages/plugin-host/src/core/managed-policy.ts",
+      "file": "packages/backend-app-api/src/core/managed-policy.ts",
       "exports": ["match"]
     },
     {
-      "file": "packages/plugin-host/src/core/model.ts",
+      "file": "packages/backend-app-api/src/core/model.ts",
       "exports": ["Info", "Model"]
     },
     {
-      "file": "packages/plugin-host/src/core/permission.ts",
+      "file": "packages/backend-app-api/src/core/permission.ts",
       "exports": [
         "Effect",
         "Error",
@@ -618,51 +627,55 @@
       ]
     },
     {
-      "file": "packages/plugin-host/src/core/permission/saved.ts",
+      "file": "packages/backend-app-api/src/core/permission/saved.ts",
       "exports": ["Info", "NotFoundError", "PermissionSaved", "makeNotFoundError"]
     },
     {
-      "file": "packages/plugin-host/src/core/plugin.ts",
+      "file": "packages/backend-app-api/src/core/plugin.ts",
       "exports": ["Event", "Info", "Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/core/plugin/host.ts",
+      "file": "packages/backend-app-api/src/core/plugin/host.ts",
       "exports": ["make"]
     },
     {
-      "file": "packages/plugin-host/src/core/plugin/module.ts",
+      "file": "packages/backend-app-api/src/core/plugin/module.ts",
       "exports": ["make"]
     },
     {
-      "file": "packages/plugin-host/src/core/plugin/service.ts",
+      "file": "packages/backend-app-api/src/core/plugin/service.ts",
       "exports": ["Failure", "Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/core/config/plugin/skill.ts",
+      "file": "packages/backend-defaults/src/core/config/plugin/skill.ts",
       "exports": ["Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/core/plugin/skill.ts",
+      "file": "packages/backend-defaults/src/core/plugin/skill.ts",
       "exports": ["Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/core/rpc.ts",
+      "file": "packages/backend-app-api/src/core/rpc.ts",
       "exports": ["Failure", "Rpc"]
     },
     {
-      "file": "packages/plugin-host/src/core/session.ts",
+      "file": "packages/backend-plugin-api/src/{effect,promise}/job.ts",
+      "exports": ["JobDomain", "JobStartInput"]
+    },
+    {
+      "file": "packages/backend-app-api/src/core/session.ts",
       "exports": ["Session"]
     },
     {
-      "file": "packages/plugin-host/src/core/session/error.ts",
+      "file": "packages/backend-app-api/src/core/session/error.ts",
       "exports": ["NotFoundError", "makeNotFoundError"]
     },
     {
-      "file": "packages/plugin-host/src/core/session/instruction-entry.ts",
+      "file": "packages/backend-app-api/src/core/session/instruction-entry.ts",
       "exports": ["Info", "InstructionEntry", "Key"]
     },
     {
-      "file": "packages/plugin-host/src/core/skill.ts",
+      "file": "packages/backend-app-api/src/core/skill.ts",
       "exports": [
         "Data",
         "DirectorySource",
@@ -678,99 +691,99 @@
       ]
     },
     {
-      "file": "packages/plugin-host/src/core/state.ts",
+      "file": "packages/backend-app-api/src/core/state.ts",
       "exports": ["Failure", "State"]
     },
     {
-      "file": "packages/plugin-host/src/core/tool.ts",
+      "file": "packages/backend-app-api/src/core/tool.ts",
       "exports": ["Editor", "Snapshot"]
     },
     {
-      "file": "packages/plugin-host/src/core/tool/plugin/server.ts",
+      "file": "packages/backend-defaults/src/core/tool/plugin/server.ts",
       "exports": ["Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/core/tool/plugin/skill.ts",
+      "file": "packages/backend-defaults/src/core/tool/plugin/skill.ts",
       "exports": ["toModelOutput", "Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/core/util/wildcard.ts",
+      "file": "packages/backend-app-api/src/core/util/wildcard.ts",
       "exports": ["match"]
     },
     {
-      "file": "packages/plugin/src/effect/plugin.ts",
+      "file": "packages/backend-plugin-api/src/effect/plugin.ts",
       "exports": ["Context", "define"]
     },
     {
-      "file": "packages/plugin/src/schema/agent.ts",
+      "file": "packages/protocol/src/schema/agent.ts",
       "exports": ["Agent", "Color", "Event", "Info", "Name"]
     },
     {
-      "file": "packages/plugin-host/src/schema/config/plugin.ts",
+      "file": "packages/backend-app-api/src/schema/config/plugin.ts",
       "exports": ["Entry", "Plugin"]
     },
     {
-      "file": "packages/plugin/src/schema/event.ts",
+      "file": "packages/protocol/src/schema/event.ts",
       "exports": ["Data", "Definition", "Event"]
     },
     {
-      "file": "packages/plugin/src/schema/instruction-entry.ts",
+      "file": "packages/protocol/src/schema/instruction-entry.ts",
       "exports": ["Info", "InstructionEntry", "Key", "Snapshot"]
     },
     {
-      "file": "packages/plugin/src/schema/instruction.ts",
+      "file": "packages/protocol/src/schema/instruction.ts",
       "exports": ["Delta", "Hash", "Key", "Removed", "Values", "removed"]
     },
     {
-      "file": "packages/plugin/src/schema/location.ts",
+      "file": "packages/protocol/src/schema/location.ts",
       "exports": ["Info", "Ref"]
     },
     {
-      "file": "packages/plugin/src/schema/model.ts",
+      "file": "packages/protocol/src/schema/model.ts",
       "exports": ["Info", "Model", "Ref", "Settings"]
     },
     {
-      "file": "packages/plugin-host/src/schema/permission-saved.ts",
+      "file": "packages/backend-app-api/src/schema/permission-saved.ts",
       "exports": ["Info", "PermissionSaved"]
     },
     {
-      "file": "packages/plugin/src/schema/permission.ts",
+      "file": "packages/protocol/src/schema/permission.ts",
       "exports": ["Effect", "Event", "Permission", "Reply", "Request", "Source"]
     },
     {
-      "file": "packages/plugin/src/schema/plugin.ts",
+      "file": "packages/protocol/src/schema/plugin.ts",
       "exports": ["Event", "Info", "Plugin", "Source", "State"]
     },
     {
-      "file": "packages/plugin/src/schema/provider.ts",
+      "file": "packages/protocol/src/schema/provider.ts",
       "exports": ["Request", "Settings"]
     },
     {
-      "file": "packages/plugin/src/schema/rpc.ts",
+      "file": "packages/protocol/src/schema/rpc.ts",
       "exports": ["Definition", "Rpc", "define"]
     },
     {
-      "file": "packages/plugin/src/schema/session-event.ts",
+      "file": "packages/protocol/src/schema/session-event.ts",
       "exports": ["Event"]
     },
     {
-      "file": "packages/plugin/src/schema/session.ts",
+      "file": "packages/protocol/src/schema/session.ts",
       "exports": ["Session"]
     },
     {
-      "file": "packages/plugin/src/schema/skill.ts",
+      "file": "packages/protocol/src/schema/skill.ts",
       "exports": ["DirectorySource", "EmbeddedSource", "Event", "Info", "Name", "Skill", "Source", "UrlSource"]
     },
     {
-      "file": "packages/plugin/src/schema/tool.ts",
+      "file": "packages/protocol/src/schema/tool.ts",
       "exports": ["Context", "Error", "Info"]
     },
     {
-      "file": "packages/plugin/src/client/promise/client.ts",
+      "file": "packages/client/src/plugin/client.ts",
       "exports": ["make"]
     },
     {
-      "file": "packages/plugin/src/client/shared-events.ts",
+      "file": "packages/client/src/plugin/shared-events.ts",
       "exports": ["make"]
     },
     {
@@ -780,14 +793,112 @@
     {
       "file": "packages/ui-kit-chat/src/tools/styled/tool-fallback.tsx",
       "exports": ["*"]
+    },
+    {
+      "file": "packages/backend-defaults/src/core/**",
+      "exports": [
+        "Id",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Durable",
+        "Location",
+        "durable",
+        "ephemeral",
+        "versionedType",
+        "loggers"
+      ]
+    },
+    {
+      "file": "packages/backend-defaults/src/codemode/**",
+      "exports": [
+        "Id",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Durable",
+        "Location",
+        "durable",
+        "ephemeral",
+        "versionedType",
+        "loggers"
+      ]
+    },
+    {
+      "file": "packages/backend-defaults/src/util/**",
+      "exports": [
+        "Id",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Durable",
+        "Location",
+        "durable",
+        "ephemeral",
+        "versionedType",
+        "loggers"
+      ]
+    },
+    {
+      "file": "packages/backend-defaults/src/schema/**",
+      "exports": [
+        "Id",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Durable",
+        "Location",
+        "durable",
+        "ephemeral",
+        "versionedType",
+        "loggers"
+      ]
+    },
+    {
+      "file": "packages/frontend-plugin-api/src/**",
+      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions"]
+    },
+    {
+      "file": "packages/vitest-config/src/isolated-home.ts",
+      "exports": ["default"]
+    },
+    {
+      "file": "packages/backend-defaults/src/engine/event-feed.ts",
+      "exports": ["layer"]
+    },
+    {
+      "file": "packages/backend-defaults/src/engine/lib/logging.ts",
+      "exports": ["layer"]
+    },
+    {
+      "file": "packages/client/src/plugin/effect-rpc.ts",
+      "exports": ["RpcApi"]
+    },
+    {
+      "file": "packages/client/src/plugin/rpc.ts",
+      "exports": ["RpcApi"]
+    },
+    {
+      "file": "packages/simulation/src/**",
+      "exports": ["Interface", "LogEntry", "Run", "ResolveError"]
     }
   ],
   "entry": [
-    "packages/plugin-host/src/core/database/**",
+    "packages/backend-app-api/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
-    "packages/embed/src/native-entry.ts",
+    "packages/app/src/global-entry.ts",
+    "packages/app/src/native-entry.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
-    "packages/db/drizzle-home.config.ts"
+    "packages/home/drizzle.config.ts",
+    "packages/backend-defaults/drizzle.config.ts"
   ],
   "framework": [
     {

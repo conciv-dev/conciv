@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/tsconfig",
+  "name": "@internal/tsconfig",
   "version": "0.0.22",
   "private": true,
   "description": "Internal shared TypeScript presets for the aidx monorepo: base, web, Solid, React and declaration build configs.",

@@ -1,7 +1,7 @@
 ---
-'@conciv/contract': patch
-'@conciv/core': patch
 '@conciv/protocol': patch
+'@conciv/backend': patch
+'@conciv/types': patch
 '@conciv/client': patch
 ---
 

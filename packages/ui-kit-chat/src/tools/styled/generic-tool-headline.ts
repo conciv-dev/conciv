@@ -1,4 +1,4 @@
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
 import {
   argumentRecord,
   clipTarget,

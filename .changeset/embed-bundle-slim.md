@@ -1,6 +1,6 @@
 ---
-'@conciv/embed': patch
-'@conciv/core': patch
+'@conciv/app': patch
+'@conciv/backend': patch
 '@conciv/ui-kit-chat': patch
 '@conciv/skills': patch
 ---

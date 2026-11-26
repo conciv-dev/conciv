@@ -1,9 +1,8 @@
 ---
 '@conciv/it': patch
 '@conciv/unplugin': patch
-'@conciv/protocol': patch
-'@conciv/core': patch
-'@conciv/extension-design': patch
+'@conciv/types': patch
+'@conciv/backend': patch
 ---
 
 Extensions are opt-in. `@conciv/it` no longer installs any extension: add the ones you want by importing them and

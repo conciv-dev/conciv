@@ -1,6 +1,6 @@
 ---
+'@internal/frontend-defaults': patch
 '@conciv/app': patch
-'@conciv/embed': patch
 '@conciv/ui-kit-system': patch
 ---
 

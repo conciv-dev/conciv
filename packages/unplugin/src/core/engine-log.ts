@@ -1,5 +1,5 @@
 import {inspect} from 'node:util'
-import type {LogEntry} from '@conciv/core/start'
+import type {LogEntry} from '@conciv/backend/start'
 
 const shownLevels: readonly LogEntry['level'][] = ['warn', 'error', 'fatal']
 

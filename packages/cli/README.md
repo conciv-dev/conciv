@@ -14,8 +14,34 @@ plan and asks once before it writes anything. On approval it installs `@conciv/i
 config, teaches your agents the conciv CLI through AGENTS.md, and installs the conciv claude plugin.
 Anything it cannot do for you comes back as a card with the snippet to paste.
 
-`--yes` approves the plan up front, `--dry-run` prints it and exits. init refuses a dirty git tree;
-commit first or pass `--force`.
+`--yes` approves the plan up front, `--dry-run` prints it and exits, `--json` prints the result as JSON
+and never asks (pair it with `--yes` or `--dry-run`). init refuses a dirty git tree; commit first or
+pass `--force`. On a terminal it cannot ask in, it refuses unless you pass `--yes` or `--dry-run`.
+
+## Log a browser in
+
+```bash
+conciv auth link http://localhost:5173/
+conciv auth revoke
+conciv auth revoke <id>
+conciv auth revoke --all
+```
+
+`auth link` prints a link that logs a browser in to the engine without typing the code. `auth revoke`
+with no id lists the logged-in browsers; with an id, or `--all`, it logs them out.
+See [Logging in](https://conciv.dev/docs/usage/logging-in).
+
+## Connect your agents
+
+```bash
+conciv mcp connect claude
+conciv mcp disconnect claude
+conciv mcp list
+```
+
+`mcp connect` adds conciv to an agent CLI (`claude`, `codex`, `gemini-cli` or `opencode`), so that
+agent can find and drive your open conciv tabs. `mcp serve --agent <agent>` is the MCP server that
+agent runs; `connect` registers it. See [Connect your agents](https://conciv.dev/docs/quick-start/agents).
 
 ## Drive the app
 
@@ -113,28 +139,22 @@ Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 
 ## Overview
 
-Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.ts into an ESM dist/bin.js that the build marks executable.
-
-## Interface
-
-- `bin.conciv` (`package.json`): ./dist/bin.js
-- `exports['./bin']` (`package.json`): ./dist/bin.js is the only export
-- `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, publint, attw
-- `tsdown.config.ts`: entry src/bin.ts, esm, dts false; every pure-JS dependency is bundled (they are devDependencies), only the native `@ast-grep/napi` stays a runtime dependency (`deps.onlyImport`), and the harness, extensions and agent SDKs are never bundled (`deps.neverBundle`, so reaching one fails the build)
-- `tsconfig.json`: declaration off, matching `dts: false` (the router's inferred route types are not nameable in a .d.ts)
-- Subdirectories:
-  - src: [./src/README.md](./src/README.md) - commands, argument validation, JSON envelopes and engine RPC
+The package root of `@conciv/cli`: the `conciv` binary, built by tsdown from `src/bin.ts` into one ESM file,
+`dist/bin.js`, that the build marks executable. The package has no library API. The commands, their argument checks,
+the JSON envelopes and the engine calls are in [src](./src/README.md).
 
 ## Invariants
 
-- `scripts.build` (`package.json`): dist/bin.js must be made executable or the `conciv` bin will not run
-- `dts: false` (`tsdown.config.ts`): the package exposes a binary and no library API
-- `dependencies` (`package.json`): native addons only; a pure-JS import goes in devDependencies and is bundled, or the build fails on `deps.onlyImport`
+- `dist/bin.js` must be executable, or the `conciv` bin does not run (`scripts.build` runs `chmod +x`).
+- `dts: false` (`tsdown.config.ts`): the router's inferred route types cannot be named in a `.d.ts`, so no types ship.
+- Every pure-JS dependency is a devDependency and is bundled into `dist/bin.js`; only the native `@ast-grep/napi` stays
+  a runtime dependency (`deps.onlyImport`). The harness runtime and the agent SDKs are never bundled
+  (`deps.neverBundle`), so reaching one fails the build.
 
 ## Side Effects
 
-- `scripts.build` (`package.json`): writes dist/ and changes the mode of dist/bin.js
+- `scripts.build`: writes `dist/` and changes the mode of `dist/bin.js`.
 
 ## Verification
 
-- Typecheck and lint: `cd packages/cli && pnpm typecheck`, then `pnpm lint` at the repo root
+- `turbo run test --filter=@conciv/cli` from the repo root (turbo builds the package and its dependencies first).

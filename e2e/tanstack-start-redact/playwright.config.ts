@@ -1,4 +1,4 @@
-import {e2eConfig} from '@conciv/e2e-utils/config'
+import {e2eConfig} from '@internal/e2e-utils/config'
 
 export default await e2eConfig('tanstack-start-redact', {
   dir: import.meta.dirname,

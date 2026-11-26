@@ -1,7 +1,7 @@
 import {Effect, Fiber, FiberHandle, Ref, Schema, Semaphore, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
 import {onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
-import type {Context} from '@conciv/plugin/experimental'
+import type {Context} from '@conciv/frontend-plugin-api'
 import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
 import {TestRunnerFollowMachine} from './follow-machine.js'

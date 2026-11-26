@@ -1,0 +1,27 @@
+# harness/src/init/claude
+
+## Overview
+
+Claude-specific init. It generates a local Claude plugin marketplace under `<stateDir>/claude-connect` (marketplace manifest, plugin manifest, a stdio MCP bridge script, `.mcp.json` and a conciv skill), plans the `claude plugin` CLI install commands, and checks whether the install in the Claude config dir matches the generated files. The bridge forwards stdio JSON-RPC to the dev server's MCP URL, read from `<stateDir>/mcp-endpoint.json`.
+
+## Invariants
+
+- The generated plugin's version is the `@conciv/harness` package version, so an install from an earlier release is moved onto this one (`plugin-files.ts`). The bridge script is written with mode `0o700`.
+- The install plan runs `claude plugin marketplace add <root>` then `claude plugin install conciv-connect@conciv --scope local`, then `claude plugin update conciv-connect@conciv --scope local`, which moves an install recorded at an earlier release onto this one (install alone leaves it there) and exits 0 when it is already current; Claude marks the old cache dir orphaned and cleans it up itself (`installCommands`, `INSTALL_ARGS`, `UPDATE_ARGS`, `init.ts`).
+- `installed` requires all three: the `known_marketplaces.json` entry `conciv` points at files equal to the generated ones; an `installed_plugins.json` record has scope `local`, `projectPath` same as the project cwd and `installPath` same as the cache dir; the cached files equal the generated plugin files (`claudeConnectServesProject`, `recordCoversProject`, `copyMatches`).
+- `copyMatches` returns false when no generated file lies inside the source root (`install-state.ts`).
+- `InstalledPluginsSchema`, `KnownMarketplacesSchema`, `MarketplaceEntrySchema` are zod-validated; a missing or invalid file counts as not installed.
+- The bridge walks up from `process.cwd()` to the first dir containing `CONCIV_STATE_DIR`; a missing endpoint file or empty `mcpUrl` returns JSON-RPC error `-32000` `conciv bridge: ...` for requests with an id, and nothing for notifications (`endpoint`, `failed` in `bridge.ts`).
+- Bridge timeout is `CONCIV_MCP_TIMEOUT_MS` when finite and > 0, else 180000 (`timeoutMs`); non-ok HTTP, empty bodies and non-JSON frames are errors; `text/event-stream` bodies are split into `data:` frames (`send`, `splitFrames`, `splitEvents`).
+- `shellQuoted` single-quote-escapes the root in the manual-install snippet (`init.ts`).
+
+## Side Effects
+
+- Reads `CLAUDE_CONFIG_DIR` as Effect Config under the project's `configProvider` (default `ConfigProvider.fromEnv({preserveEmptyStrings: true})`); an empty value falls back to `<home>/.claude` (`claudeInit.installed`).
+- Reads `<configDir>/plugins/installed_plugins.json`, `known_marketplaces.json` and cached plugin files (`readTextOrNull`, `install-state.ts`).
+- This package returns the plugin files and install commands; the caller writes the files and spawns `claude plugin ...` (`installPlan`, `init.ts`).
+- The generated bridge script, at runtime, reads env `CLAUDE_CODE_SESSION_ID` and `CONCIV_MCP_TIMEOUT_MS`, reads `<CONCIV_STATE_DIR>/mcp-endpoint.json`, POSTs each stdin line to `mcpUrl` with header `CONCIV_CLAUDE_SESSION_HEADER`, and writes JSON-RPC replies to stdout (`bridge.ts`).
+
+## Verification
+
+- Run: `pnpm exec turbo run test --filter=@conciv/harness` from the repo root (turbo builds the package and its dependencies first)

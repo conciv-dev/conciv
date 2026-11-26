@@ -4,11 +4,9 @@
 
 Swift package `ConcivWidget` (tools 5.9, iOS 17): the iOS SDK library and its XCTest target.
 
-## Interface
+## Subdirectories & Boundaries
 
-- product `.library(name: "ConcivWidget")` (`Package.swift`)
-- target `ConcivWidget` and test target `ConcivWidgetTests` with resource `.copy("Fixtures/bridge")` (`Package.swift`)
-- Subdirectories: [Sources](./Sources/README.md), [Tests](./Tests/README.md)
+- [Sources](./Sources/README.md), [Tests](./Tests/README.md)
 
 ## Invariants
 

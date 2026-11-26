@@ -1,0 +1,67 @@
+import {z} from 'zod'
+import type {ConcivSettingsInit, ConcivSurface, TriggerPosition} from '@conciv/types/config-types'
+
+export type Launcher = 'native' | 'mascot' | false
+
+export type ConcivSettings = {
+  modal: {enabled: boolean; position: TriggerPosition}
+  quickTerminal: {enabled: boolean; hotkeys: string[] | null}
+  defaultOpen: boolean
+  launcher: Launcher
+  fromHost: {defaultOpen: boolean; launcher: boolean}
+  surface: ConcivSurface
+}
+
+const DEFAULT_POSITION: TriggerPosition = 'bottom-right'
+
+const PositionSchema = z.enum(['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parsePosition(modal: unknown): TriggerPosition {
+  if (!isRecord(modal)) return DEFAULT_POSITION
+  const parsed = PositionSchema.safeParse(modal.position)
+  return parsed.success ? parsed.data : DEFAULT_POSITION
+}
+
+function parseLauncher(launcher: unknown): Launcher {
+  if (launcher === false) return false
+  if (launcher === 'native') return 'native'
+  return 'mascot'
+}
+
+function parseHotkeys(quickTerminal: unknown): string[] | null {
+  if (!isRecord(quickTerminal)) return null
+  const hotkey = quickTerminal.hotkey
+  if (Array.isArray(hotkey)) return hotkey.map(String)
+  return hotkey ? [String(hotkey)] : null
+}
+
+function parseConfig(raw: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(raw || '{}')
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function readSettingsInit(raw: string): ConcivSettingsInit {
+  return parseConfig(raw)
+}
+
+export function parseConcivSettings(raw: string): ConcivSettings {
+  const cfg = parseConfig(raw)
+  const modal = cfg.modal
+  const quickTerminal = cfg.quickTerminal
+  return {
+    modal: {enabled: modal !== false, position: parsePosition(modal)},
+    quickTerminal: {enabled: quickTerminal !== false, hotkeys: parseHotkeys(quickTerminal)},
+    defaultOpen: cfg.defaultOpen === true,
+    launcher: parseLauncher(cfg.launcher),
+    fromHost: {defaultOpen: Object.hasOwn(cfg, 'defaultOpen'), launcher: Object.hasOwn(cfg, 'launcher')},
+    surface: cfg.surface === 'dock' ? 'dock' : 'page',
+  }
+}

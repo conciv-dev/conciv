@@ -1,4 +1,4 @@
-import {presetConciv} from '@conciv/uno-preset'
+import {presetConciv} from '@internal/uno-preset'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({
@@ -9,8 +9,6 @@ export default defineConfig({
       '../../packages/ui-kit-chat/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-chat-tools/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-tap/src/**/*.{ts,tsx}',
-      '../../packages/tools/src/**/*.{ts,tsx}',
-      '../../packages/core/src/cards/**/*.{ts,tsx}',
       '../../packages/plugins/page/src/**/*.{ts,tsx}',
     ],
   },

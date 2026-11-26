@@ -1,11 +1,11 @@
 import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
-import {codexModels as adapterCodexModels} from '@conciv/ai/server'
+import {codexModels as adapterCodexModels} from '../adapters/adapters.js'
 import {parse} from 'smol-toml'
 import {z} from 'zod'
-import {ReasoningEffortSchema, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import type {HarnessModel} from '@conciv/protocol/harness-types'
+import {ReasoningEffortSchema, type ReasoningEffort} from '@conciv/types/chat-types'
+import type {HarnessModel} from '@conciv/types/harness-types'
 
 const OPENAI_PROVIDER = 'openai'
 

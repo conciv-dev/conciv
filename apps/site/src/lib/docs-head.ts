@@ -13,7 +13,7 @@ type DocsHeadInput = {
 export function buildDocsHead({splat, page}: DocsHeadInput) {
   const pageTitle = page?.title ?? DEFAULT_TITLE
   const description = page?.description ?? DEFAULT_DESCRIPTION
-  const title = page ? `${pageTitle} — conciv` : DEFAULT_TITLE
+  const title = page ? `${pageTitle} | conciv` : DEFAULT_TITLE
   const ogImage = docsOgImageUrl(splat)
   const url = docsPageUrl(splat)
   const breadcrumb = buildDocsBreadcrumb(splat, pageTitle)

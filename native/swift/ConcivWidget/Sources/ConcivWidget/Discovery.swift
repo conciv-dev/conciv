@@ -3,10 +3,10 @@ import Foundation
 // Deterministic dev-core discovery (06 M5). Foundation-only so the pure logic runs
 // under the macOS-host `swift test` job; the URLSession prober and the re-pair UI
 // live in the UIKit-guarded files. The core writes ~/.conciv/dev-endpoint.json
-// (packages/core/src/lib/dev-endpoint.ts); the simulator shares the host filesystem
+// (packages/backend/src/lib/dev-endpoint.ts); the simulator shares the host filesystem
 // so a paired endpoint is read directly. `apiBase` in that file already carries the
 // /t/<token> prefix when the core minted an access token, so the WebView loads
-// apiBase/native token-scoped and RPC/SSE are path-scoped with zero extra work.
+// apiBase/widget token-scoped and RPC/SSE are path-scoped with zero extra work.
 
 public struct ConcivEndpoint: Equatable {
   public let apiBase: URL
@@ -28,7 +28,7 @@ struct DevEndpointFile: Codable {
   let pid: Int
 }
 
-// Codable mirror of the core /health payload (packages/core/src/app.ts):
+// Codable mirror of the core /health payload (packages/backend/src/app.ts):
 // {"ok": true, "harness": "<id>"}. Extra keys are ignored so the shape can grow.
 struct HealthPayload: Codable {
   let ok: Bool
@@ -51,7 +51,7 @@ public enum ConcivDiscovery {
 
   // The WebView loads the native page under the (possibly token-scoped) apiBase.
   public static func pageURL(for apiBase: URL) -> URL {
-    apiBase.appendingPathComponent("native")
+    apiBase.appendingPathComponent("widget")
   }
 
   public static func healthURL(for apiBase: URL) -> URL {
@@ -94,8 +94,8 @@ public enum ConcivDiscovery {
   }
 
   // The env-injected api base. ios.run launches the app with SIMCTL_CHILD_CONCIV_URL,
-  // which the child process reads as CONCIV_URL: a bare core api base with no /native
-  // suffix (the SDK appends /native itself). A missing, empty, or malformed value falls
+  // which the child process reads as CONCIV_URL: a bare core api base with no /widget
+  // suffix (the SDK appends /widget itself). A missing, empty, or malformed value falls
   // back to auto-discovery rather than crashing, so attach() is safe with no env at all.
   // A usable base carries both a scheme and a host; a scheme-less relative string (a
   // typo like "127.0.0.1:4599") is rejected as malformed and routed to discovery.

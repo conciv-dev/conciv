@@ -1,7 +1,7 @@
 // @ts-check
 import {defineConfig} from 'astro/config'
 import conciv from '@conciv/it/plugin/vite'
-import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
+import {e2eDevEndpointDir} from '@internal/e2e-utils/dev-endpoint'
 
 export default defineConfig({
   vite: {

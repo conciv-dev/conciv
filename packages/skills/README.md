@@ -11,7 +11,7 @@ Published package that ships agent skill markdown, discovered through @tanstack/
 - Script `check:refs` (`package.json`): `node --experimental-strip-types src/cli.ts`, exits 1 on findings
 - Script `intent:validate` (`package.json`): `intent validate skills --check`
 - Script `intent:stale` (`package.json`): `intent stale --json`
-- Scripts `lint` / `typecheck` / `test` (`package.json`): oxlint, tsc --noEmit, vitest run
+- Script `typecheck` (`package.json`): `tsc -p tsconfig.json --noEmit`
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - citation checker behind `check:refs`
   - conciv-setup: [./skills/conciv-setup/SKILL.md](./skills/conciv-setup/SKILL.md) - installing or mounting the widget
@@ -30,5 +30,4 @@ Published package that ships agent skill markdown, discovered through @tanstack/
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/skills` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/skills && pnpm typecheck`, then `pnpm lint` at the repo root
+- Run: `pnpm --filter @conciv/skills check:refs` (the citation check); typecheck: `pnpm exec turbo run typecheck --filter=@conciv/skills` from the repo root

@@ -8,8 +8,8 @@ export type PackageSize = {name: string; raw: number; gzip: number; files: numbe
 
 const PACKAGE_DIRECTORIES = ['packages', 'packages/plugins']
 const BUNDLED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.css']
-const WIDGET_LOADER = 'packages/embed/dist/conciv-widget.global.js'
-const WIDGET_CHUNKS = 'packages/embed/dist/widget'
+const WIDGET_LOADER = 'packages/app/dist/conciv-widget.global.js'
+const WIDGET_CHUNKS = 'packages/app/dist/widget'
 const WIDGET_ENTRY = /["'`]widget\/([\w.-]+\.js)["'`]/
 const WIDGET_MOUNT_CHUNK = /^mount-impl-[\w.-]*\.js$/
 const STATIC_IMPORT = /(?:import|export)\s*(?:[\w${}\s,*]*?from\s*)?["'`]\.\/([\w.-]+\.js)["'`]/g

@@ -95,6 +95,6 @@ module.exports = {
     code: `.package(url: "https://github.com/conciv-dev/conciv-swift.git", from: "0.0.1"),
 .product(name: "ConcivWidget", package: "conciv-swift"),`,
   },
-  {id: 'rollup', label: 'Rollup', icon: '/icons/rollup.svg', href: '/docs/quick-start/rollup', soon: true},
-  {id: 'esbuild', label: 'esbuild', icon: '/icons/esbuild.svg', href: '/docs/quick-start/esbuild', soon: true},
+  {id: 'rollup', label: 'Rollup', icon: '/icons/rollup.svg', href: '/docs/quick-start/other-bundlers', soon: true},
+  {id: 'esbuild', label: 'esbuild', icon: '/icons/esbuild.svg', href: '/docs/quick-start/other-bundlers', soon: true},
 ]

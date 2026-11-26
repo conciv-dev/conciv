@@ -1,7 +1,7 @@
 import {readCalleeName, readMemberObjectName} from './ast-walk.js'
-import {isNewLayerTestFile} from '@conciv/vitest-config/new-layer'
+import {isNewLayerTestFile} from '@internal/vitest-config/test-layout'
 
-const STUB_NAMES = new Set([
+const STUB_NAMES = [
   'mock',
   'doMock',
   'unmock',
@@ -14,12 +14,12 @@ const STUB_NAMES = new Set([
   'unstubAllGlobals',
   'stubEnv',
   'unstubAllEnvs',
-])
+]
 
 function readStubName(node) {
   if (readMemberObjectName(node) !== 'vi') return undefined
   const name = readCalleeName(node)
-  if (!STUB_NAMES.has(name)) return undefined
+  if (!STUB_NAMES.includes(name)) return undefined
   return name
 }
 

@@ -6,7 +6,7 @@ import {
   type PreparedTextWithSegments,
 } from '@chenglou/pretext'
 import type {Accessor} from 'solid-js'
-import {PromptPresentationSchema, type ChatPart} from '@conciv/protocol/chat-message-types'
+import {PromptPresentationSchema, type ChatPart} from '@conciv/types/chat-message-types'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
 import {

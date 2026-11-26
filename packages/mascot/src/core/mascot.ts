@@ -51,29 +51,17 @@ const EFFECT_HOST_STYLE: Record<string, string> = Object.freeze({
   'pointer-events': 'none',
 })
 
-const skinStyles = new WeakMap<MascotSkin, LayerStyles>()
-
 function stylesFor(skin: MascotSkin): LayerStyles {
-  const existing = skinStyles.get(skin)
-  if (existing !== undefined) return existing
-  const styles: LayerStyles = {
+  return {
     head: layerStyle(skin.layers.head, LAYER_DEPTH.head),
     eyes: layerStyle(skin.layers.eyes, LAYER_DEPTH.eyes),
     antenna: layerStyle(skin.layers.antenna, LAYER_DEPTH.antenna),
   }
-  skinStyles.set(skin, styles)
-  return styles
 }
 
 const rootStyle = (): Record<string, string> => ROOT_STYLE
 
 const effectHostStyle = (): Record<string, string> => EFFECT_HOST_STYLE
-
-const headStyle = (skin: MascotSkin): Record<string, string> => stylesFor(skin).head
-
-const eyesStyle = (skin: MascotSkin): Record<string, string> => stylesFor(skin).eyes
-
-const antennaStyle = (skin: MascotSkin): Record<string, string> => stylesFor(skin).antenna
 
 export type MascotParts = {
   stage: HTMLElement
@@ -329,9 +317,10 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   })
 
   const rootProps = partProps('root', rootStyle())
-  const headProps = partProps('head', headStyle(skin))
-  const eyesProps = partProps('eyes', eyesStyle(skin))
-  const antennaProps = partProps('antenna', antennaStyle(skin))
+  const skinStyles = stylesFor(skin)
+  const headProps = partProps('head', skinStyles.head)
+  const eyesProps = partProps('eyes', skinStyles.eyes)
+  const antennaProps = partProps('antenna', skinStyles.antenna)
 
   const connected: MascotConnect = {
     getRootProps: () => rootProps,

@@ -1,30 +1,37 @@
 export const DEADLINE_MS = 10_000
 
-const entries = new Set<{readonly label: string; readonly since: number}>()
+export type ShutdownTracker = {
+  track: (label: string) => () => void
+  pending: (now?: number) => {label: string; ms: number}[]
+}
 
-export function track(label: string): () => void {
-  const entry = {label, since: Date.now()}
-  entries.add(entry)
-  return () => {
-    entries.delete(entry)
+export function createShutdownTracker(): ShutdownTracker {
+  const entries = new Set<{readonly label: string; readonly since: number}>()
+  return {
+    track(label) {
+      const entry = {label, since: Date.now()}
+      entries.add(entry)
+      return () => {
+        entries.delete(entry)
+      }
+    },
+    pending(now = Date.now()) {
+      return Array.from(entries, (entry) => ({label: entry.label, ms: now - entry.since}))
+    },
   }
 }
 
-export function pending(now = Date.now()): {label: string; ms: number}[] {
-  return Array.from(entries, (entry) => ({label: entry.label, ms: now - entry.since}))
-}
-
-export function install(deadline = DEADLINE_MS): () => void {
+export function install(tracker: ShutdownTracker, deadline = DEADLINE_MS): () => void {
   let started = false
   const expire = () => {
     setTimeout(
-      () => exit(report(`shutdown did not finish within ${formatDuration(deadline)}`, pending())),
+      () => exit(report(`shutdown did not finish within ${formatDuration(deadline)}`, tracker.pending())),
       deadline,
     ).unref()
   }
   const onSignal = (signal: NodeJS.Signals) => {
     if (started) {
-      exit(report(`received ${signal} again during shutdown`, pending()))
+      exit(report(`received ${signal} again during shutdown`, tracker.pending()))
       return
     }
     started = true

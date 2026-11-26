@@ -1,4 +1,4 @@
-# primitives/thread-list
+# ui-kit-chat/src/primitives/thread-list
 
 ## Overview
 
@@ -6,8 +6,7 @@ Headless session list and list item parts driven by a `ThreadListActions` provid
 
 ## Interface
 
-- `thread-list.tsx:ThreadList` - `{Root, New, Items, LoadMore}`; `thread-list.tsx:ThreadListItem` - `{Root, Trigger, Title, Archive, Unarchive, Delete}`.
-- `thread-list-context.tsx:ThreadListProvider`, `useThreadList`, `ThreadListItemProvider`, `useThreadListItem`; type `ThreadListActions` (`sessions`, `activeId`, `select`, `create`, optional `archived`, `loadMore`, `hasMore`, `archive`, `unarchive`, `remove`).
+- `thread-list.tsx`: the `ThreadList` and `ThreadListItem` compounds; `thread-list-context.tsx`: the `ThreadListActions` provider they read.
 
 ## Invariants
 
@@ -20,4 +19,4 @@ Headless session list and list item parts driven by a `ThreadListActions` provid
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

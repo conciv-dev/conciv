@@ -1,7 +1,7 @@
 import {Match, Switch, type JSX} from 'solid-js'
 import {useQuery, type UseQueryResult} from '@conciv/client'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
-import {Style, usePlugin} from '@conciv/plugin/experimental'
+import {Style, usePlugin} from '@conciv/frontend-plugin-api'
 import {loadPlayerKit, type PlayerKit} from './player.js'
 
 export function usePlayerKit(): UseQueryResult<PlayerKit> {

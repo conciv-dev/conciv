@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {uniq} from 'es-toolkit'
-import type {ToolProps} from '@conciv/plugin/experimental'
+import type {ToolProps} from '@conciv/frontend-plugin-api'
 
 const Text = z.string().min(1)
 
@@ -16,27 +16,27 @@ const QuestionSchema = z.object({question: z.string()})
 
 const ListSchema = z.array(z.unknown()).catch([])
 
-const TOOL_TITLES = new Map([
-  ['read', 'Read'],
-  ['list', 'List'],
-  ['glob', 'Glob'],
-  ['grep', 'Grep'],
-  ['subagent', 'Agent'],
-  ['webfetch', 'Webfetch'],
-  ['websearch', 'Web Search'],
-  ['shell', 'Shell'],
-  ['execute', 'Execute'],
-  ['edit', 'Edit'],
-  ['write', 'Write'],
-  ['skill', 'Skill'],
-  ['patch', 'Patch'],
-  ['question', 'Questions'],
-])
+const TOOL_TITLES: Readonly<Record<string, string>> = {
+  read: 'Read',
+  list: 'List',
+  glob: 'Glob',
+  grep: 'Grep',
+  subagent: 'Agent',
+  webfetch: 'Webfetch',
+  websearch: 'Web Search',
+  shell: 'Shell',
+  execute: 'Execute',
+  edit: 'Edit',
+  write: 'Write',
+  skill: 'Skill',
+  patch: 'Patch',
+  question: 'Questions',
+}
 
-const WEB_SEARCH_PROVIDERS = new Map([
-  ['tinyfish', 'TinyFish'],
-  ['opencode', 'OpenCode'],
-])
+const WEB_SEARCH_PROVIDERS: Readonly<Record<string, string>> = {
+  tinyfish: 'TinyFish',
+  opencode: 'OpenCode',
+}
 
 const PLURAL = new Intl.PluralRules('en')
 
@@ -67,12 +67,14 @@ function getDirectory(path: string | undefined): string {
 }
 
 export function toolErrorTitle(tool: string): string {
-  return TOOL_TITLES.get(tool) ?? tool
+  return (Object.hasOwn(TOOL_TITLES, tool) ? TOOL_TITLES[tool] : undefined) ?? tool
 }
 
 export function webSearchProviderLabel(provider: string | undefined): string {
   if (!provider) return 'Web Search'
-  const name = WEB_SEARCH_PROVIDERS.get(provider) ?? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}`
+  const name =
+    (Object.hasOwn(WEB_SEARCH_PROVIDERS, provider) ? WEB_SEARCH_PROVIDERS[provider] : undefined) ??
+    `${provider.charAt(0).toUpperCase()}${provider.slice(1)}`
   return `${name} Web Search`
 }
 

@@ -1,0 +1,56 @@
+import {index, integer, sqliteTable, text, primaryKey} from 'drizzle-orm/sqlite-core'
+import type {RunStatus} from '@conciv/types/chat-event-types'
+import type {ModelMessage} from '@conciv/types/chat-message-types'
+import type {TokenUsage} from '@conciv/types/usage-types'
+
+export const chatRuns = sqliteTable(
+  'chat_runs',
+  {
+    runId: text('run_id').primaryKey(),
+    threadId: text('thread_id').notNull(),
+    harnessId: text('harness_id').notNull(),
+    status: text('status').$type<RunStatus>().notNull(),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+    error: text('error'),
+    errorCode: text('error_code'),
+    usageJson: text('usage_json', {mode: 'json'}).$type<TokenUsage>(),
+    sandboxKey: text('sandbox_key'),
+    detachedSince: integer('detached_since'),
+    cancelRequested: integer('cancel_requested', {mode: 'boolean'}),
+    driverEpoch: integer('driver_epoch'),
+  },
+  (table) => [
+    index('chat_runs_status_detached').on(table.status, table.detachedSince),
+    index('chat_runs_thread_started').on(table.threadId, table.startedAt),
+  ],
+)
+
+export const chatMessages = sqliteTable(
+  'chat_messages',
+  {
+    threadId: text('thread_id').notNull(),
+    position: integer('position').notNull(),
+    messageId: text('message_id'),
+    role: text('role').$type<ModelMessage['role']>().notNull(),
+    messageJson: text('message_json', {mode: 'json'}).$type<ModelMessage>().notNull(),
+  },
+  (table) => [
+    primaryKey({columns: [table.threadId, table.position]}),
+    index('chat_messages_thread_message').on(table.threadId, table.messageId),
+  ],
+)
+
+export const chatMetadata = sqliteTable(
+  'chat_metadata',
+  {
+    namespace: text('namespace').notNull(),
+    key: text('key').notNull(),
+    valueJson: text('value_json', {mode: 'json'}).$type<unknown>().notNull(),
+  },
+  (table) => [primaryKey({columns: [table.namespace, table.key]})],
+)
+
+export const TRANSCRIPT_NAMESPACE = 'conciv.transcript'
+
+export const anchorKey = (threadId: string): string => `${threadId}:anchorNativeId`

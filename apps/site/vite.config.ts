@@ -5,7 +5,7 @@ import {defineConfig, type Plugin} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
+import {concivTest} from '@internal/vitest-config/conciv-test'
 import {sourceAnnotations} from './src/lib/source-annotations'
 import {brandAssetsAlias} from './brand-assets-alias'
 

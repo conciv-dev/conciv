@@ -1,7 +1,7 @@
 ---
 '@conciv/plugin-tanstack': patch
-'@conciv/plugin': patch
-'@conciv/embed': patch
+'@conciv/backend-plugin-api': patch
+'@conciv/app': patch
 ---
 
 The thread cards for the TanStack tools now ship with the TanStack plugin and draw through `ctx.ui`, so they show only

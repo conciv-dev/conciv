@@ -1,7 +1,7 @@
 import {join} from 'node:path'
 import {z} from 'zod'
-import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/types/chat-message-types'
+import {HarnessSessionId} from '@conciv/types/chat-types'
 import type {
   HarnessHistory,
   HarnessListPage,
@@ -10,16 +10,16 @@ import type {
   HarnessSessionPage,
   TranscriptPage,
   TranscriptTailOptions,
-} from '@conciv/protocol/harness-types'
+} from '@conciv/types/harness-types'
 import type {SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
-import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {parseJsonOrNull} from '../init/json.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {realpathOrSelf} from '../_shared/cwd.js'
 import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {tailLines} from '../_shared/tail-lines.js'
-import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from '@conciv/harness-init/claude/names'
+import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from '../init/claude/names.js'
 import {loadClaudeAgentSdk} from './sdk.js'
 
 const TextBlock = z.object({type: z.literal('text'), text: z.string()})

@@ -6,7 +6,7 @@
       "cache": false
     },
     "test:e2e": {
-      "dependsOn": ["^build", "@conciv/cli#build", "^sync-injected"]
+      "dependsOn": ["^build", "^sync-injected"]
     }
   }
 }

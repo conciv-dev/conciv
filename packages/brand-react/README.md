@@ -1,15 +1,15 @@
-# @conciv/brand-react
+# @internal/brand-react
 
 ## Overview
 
-Private package (`"private": true`, `"sideEffects": false`) that ships the conciv logo as React components. The Solid components and the static logo assets live in `@conciv/brand`.
+Private package (`"private": true`, `"sideEffects": false`) that ships the conciv logo as React components. The Solid components and the static logo assets live in `@internal/brand`.
 
 ## Interface
 
 - [src/README.md](./src/README.md): `ConcivLockup` and `ConcivMark`.
-- `exports["."]` (`package.json`): `./dist/conciv-lockup.js` (tsdown) + `./dist/conciv-lockup.d.ts` (tsc, `tsconfig.build.json`).
+- `exports["."]` (`package.json`): `import` from `./dist/conciv-lockup.js` (tsdown), `types` from `./src/conciv-lockup.tsx`.
 - Peer dependency `react` ^19; runtime dep `motion`.
-- Scripts: `build`, `typecheck`, `lint` (`oxlint`).
+- Scripts: `build`, `typecheck`.
 
 ## Invariants
 
@@ -21,3 +21,5 @@ Private package (`"private": true`, `"sideEffects": false`) that ships the conci
 - `build` wipes and rewrites `dist/` (tsdown, then tsc).
 
 ## Verification
+
+- Typecheck: `pnpm exec turbo run typecheck --filter=@internal/brand-react` from the repo root (the package has no tests yet)

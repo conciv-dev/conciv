@@ -1,9 +1,9 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.solid.json",
+  "extends": "@internal/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["vite/client", "node"],
     "paths": {
-      "@conciv/solid": ["./src/index.ts"]
+      "@conciv/solid": ["./src/solid.ts"]
     }
   }
 }

@@ -1,5 +1,5 @@
 import type {AnyRoute, AnyRouteMatch, AnyRouter} from '@tanstack/react-router'
-import type {ReactFiber, ReactTree} from '@conciv/plugin/experimental/page'
+import type {ReactFiber, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {Effect, Predicate, Schema} from 'effect'
 import {isUndefined, mapValues, omitBy} from 'es-toolkit'
 import type {

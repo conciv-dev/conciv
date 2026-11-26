@@ -1,13 +1,14 @@
-import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
-import {from, onCleanup, type Accessor} from 'solid-js'
-import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
-import {connectPorts} from '@conciv/protocol/connect-ports'
+import {Effect, Fiber, Layer, type ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
+import {from, type Accessor} from 'solid-js'
+import {createScopedRuntime, Plugin, Server, Style, type ServerEntry} from '@conciv/frontend-plugin-api'
+import {connectPorts} from '@conciv/types/connect-ports'
 import {connect} from './connect.js'
 import {TryItConnectMachine} from './connect-machine.js'
 import {ConnectPane} from './connect-pane.js'
 import {localNetworkAccess} from './local-network-access.js'
 import {probeCore, TryItProbe} from './probe.js'
 import {z} from 'zod'
+import pluginCss from 'virtual:uno.css?inline'
 
 const Milliseconds = z.number().int().positive()
 
@@ -39,12 +40,11 @@ function entry(state: TryItConnectMachine.ConnectState, token: string, cover: Se
 
 const tryIt: Plugin.Definition = Plugin.define({
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const options = TryItOptions.parse(ctx.options)
-    const runtime = ManagedRuntime.make(
+    const {runtime, scope} = createScopedRuntime(
       Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)}),
     )
-    const scope = runtime.runSync(Scope.make())
-    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
     const started = runtime.runSync(
       Effect.all({
         connection: connect({timings: options}),

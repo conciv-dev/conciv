@@ -1,4 +1,4 @@
-import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import type {ToolComponent, ToolProps} from '@conciv/frontend-plugin-api'
 import type {GroupEntry} from '@conciv/ui-kit-chat'
 import {PageSessionCard} from './session-card.js'
 import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
@@ -21,7 +21,7 @@ import {
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone, TruncatedText} from '@conciv/ui-kit-system'
 import type {TrackReport} from './react.js'
-import {RawFrameSchema} from '@conciv/contract'
+import {RawFrameSchema} from '@conciv/protocol'
 import type {buildSnapshot} from './snapshot.js'
 import {html} from 'js-beautify'
 
@@ -48,7 +48,7 @@ const TEXT =
   'text-[length:var(--chat-text-sm)] flex-1 min-w-0 whitespace-pre-wrap [color:var(--chat-text)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]'
 const TEXT_DANGER = `${DANGER_TEXT_CLASS} flex-1 min-w-0 [overflow-wrap:anywhere]`
 
-const ERROR_LEVELS: ReadonlySet<string> = new Set(['error', 'uncaught', 'unhandled'])
+const ERROR_LEVELS: readonly string[] = ['error', 'uncaught', 'unhandled']
 
 type ConsoleLine = z.output<typeof ConsolePayload>['entries'][number]
 
@@ -62,7 +62,7 @@ function lineLabel(count: number): string {
 }
 
 function isErrorLevel(level: string): boolean {
-  return ERROR_LEVELS.has(level)
+  return ERROR_LEVELS.includes(level)
 }
 
 function pickTextClass(level: string): string {
@@ -115,7 +115,7 @@ export function ConsoleCard(props: ToolProps): JSX.Element {
 
 const [SingleEffect, EffectList] = pageOperation('effect').output.options
 
-const EFFECT_NAME_KEYS = new Set(['effect'])
+const EFFECT_NAME_KEYS: readonly string[] = ['effect']
 
 const EFFECT_LIST = 'm-0 p-0 list-none flex flex-col gap-1.5'
 const ROW = 'text-[length:var(--chat-text-sm)] m-0 flex gap-2 items-center'
@@ -396,9 +396,9 @@ export function ReadValueCard(props: ToolProps): JSX.Element {
   )
 }
 
-const CODE_VERBS = new Set(['eval', 'css'])
+const CODE_VERBS: readonly string[] = ['eval', 'css']
 
-const CODE_INPUT_KEYS = new Set(['code', 'text'])
+const CODE_INPUT_KEYS: readonly string[] = ['code', 'text']
 
 function codeLanguage(verb: string): string {
   return verb === 'css' ? 'css' : 'javascript'
@@ -415,7 +415,7 @@ function codeContents(input: Record<string, unknown>): string {
 
 export function EditLiveCard(props: ToolProps): JSX.Element {
   const verb = () => pageVerbOfTool(props.tool)
-  const isCode = () => CODE_VERBS.has(verb())
+  const isCode = () => CODE_VERBS.includes(verb())
   return (
     <PageTool {...props} skip={isCode() ? CODE_INPUT_KEYS : undefined} hasContent={isCode()}>
       <Show when={isCode()}>

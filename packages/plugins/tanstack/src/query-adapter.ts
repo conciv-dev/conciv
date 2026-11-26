@@ -1,5 +1,5 @@
 import type {Mutation, Query, QueryClient} from '@tanstack/react-query'
-import type {ReactFiber, ReactTree} from '@conciv/plugin/experimental/page'
+import type {ReactFiber, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {Effect, Predicate, Schema} from 'effect'
 import type {CacheEntry, CacheEntryState} from './rpc.js'
 import {callFailed, errorMessage, findInFibers} from './router-adapter.js'

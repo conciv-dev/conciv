@@ -1,6 +1,6 @@
 import type {Component} from 'solid-js'
 import type {LucideProps} from 'lucide-solid'
-import type {AppIconName} from '@conciv/plugin/experimental'
+import type {AppIconName} from '@conciv/frontend-plugin-api'
 import AppWindowIcon from 'lucide-solid/icons/app-window'
 import ArrowDownIcon from 'lucide-solid/icons/arrow-down'
 import ArrowUpIcon from 'lucide-solid/icons/arrow-up'

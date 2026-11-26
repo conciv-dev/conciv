@@ -24,8 +24,9 @@ import {
   type ChatMessage,
   type ChatPart,
   type ToolCallPart,
-} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+} from '@conciv/types/chat-message-types'
+import type {ToolCardProps} from '@conciv/types/tool-view-types'
+import type {ToolCardEntry} from '../tools/primitives/define-toolkit.js'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'

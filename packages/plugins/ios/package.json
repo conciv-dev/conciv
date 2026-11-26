@@ -25,20 +25,20 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/ios.d.ts",
+      "import": "./dist/ios.js"
     },
     "./server": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/ios.d.ts",
+      "import": "./dist/ios.js"
     },
     "./rpc": {
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+    "./builtins": {
+      "types": "./dist/builtins.d.ts",
+      "import": "./dist/builtins.js"
     },
     "./package.json": "./package.json"
   },
@@ -51,21 +51,24 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/backend-test-utils": "workspace:*",
+    "@conciv/frontend-plugin-api": "workspace:^",
+    "@effect/vitest": "catalog:",
+    "@internal/engine-kit": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
@@ -75,7 +78,8 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@conciv/plugin": "workspace:^",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
     "solid-js": "^1.9.13"
   }
 }

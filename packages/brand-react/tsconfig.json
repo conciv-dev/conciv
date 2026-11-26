@@ -1,5 +1,5 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.react.json",
+  "extends": "@internal/tsconfig/tsconfig.react.json",
   "compilerOptions": {
     "types": ["node"]
   }

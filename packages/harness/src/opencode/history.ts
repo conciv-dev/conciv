@@ -2,8 +2,8 @@ import {homedir} from 'node:os'
 import {join} from 'node:path'
 import type {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import {HarnessSessionId} from '@conciv/types/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/types/chat-message-types'
 import type {
   HarnessHistory,
   HarnessListPage,
@@ -12,9 +12,9 @@ import type {
   HarnessSessionPage,
   TranscriptPage,
   TranscriptTailOptions,
-} from '@conciv/protocol/harness-types'
+} from '@conciv/types/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
-import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {parseJsonOrNull} from '../init/json.js'
 import {pageAfter} from '../_shared/page.js'
 import {withDatabase} from '../_shared/read-database.js'
 

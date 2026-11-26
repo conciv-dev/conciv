@@ -1,4 +1,4 @@
-import type {MentionSegment} from '@internal/plugin'
+import type {MentionSegment} from '@internal/frontend-app-api'
 import type {CommentRow, PinRow, ReadRow} from './rows.js'
 import type {WhiteboardDb} from './whiteboard-db.js'
 

@@ -67,11 +67,11 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/embed": "workspace:^",
+    "@conciv/app": "workspace:^",
     "@conciv/unplugin": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

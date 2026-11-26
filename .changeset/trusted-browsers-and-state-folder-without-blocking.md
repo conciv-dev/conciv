@@ -1,9 +1,8 @@
 ---
-'@conciv/protocol': patch
-'@conciv/db': patch
+'@conciv/types': patch
 '@conciv/harness': patch
-'@conciv/chat': patch
-'@conciv/core': patch
+'@conciv/backend-defaults': patch
+'@conciv/backend': patch
 '@conciv/cli': patch
 '@conciv/unplugin': patch
 ---

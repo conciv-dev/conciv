@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
-import {loadModel, instructionToPatch, getDevice} from './local-model'
+import {createLocalModel} from './local-model'
 import type {ModelWorkerRequest, ModelWorkerResponse} from './models'
+
+const {loadModel, instructionToPatch, getDevice} = createLocalModel()
 
 const post = (message: ModelWorkerResponse) => (self as DedicatedWorkerGlobalScope).postMessage(message)
 

@@ -1,4 +1,4 @@
-import {presetConciv} from '@conciv/uno-preset'
+import {presetConciv} from '@internal/uno-preset'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({

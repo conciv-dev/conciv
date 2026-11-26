@@ -1,0 +1,15 @@
+---
+title: Rollup and esbuild
+description: conciv does not run with Rollup or esbuild yet.
+---
+
+<Callout type="warn">
+  `@conciv/it/plugin/rollup` and `@conciv/it/plugin/esbuild` exist but do nothing: they do not start the engine or add
+  the widget.
+</Callout>
+
+`conciv init` on a Rollup or esbuild project installs `@conciv/it`, then prints a card that says so instead of wiring
+your config.
+
+To use conciv, serve your app with Vite and add conciv to the Vite config. Vite uses Rollup under the hood, so most
+Rollup apps can move to the Vite plugin directly. See [Vite](/docs/quick-start/vite).

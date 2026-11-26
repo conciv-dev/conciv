@@ -1,6 +1,6 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE} from './widget-module.js'
-import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
+import type {ConcivSettingsInit} from '@conciv/types/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
@@ -102,13 +102,13 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
   return typeof last === 'function' ? () => void last() : undefined
 }
 
-const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
+const NESTED_FETCH_DESTS = ['iframe', 'frame', 'embed', 'object']
 
 export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsInit | false): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
   return (req, res, next) => {
     const fetchDest = req.headers['sec-fetch-dest']
-    if (typeof fetchDest === 'string' && NESTED_FETCH_DESTS.has(fetchDest)) return next()
+    if (typeof fetchDest === 'string' && NESTED_FETCH_DESTS.includes(fetchDest)) return next()
 
     const chunks: Buffer[] = []
     const realWrite = res.write

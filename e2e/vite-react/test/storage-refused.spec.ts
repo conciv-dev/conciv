@@ -1,5 +1,5 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {loginWidget} from '@internal/e2e-utils/widget'
 
 test.describe('the widget in a browser that refuses site storage', () => {
   test.use({signedIn: false})

@@ -1,0 +1,122 @@
+{
+  "name": "@conciv/backend-defaults",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv chat plane: turns, hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores, built on @conciv/ai.",
+  "keywords": [
+    "ai",
+    "chat",
+    "conciv"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend-defaults"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "imports": {
+    "#fff": {
+      "types": "./dist/core/filesystem/fff.node.d.ts",
+      "workerd": "./dist/core/filesystem/fff.workerd.js",
+      "node": "./dist/core/filesystem/fff.node.js",
+      "default": "./dist/core/filesystem/fff.node.js"
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/backend-defaults.d.ts",
+      "import": "./dist/backend-defaults.js"
+    },
+    "./backend": {
+      "types": "./dist/backend.d.ts",
+      "import": "./dist/backend.js"
+    },
+    "./ai": {
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run",
+    "gen-migrations": "node src/scripts/gen-migrations.ts"
+  },
+  "dependencies": {
+    "@conciv/backend-app-api": "workspace:^",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/client": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/home": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/serve": "workspace:^",
+    "@conciv/simulation": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@effect/opentelemetry": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
+    "@ff-labs/fff-node": "catalog:",
+    "@lydell/node-pty": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/api-logs": "catalog:",
+    "@opentelemetry/context-async-hooks": "catalog:",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/resources": "catalog:",
+    "@opentelemetry/sdk-logs": "catalog:",
+    "@opentelemetry/sdk-metrics": "catalog:",
+    "@opentelemetry/sdk-trace-base": "catalog:",
+    "@opentelemetry/sdk-trace-node": "catalog:",
+    "@orama/orama": "catalog:",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
+    "@silvia-odwyer/photon-node": "catalog:",
+    "@tanstack/ai": "catalog:",
+    "@tanstack/ai-code-mode": "catalog:",
+    "@tanstack/ai-isolate-quickjs": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
+    "@tanstack/ai-persistence": "catalog:",
+    "@tanstack/ai-sandbox": "catalog:",
+    "@tanstack/pacer": "catalog:",
+    "devframe": "catalog:",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "fuzzysort": "catalog:",
+    "hono": "catalog:",
+    "js-yaml": "catalog:",
+    "piscina": "catalog:",
+    "unstorage": "catalog:",
+    "which": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@internal/engine-kit": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/which": "catalog:",
+    "drizzle-kit": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}

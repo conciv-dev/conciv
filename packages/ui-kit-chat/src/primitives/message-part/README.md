@@ -1,4 +1,4 @@
-# primitives/message-part
+# ui-kit-chat/src/primitives/message-part
 
 ## Overview
 
@@ -6,9 +6,7 @@ Hooks and parts for reading the current message part by type, and the model-only
 
 ## Interface
 
-- `message-part.tsx:MessagePart` - `{Text, Image, InProgress}`.
-- `message-part.tsx:useMessagePartText`, `useMessagePartReasoning`, `useMessagePartImage`, `useMessagePartToolCall`, `useMessagePartFile`, `useMessagePartData`, `useMessagePartSource` (always `null`).
-- `part-visibility.ts:partIsModelOnly`.
+- `message-part.tsx`: the `MessagePart` parts and the hooks that read the current part by type; `part-visibility.ts`: the model-only check.
 
 ## Invariants
 
@@ -21,4 +19,4 @@ Hooks and parts for reading the current message part by type, and the model-only
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

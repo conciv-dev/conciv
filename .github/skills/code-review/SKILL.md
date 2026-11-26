@@ -12,7 +12,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 ## Code laws
 
 - Functions, not classes. Sole exception: the local `DelegatingTextAdapter` subclass behind
-  `makeTextAdapter` in `packages/ai/src/adapters/adapters.ts`, which the library's typing
+  `makeTextAdapter` in `packages/harness/src/adapters/adapters.ts`, which the library's typing
   forces (`BaseTextAdapter` is the imported base class it extends).
 - No IIFEs unless explicitly required.
 - ZERO code comments in TS/JS. The `conciv/no-comments` lint rule autofix-deletes them, so code must
@@ -79,7 +79,8 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Observability: every service function is `Effect.fn('package.area.verb')` (a named span); request-scoped ids go on
   the span with `Effect.annotateCurrentSpan` (`sessionId`, `plugin`); Effect code logs with `Effect.log` /
   `logWarning` / `logError` (they land as span events), never `console.*`.
-- Files copied from opencode (plugin-host, plugin) keep opencode's names and shapes, including `Service.verb` span names
+- Files copied from opencode (in `packages/backend-app-api/src`, `packages/frontend-plugin-api/src` and
+  `packages/frontend-defaults/src/runtime/{plugin,persistence}`) keep opencode's names and shapes, including `Service.verb` span names
   and its own Effect patterns; the laws above apply to conciv's own code and to conciv's edits inside a copy.
 - Effect code called from Solid goes through one bridge (`ManagedRuntime` in, `SubscriptionRef` out read with
   `fromRef`), not ad hoc `runPromise` calls in components.
@@ -120,6 +121,10 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 
 - Component styles go through `packages/uno-preset` (keyframes, `anim-*` shortcuts, rules, preflights).
   A new `.css` file in a ui-kit `src/` is a blocker; only token/theme sheets are `.css`.
+- A plugin other than the built-ins (page, terminal, iOS, which `packages/app/uno.config.ts` scans) builds its own
+  sheet: `uno.config.ts` is `pluginSheetConfig(import.meta.url)` and the browser part adds `virtual:uno.css?inline`
+  with `ctx.add(Style, css)`. Adding a plugin's `src` to the app's or frontend-defaults' `uno.config.ts` is a
+  blocker.
 - Piles of arbitrary props (`[overflow-x:hidden]`, `[display:-webkit-box]`) where a preset utility
   exists (`truncate`, `line-clamp-N`).
 - Every value derives from existing design tokens (`var()` chains, `calc()`, `color-mix()`, the
@@ -131,21 +136,22 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 
 ## Testing
 
-- Test file budget: a package keeps one node test file and one browser or e2e test file
-  (`conciv/test-file-budget`, default max 2, per-package overrides in `.oxlintrc.json`). Flag ANY new
-  test file in a PR, even where the package is currently exempt: new tests are `describe` blocks
-  added to the package's existing test file. Fixtures are not test files.
+- Test layout and budget (`conciv/test-file-budget`, AGENTS.md, Testing): every package has `test/unit`,
+  `test/it`, `test/e2e`, `test/fixtures` and `test/utils`; a test file's name carries its folder's kind
+  (`x.unit.test.ts`, `x.it.test.ts`, `x.e2e.test.tsx`); never more test files than source files; a test
+  file is at most 1,000 lines. Flag a new test file where an existing journey fits: one `describe` per
+  user flow, consecutive steps in one test. Fixtures are not test files.
 - A test file reads top-down like a spec: imports, one shared boot, `describe` per feature, `it`
   named by user-visible behaviour, short arrange/act/assert; helper functions hoisted at the bottom.
   Tests go through the package's public entries, never test-only exports.
-- Widget and plugin behaviour tests run in vitest node + happy-dom on plugin-testkit `mount`; a real browser only for layout, scrolling, canvas, real focus and the built bundle. Flag jsdom, and flag a browser test whose behaviour needs none of those.
-- Testkits (`@conciv/plugin-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
-  helpers) run the real product path and fake only expensive externals (the LLM harness, CLIs). A testkit
-  client that stands in for the browser uses the same transport and client as the product (browser rpc
-  over the `/rpc-ws` socket through `makeBrowserRpcClient`), never a parallel HTTP or
-  hand-rolled path. Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is
+- Mounted behaviour (the shell or a plugin on screen) is tested in vitest browser mode with `@internal/frontend-test-utils` (`renderInTestApp`, `renderTestApp`, `createExtensionTester`) against the fake engine from `@internal/test-utils`; happy-dom only for code that mounts nothing. Flag jsdom, and flag a mounted test that does not use the test utilities. See AGENTS.md, Testing.
+- Test utilities (`@conciv/backend-test-utils` and `@internal/engine-kit`, `@internal/frontend-test-utils`, the
+  fake engine in `@internal/test-utils`, e2e helpers) run the real product path and fake only expensive
+  externals (the model, CLIs). The engine kit's browser client uses the same transport and client as the
+  product (browser rpc over the `/rpc-ws` socket, `@conciv/client`), never a parallel HTTP or hand-rolled
+  path; the fake engine implements the real oRPC contract (`implement(contract)`). Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is
   fine; swapping the transport is not. Flag a PR that changes a product transport or client without
-  moving the testkits onto it in the same PR, and any test that waits on or hooks a transport the
+  moving the test utilities onto it in the same PR, and any test that waits on or hooks a transport the
   product no longer uses.
 - No mocks or stubs of anything: `vi.fn`, `vi.mock`, `vi.doMock`, `vi.stubGlobal`, fake modules,
   external packages included. Use real servers on port 0, real browsers, real in-memory drivers that
@@ -155,8 +161,9 @@ already enforced by a tool (formatting, lint autofix) is not review material.
   reads or builds DOM,
   `.class` or `#id` locators, `data-testid`. Assert with `getByRole`/`getByText`/`getByLabel` and real
   user actions. A test that checks CSS should be deleted, not fixed.
-- No unit tests that restate config or a dependency's behaviour (a zod schema's `.catch()`, a pacer,
-  a state-by-event transition table). Unit tests only for real algorithms; behaviour gets browser tests.
+- No unit tests that restate config or a dependency's behaviour (a zod schema's `.catch()`, a pacer).
+  A behaviour is tested once, in the cheapest place that proves it: unit (functions, models, reducers,
+  machines), then it, then e2e (AGENTS.md, Testing).
 - Web-first assertions only (`await expect(locator)...`). Flag `expect.poll`, hand-written polling
   loops, and fixed sleeps.
 - Timeouts sized to the real operation; flag a raised suite or step timeout.
@@ -169,16 +176,16 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Widget integration tests use `browser.newPage()`, never `browser.newContext()`: contexts leak and
   spike CPU/memory. Whatever a test creates it closes in teardown.
 - Widget integration tests exercise the PREBUILT bundle
-  (`packages/embed/dist/conciv-widget.global.js`), built first with
-  `pnpm turbo run build --filter=@conciv/embed`.
-- Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
+  (`packages/app/dist/conciv-widget.global.js`), built first with
+  `pnpm turbo run build --filter=@conciv/app`.
+- Never wait for Playwright `networkidle` on a page with the live widget: its engine socket keeps the
   network busy forever. `domcontentloaded` or a UI signal instead.
 - No tests under `apps/examples/*` (example apps are demos), except the handful of demo tests in
   `apps/examples/tanstack-start`. Behaviour is verified by the owning package's tests,
-  `@conciv/plugin-testkit`, or an `e2e/` consumer app.
-- Every node test project in a Solid package's `vitest.config.ts` pins `test: {environment: 'node'}`, or
-  `vite-plugin-solid` injects jsdom and the run exits 1 with all tests passing. Browser projects keep
-  their browser config.
+  its test utilities, or an `e2e/` consumer app.
+- A package's tests are configured only through `concivTest(...)` in its one `vite.config.ts` (no
+  `vitest*.config` file); `test/unit` runs in node unless the package passes `environment: 'happy-dom'`.
+  Flag a hand-written test project or environment.
 - A bug fix ships with a regression test that fails without the fix.
 - A flaky-test "fix" that only bumps a timeout or adds a retry is not acceptable. The mechanism gets
   fixed, or named explicitly in the PR.
@@ -186,20 +193,21 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 ## Boundaries and security
 
 - Every untrusted input is zod-validated where it enters, not just request bodies. RPC procedures
-  declare their input schema with `oc.input(...)` in `packages/contract/src/contract.ts`; a plain
-  Hono route parses each untrusted piece it reads (body, route params, query, headers) through a zod
-  schema (e.g. `NativeFileSchema.safeParse(c.req.param('file'))` in
-  `packages/core/src/api/native-page.ts`). Flag a new route or procedure that consumes any of them
+  declare their input schema with `oc.input(...)` in `packages/protocol/src/contract.ts` (a plugin, in
+  its own contract); a plain Hono route parses each untrusted piece it reads (body, route params, query,
+  headers) through a zod schema (e.g. `ChunkFileSchema.safeParse(c.req.param('file'))` in
+  `packages/backend-defaults/src/engine/api/widget-page.ts`). Flag a new route or procedure that consumes any of them
   unvalidated.
-- The core dev server binds `127.0.0.1` only.
+- The engine binds `127.0.0.1` only.
 - Never log or commit credentials/tokens.
-- Loosening the sandbox policy (`defineSandboxPolicy({default: 'ask'})` in `packages/ai/src/server/chat-server.ts`) or
-  the session permission rules (`packages/core/src/runtime/permission-cards.ts`): keep them conservative.
+- Loosening the sandbox policy (`defineSandboxPolicy({default: 'ask'})` in `packages/backend-defaults/src/ai/chat-server.ts`)
+  or the session permission rules (`packages/backend-defaults/src/engine/runtime/permission-cards.ts`): keep them
+  conservative.
 - Vendored third-party code, or patches to dependencies.
 
 ## Whiteboard landmine
 
-- Whiteboard is TanStack DB over libSQL. Never write to the db inside a collection subscription, an
+- Whiteboard state is TanStack DB collections. Never write to the db inside a collection subscription, an
   effect, or a render body: it triggers a re-render storm. Flag any db write reachable from a
   subscription callback.
 
@@ -220,14 +228,15 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 
 ## Architecture
 
-- Special-casing a specific CLI or harness in core or widget code: harnesses go through the
-  capability-typed `HarnessAdapter` contract (`packages/protocol/src/harness-types.ts`).
+- Special-casing a specific CLI or harness in engine or widget code: harnesses go through the
+  capability-typed `HarnessAdapter` contract (`packages/harness/src/_shared/contract.ts`, capabilities in
+  `packages/types/src/harness-types.ts`).
 - Spawning or decoding a CLI directly instead of running turns through `chat()` with the published
   `@tanstack/ai-*` adapter.
 - Host-absolute paths passed as a harness cwd; workdirs are sandbox-virtual and default to
   `/workspace`.
 - Capability flags or options that add a second half-way code path where one correct path should exist.
-- New public API surface (new extension slots, props, exports) the PR does not justify.
+- New public API surface (new registries, props, exports) the PR does not justify.
 
 ## Fallow
 

@@ -3,36 +3,36 @@ import {isIdentifier, walk} from './ast-walk.js'
 const SOURCE_EXTENSION = /\.[jt]sx?$/
 const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
 const HELPER_FILE = /(^|[\\/])packages[\\/]vitest-config[\\/]src[\\/]/
-const FS_SOURCES = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises'])
-const OS_SOURCES = new Set(['node:os', 'os'])
+const FS_SOURCES = ['node:fs', 'node:fs/promises', 'fs', 'fs/promises']
+const OS_SOURCES = ['node:os', 'os']
 const E2E_FILE = /(^|[\\/])e2e[\\/]/
-const TESTKIT_SOURCE = /(^|[\\/])packages[\\/][^\\/]+-testkit[\\/]src[\\/]/
-const CREATED_PATH_ARGUMENT = new Map([
-  ['mkdtemp', 0],
-  ['mkdtempSync', 0],
-  ['mkdir', 0],
-  ['mkdirSync', 0],
-  ['writeFile', 0],
-  ['writeFileSync', 0],
-  ['appendFile', 0],
-  ['appendFileSync', 0],
-  ['cp', 1],
-  ['cpSync', 1],
-  ['copyFile', 1],
-  ['copyFileSync', 1],
-  ['symlink', 1],
-  ['symlinkSync', 1],
-])
-const CREATING_NAMES = new Set(CREATED_PATH_ARGUMENT.keys())
+const TESTKIT_SOURCE = /(^|[\\/])packages[\\/][^\\/]+-test-utils[\\/]src[\\/]/
+const CREATED_PATH_ARGUMENT = {
+  mkdtemp: 0,
+  mkdtempSync: 0,
+  mkdir: 0,
+  mkdirSync: 0,
+  writeFile: 0,
+  writeFileSync: 0,
+  appendFile: 0,
+  appendFileSync: 0,
+  cp: 1,
+  cpSync: 1,
+  copyFile: 1,
+  copyFileSync: 1,
+  symlink: 1,
+  symlinkSync: 1,
+}
+const CREATING_NAMES = Object.keys(CREATED_PATH_ARGUMENT)
 const SOURCE_PLACES = [
   [E2E_FILE, 'e2e'],
   [TESTKIT_SOURCE, 'testkit'],
 ]
-const ENV_NAMES = new Set(['env'])
-const TMPDIR_ENV_NAMES = new Set(['TMPDIR'])
+const ENV_NAMES = ['env']
+const TMPDIR_ENV_NAMES = ['TMPDIR']
 const SYSTEM_TEMP = /^\/tmp(?:\/|$)/
-const TMPDIR_NAMES = new Set(['tmpdir'])
-const EXIT_LISTENERS = new Set(['on', 'once'])
+const TMPDIR_NAMES = ['tmpdir']
+const EXIT_LISTENERS = ['on', 'once']
 const CONFIG_FILE = /^(?:vitest|playwright)(?:\.[\w-]+)?\.config\.[cm]?[jt]s$/
 
 function isTestFile(filename) {
@@ -70,12 +70,12 @@ function importedName(imported) {
 
 function isImportedFunction(identifier, sourceCode, sources, names) {
   const binding = resolveImport(identifier, sourceCode)
-  return binding !== undefined && sources.has(binding.source) && names.has(binding.imported)
+  return binding !== undefined && sources.includes(binding.source) && names.includes(binding.imported)
 }
 
 function isModuleObject(identifier, sourceCode, sources) {
   const binding = resolveImport(identifier, sourceCode)
-  return binding !== undefined && sources.has(binding.source) && binding.imported === undefined
+  return binding !== undefined && sources.includes(binding.source) && binding.imported === undefined
 }
 
 function isNamedProperty(member, names) {
@@ -83,7 +83,7 @@ function isNamedProperty(member, names) {
     member.type === 'MemberExpression' &&
     !member.computed &&
     isIdentifier(member.property) &&
-    names.has(member.property.name)
+    names.includes(member.property.name)
   )
 }
 
@@ -193,7 +193,11 @@ function fsFunctionName(callee, sourceCode) {
 
 function createdPathArgument(node, sourceCode) {
   if (!isModuleFunction(node.callee, sourceCode, FS_SOURCES, CREATING_NAMES)) return undefined
-  return node.arguments[CREATED_PATH_ARGUMENT.get(fsFunctionName(node.callee, sourceCode)) ?? 0]
+  return node.arguments[
+    (Object.hasOwn(CREATED_PATH_ARGUMENT, fsFunctionName(node.callee, sourceCode))
+      ? CREATED_PATH_ARGUMENT[fsFunctionName(node.callee, sourceCode)]
+      : undefined) ?? 0
+  ]
 }
 
 function isHandMadeTempDir(node, sourceCode) {
@@ -220,13 +224,13 @@ export default {
     type: 'problem',
     messages: {
       e2eTempDir:
-        'An e2e helper or spec that makes a folder or file under the OS temp dir leaves it behind when the run ends. Put it under the app run state folder e2e/.conciv-e2e/<app> (e2eDevEndpointDir in @conciv/e2e-utils/dev-endpoint shows the path), which the e2e web server empties at start and the shared state cleanup reporter removes when the run ends; a folder that must stay outside the repo goes in the runFolders the same reporter removes.',
+        'An e2e helper or spec that makes a folder or file under the OS temp dir leaves it behind when the run ends. Put it under the app run state folder e2e/.conciv-e2e/<app> (e2eDevEndpointDir in @internal/e2e-utils/dev-endpoint shows the path), which the e2e web server empties at start and the shared state cleanup reporter removes when the run ends; a folder that must stay outside the repo goes in the runFolders the same reporter removes.',
       testkitTempDir:
         'A testkit that makes its own folder or file under the OS temp dir leaks it when setup throws or the caller never cleans up. Take a folder the caller owns and removes: pass it in.',
       handMadeTempDir:
-        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under test-results/conciv-home beside the config (the CONCIV_HOME of the run, emptied at the start and removed at the end of every run by the globalSetup ciTest() carries).',
+        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@internal/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under the HOME of the run (the isolated home the globalSetup concivTest() carries makes at the start and removes at the end of every run).',
       exitHook:
-        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@conciv/vitest-config/temp-dir); in a vitest config or browser command put it under test-results/conciv-home beside the config, which the globalSetup ciTest() carries empties at the start and removes at the end of every run.',
+        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@internal/vitest-config/temp-dir); in a vitest config or browser command put it under the HOME of the run, the isolated home the globalSetup concivTest() carries makes at the start and removes at the end of every run.',
     },
     schema: [],
   },

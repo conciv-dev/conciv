@@ -6,17 +6,7 @@ Styled Solid tool cards. Each card wraps a primitive Root, renders a `ToolCard` 
 
 ## Interface
 
-- `builtinToolCards` (`builtin-tool-cards.tsx`): [bashTool, applyPatchTool, discoveredApisTool, fileEditTool, fileReadTool, searchTool, todoTool, toolLookupTool]
-- `BashCard` / `bashTool` (`bash-card.tsx`): names ['Bash']
-- `ApplyPatchDiff` / `applyPatchTool` (`apply-patch-diff.tsx`): names ['apply_patch']
-- `DiscoveredApisCard` / `discoveredApisTool` (`discovered-apis-card.tsx`): names ['catalog']
-- `FileEditCard` / `fileEditTool` (`file-edit-card.tsx`): names ['Edit', 'MultiEdit', 'Write']
-- `FileReadCard` / `fileReadTool` (`file-read-card.tsx`): names ['Read']
-- `SearchCard` / `searchTool` (`search-card.tsx`): names ['Grep', 'Glob']
-- `TodoCard` / `todoTool` (`todo-card.tsx`): names ['TodoWrite']
-- `ToolLookupCard` / `toolLookupTool` (`builtin-tool-cards.tsx`): names ['ToolSearch']
-- `inlineTool(argKeys, format)` and presets `ReadInline`, `EditInline`, `WriteInline`, `GrepInline`, `GlobInline`, `WebSearchInline`, `WebFetchInline`, `ToolCallInline` (`inline-tool.tsx`)
-- `parseSearchMatches` / `groupSearchMatches` / `SearchMatches` (`search-matches.tsx`)
+- One file per tool card, each exporting its card and its `ToolCardEntry` with the tool names it draws: `bash-card.tsx` (`Bash`), `apply-patch-diff.tsx` (`apply_patch`), `discovered-apis-card.tsx` (`catalog`), `file-edit-card.tsx` (`Edit`, `MultiEdit`, `Write`), `file-read-card.tsx` (`Read`), `search-card.tsx` (`Grep`, `Glob`), `todo-card.tsx` (`TodoWrite`), and `ToolLookupCard` (`ToolSearch`) in `builtin-tool-cards.tsx`.
 
 ## Invariants
 

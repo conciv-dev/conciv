@@ -1,4 +1,4 @@
-# tools/styled
+# ui-kit-chat/src/tools/styled
 
 ## Overview
 
@@ -6,16 +6,15 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 
 ## Interface
 
-- `tool-card.tsx:ToolCard`; `tool-fallback.tsx:ToolFallback`, `toolFallbackCardView`, `toolFallbackHasEmbeddedBody`; `generic-tool-headline.ts:genericToolHeadline` (as opencode's GenericTool: title 'Called <tool>', subtitle from the first non-empty of description, query, url, path, pattern, name, and up to three other scalar inputs as `key=value`), `genericToolRowProjection`; `tool-call-card.tsx:ToolCallCard`, `ToolTraceRow` (a row whose card published no header and has no catalog meta is drawn from `genericToolRowProjection`: the subtitle or first argument, then the arguments).
-- `card-shell.tsx:CardShell`, `cardHeader`, `detailChips`; `card-chrome.tsx:CardChromeProvider`, `useCardChrome`, `useEmbeddedCard`; `card-headline.tsx:CardHeadline`; `collapsible-card.tsx:CollapsibleCard` (kit-internal).
-- `meta-tool-card.tsx:MetaToolCard`, `metaToolHasEmbeddedBody`; `permission-card.tsx:PermissionCard`.
-- `chip.tsx:Chip`, `ChipRow`, `ChipGroup`, `CHIP`; `code-block.tsx:CodeBlock`, `DiffBlock`, `diffBlockClass`; `json-tree.tsx:JsonTree`; `shaped-content.tsx:ShapedValue`; `error-block.tsx:ErrorBlock`; `result-image.tsx:ResultImage`.
-- `element-preview.tsx:ElementPreview` (`{Root, Frame, Descriptor}`); `inline-row.tsx:InlineRow`, `InlineShell`; `note-row.tsx:NoteRow`; `action-row.tsx:ActionRow`, `ActionButton`; `collapsible-section.tsx:CollapsibleSection`; `tool-icon.tsx:GENERIC_TOOL_ICON`.
+- `tool-card.tsx`, `card-shell.tsx`, `card-chrome.tsx`, `card-headline.tsx`: the tool card and its shell; a card renders in full or embedded layout (`useEmbeddedCard`).
+- `tool-fallback.tsx`, `generic-tool-headline.ts`, `meta-tool-card.tsx`, `permission-card.tsx`, `tool-call-card.tsx`, `tool-error-card.tsx`: the cards for a call no tool card draws, a meta tool, a permission ask, and a trace row.
+- `chip.tsx`, `code-block.tsx`, `json-tree.tsx`, `shaped-content.tsx`, `error-block.tsx`, `result-image.tsx`, `inline-row.tsx`, `note-row.tsx`, `action-row.tsx`, `collapsible-section.tsx`, `tool-icon.tsx`, `tool-display.tsx`: the pieces cards are built from.
+- `collapsible-card.tsx`: kit-internal.
 
 ## Invariants
 
 - `collapsible-card.tsx:CollapsibleCard` is internal to the kit: the `conciv/tool-card-shell` lint rule in `packages/oxlint-plugin` forbids importing it from `@conciv/ui-kit-chat` outside this package; compose `CardShell` or `ToolCard` instead.
-- `tool-call-card.tsx:ToolTraceRow` tags a row "from <client>" ("from outside agent" without a client) when its call's metadata carries the hub marker `{conciv: {origin: 'hub', client, run}}` (`OutsideCallMetadataSchema` from `@conciv/protocol/chat-message-types`); in-page calls carry no tag.
+- `tool-call-card.tsx:ToolTraceRow` tags a row "from <client>" ("from outside agent" without a client) when its call's metadata carries the hub marker `{conciv: {origin: 'hub', client, run}}` (`OutsideCallMetadataSchema` from `@conciv/types/chat-message-types`); in-page calls carry no tag.
 
 ## Side Effects
 
@@ -23,4 +22,4 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

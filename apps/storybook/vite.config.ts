@@ -2,11 +2,12 @@ import path from 'node:path'
 import {defineConfig} from 'vitest/config'
 import {storybookTest} from '@storybook/addon-vitest/vitest-plugin'
 import {playwright} from '@vitest/browser-playwright'
-import {browserOptimizeDeps, ciTest} from '@conciv/vitest-config'
+import {browserOptimizeDeps} from '@internal/vitest-config'
+import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig({
+  plugins: [concivTest()],
   test: {
-    ...ciTest(),
     coverage: {enabled: false},
     projects: [
       {

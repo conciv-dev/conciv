@@ -1,7 +1,7 @@
 import {isIdentifier, isNode, walk} from './ast-walk.js'
 
-const ROUTER_MODULES = new Set(['@tanstack/react-router', '@tanstack/solid-router'])
-const ROUTE_SCOPED_HOOKS = new Set(['useSearch', 'useNavigate', 'useParams', 'useLoaderData'])
+const ROUTER_MODULES = ['@tanstack/react-router', '@tanstack/solid-router']
+const ROUTE_SCOPED_HOOKS = ['useSearch', 'useNavigate', 'useParams', 'useLoaderData']
 const ROUTE_FILE = /(^|[\\/])src[\\/]routes[\\/]/
 const SEARCH_SCHEMA_NAME = /SearchSchema$/
 const ZOD_NAMESPACE = 'z'
@@ -103,13 +103,13 @@ function importedName(specifier) {
 function reportBareHook(specifier, module, context) {
   if (specifier.type !== 'ImportSpecifier') return
   const name = importedName(specifier)
-  if (!ROUTE_SCOPED_HOOKS.has(name)) return
+  if (!ROUTE_SCOPED_HOOKS.includes(name)) return
   context.report({node: specifier, messageId: 'bareRouterHook', data: {name, module}})
 }
 
 function reportRouterImport(node, context) {
   if (node.type !== 'ImportDeclaration') return
-  if (!ROUTER_MODULES.has(node.source.value)) return
+  if (!ROUTER_MODULES.includes(node.source.value)) return
   for (const specifier of node.specifiers) reportBareHook(specifier, node.source.value, context)
 }
 

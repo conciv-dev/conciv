@@ -1,7 +1,6 @@
 ---
-'@conciv/core': patch
+'@conciv/backend': patch
 '@conciv/client': patch
-'@conciv/ai': patch
 ---
 
 Plugin permission cards now behave reliably at the edges:

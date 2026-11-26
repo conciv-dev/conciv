@@ -1,4 +1,4 @@
-import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolResultPart} from '@conciv/types/chat-message-types'
 import {z} from 'zod'
 
 const BashOutputSchema = z

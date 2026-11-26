@@ -1,7 +1,7 @@
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 import conciv from '@conciv/it/plugin/vite'
-import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
+import {e2eDevEndpointDir} from '@internal/e2e-utils/dev-endpoint'
 
 export default defineConfig({
   plugins: [solid(), conciv({widget: false, devEndpointDir: e2eDevEndpointDir(import.meta.dirname)})],

@@ -1,6 +1,6 @@
 ---
-'@conciv/protocol': patch
-'@conciv/core': patch
+'@conciv/types': patch
+'@conciv/backend': patch
 '@conciv/ui-kit-chat': patch
 ---
 

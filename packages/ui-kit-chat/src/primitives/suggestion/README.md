@@ -1,4 +1,4 @@
-# primitives/suggestion
+# ui-kit-chat/src/primitives/suggestion
 
 ## Overview
 
@@ -6,8 +6,7 @@ Headless suggestion item: title, description and a trigger that sends the sugges
 
 ## Interface
 
-- `suggestion.tsx:Suggestion` - `{Title, Description, Trigger}`.
-- `suggestion.tsx:SuggestionProvider`, `suggestion.tsx:useSuggestion`, type `SuggestionData` (`title`, `label`, `prompt`).
+- `suggestion.tsx`: the `Suggestion` parts and their provider.
 
 ## Invariants
 
@@ -15,8 +14,8 @@ Headless suggestion item: title, description and a trigger that sends the sugges
 
 ## Side Effects
 
-- `suggestion.tsx:Trigger` calls the user `onClick`, then `chat.sendMessage(suggestion().prompt)`; a refused send goes to `onSendError`, or to `console.error` (`reportUnsent` in `composer-handlers.tsx`) when no `ComposerHandlersProvider` sets one. `thread.tsx:Suggestion` does the same.
+- `suggestion.tsx:Trigger` calls the user `onClick`, then `chat.sendMessage(suggestion().prompt)`; a refused send goes to `onSendError`, or to `console.error` (`reportUnsent` in `composer-handlers.tsx`) when no `ComposerHandlersProvider` sets one. `../thread/thread.tsx:Suggestion` does the same.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

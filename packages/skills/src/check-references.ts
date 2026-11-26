@@ -49,7 +49,7 @@ const skillGlobs = [
 
 const identifierWindow = 30
 
-const stopwords = new Set([
+const stopwords = [
   'this',
   'that',
   'these',
@@ -164,7 +164,7 @@ const stopwords = new Set([
   'run',
   'running',
   'conciv',
-])
+]
 
 const citationPattern = /`([A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|json|md|mdx|yaml|yml)):(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)`/g
 
@@ -288,7 +288,7 @@ function excludeTokensFor(citationPath: string) {
 function isIdentifierCandidate(token: string, excludeSet: Set<string>) {
   if (token.length < 4) return false
   const lowered = token.toLowerCase()
-  if (stopwords.has(lowered)) return false
+  if (stopwords.includes(lowered)) return false
   return !excludeSet.has(lowered)
 }
 

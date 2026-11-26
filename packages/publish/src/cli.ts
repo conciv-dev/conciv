@@ -8,7 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
-  assertNoRuntimeDependencyLoop,
+  assertNoDependencyLoop,
   assertPublicDepsPublic,
   assertPublicTypesPublic,
   assertPublicSet,
@@ -43,7 +43,6 @@ const MIRROR_TEMPLATE_SUBDIR = 'mirror'
 const BRIDGE_MANIFEST = 'packages/plugins/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
-const OUT_OF_RELEASE_FILTER = '--filter=!@conciv/extension-design'
 
 async function atRoot() {
   const cwd = process.cwd()
@@ -130,7 +129,7 @@ const checkTurboDependsOn = defineCommand({
   meta: {
     name: 'check-turbo-depends-on',
     description:
-      'Fail when a turbo.json build.dependsOn without "^build" misses the build of a workspace package its build sources import, or a typecheck or build:types is not ordered after the task that writes the types of a workspace package whose dist its program reads; a build that only runs tsdown, with its types in build:types, is not checked for imports',
+      'Fail when a turbo.json build.dependsOn without "^build" misses the build of a workspace package its build sources import, or a typecheck is not ordered after the build of a workspace package whose dist its program reads',
   },
   async run() {
     const {cwd} = await atRoot()
@@ -143,11 +142,11 @@ const checkDependencyLoops = defineCommand({
   meta: {
     name: 'check-dependency-loops',
     description:
-      'Fail when workspace packages form a loop through dependencies and optionalDependencies alone; a loop that needs a devDependency or a peerDependency passes',
+      'Fail when workspace packages form any loop through dependencies, devDependencies, peerDependencies or optionalDependencies, and print each loop with the field of every edge',
   },
   async run() {
     const {cwd} = await atRoot()
-    await assertNoRuntimeDependencyLoop(cwd)
+    await assertNoDependencyLoop(cwd)
   },
 })
 
@@ -167,7 +166,7 @@ const check = defineCommand({
   meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
   async run() {
     const {cwd, turbo} = await atRoot()
-    await turbo('build', 'publint', 'attw', OUT_OF_RELEASE_FILTER)
+    await turbo('build', 'publint', 'attw')
     await assertPublicTypesPublic(cwd)
   },
 })
@@ -179,7 +178,7 @@ const release = defineCommand({
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
-    await turbo('build', 'publint', 'attw', OUT_OF_RELEASE_FILTER)
+    await turbo('build', 'publint', 'attw')
     await assertPublicTypesPublic(cwd)
     await changeset('publish')
   },
@@ -194,7 +193,7 @@ const snapshot = defineCommand({
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
-    await turbo('build', 'publint', 'attw', OUT_OF_RELEASE_FILTER)
+    await turbo('build', 'publint', 'attw')
     await assertPublicTypesPublic(cwd)
     await changeset('publish', '--tag', args.tag)
   },

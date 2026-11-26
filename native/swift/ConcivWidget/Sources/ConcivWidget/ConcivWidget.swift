@@ -46,7 +46,7 @@ public enum ConcivWidget {
 
   // Explicit endpoint, windowless. apiBase is the core-served native page origin
   // (http://127.0.0.1:<port>, plus /t/<token> when the core minted a token); the SDK loads
-  // apiBase/native into a transparent overlay above the app's own UI once the key window
+  // apiBase/widget into a transparent overlay above the app's own UI once the key window
   // resolves.
   @MainActor
   public static func attach(

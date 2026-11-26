@@ -1,5 +1,5 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.base.json",
+  "extends": "@internal/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
     "allowImportingTsExtensions": true

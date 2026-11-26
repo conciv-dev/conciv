@@ -1,0 +1,44 @@
+{
+  "name": "@internal/engine-kit",
+  "version": "0.0.22",
+  "private": true,
+  "description": "The harness engine engine tests share: starts the real engine through the createBackend it is given, on a scripted model, in a temp project.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/engine-kit"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/engine.ts",
+    "./clock-steps": "./src/clock-steps.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/client": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/simulation": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@internal/vitest-config": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "get-port": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "^5.1.0"
+  }
+}

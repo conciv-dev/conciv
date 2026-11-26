@@ -1,7 +1,6 @@
 ---
 '@conciv/cli': patch
-'@conciv/core': patch
-'@conciv/tools': patch
+'@conciv/backend': patch
 ---
 
 The conciv MCP hub (`conciv mcp serve`) serves a third tool, `list_tabs`: it lists the open conciv tabs of every running dev server on the machine, with the same rows as before (project, branch, root, href, pageTitle, sessionTitle, lastActive, running, state, harness, browserTabs) and every dev server that did not answer under `unreachable`. An outside agent calls it first, then passes a tab's id as `tab` on `execute_typescript` and `discover_tools`. `conciv tools tabs` prints the same listing and no longer goes through a tab, so it never asks for an Allow.

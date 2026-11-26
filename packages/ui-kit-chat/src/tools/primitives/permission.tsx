@@ -1,8 +1,8 @@
 import {createContext, createSignal, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {PermissionReply} from '@conciv/protocol/chat-types'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
+import type {PermissionReply} from '@conciv/types/chat-types'
+import type {ToolViewCtx} from '@conciv/types/tool-view-types'
 
 const PermissionMetadataSchema = z.object({permission: z.object({always: z.boolean()})})
 

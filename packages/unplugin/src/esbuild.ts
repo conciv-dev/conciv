@@ -1,6 +1,6 @@
 import type {UnpluginInstance} from 'unplugin'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {unplugin} from './index.js'
+import type {ConcivConfig} from '@conciv/types/config-types'
+import {unplugin} from './unplugin.js'
 
 const plugin: UnpluginInstance<ConcivConfig | undefined>['esbuild'] = unplugin.esbuild
 

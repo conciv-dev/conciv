@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/brand-react",
+  "name": "@internal/brand-react",
   "version": "0.0.22",
   "private": true,
   "description": "The conciv logo as React components: the crimson chat-bubble robot mark and the full lockup with its hover animation.",
@@ -24,7 +24,7 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/conciv-lockup.d.ts",
+      "types": "./src/conciv-lockup.tsx",
       "import": "./dist/conciv-lockup.js"
     }
   },
@@ -36,7 +36,7 @@
     "motion": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

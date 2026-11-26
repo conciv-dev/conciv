@@ -1,4 +1,4 @@
-# @conciv/plugin-whiteboard
+# @internal/plugin-whiteboard
 
 The conciv whiteboard plugin. Its engine part keeps a canvas the user and the agent share, with source-anchored
 comments and pins, in the plugin storage the engine keeps for it, and offers it to the agent and over the plugin's RPC. Its
@@ -36,11 +36,11 @@ for the whiteboard's comments to bind for the `commentBindDeadlineMs` option (50
 is not added and a toast says so.
 
 ```ts
-plugins: ['@conciv/plugin-whiteboard']
+plugins: ['@internal/plugin-whiteboard']
 ```
 
 ```ts
-plugins: [['@conciv/plugin-whiteboard', {catchUpRetryMs: 500, commentBindDeadlineMs: 2000}]]
+plugins: [['@internal/plugin-whiteboard', {catchUpRetryMs: 500, commentBindDeadlineMs: 2000}]]
 ```
 
 The canvas is transparent so the page shows through it. The "Canvas background" row in the general settings turns

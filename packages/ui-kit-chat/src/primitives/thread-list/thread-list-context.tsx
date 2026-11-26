@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
+import type {ChatSessionMeta} from '@conciv/types/chat-types'
 
 export type ThreadListActions = {
   sessions: Accessor<ChatSessionMeta[]>

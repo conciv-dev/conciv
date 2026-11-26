@@ -24,14 +24,14 @@ one. Both wrappers are mechanical: all sequencing lives in the core service.
 
 In React, `mount` is a dependency: a new function identity remounts the effect, which drains the
 particles in flight and starts them again. That is what you want when the effect really changed, so
-keep `mount` stable otherwise — a module-level constant as above, or `useCallback` over the values it
+keep `mount` stable otherwise: a module-level constant as above, or `useCallback` over the values it
 closes over. Solid reads `mount` inside its own tracked scope, so an inline arrow there is fine.
 
 ## Interface
 
 - `package.json:exports` - `.` only: [src](./src/README.md).
 - `package.json:dependencies` - `@conciv/mascot`, reached only through `.`, `./adapter` and `./effects/binary`.
-- `tsdown.config.ts:entry` - `src/index.ts` (unbundled, ESM).
+- `tsdown.config.ts:entry` - `src/mascot-react.ts` (unbundled, ESM).
 
 ## Invariants
 

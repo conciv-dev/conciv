@@ -1,5 +1,5 @@
 import {createMemo, ErrorBoundary, lazy, Show, Suspense, type JSX} from 'solid-js'
-import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
+import {usePlugin, type MountedSession} from '@conciv/frontend-plugin-api'
 import {OPEN_FAILED, type TerminalState} from './terminal-state.js'
 import {TerminalToolbar} from './terminal-toolbar.js'
 

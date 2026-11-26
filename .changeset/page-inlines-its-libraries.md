@@ -1,6 +1,6 @@
 ---
 '@conciv/plugin-page': patch
-'@conciv/embed': patch
+'@conciv/app': patch
 '@conciv/unplugin': patch
 ---
 

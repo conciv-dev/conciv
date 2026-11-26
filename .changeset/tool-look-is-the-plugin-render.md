@@ -1,8 +1,8 @@
 ---
+'@conciv/types': patch
 '@conciv/protocol': patch
-'@conciv/contract': patch
-'@conciv/core': patch
-'@conciv/app': patch
+'@conciv/backend': patch
+'@internal/frontend-defaults': patch
 '@conciv/ui-kit-chat': patch
 '@conciv/plugin-page': patch
 '@conciv/plugin-tanstack': patch

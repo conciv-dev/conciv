@@ -29,27 +29,8 @@
         "!LICENSE"
       ]
     },
-    "build:types": {
-      "outputs": ["dist/**/*.d.ts"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!test/**",
-        "!e2e/**",
-        "!**/*.test.ts",
-        "!**/*.test.tsx",
-        "!**/*.spec.ts",
-        "!**/*.spec.tsx",
-        "!**/*.stories.ts",
-        "!**/*.stories.tsx",
-        "!vitest.config.ts",
-        "!playwright.config.ts",
-        "!README.md",
-        "!CHANGELOG.md",
-        "!LICENSE"
-      ]
-    },
     "dev": {
-      "dependsOn": ["^build", "@conciv/cli#build"],
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
@@ -63,29 +44,11 @@
       "outputs": ["storybook-static/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build", "^build:types"],
+      "dependsOn": ["^build"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
-    "kit-runtime": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!test/**",
-        "!e2e/**",
-        "!**/*.test.ts",
-        "!**/*.test.tsx",
-        "!**/*.spec.ts",
-        "!**/*.spec.tsx",
-        "!**/*.stories.ts",
-        "!**/*.stories.tsx",
-        "!vitest.config.ts",
-        "!playwright.config.ts",
-        "!README.md",
-        "!CHANGELOG.md",
-        "!LICENSE"
-      ]
-    },
     "test": {
-      "dependsOn": ["^build", "build", "^build:types", "^kit-runtime"],
+      "dependsOn": ["^build", "build"],
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
       "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"]
@@ -96,11 +59,8 @@
     "//#quality:fix": {
       "dependsOn": ["//#lint:fix", "//#format:fix"]
     },
-    "//#lint": {
-      "dependsOn": ["@conciv/uno-preset#build"]
-    },
+    "//#lint": {},
     "//#lint:fix": {
-      "dependsOn": ["@conciv/uno-preset#build"],
       "cache": false
     },
     "//#format": {},
@@ -123,7 +83,7 @@
       "cache": false
     },
     "test:e2e": {
-      "dependsOn": ["^build", "@conciv/cli#build"],
+      "dependsOn": ["^build"],
       "cache": false,
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]

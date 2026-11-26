@@ -4,8 +4,8 @@ import {readFile} from 'node:fs/promises'
 import {join, resolve} from 'node:path'
 import getPort from 'get-port'
 import {z} from 'zod'
-import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import {ConcivConfigSchema, type ConcivConfig} from '@conciv/types/config-types'
+import {concivStateDir} from '@conciv/types/state-types'
 import type * as Boot from './boot.js'
 
 export const CONCIV_DEFAULT_PORT = 24170
@@ -33,7 +33,7 @@ type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack
   webpack?: WebpackHook
 }
 
-const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/unplugin', '@conciv/core', '@conciv/db', '@conciv/harness']
+const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/unplugin', '@conciv/backend', '@conciv/home', '@conciv/harness']
 const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/unplugin/nextjs']
 const BOOT_FILE = './core/boot.js'
 

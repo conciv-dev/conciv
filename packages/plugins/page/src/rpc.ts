@@ -1,8 +1,9 @@
 export * as Page from './rpc.js'
 import {z} from 'zod'
 import {keyBy, mapValues} from 'es-toolkit'
-import {Rpc} from '@conciv/plugin/rpc'
-import {SessionId} from '@conciv/protocol/chat-types'
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {SessionId} from '@conciv/types/chat-types'
+import {BrowserTabId, BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 import {PageCaptureBundleSchema, SessionCapturesSchema, type ToolCaptureMode} from './element-capture-types.js'
 import {
   PAGE_QUEUE_MAX_ACTIONS,
@@ -11,8 +12,9 @@ import {
   PageQueueResultSchema,
   PageRaisedErrorSchema,
   SymbolicateSchema,
-} from '@conciv/protocol/page-types'
-import {SourceLocSchema} from '@conciv/contract'
+  type PageQueueResult,
+} from './page-types.js'
+import {SourceLocSchema} from '@conciv/protocol'
 
 export const PAGE_NAMESPACE = 'page'
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -20,12 +22,10 @@ export const MAX_TEXT = 100_000
 const text = z.string().max(MAX_TEXT)
 export const SHORT_MAX = 2_048
 const short = z.string().max(SHORT_MAX)
-export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
-export type TabId = z.infer<typeof TabId>
 export const FileId = z.string().regex(/^file_[a-f0-9-]{36}$/u)
 export type FileId = z.infer<typeof FileId>
 const tab = {
-  tabId: TabId.optional().describe(
+  tabId: BrowserTabId.optional().describe(
     'Tab ID returned by page.tabs.list. Omit it for the tab the user focused last, which serves the call.',
   ),
 }
@@ -69,16 +69,6 @@ export function readGrabId(href: string | undefined): GrabId[] {
   return parsed.success ? [parsed.data] : []
 }
 
-export const Tab = z.object({
-  id: TabId,
-  url: z.string().max(16_384),
-  title: short,
-  focused: z.boolean(),
-  visible: z.boolean(),
-})
-export type Tab = z.infer<typeof Tab>
-export const State = z.object({tabs: z.array(Tab), focusedTabId: TabId.nullable()})
-export type State = z.infer<typeof State>
 const FileInfo = z.object({id: FileId, name: short, mime: short, bytes: z.number().int().min(0), path: z.string()})
 export const File = z.object({
   id: FileId,
@@ -189,7 +179,7 @@ export const Operations = [
     'tabs.list',
     "List this session's browser tabs and the tab the user focused last. A call without a tabId goes to that tab.",
     {},
-    State,
+    BrowserTabList,
     reading,
   ),
   operation(
@@ -567,30 +557,22 @@ export const Outcome = z.discriminatedUnion('type', [
   }),
 ])
 export type Outcome = z.infer<typeof Outcome>
-const attachment = {sessionId: SessionId, connectionId: z.string()}
-const request = {...attachment, requestId: z.string()}
+const request = {sessionId: SessionId, tabId: BrowserTabId, requestId: z.string()}
 const errors = {unavailable: z.object({})}
 export const Control = z.discriminatedUnion('type', [
-  z.object({type: z.literal('attached'), connectionId: z.string(), version: z.literal(1)}),
-  z.object({type: z.literal('command'), connectionId: z.string(), requestId: z.string()}),
-  z.object({type: z.literal('cancel'), connectionId: z.string(), requestId: z.string()}),
+  z.object({type: z.literal('command'), tabId: BrowserTabId, requestId: z.string()}),
+  z.object({type: z.literal('cancel'), tabId: BrowserTabId, requestId: z.string()}),
 ])
 export type Control = z.infer<typeof Control>
 export const Definition = Rpc.define({
   id: 'experimental.page',
   methods: {
-    attach: {
-      input: z.object({...attachment, version: z.literal(1)}),
-      output: z.enum(['closed', 'replaced']),
-      errors: {...errors, missing: z.object({}), transient: z.object({})},
-    },
-    state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors},
     command: {input: z.object(request), output: Command, errors},
     result: {input: z.object({...request, outcome: Outcome}), output: z.void(), errors},
     operate: {
       input: z.object({
         sessionId: SessionId,
-        tabId: TabId.optional(),
+        tabId: BrowserTabId.optional(),
         name: Operated.shape.name,
         input: z.json(),
         reading: z
@@ -612,53 +594,17 @@ export const Definition = Rpc.define({
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
     'grabs.save': {input: z.object({grab: StoredGrab}), output: z.object({id: GrabId}), errors},
     'grabs.get': {input: z.object({id: GrabId}), output: StoredGrab.nullable(), errors},
-    'sessions.attached': {input: z.object({}), output: z.array(SessionId), errors},
-    'tabs.list': {input: z.object({sessionId: SessionId}), output: State, errors},
     symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},
     'queue.wait': {
       input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
       errors,
     },
-    'queue.claim': {
-      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
-      output: z.union([
-        z.object({result: PageQueueResultSchema, before: z.literal('owed').nullable()}),
-        PageQueueProgressSchema,
-      ]),
-      errors,
-    },
-    'queue.startedBy': {
-      input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string())}),
-      output: z.array(PageQueueHandleSchema),
-      errors,
-    },
-    'queue.undelivered': {
-      input: z.object({
-        sessionId: SessionId,
-        toolCallIds: z.array(z.string()),
-      }),
-      output: z.array(PageQueueResultSchema),
-      errors,
-    },
-    'queue.owed': {
-      input: z.object({sessionId: SessionId}),
-      output: z.array(z.object({queueId: z.string(), toolCallId: z.string(), result: PageQueueResultSchema})),
-      errors,
-    },
-    'queue.settle': {
-      input: z.object({
-        sessionId: SessionId,
-        queueIds: z.array(z.string()),
-        delivery: z.enum(['owed', 'delivered']),
-      }),
-      output: OkResult,
-      errors,
-    },
   },
   events: {
     control: {schema: Control},
     'captures.saved': {schema: z.object({sessionId: SessionId})},
+    'permissions.synced': {schema: z.object({sessionId: SessionId, allow: z.boolean()})},
     'queue.finished': {
       schema: z.object({
         sessionId: SessionId,
@@ -669,8 +615,6 @@ export const Definition = Rpc.define({
     },
   },
 })
-
-export const CLI_HIDDEN_FIELDS: readonly string[] = ['tabId']
 
 export type CliEntry = {
   readonly asks: ((input: unknown) => AskedPermission) | undefined
@@ -692,8 +636,8 @@ type NamedOperation<Name extends Method> = Extract<Operation, {readonly name: Na
 
 export const PAGE_TOOL_PREFIX = `${PAGE_NAMESPACE}_`
 
-export const PAGE_ACT_TOOL_NAMES: ReadonlySet<string> = new Set(
-  Operations.filter((operation) => operation.mutating).map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
+export const PAGE_ACT_TOOL_NAMES: readonly string[] = Operations.filter((operation) => operation.mutating).map(
+  (operation) => `${PAGE_TOOL_PREFIX}${operation.name}`,
 )
 
 export function pageOperation<const Name extends Method>(name: Name): NamedOperation<Name> {
@@ -705,4 +649,8 @@ export function pageOperation<const Name extends Method>(name: Name): NamedOpera
 export function pageVerbOfTool(name: string): string {
   if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
   return name.slice(PAGE_TOOL_PREFIX.length)
+}
+
+export function queueNotice(result: PageQueueResult): string {
+  return `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`
 }

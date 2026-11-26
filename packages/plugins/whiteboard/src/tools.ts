@@ -1,5 +1,5 @@
-import type {Context} from '@conciv/plugin/effect/plugin'
-import type {ToolEditor} from '@conciv/plugin/effect/tool'
+import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
+import type {ToolEditor} from '@conciv/backend-plugin-api/effect/tool'
 import type {Renderer} from '@takumi-rs/core'
 import {confirmed, fail, toolEdge, type Confirm} from './refusal.js'
 import {registerCanvas, type CanvasDeadlines} from './canvas-tools.js'

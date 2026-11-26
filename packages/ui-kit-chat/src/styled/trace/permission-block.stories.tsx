@@ -1,15 +1,15 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
+import type {ToolViewCtx} from '@conciv/types/tool-view-types'
 import {TracePermissionBlock} from './permission-block.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/trace/PermissionBlock'}
 export default meta
 type Story = StoryObj
 
-const COMMAND = 'rm -rf apps/conciv/dist'
+const COMMAND = 'rm -rf packages/frontend-defaults/dist'
 
 function askingPart(): ToolCallPart {
   return {

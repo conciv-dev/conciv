@@ -1,16 +1,16 @@
-const WEB_FIRST_REPLACEMENTS = new Map([
-  ['textContent', 'toHaveText'],
-  ['innerText', 'toHaveText'],
-  ['isVisible', 'toBeVisible'],
-  ['isHidden', 'toBeHidden'],
-  ['isChecked', 'toBeChecked'],
-  ['isEnabled', 'toBeEnabled'],
-  ['isDisabled', 'toBeDisabled'],
-  ['isEditable', 'toBeEditable'],
-  ['count', 'toHaveCount'],
-  ['getAttribute', 'toHaveAttribute'],
-  ['inputValue', 'toHaveValue'],
-])
+const WEB_FIRST_REPLACEMENTS = {
+  textContent: 'toHaveText',
+  innerText: 'toHaveText',
+  isVisible: 'toBeVisible',
+  isHidden: 'toBeHidden',
+  isChecked: 'toBeChecked',
+  isEnabled: 'toBeEnabled',
+  isDisabled: 'toBeDisabled',
+  isEditable: 'toBeEditable',
+  count: 'toHaveCount',
+  getAttribute: 'toHaveAttribute',
+  inputValue: 'toHaveValue',
+}
 
 function isIdentifier(node, name) {
   return node?.type === 'Identifier' && node.name === name
@@ -39,7 +39,7 @@ function memberPropertyName(callee) {
 function replacementFor(node) {
   if (node.type !== 'CallExpression') return undefined
   const method = memberPropertyName(node.callee)
-  const replacement = WEB_FIRST_REPLACEMENTS.get(method)
+  const replacement = Object.hasOwn(WEB_FIRST_REPLACEMENTS, method) ? WEB_FIRST_REPLACEMENTS[method] : undefined
   if (!replacement) return undefined
   return {method, replacement}
 }

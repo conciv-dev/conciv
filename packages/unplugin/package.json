@@ -24,8 +24,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/unplugin.d.ts",
+      "import": "./dist/unplugin.js"
     },
     "./vite": {
       "types": "./dist/vite.d.ts",
@@ -67,19 +67,18 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsdown -c tsdown.types.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "build:types": "tsdown -c tsdown.types.config.ts",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/app": "workspace:^",
+    "@conciv/backend": "workspace:^",
+    "@conciv/backend-defaults": "workspace:^",
     "@conciv/cli": "workspace:^",
-    "@conciv/core": "workspace:^",
-    "@conciv/embed": "workspace:^",
-    "@conciv/plugin": "workspace:^",
-    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@orpc/server": "catalog:",
     "@tanstack/devtools-bundler-core": "catalog:",
     "get-port": "catalog:",
@@ -88,11 +87,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/contract": "workspace:*",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@conciv/client": "workspace:^",
+    "@conciv/protocol": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",

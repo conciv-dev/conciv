@@ -1,14 +1,16 @@
-import type {Engine, LogEntry} from '@conciv/core/start'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import type {Engine, LogEntry} from '@conciv/backend/start'
+import type {ConcivConfig} from '@conciv/types/config-types'
+import {concivStateDir} from '@conciv/types/state-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {readEngineLine} from './engine-log.js'
 import {makeOpenInEditor} from './open-editor.js'
 
 export type Builtins = {
   embedEntry?: string
-  nativePageDir?: string
+  widgetPageDir?: string
 }
+
+const TRUTHY = ['1', 'true']
 
 function writeEngineLine(entry: LogEntry): void {
   const line = readEngineLine(entry)
@@ -23,16 +25,17 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
     booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
-      const {start} = await import('@conciv/core/start')
+      const {start} = await import('@conciv/backend/start')
       return start({
         options,
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),
-        nativePageDir: builtins.nativePageDir,
+        widgetPageDir: builtins.widgetPageDir,
         devEndpointDir: options.devEndpointDir,
         homeDir: options.homeDir,
         log: {emit: writeEngineLine},
+        simulation: TRUTHY.includes(process.env.CONCIV_SIMULATE?.toLowerCase() ?? ''),
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
       })
     })

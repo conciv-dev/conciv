@@ -1,35 +1,84 @@
 ---
 title: Quick start
-description: One command sets your app up for conciv. Or pick your bundler and wire it by hand.
+description: One command sets your app up for conciv. Or pick your framework and wire it by hand.
 icon: Zap
 ---
 
 ## One command
 
+Run it in your app's folder, the one with `package.json`:
+
 ```bash
 npx @conciv/cli@latest init
 ```
 
-init detects your bundler, package manager, and installed agent harnesses, then prints the whole
-plan and asks once before it writes anything. On approval it installs `@conciv/it`, wires your
-config, and teaches your agents the conciv CLI, resolving each step in place as it goes and printing
-a real diff of every config it edited. Anything it cannot do for you comes back as a card with the
-snippet to paste.
+<Steps>
+<Step>
 
-`--yes` approves the plan up front, which is what you want in CI or an agent session: without a real
-terminal init stops and says so instead of waiting on an invisible prompt. `--dry-run` prints the
-plan and exits without touching anything. init refuses a dirty git tree; commit first or pass
-`--force`.
+### It looks at your project
 
-## Prerequisites
+init finds your framework from the dependencies in `package.json`, your package manager, and the agent CLIs on your
+machine (`claude`, `codex`, `gemini`, `opencode`, `pi`).
+
+</Step>
+<Step>
+
+### It asks
+
+- Teach these agent harnesses about conciv? (every one it found, all checked)
+- Connect these agents to conciv, so they can find and drive your open conciv tabs? (the ones not connected yet)
+- Wire the detected vite config for conciv? (your framework's name in place of vite)
+- Add the `@conciv/skills` docs pack (setup, develop, debug and harness guides) and TanStack intent skill-loading
+  guidance? (off by default)
+
+</Step>
+<Step>
+
+### It shows the plan, then asks "Run this plan?"
+
+The plan lists each step and the files it would edit. A step that is already done shows as `already wired`, and a step
+init cannot do for you shows as `manual — prints instructions`.
+
+</Step>
+<Step>
+
+### It runs each step
+
+It installs `@conciv/it` as a dev dependency with your package manager, adds conciv to your config and prints the diff,
+writes the conciv section of `AGENTS.md` (and `CLAUDE.md`), installs the conciv Claude Code plugin when you picked
+claude, and connects each agent you picked. A step it cannot do for you ends as a card with the snippet to paste.
+Ctrl-C while it runs puts your config back as it was.
+
+</Step>
+</Steps>
+
+<TypeTable
+  type={{
+    '--yes': {type: 'flag', description: 'Takes every default with no questions. Use it in CI or from an agent.'},
+    '--dry-run': {type: 'flag', description: 'Prints the plan and changes nothing.'},
+    '--force': {type: 'flag', description: 'Runs even with uncommitted git changes.'},
+    '--json': {type: 'flag', description: 'Prints one JSON result and never asks. Pair it with --yes or --dry-run.'},
+  }}
+/>
+
+init stops before it writes anything when:
+
+- there is no `package.json` in the folder: `no package.json here — run init from your app directory`
+- the git tree has uncommitted changes and you did not pass `--force`: `uncommitted changes — commit first or pass --force`
+- there is no terminal to ask in and you passed neither `--yes` nor `--dry-run`:
+  `Non-interactive terminal — re-run with --yes or --dry-run`
+
+When it is done it prints the next steps: start your app with your package manager's `dev` script, and ask your agent to
+run `conciv tools --help`.
+
+## Before you start
 
 <Callout>
-  You need a dev build of your app, Node 26 or newer, and the `claude` CLI on your `PATH`. The chat uses `claude` to
-  answer. See [Harnesses](/docs/harnesses) to use a different agent.
+  The chat runs an agent CLI on your machine: `claude` by default, on the `PATH` of the shell that starts your dev
+  server, and logged in. See [Harnesses](/docs/harnesses) for the others.
 </Callout>
 
-conciv mounts in dev only. The conciv button shows once the engine routes are live, so it stays inert on
-a plain production preview.
+conciv runs in your dev server only: `vite build` leaves it out, and a Next.js production server does not start it.
 
 ## Pick your framework
 
@@ -38,36 +87,39 @@ a plain production preview.
     title="Vite"
     href="/docs/quick-start/vite"
     icon={<img src="/icons/vite.svg" alt="" className="size-4" />}
-    description="Full integration. Live page bridge and widget injection."
+    description="Vite apps, and frameworks built on Vite such as Astro."
   />
   <Card
     title="Next.js"
     href="/docs/quick-start/nextjs"
     icon={<img src="/icons/nextjs.svg" alt="" className="size-4" />}
-    description="withConciv plus the client widget."
+    description="withConciv plus two instrumentation files."
   />
   <Card
     title="webpack"
     href="/docs/quick-start/webpack"
     icon={<img src="/icons/webpack.svg" alt="" className="size-4" />}
-    description="Engine and widget in your dev build. No live page bridge."
+    description="Engine and widget in your development build. No live module graph."
   />
   <Card
     title="Rspack"
     href="/docs/quick-start/rspack"
     icon={<img src="/icons/rspack.svg" alt="" className="size-4" />}
-    description="Engine and widget in your dev build. No live page bridge."
+    description="Engine and widget in your development build. No live module graph."
   />
   <Card
     title="iOS (alpha)"
     href="/docs/quick-start/ios"
     icon={<img src="/icons/apple.svg" alt="" className="size-4" />}
-    description="Native app in the simulator. Swift SDK loads the widget from the dev core."
+    description="A native app in the simulator, through the Swift SDK."
   />
+  <Card title="Rollup and esbuild" href="/docs/quick-start/other-bundlers" description="Not supported yet." />
 </Cards>
 
-Using Rollup or esbuild? See the [Rollup](/docs/quick-start/rollup) and
-[esbuild](/docs/quick-start/esbuild) notes.
+## Then log in
 
-Working with coding agents? [Connect your agents](/docs/quick-start/agents) covers what init
-teaches them and how to wire it by hand.
+The first time you open the panel, it asks for a 6-digit code that your dev server prints in its terminal. See
+[Logging in](/docs/usage/logging-in).
+
+Working with a coding agent in your own terminal? [Connect your agents](/docs/quick-start/agents) covers what init sets
+up for it.

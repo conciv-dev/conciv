@@ -4,11 +4,9 @@
 
 Landing page install snippets for `apps/site` and the generator that pre-highlights them. It stays on TypeScript 6 (`catalog:ts6`) because twoslash 0.3.9 needs the classic TypeScript API; the site itself is on TypeScript 7.
 
-## Interface
+## Invariants
 
-- `site-snippets`: `FRAMEWORK_SNIPPETS`, `FrameworkSnippet`, `cleanSnippet` (`src/framework-snippets.ts`)
-- `site-snippets/generated`: `MAGIC_MOVE_STEP_IDS`, `MAGIC_MOVE_STEPS`, `SNIPPET_TWOSLASH` and their types (`src/framework-snippets.gen.ts`, generated)
-- `src/scripts/highlight-snippets.ts`: renders `FRAMEWORK_SNIPPETS` with shiki, twoslash and `codeToKeyedTokens`; run by `pnpm --filter site-snippets gen:snippets`
+- `src/framework-snippets.gen.ts` is generated: edit `src/framework-snippets.ts`, then run `pnpm --filter site-snippets gen:snippets` (`src/scripts/highlight-snippets.ts`, which renders the snippets with shiki and twoslash).
 
 ## Side Effects
 

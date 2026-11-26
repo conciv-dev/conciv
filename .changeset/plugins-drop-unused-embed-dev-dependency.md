@@ -4,4 +4,4 @@
 '@conciv/plugin-try-it': patch
 ---
 
-The recorder, test-runner and try-it plugins no longer list @conciv/embed as a dev dependency they never import.
+The recorder, test-runner and try-it plugins no longer list @conciv/app as a dev dependency they never import.

@@ -1,6 +1,6 @@
 ---
-'@conciv/embed': patch
 '@conciv/app': patch
+'@internal/frontend-defaults': patch
 '@conciv/unplugin': patch
 '@conciv/react': patch
 '@conciv/preact': patch

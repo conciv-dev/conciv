@@ -1,5 +1,5 @@
 import {Deferred, Duration, Effect, FiberHandle, Schema, Stream, SubscriptionRef} from 'effect'
-import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
+import type {ElementRect, Grab} from '@conciv/frontend-plugin-api/grab'
 import type {ChatCover, ComposeTarget} from './comments-model.js'
 import {WhiteboardComposeMachine} from './comment-compose-machine.js'
 

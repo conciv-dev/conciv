@@ -1,5 +1,5 @@
-import {Skill} from '@conciv/plugin/effect'
-import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {Skill} from '@conciv/backend-plugin-api/effect'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import {Operations} from './rpc.js'
 
 export const info: Skill.Info = {

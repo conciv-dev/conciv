@@ -63,20 +63,29 @@ jobs:
           node-version: 26
       # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
       # artifact under any name, and a repo-wide latest-by-name lookup would let a
-      # fork PR poison the baseline. Resolve from the latest completed main-push
-      # run of this workflow that uploaded one instead, and bound the download
+      # fork PR poison the baseline. Resolve from the latest completed run of this
+      # workflow on the same-repo PR branch (its own packages, so a rename or a new
+      # heavy suite is weighed from the second run on), else the latest main push,
+      # both filtered to runs from this repository, and bound the download
       # (scheduling data only, a few KB). Completed, not successful: the summary job
       # publishes timings on a red run too (a cancelled run is skipped: its shards stopped early), and a success-only lookup froze the
       # baseline at the last green main for as long as main stayed red.
       - name: Fetch shard timings baseline
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           url=""
-          for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=10" --jq '.workflow_runs[] | select(.conclusion != "cancelled") | .id'); do
-            url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
-            if [ -n "$url" ] && [ "$url" != "null" ]; then break; fi
-          done
+          find_timings() {
+            for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=$1&event=$2&status=completed&per_page=10" --jq ".workflow_runs[] | select(.conclusion != \"cancelled\" and .head_repository.full_name == \"${GITHUB_REPOSITORY}\") | .id"); do
+              url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
+              if [ -n "$url" ] && [ "$url" != "null" ]; then return; fi
+            done
+            url=""
+          }
+          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ] && [ -n "$HEAD_BRANCH" ]; then find_timings "$HEAD_BRANCH" pull_request; fi
+          if [ -z "$url" ]; then find_timings main push; fi
           if [ -n "$url" ] && [ "$url" != "null" ]; then
             curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url" || true
             unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
@@ -85,7 +94,7 @@ jobs:
           # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
           [ -s ci-test-timings.json ] || rm -f ci-test-timings.json
       - id: plan
-        run: node packages/vitest-config/src/ci-shards.ts plan --timings ci-test-timings.json
+        run: node packages/publish/src/ci-shards.ts plan --timings ci-test-timings.json
 
   build:
     name: build + test (${{ matrix.shard }})
@@ -141,7 +150,7 @@ jobs:
           mode: firewall-free
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec conciv-ci-shards run
+      - run: pnpm conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
       # Playwright keeps a trace.zip per failed embed IT (trace: retain-on-failure);
@@ -151,7 +160,7 @@ jobs:
         if: failure()
         with:
           name: playwright-traces-${{ matrix.shard }}
-          path: packages/embed/test-results/
+          path: packages/app/test-results/
           if-no-files-found: ignore
       # The test kit saves a screenshot of every failed browser test under the
       # package's .vitest/attachments/failure-screenshots/. Listed by literal path
@@ -162,10 +171,9 @@ jobs:
         with:
           name: failure-screenshots-${{ matrix.shard }}
           path: |
-            apps/conciv/.vitest/attachments/failure-screenshots/
+            packages/frontend-defaults/.vitest/attachments/failure-screenshots/
             packages/ai/.vitest/attachments/failure-screenshots/
-            packages/embed/.vitest/attachments/failure-screenshots/
-            packages/plugin-testkit/.vitest/attachments/failure-screenshots/
+            packages/app/.vitest/attachments/failure-screenshots/
             packages/plugins/recorder/.vitest/attachments/failure-screenshots/
             packages/plugins/test-runner/.vitest/attachments/failure-screenshots/
             packages/plugins/try-it/.vitest/attachments/failure-screenshots/
@@ -178,7 +186,7 @@ jobs:
       # upload action would walk every node_modules in the workspace — minutes of
       # directory traversal to ship a few KB. Our own walker skips node_modules.
       # Inline failure annotations still come from vitest's github-actions reporter.
-      - run: pnpm exec conciv-ci-shards report --output "shard-report-${SHARD_NAME}.json"
+      - run: pnpm conciv-ci-shards report --output "shard-report-${SHARD_NAME}.json"
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
@@ -190,7 +198,7 @@ jobs:
       # Each package run's V8 lcov (it holds every workspace source file the run
       # executed, in any package), with its paths made repo-relative, copied into
       # one folder per shard and uploaded by literal path: same no-glob rule as above.
-      - run: pnpm exec conciv-ci-shards coverage --output "coverage-${SHARD_NAME}"
+      - run: pnpm conciv-ci-shards coverage --output "coverage-${SHARD_NAME}"
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
@@ -203,7 +211,7 @@ jobs:
       # Every workspace source file listed once at 0 lines covered, from a coverage run
       # with no test files. summarize uses a file from it only when no package run
       # loaded that file, so a source nothing runs still counts in the totals.
-      - run: pnpm exec vitest run --config packages/vitest-config/src/untested-sources.config.ts
+      - run: pnpm exec vitest run --config packages/publish/src/untested-sources.config.ts
         if: always() && matrix.shard == 'shard-1'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && matrix.shard == 'shard-1'
@@ -252,17 +260,13 @@ jobs:
         with:
           pattern: untested-sources
           path: untested-sources
-      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --untested untested-sources --coverage-output coverage
-        if: github.event_name == 'pull_request'
-      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --untested untested-sources --coverage-output coverage --timings ci-test-timings.json
-        if: github.event_name == 'push'
+      - run: node packages/publish/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --untested untested-sources --coverage-output coverage --timings ci-test-timings.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: coverage/
           if-no-files-found: ignore
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: github.event_name == 'push'
         with:
           name: ci-test-timings
           path: ci-test-timings.json
@@ -308,16 +312,15 @@ jobs:
       # This is the name-only check on push/main and every PR; the PR-only
       # --require-coverage check runs in verify-changesets.yml, which can also
       # retrigger on label changes (pull_request's default types can't).
-      - run: pnpm exec conciv-publish check-changesets
-      - run: pnpm exec conciv-publish check-catalog
-      - run: pnpm exec conciv-publish check-typecheck-coverage
-      - run: pnpm exec conciv-publish check-test-budget
-      - run: pnpm exec conciv-publish check-turbo-depends-on
-      - run: pnpm exec conciv-publish check-dependency-loops
-      - run: pnpm exec conciv-publish check-plugin-ui-kit
+      - run: pnpm conciv-publish check-changesets
+      - run: pnpm conciv-publish check-catalog
+      - run: pnpm conciv-publish check-typecheck-coverage
+      - run: pnpm conciv-publish check-test-budget
+      - run: pnpm conciv-publish check-turbo-depends-on
+      - run: pnpm conciv-publish check-dependency-loops
+      - run: pnpm conciv-publish check-plugin-ui-kit
       # oxlint and oxfmt over the whole repo (apps/ too), as the turbo root tasks //#lint and //#format.
-      # Runs before any build step: the unocss lint rule loads uno.config.ts, which imports the preset's dist,
-      # so lint passes here only while //#lint itself depends on @conciv/uno-preset#build.
+      # Runs before any build step: the unocss lint rule loads the root uno.config.ts, which reads the preset's source.
       - run: pnpm exec turbo run quality
       # The browser jobs' container image must be one digest-pinned reference whose tag
       # is the playwright version the lockfile resolves, else Playwright looks for
@@ -333,7 +336,7 @@ jobs:
             exit 1
           fi
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
-      - run: pnpm exec turbo run build --filter='./packages/**' --filter='!@conciv/extension-design' --filter=site --filter='./apps/examples/*'
+      - run: pnpm exec turbo run build --filter='./packages/**' --filter=site --filter='./apps/examples/*'
       # Token codegen drift: the base token sheet, every class-scoped skin block and both
       # generated contract docs come from the typed skin definitions and are committed.
       # Regenerate them in memory and fail if the committed files disagree.
@@ -358,7 +361,7 @@ jobs:
           [ -s bundle-size-baseline.json ] || rm -f bundle-size-baseline.json
       # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
       # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
-      - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
+      - run: pnpm conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:
@@ -474,7 +477,7 @@ jobs:
           # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
           [ -s e2e-test-timings.json ] || rm -f e2e-test-timings.json
       - id: plan
-        run: node packages/vitest-config/src/ci-shards.ts plan --task e2e --timings e2e-test-timings.json
+        run: node packages/publish/src/ci-shards.ts plan --task e2e --timings e2e-test-timings.json
 
   e2e:
     name: e2e consumer apps (${{ matrix.shard }})
@@ -557,7 +560,7 @@ jobs:
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run
       # exercises the real servers; each app takes a free port (e2ePort), so a shard's apps run side by side.
-      - run: pnpm exec conciv-ci-shards run --task e2e
+      - run: pnpm conciv-ci-shards run --task e2e
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -586,7 +589,7 @@ jobs:
       # Collapse this shard's playwright/vitest reports into ONE file and upload it by
       # literal name; never glob e2e/** here, the upload action would walk every
       # node_modules in the workspace.
-      - run: pnpm exec conciv-ci-shards report --task e2e --output "e2e-report-${SHARD_NAME}.json"
+      - run: pnpm conciv-ci-shards report --task e2e --output "e2e-report-${SHARD_NAME}.json"
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
@@ -618,9 +621,9 @@ jobs:
           pattern: e2e-results-*
           merge-multiple: true
           path: e2e-reports
-      - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports
+      - run: node packages/publish/src/ci-shards.ts summarize --task e2e e2e-reports
         if: github.event_name == 'pull_request'
-      - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports --timings e2e-test-timings.json
+      - run: node packages/publish/src/ci-shards.ts summarize --task e2e e2e-reports --timings e2e-test-timings.json
         if: github.event_name == 'push'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'

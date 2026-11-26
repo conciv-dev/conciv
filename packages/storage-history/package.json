@@ -21,8 +21,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/storage-history.d.ts",
+      "import": "./dist/storage-history.js"
     }
   },
   "publishConfig": {
@@ -38,7 +38,7 @@
     "@tanstack/history": "^1.162.5"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "tsdown": "catalog:",
     "typescript": "catalog:"
   }

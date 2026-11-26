@@ -1,5 +1,5 @@
 import {range, uniqBy} from 'es-toolkit'
-import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ChatPart, ToolCallPart} from '@conciv/types/chat-message-types'
 import {
   defaultGrouper,
   isReplyText,
@@ -13,7 +13,7 @@ import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from './rpc.js'
 
 type PageSessionThinkingPart = Extract<ChatPart, {type: 'thinking'}>
 
-type PageSessionGrouperConfig = {actNames: ReadonlySet<string>; toolPrefix: string}
+type PageSessionGrouperConfig = {actNames: readonly string[]; toolPrefix: string}
 
 export const PAGE_SESSION_GROUP_KEY: GroupKey = 'group-page-session'
 
@@ -36,7 +36,7 @@ function replyPrefixCounts(parts: ReadonlyArray<ChatPart>): number[] {
   )
 }
 
-function foldableParentIds(parts: ReadonlyArray<ChatPart>, actNames: ReadonlySet<string>): ReadonlySet<string> {
+function foldableParentIds(parts: ReadonlyArray<ChatPart>, actNames: readonly string[]): ReadonlySet<string> {
   const repliesBefore = replyPrefixCounts(parts)
   const calls = parts.flatMap((part, index) => (part.type === 'tool-call' ? [{call: part, index}] : []))
   const firstIndexByCallId = new Map(
@@ -47,7 +47,7 @@ function foldableParentIds(parts: ReadonlyArray<ChatPart>, actNames: ReadonlySet
   )
   const actChildren = calls.flatMap(({call, index}) => {
     const parent = readParentToolCallId(call)
-    return actNames.has(call.name) && parent !== null ? [{parent, index}] : []
+    return actNames.includes(call.name) && parent !== null ? [{parent, index}] : []
   })
   const unsplit = uniqBy(actChildren, ({parent}) => parent).filter(({parent, index: childIndex}) => {
     const parentIndex = firstIndexByCallId.get(parent)
@@ -63,11 +63,11 @@ function sessionMemberCall(
   part: ChatPart,
 ): ToolCallPart | undefined {
   if (part.type !== 'tool-call' || part.state === 'approval-requested') return undefined
-  return config.actNames.has(part.name) || actParentIds.has(part.id) ? part : undefined
+  return config.actNames.includes(part.name) || actParentIds.has(part.id) ? part : undefined
 }
 
 function toolCallFolds(state: SessionState, config: PageSessionGrouperConfig, part: ToolCallPart): boolean {
-  if (part.state === 'approval-requested') return false
+  if (part.state === 'approval-requested' || part.name === `${config.toolPrefix}screenshot`) return false
   const parent = readParentToolCallId(part)
   if (parent !== null && state.openCallIds.has(parent)) return true
   return part.name.startsWith(config.toolPrefix)
@@ -130,14 +130,14 @@ type SessionRunFold = {runs: SessionRun[]; open: boolean}
 function sessionRuns(
   parts: ReadonlyArray<ChatPart>,
   paths: ReadonlyArray<GroupPath | null>,
-  actNames: ReadonlySet<string>,
+  actNames: readonly string[],
 ): readonly SessionRun[] {
   return paths.reduce<SessionRunFold>(
     (state, path, index) => {
       if (path === null || path === undefined) return state
       if (!isSessionPath(path)) return {runs: state.runs, open: false}
       const part = parts[index]
-      const isAct = part?.type === 'tool-call' && actNames.has(part.name)
+      const isAct = part?.type === 'tool-call' && actNames.includes(part.name)
       const current = state.open ? state.runs.at(-1) : undefined
       if (!current) {
         state.runs.push({start: index, end: index, hasAct: isAct})
@@ -155,7 +155,7 @@ function dropActlessSessions(
   parts: ReadonlyArray<ChatPart>,
   paths: ReadonlyArray<GroupPath | null>,
   basePaths: ReadonlyArray<GroupPath | null>,
-  actNames: ReadonlySet<string>,
+  actNames: readonly string[],
 ): ReadonlyArray<GroupPath | null> {
   const actless = sessionRuns(parts, paths, actNames).filter((run) => !run.hasAct)
   if (actless.length === 0) return paths

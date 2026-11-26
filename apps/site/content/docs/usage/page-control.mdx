@@ -1,13 +1,16 @@
 ---
 title: Page control
-description: The agent reads and drives your live page, then persists to source.
+description: The agent reads and drives your live page, then writes the change to your source.
 ---
 
-The agent works against the page you see. It takes a snapshot of the accessibility tree, acts on
-an element, waits for the page to settle, and snapshots again.
+The agent works against the page you see, in your own browser tab. It reads the page with a snapshot of its controls,
+acts on an element, waits for the page to settle, and takes a fresh snapshot. Page control comes from the page plugin,
+`@conciv/plugin-page`, which conciv ships and always loads.
 
-Grab an element to point at what you mean: the crosshair in the composer picks any element on the
-page and pins it to your next message, source location included.
+## Point at what you mean
+
+**Select an element from the page**, the crosshair beside the composer, picks any element on the page and pins it to
+your next message, with its source file and line when conciv can find them.
 
 <ImageZoom
   src="/screenshots/grab-element.png"
@@ -16,22 +19,38 @@ page and pins it to your next message, source location included.
   height={1080}
 />
 
+## What the agent can do on the page
+
+The agent calls the page tools from code mode as `external_page_*`, such as `external_page_click`. Every tool takes an
+optional tab: without one, the tab you focused last answers.
+
+- **Read**: `snapshot`, `screenshot`, `text`, `value`, `query`, `console`, and the current `route`.
+- **Act**: `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover`, `scroll` and `submit`, on an element from
+  the latest snapshot, a CSS selector, or a React component name. `queue` plays a list of actions in order.
+- **Restyle**: `setstyle`, `addclass`, `settext` and `css`.
+- **Inspect React**: `inspect`, `tree`, `locate` and `find`. `locate` names the source file and line that rendered an
+  element.
+- **Wait**: `wait` for an element to show or hide, and `hmr` for a hot update to land after a file edit.
+- **Run code**: `eval` runs JavaScript in your page. It asks you first, every time (see
+  [Approvals](/docs/usage/approvals)).
+
+Page text, console messages and screenshots are untrusted page content: the agent is told never to follow
+instructions found in them.
+
 ## Preview, then persist
 
-It can tweak the DOM and CSS live to show you an idea right away. These live edits are ephemeral.
-The next hot reload wipes them, because they are not in your source.
-
-When you keep a change, the agent edits the real files so it survives a reload. It can open the
-exact source file in your editor too.
+The restyle tools change the page live, so you see an idea at once. These edits live only in the page: the next hot
+reload wipes them, because they are not in your source. When you keep a change, the agent edits the real files so it
+survives a reload. It can open the source file in your editor too.
 
 <ImageZoom
   src="/screenshots/page-control.png"
-  alt="The agent restyled the page heading live, with its tool calls visible in the thread"
+  alt="The agent restyled the page heading live, with its page edit card in the thread"
   width={1920}
   height={1080}
 />
 
 <Callout>
-  Ask for something visible, like "make the heading larger". You see it instantly, then the agent offers to persist it
-  as a real edit.
+  Ask for something visible, like "make the heading larger". You see it at once, then the agent can write it to your
+  source as a real edit.
 </Callout>

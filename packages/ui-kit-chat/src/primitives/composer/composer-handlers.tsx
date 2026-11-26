@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
+import type {QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
 import type {ComposerDraft} from './composer-context.js'
 
 export type ComposerHandlers = {

@@ -20,11 +20,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/contract": "workspace:*",
-    "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@conciv/types": "workspace:*",
+    "@internal/e2e-utils": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

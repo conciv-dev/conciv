@@ -1,0 +1,9 @@
+{
+  "extends": "@internal/tsconfig/tsconfig.solid.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "paths": {
+      "@conciv/frontend-plugin-api": ["./src/frontend-plugin-api.ts"]
+    }
+  }
+}

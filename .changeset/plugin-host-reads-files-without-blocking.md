@@ -1,5 +1,5 @@
 ---
-'@conciv/plugin-host': patch
+'@conciv/backend-app-api': patch
 ---
 
 The plugin host loads, reloads and stores plugins without blocking on file reads.

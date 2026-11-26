@@ -1,12 +1,12 @@
 import {createRoot, getOwner, type Accessor} from 'solid-js'
 import {makeTimer} from '@solid-primitives/timer'
 
-const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
+const SCROLLABLE_OVERFLOW = ['auto', 'scroll']
 
 function findScrollableAncestor(element: HTMLElement): HTMLElement | null {
   let current: HTMLElement | null = element
   while (current) {
-    if (SCROLLABLE_OVERFLOW.has(getComputedStyle(current).overflowY)) return current
+    if (SCROLLABLE_OVERFLOW.includes(getComputedStyle(current).overflowY)) return current
     current = current.parentElement
   }
   return null

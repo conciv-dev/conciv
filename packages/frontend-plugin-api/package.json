@@ -1,0 +1,89 @@
+{
+  "name": "@conciv/frontend-plugin-api",
+  "version": "0.0.22",
+  "description": "The conciv browser plugin API: Plugin.define for a plugin's browser part, its slots, hooks and the rpc client types a plugin author imports.",
+  "keywords": [
+    "conciv",
+    "plugin",
+    "plugins"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/frontend-plugin-api"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/frontend-plugin-api.d.ts",
+      "import": "./dist/frontend-plugin-api.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./grab": {
+      "types": "./dist/grab.d.ts",
+      "import": "./dist/grab.js"
+    },
+    "./page": {
+      "types": "./dist/page.d.ts",
+      "import": "./dist/page.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@standard-schema/spec": "catalog:",
+    "@tanstack/solid-query": "catalog:",
+    "@zumer/snapdom": "catalog:",
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13",
+    "vite": ">=8",
+    "vite-plugin-solid": "^2.11.14"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    },
+    "vite-plugin-solid": {
+      "optional": true
+    }
+  }
+}

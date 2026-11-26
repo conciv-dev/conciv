@@ -1,5 +1,5 @@
 ---
-'@conciv/embed': patch
+'@conciv/app': patch
 '@conciv/react': patch
 '@conciv/preact': patch
 '@conciv/solid': patch

@@ -1,0 +1,505 @@
+import {describe, expect} from 'vitest'
+import {page, userEvent as realInput} from 'vitest/browser'
+import {render, screen, within} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
+import {test, TestLLM} from '@conciv/backend-test-utils'
+import {renderTestApp} from '@internal/frontend-test-utils/app'
+import {pageTestPlugin} from '@conciv/plugin-page/test-utils'
+import {boardCall, insertComment, nextWrite, seedComments, showBoard, WHITEBOARD} from '../utils/board-comment.js'
+
+describe('the agent draws on the open canvas', () => {
+  test('the agent drafts, previews, publishes, exports and discards a sketch with a card per step, and a destructive step asks first', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    const engine = await createEngine(WHITEBOARD)
+    const cart = {type: 'rectangle', id: 'cart', x: 0, y: 0, width: 120, height: 60}
+    const pay = {type: 'rectangle', id: 'pay', x: 240, y: 0, width: 120, height: 60}
+    await engine.reply(
+      boardCall('c1', 'canvas_draw', {elements: [cart, pay]}),
+      boardCall('c2', 'canvas_connect', {fromId: 'cart', toId: 'pay'}),
+      boardCall('c3', 'canvas_update', {elementId: 'cart', patch: {backgroundColor: '#ffc9c9'}}),
+      boardCall('c4', 'canvas_preview', {}),
+      boardCall('c5', 'canvas_commit', {}),
+      boardCall('c6', 'canvas_export', {format: 'png', scope: 'live'}),
+      boardCall('c7', 'canvas_svg', {
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50"/></svg>',
+        x: 0,
+        y: 200,
+      }),
+      boardCall('c8', 'canvas_diagram', {mermaid: 'flowchart LR\n  Cart --> Pay'}),
+      boardCall('c9', 'canvas_discard', {}),
+      TestLLM.text('The checkout sketch is on the canvas'),
+      boardCall('c10', 'canvas_delete', {elementId: 'pay'}),
+      boardCall('c11', 'canvas_clear', {}),
+      TestLLM.text('I removed the pay step and kept the rest'),
+    )
+    await showBoard(engine)
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'Sketch the checkout flow')
+    await expect.element(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
+    await user.keyboard('{Enter}')
+
+    await finished.arrived
+    expect(await screen.findByText('The checkout sketch is on the canvas')).toBeVisible()
+    const sketch = screen.getByRole('article', {name: 'Reply to: Sketch the checkout flow'})
+    expect(within(sketch).getByText('whiteboard_canvas_draw')).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_draw\s*2 elements to draft/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_connect\s*cart → pay/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_update\s*updated cart/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_preview\s*3 elements/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_commit\s*3 published/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_svg\s*svg to draft/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_diagram\s*mermaid to draft/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_discard\s*\d+ discarded/})).toBeVisible()
+    expect(await within(sketch).findByRole('img', {name: 'canvas export'})).toBeVisible()
+
+    await user.type(input, 'Remove the pay step and clear the rest')
+    await expect.element(input).toHaveFocus()
+    const removeAsked = await engine.event('permission.asked')
+    await user.keyboard('{Enter}')
+    await removeAsked.arrived
+    const clearAsked = await engine.event('permission.asked')
+    await user.click(await screen.findByRole('button', {name: 'Allow once'}))
+    await clearAsked.arrived
+    const tidy = await screen.findByRole('article', {name: 'Reply to: Remove the pay step and clear the rest'})
+    expect(await within(tidy).findByText('pay')).toBeVisible()
+    const tidied = await engine.event('session.execution.succeeded')
+    await user.click(await screen.findByRole('button', {name: 'Deny'}))
+
+    await tidied.arrived
+    expect(await screen.findByText('I removed the pay step and kept the rest')).toBeVisible()
+    expect(within(tidy).getByText('whiteboard_canvas_clear')).toBeVisible()
+  })
+})
+
+describe("the user works the agent's comments on the canvas", () => {
+  test('the user finds, sorts, marks read, answers, resolves and deletes threads, the agent reads the answer and lists what is left, and Escape closes one layer at a time', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await seedComments(engine, room, [
+      {
+        cid: 'price',
+        text: 'The price wraps on small screens',
+        x: 120,
+        y: 160,
+        authorModel: 'Opus 5.5',
+        createdAt: 1_000,
+      },
+      {
+        cid: 'hero',
+        text: 'The hero image is blurry',
+        source: {file: 'src/hero.tsx', line: 12},
+        x: 420,
+        y: 160,
+        authorModel: 'Opus 5.5',
+        createdAt: 2_000,
+      },
+      {cid: 'hero-reply', parentCid: 'hero', text: 'A sharper export is ready', x: 0, y: 0, createdAt: 3_000},
+    ])
+    await engine.reply(
+      boardCall('c1', 'comment_read', {cid: 'hero'}),
+      boardCall('c2', 'comment_list', {}),
+      TestLLM.text('I read your reply, and only the resolved hero comment is left'),
+    )
+    await showBoard(engine)
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    const toggle = await screen.findByRole('button', {name: /^Comments/})
+    expect(within(toggle).getByText('2')).toBeVisible()
+    expect(await screen.findAllByRole('button', {name: 'AI comment, open, unread'})).toHaveLength(2)
+    expect(screen.getByText('hero.tsx:12')).toBeVisible()
+    expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+
+    await user.click(toggle)
+    const inbox = await screen.findByRole('complementary', {name: 'Comments inbox'})
+    const inboxRows = page.getByRole('complementary', {name: 'Comments inbox'})
+    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    const search = within(inbox).getByRole('searchbox', {name: 'Quick search'})
+    await user.type(search, 'blurry')
+    await expect
+      .element(inboxRows.getByRole('button', {name: /The price wraps on small screens/}))
+      .not.toBeInTheDocument()
+    expect(within(inbox).getByRole('button', {name: /The hero image is blurry/})).toBeVisible()
+    await user.clear(search)
+    expect(await within(inbox).findByRole('button', {name: /The price wraps on small screens/})).toBeVisible()
+    await user.type(search, 'checkout')
+    expect(await within(inbox).findByText('No comments match “checkout”.')).toBeVisible()
+    await user.clear(search)
+
+    await user.click(await within(inbox).findByRole('button', {name: /The hero image is blurry/}))
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Close thread'}),
+    )
+    expect(await screen.findByRole('button', {name: 'AI comment, open, unread'})).toBeVisible()
+    expect(screen.getByRole('button', {name: 'AI comment, open'})).toBeVisible()
+    const byDate = within(inbox).getAllByRole('button', {
+      name: /The hero image is blurry|The price wraps on small screens/,
+    })
+    expect(byDate[0]).toHaveAccessibleName(/The hero image is blurry/)
+    expect(within(inbox).getByText('1 reply')).toBeVisible()
+    await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
+    await user.click(await screen.findByRole('menuitemradio', {name: 'Sort by unread'}))
+    await expect
+      .element(
+        inboxRows.getByRole('button', {name: /The hero image is blurry|The price wraps on small screens/}).first(),
+      )
+      .toHaveAccessibleName(/The price wraps on small screens/)
+    await user.click(within(inbox).getByRole('button', {name: 'Mark all as read'}))
+    await expect.element(page.getByRole('button', {name: 'AI comment, open, unread'})).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', {name: 'AI comment, open'})).toHaveLength(2)
+
+    await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
+    const thread = await screen.findByRole('dialog', {name: 'Comment thread'})
+    expect(within(thread).getByText('The hero image is blurry')).toBeVisible()
+    const reply = within(thread).getByRole('textbox', {name: 'Reply'})
+    await expect.element(reply).toHaveFocus()
+    await user.type(reply, 'On it @Opus')
+    expect(await screen.findByRole('option', {name: 'Opus 5.5'})).toBeVisible()
+    expect(reply).toHaveFocus()
+    await user.keyboard('{Tab}')
+    expect(await within(reply).findByText('@Opus 5.5')).toBeVisible()
+    expect(reply).toHaveFocus()
+    const answered = await nextWrite(engine, room, 'comments')
+    await user.keyboard('{Enter}')
+    expect(await answered.row).toMatchObject({
+      authorKind: 'human',
+      parts: expect.arrayContaining([expect.objectContaining({type: 'mention', label: 'Opus 5.5'})]),
+    })
+    const answer = await within(thread).findByText('On it')
+    expect(answer).toHaveTextContent('On it @Opus 5.5')
+    expect(answer).toBeVisible()
+
+    await user.click(within(thread).getByRole('button', {name: 'Previous thread'}))
+    expect(await within(thread).findByText('The price wraps on small screens')).toBeVisible()
+    await user.click(within(thread).getByRole('button', {name: 'Next thread'}))
+    expect(await within(thread).findByText('The hero image is blurry')).toBeVisible()
+    const heroReply = within(thread).getByRole('textbox', {name: 'Reply'})
+    await user.click(heroReply)
+    await expect.element(heroReply).toHaveFocus()
+    await user.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Comment thread'})).not.toBeInTheDocument()
+    expect(inbox).toBeVisible()
+
+    await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Resolve thread'}),
+    )
+    await expect.element(inboxRows.getByRole('button', {name: /The hero image is blurry/})).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', {name: 'AI comment, resolved'})).toBeVisible()
+    await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
+    await user.click(await screen.findByRole('menuitemcheckbox', {name: 'Show resolved comments'}))
+    expect(await within(inbox).findByRole('button', {name: /The hero image is blurry/})).toBeVisible()
+
+    await user.click(within(inbox).getByRole('button', {name: /The price wraps on small screens/}))
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Delete thread'}),
+    )
+    const confirm = await screen.findByRole('dialog', {name: 'Delete this thread?'})
+    await user.click(within(confirm).getByRole('button', {name: 'Delete'}))
+    await expect
+      .element(inboxRows.getByRole('button', {name: /The price wraps on small screens/}))
+      .not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^AI comment, open/})).not.toBeInTheDocument()
+    await user.click(within(inbox).getByRole('button', {name: 'Close inbox'}))
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'Did you see my reply, and what is left on the board?')
+    await expect.element(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
+    await user.keyboard('{Enter}')
+    await finished.arrived
+    expect(await screen.findByText('I read your reply, and only the resolved hero comment is left')).toBeVisible()
+    const left = await engine.rpc.call('whiteboard', 'comments.list', {room})
+    expect(left).toHaveLength(3)
+    expect(left).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({cid: 'hero', status: 'resolved'}),
+        expect.objectContaining({threadId: 'hero', parentId: 'hero'}),
+        expect.objectContaining({threadId: 'hero', authorKind: 'human'}),
+      ]),
+    )
+
+    expect(input).toHaveFocus()
+    await user.keyboard('{Escape}')
+    await expect.element(page.getByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+  })
+})
+
+describe('the user drags pins on the canvas', () => {
+  test('a floating pin moves where it is dropped, and a source pin asks first, keeping its link or cutting it', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await seedComments(engine, room, [
+      {cid: 'shelf', text: 'The shelf needs more space', x: 200, y: 200},
+      {
+        cid: 'cart',
+        text: 'The cart badge overlaps',
+        source: {file: 'src/cart.tsx', line: 8},
+        x: 500,
+        y: 200,
+        authorKind: 'human',
+      },
+    ])
+    await showBoard(engine)
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+
+    const shelf = await screen.findByRole('button', {name: 'AI comment, open, unread'})
+    const shelfMoved = await nextWrite(engine, room, 'pins')
+    await user.pointer([
+      {keys: '[MouseLeft>]', target: shelf, coords: {clientX: 200, clientY: 200}},
+      {coords: {clientX: 260, clientY: 290}},
+      {keys: '[/MouseLeft]'},
+    ])
+    expect(await shelfMoved.row).toMatchObject({cid: 'shelf', x: 260, y: 290, pinState: 'locked'})
+    expect(screen.queryByRole('dialog', {name: 'Pin drift'})).not.toBeInTheDocument()
+
+    const cart = screen.getByRole('button', {name: 'Human comment, open, unread'})
+    expect(within(cart).getByText('cart.tsx:8')).toBeVisible()
+    await user.pointer([
+      {keys: '[MouseLeft>]', target: cart, coords: {clientX: 500, clientY: 200}},
+      {coords: {clientX: 540, clientY: 260}},
+      {keys: '[/MouseLeft]'},
+    ])
+    const drift = await screen.findByRole('dialog', {name: 'Pin drift'})
+    expect(within(drift).getByRole('heading', {name: 'cart.tsx:8'})).toBeVisible()
+    const kept = await nextWrite(engine, room, 'pins')
+    await user.click(within(drift).getByRole('button', {name: 'Keep link, accept drift'}))
+    expect(await kept.row).toMatchObject({cid: 'cart', x: 540, y: 260, pinState: 'offset', anchorX: 500, anchorY: 200})
+    expect(within(cart).getByText('cart.tsx:8')).toBeVisible()
+
+    await user.pointer([
+      {keys: '[MouseLeft>]', target: cart, coords: {clientX: 540, clientY: 260}},
+      {coords: {clientX: 600, clientY: 300}},
+      {keys: '[/MouseLeft]'},
+    ])
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Pin drift'})).getByRole('button', {
+        name: 'Disconnect from source',
+      }),
+    )
+    await expect.element(cart).not.toHaveTextContent('cart.tsx:8')
+    await expect.element(page.getByRole('dialog', {name: 'Pin drift'})).not.toBeInTheDocument()
+  })
+})
+
+describe('each session has its own board', () => {
+  test('switching sessions swaps the board', async ({createEngine}) => {
+    const user = userEvent.setup()
+    const engine = await createEngine(WHITEBOARD)
+    const alpha = await engine.newSession('Alpha')
+    const beta = await engine.newSession('Beta')
+    await seedComments(engine, alpha.id, [{cid: 'alpha-note', text: 'Alpha checkout note', x: 100, y: 100}])
+    await seedComments(engine, beta.id, [
+      {cid: 'beta-note', text: 'Beta header note', x: 100, y: 100},
+      {cid: 'beta-footer', text: 'Beta footer note', x: 300, y: 100},
+    ])
+    await showBoard(engine, alpha.id)
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    await user.click(await screen.findByRole('button', {name: /^Comments/}))
+    const alphaInbox = await screen.findByRole('complementary', {name: 'Comments inbox'})
+    expect(within(alphaInbox).getByText('Alpha checkout note')).toBeVisible()
+    expect(within(alphaInbox).queryByText('Beta header note')).not.toBeInTheDocument()
+    await user.click(within(alphaInbox).getByRole('button', {name: 'Close inbox'}))
+
+    await user.click(await screen.findByRole('button', {name: 'Alpha, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Alpha'}))
+    await user.click(await screen.findByRole('option', {name: /Beta/}))
+    expect(await screen.findByRole('button', {name: 'Beta, session options'})).toBeVisible()
+    await user.click(await screen.findByRole('button', {name: /^Comments\s*2/}))
+    const betaInbox = await screen.findByRole('complementary', {name: 'Comments inbox'})
+    expect(await within(betaInbox).findByText('Beta header note')).toBeVisible()
+    expect(within(betaInbox).queryByText('Alpha checkout note')).not.toBeInTheDocument()
+  })
+})
+
+describe('the open board follows changes made from another tab', () => {
+  test('a comment added and then resolved from another tab shows on the open board as it happens', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await showBoard(engine)
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    expect(screen.queryByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
+
+    await insertComment(engine, room, {cid: 'shelf', text: 'The shelf needs more space', x: 200, y: 200})
+    expect(await screen.findByRole('button', {name: 'AI comment, open, unread'})).toBeVisible()
+    expect(screen.getByRole('button', {name: /^Comments\s*1/})).toBeVisible()
+
+    await engine.rpc.call('whiteboard', 'comments.update', {room, id: 'shelf-row', patch: {status: 'resolved'}})
+    expect(await screen.findByRole('button', {name: /^AI comment, resolved/})).toBeVisible()
+  })
+})
+
+describe('the whiteboard settings', () => {
+  test('the canvas background row starts on, and the choice holds after leaving settings', async ({createEngine}) => {
+    const user = userEvent.setup()
+    const engine = await createEngine(WHITEBOARD)
+    await showBoard(engine)
+
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
+    const general = await screen.findByRole('tab', {name: 'General', selected: true})
+    const background = await screen.findByRole('switch', {name: 'Canvas background: see the page through the canvas'})
+    expect(background).toBeChecked()
+    await user.click(background)
+    await expect.element(background).not.toBeChecked()
+
+    await user.click(general)
+    await expect.element(general).toHaveFocus()
+    await user.keyboard('{Escape}')
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
+    expect(await screen.findByRole('tab', {name: 'General', selected: true})).toBeVisible()
+    expect(
+      await screen.findByRole('switch', {name: 'Canvas background: see the page through the canvas'}),
+    ).not.toBeChecked()
+  })
+})
+
+describe('the user comments on an element of the page', () => {
+  test('with the canvas open a picked element gets its comment straight onto the board with no toast, and with the canvas closed the user is told it was added and finds it on the board', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    await page.viewport(1280, 800)
+    const engine = await createEngine(WHITEBOARD, {plugins: ['@conciv/plugin-page']})
+    const room = engine.session.id
+    await renderTestApp({
+      engine,
+      plugins: [pageTestPlugin],
+      initialEntries: [`/panel/${room}?open=true`],
+    })
+    render(() => (
+      <>
+        <h1>Plant shop</h1>
+        <button type="button" id="buy">
+          Buy the fern
+        </button>
+      </>
+    ))
+
+    const whiteboard = await screen.findByRole('button', {name: 'Open the whiteboard canvas'})
+    await user.click(whiteboard)
+    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await realInput.click(screen.getByRole('heading', {name: 'Plant shop'}), {force: true})
+    const tagline = await screen.findByRole('dialog', {name: 'New comment'})
+    await user.type(within(tagline).getByRole('textbox', {name: 'Comment'}), 'The title needs a tagline')
+    const added = await nextWrite(engine, room, 'comments')
+    await user.click(within(tagline).getByRole('button', {name: 'Add comment'}))
+    expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
+    await added.row
+    expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
+    const thread = await screen.findByRole('dialog', {name: 'Comment thread'})
+    expect(within(thread).getByText('The title needs a tagline')).toBeVisible()
+    await user.click(within(thread).getByRole('button', {name: 'Close thread'}))
+
+    await user.click(whiteboard)
+    await expect.element(page.getByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    const compose = await screen.findByRole('dialog', {name: 'New comment'})
+    const comment = within(compose).getByRole('textbox', {name: 'Comment'})
+    await expect.element(comment).toHaveFocus()
+    await user.type(comment, 'Make this button green')
+    await user.click(within(compose).getByRole('button', {name: 'Add comment'}))
+
+    expect(await screen.findByText('Comment added to the whiteboard')).toBeVisible()
+    expect(screen.queryByRole('dialog', {name: 'New comment'})).not.toBeInTheDocument()
+    await expect
+      .poll(() => engine.rpc.call('whiteboard', 'comments.list', {room}))
+      .toContainEqual(
+        expect.objectContaining({
+          authorKind: 'human',
+          parts: [expect.objectContaining({type: 'text', text: 'Make this button green'})],
+        }),
+      )
+    await user.click(screen.getByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findAllByRole('button', {name: /^Human comment, open/})).toHaveLength(2)
+  })
+})
+
+describe('the user draws on the canvas', () => {
+  test('the user draws a rectangle with the canvas tools, it is saved to the shared board, the agent reads it, and real clicks still reach the chat composer and Settings', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    await page.viewport(1280, 800)
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await engine.reply(boardCall('c1', 'canvas_read', {}), TestLLM.text('I see the rectangle you drew'))
+    await showBoard(engine)
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    const canvas = page.getByRole('region', {name: 'Whiteboard canvas'})
+    await realInput.click(canvas, {position: {x: 300, y: 300}})
+    await realInput.keyboard('r')
+    await expect.element(page.getByRole('radio', {name: 'Rectangle'})).toBeChecked()
+    const saved = await nextWrite(engine, room, 'canvasElements')
+    await realInput.dragAndDrop(canvas, canvas, {
+      sourcePosition: {x: 300, y: 300},
+      targetPosition: {x: 500, y: 440},
+    })
+    expect(await saved.row).toMatchObject({room, data: {type: 'rectangle', isDeleted: false}})
+
+    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await realInput.click(input)
+    await expect.element(input).toHaveFocus()
+    await realInput.keyboard('What did I draw?')
+    await expect.element(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
+    await realInput.keyboard('{Enter}')
+
+    await finished.arrived
+    expect(await screen.findByText('I see the rectangle you drew')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: What did I draw?'})
+    expect(within(reply).getByRole('button', {name: /whiteboard_canvas_read\s*1 element/})).toBeVisible()
+
+    await realInput.click(page.getByRole('link', {name: 'Settings'}))
+    await expect.element(page.getByRole('heading', {name: 'Settings'})).toBeVisible()
+  })
+})
+
+describe('the board stays clear while the user draws', () => {
+  test('with a shape tool picked the board shows no properties panel, library or help, and keeps its toolbar, menu, comments and zoom', async ({
+    createEngine,
+  }) => {
+    const user = userEvent.setup()
+    await page.viewport(1280, 800)
+    const engine = await createEngine(WHITEBOARD)
+    await showBoard(engine)
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    await realInput.click(page.getByRole('region', {name: 'Whiteboard canvas'}), {position: {x: 300, y: 300}})
+    await realInput.keyboard('r')
+    await expect.element(page.getByRole('radio', {name: 'Rectangle'})).toBeChecked()
+
+    await expect.element(page.getByRole('region', {name: 'Selected shape actions', exact: true})).not.toBeInViewport()
+    await expect.element(page.getByRole('checkbox', {name: 'Library', exact: true})).not.toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Help', exact: true})).not.toBeInViewport()
+
+    await expect.element(page.getByRole('region', {name: 'Shapes', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: '', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: /^Comments/})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Zoom in', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Reset zoom', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Zoom out', exact: true})).toBeInViewport()
+  })
+})

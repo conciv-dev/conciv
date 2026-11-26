@@ -1,5 +1,5 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.web.json",
+  "extends": "@internal/tsconfig/tsconfig.web.json",
   "compilerOptions": {
     "types": []
   }

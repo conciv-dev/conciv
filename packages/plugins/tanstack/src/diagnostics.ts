@@ -1,4 +1,4 @@
-import type * as Bundler from '@conciv/plugin/schema/bundler'
+import type * as Bundler from '@conciv/protocol/schema/bundler'
 import {Context, Effect, Layer, Ref} from 'effect'
 import type {AppError} from './rpc.js'
 

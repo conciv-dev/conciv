@@ -1,4 +1,3 @@
-import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import {devtools} from '@tanstack/devtools-vite'
 
@@ -8,9 +7,7 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import {nitro} from 'nitro/vite'
 import conciv from '@conciv/it/plugin/vite'
-import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
-
-const tanstackPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-tanstack/package.json')))
+import {e2eDevEndpointDir} from '@internal/e2e-utils/dev-endpoint'
 
 const config = defineConfig({
   resolve: {tsconfigPaths: true},
@@ -20,7 +17,10 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
-    conciv({devEndpointDir: e2eDevEndpointDir(import.meta.dirname), plugins: [tanstackPlugin]}),
+    conciv({
+      devEndpointDir: e2eDevEndpointDir(import.meta.dirname),
+      plugins: ['./node_modules/@conciv/plugin-tanstack'],
+    }),
   ],
 })
 

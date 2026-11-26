@@ -1,22 +1,21 @@
 import type {Deferred} from 'effect'
-import {RESULT_CAP_CHARS} from '@conciv/contract'
-import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
+import type * as Tool from '@conciv/protocol/schema/tool'
+import {RESULT_CAP_CHARS} from '@conciv/protocol'
+import type {SessionId} from '@conciv/types/chat-types'
+import type {PageQueueOutcome, PageQueueProgress, PageQueueResult} from './page-types.js'
 
 export type Landed = 'played' | 'stopped' | 'lost'
 
 export type Settled = {readonly outcome: PageQueueOutcome; readonly landed: Landed}
 
-export type Delivery = 'owed' | 'claimed' | 'delivered'
-
 export type QueueEntry = {
   readonly queueId: string
   readonly sessionId: SessionId
   readonly toolCallId: string
+  readonly origin: Tool.Origin
   readonly tools: readonly string[]
   readonly settled: readonly (Settled | undefined)[]
   readonly result: PageQueueResult | null
-  readonly delivery: Delivery
   readonly done: Deferred.Deferred<PageQueueResult>
 }
 
@@ -26,32 +25,13 @@ export type QueueEvent =
   | {readonly type: 'started'; readonly entry: QueueEntry}
   | {readonly type: 'landed'; readonly queueId: string; readonly index: number; readonly settled: Settled}
   | {readonly type: 'finished'; readonly queueId: string}
-  | {readonly type: 'announce'; readonly queueId: string}
-  | {readonly type: 'delivered'; readonly queueIds: readonly string[]}
-  | {readonly type: 'claimed'; readonly queueIds: readonly string[]}
-  | {
-      readonly type: 'settled'
-      readonly sessionId: SessionId
-      readonly queueIds: readonly string[]
-      readonly delivery: Exclude<Delivery, 'claimed'>
-    }
   | {readonly type: 'session.cancelled'; readonly sessionId: SessionId}
 
-export type QueueEffect =
-  | {readonly type: 'resolve'; readonly entry: QueueEntry; readonly result: PageQueueResult}
-  | {readonly type: 'announce'; readonly entry: QueueEntry}
+export type QueueEffect = {readonly type: 'resolve'; readonly entry: QueueEntry; readonly result: PageQueueResult}
 
 export type QueueTransition = {readonly state: QueueState; readonly effects: readonly QueueEffect[]}
 
-export type Owed = {
-  readonly queueId: string
-  readonly toolCallId: string
-  readonly result: PageQueueResult
-}
-
 export const KEPT_QUEUES = 200
-
-export const OWED_QUEUES = 1000
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
@@ -73,29 +53,11 @@ export function transitionQueue(state: QueueState, event: QueueEvent): QueueTran
     const next = updated(state, event.queueId, (each) => ({...each, result}))
     return {state: next.state, effects: [{type: 'resolve', entry, result}]}
   }
-  if (event.type === 'announce') {
-    const entry = state.entries.find((each) => each.queueId === event.queueId)
-    if (entry === undefined || entry.result === null || entry.delivery !== 'owed') return {state, effects: []}
-    return {state, effects: [{type: 'announce', entry}]}
-  }
-  if (event.type === 'delivered') return redelivered(state, event.queueIds, () => true, 'delivered')
-  if (event.type === 'claimed') return redelivered(state, event.queueIds, () => true, 'claimed')
-  if (event.type === 'settled')
-    return redelivered(
-      state,
-      event.queueIds,
-      (entry) => entry.sessionId === event.sessionId && entry.delivery === 'claimed',
-      event.delivery,
-    )
   return {state: {entries: state.entries.filter((entry) => entry.sessionId !== event.sessionId)}, effects: []}
 }
 
 export function findQueue(state: QueueState, sessionId: SessionId, queueId: string): QueueEntry | undefined {
   return state.entries.find((entry) => entry.queueId === queueId && entry.sessionId === sessionId)
-}
-
-export function readOwing(state: QueueState): number {
-  return state.entries.filter((entry) => entry.delivery !== 'delivered').length
 }
 
 export function readProgress(entry: QueueEntry): PageQueueProgress {
@@ -107,37 +69,6 @@ export function readProgress(entry: QueueEntry): PageQueueProgress {
   }
 }
 
-export function awaitsDelivery(entry: QueueEntry): boolean {
-  return entry.delivery === 'owed' && entry.result !== null
-}
-
-export function selectStartedBy(
-  state: QueueState,
-  sessionId: SessionId,
-  toolCallIds: readonly string[],
-): PageQueueHandle[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId && entry.result === null && toolCallIds.includes(entry.toolCallId)
-      ? [{queueId: entry.queueId, actions: entry.tools.length}]
-      : [],
-  )
-}
-
-export function selectUndelivered(
-  state: QueueState,
-  sessionId: SessionId,
-  toolCallIds: readonly string[] | undefined,
-): Owed[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId &&
-    (toolCallIds === undefined || toolCallIds.includes(entry.toolCallId)) &&
-    entry.result !== null &&
-    awaitsDelivery(entry)
-      ? [{queueId: entry.queueId, toolCallId: entry.toolCallId, result: entry.result}]
-      : [],
-  )
-}
-
 function updated(state: QueueState, queueId: string, change: (entry: QueueEntry) => QueueEntry): QueueTransition {
   return {
     state: {entries: state.entries.map((entry) => (entry.queueId === queueId ? change(entry) : entry))},
@@ -145,25 +76,9 @@ function updated(state: QueueState, queueId: string, change: (entry: QueueEntry)
   }
 }
 
-function redelivered(
-  state: QueueState,
-  queueIds: readonly string[],
-  allowed: (entry: QueueEntry) => boolean,
-  delivery: Delivery,
-): QueueTransition {
-  return {
-    state: {
-      entries: state.entries.map((entry) =>
-        queueIds.includes(entry.queueId) && allowed(entry) ? {...entry, delivery} : entry,
-      ),
-    },
-    effects: [],
-  }
-}
-
 function kept(entries: readonly QueueEntry[]): readonly QueueEntry[] {
-  const delivered = entries.filter((entry) => entry.result !== null && entry.delivery === 'delivered')
-  const dropped = delivered.slice(0, Math.max(0, delivered.length - KEPT_QUEUES))
+  const finished = entries.filter((entry) => entry.result !== null)
+  const dropped = finished.slice(0, Math.max(0, finished.length - KEPT_QUEUES))
   return entries.filter((entry) => !dropped.includes(entry))
 }
 

@@ -1,7 +1,6 @@
 ---
-'@conciv/db': patch
-'@conciv/harness-init': patch
-'@conciv/core': patch
+'@conciv/harness': patch
+'@conciv/backend': patch
 '@conciv/cli': patch
 ---
 

@@ -53,7 +53,7 @@ jobs:
       # the workspace before `changeset version` ever runs (see conciv-publish
       # version, which runs the same guard). Runs straight from source (bin
       # resolves src/cli.ts, no build needed).
-      - run: pnpm exec conciv-publish check-changesets
+      - run: pnpm conciv-publish check-changesets
       # Also require a changeset when the PR touches non-test code in a
       # published package (fixed versioning means one @conciv entry covers the
       # whole set). Base is the PR's actual merge base sha, not a branch name,
@@ -63,4 +63,4 @@ jobs:
       # the PR event payload, never a GitHub API call from the guard itself.
       - name: check-changesets --require-coverage
         if: ${{ !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository) && !contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
-        run: pnpm exec conciv-publish check-changesets --require-coverage --base "${{ github.event.pull_request.base.sha }}"
+        run: pnpm conciv-publish check-changesets --require-coverage --base "${{ github.event.pull_request.base.sha }}"

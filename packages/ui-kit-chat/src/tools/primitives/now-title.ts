@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
 import {parseInput} from './tool-util.js'
 
 const Hint = z.object({

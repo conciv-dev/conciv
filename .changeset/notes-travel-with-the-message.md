@@ -1,7 +1,7 @@
 ---
 '@conciv/ui-kit-chat': patch
-'@conciv/chat': patch
-'@conciv/embed': patch
+'@conciv/backend-defaults': patch
+'@conciv/app': patch
 ---
 
 A note a plugin attaches now shows as a card in the composer, before the attachments: the plugin's own `NoteCard` for its origin when it draws one, and the host's card (the comment, and the note's icon with its subtitle or label) when it draws nothing or fails. Each card has a remove button. When the message is sent, the model reads one sentence per note after the typed text, and the message's metadata carries `displayText`, `comments` and `attachments` at its top level, as opencode does, so a plugin's `prompt` hook reads the notes from it. The conversation and the session title show what the user typed, with every note as a card under it, as opencode does, also after a reload; a first message of notes alone titles the session with its first note's label (such as `Screen recording`), never the sentence written for the model. A refused send keeps the notes in the composer, and a queued message that comes back (Stop, a failed stream, a refused Steer, also while its pane is closed) returns as the typed text with its notes as cards again, so a resend sends each sentence once. A message of notes alone is still an article named `You: N notes` with its time. New session from a deleted session carries its notes. A saved note that no longer decodes is dropped when the draft is restored, so that note cannot keep Send enabled unseen; other saved items are restored as they were. A widget command typed with notes staged (such as `/model`) runs instead of reaching the model, and the notes stay staged. The chat kit's `onSend` handler now receives the draft beside the content, and a draft of items alone can be sent.

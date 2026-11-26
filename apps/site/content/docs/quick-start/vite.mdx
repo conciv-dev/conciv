@@ -1,12 +1,12 @@
 ---
 title: Vite
-description: Add conciv to a Vite app.
+description: Add conciv to a Vite app, or to a framework built on Vite such as Astro.
 ---
 
-Vite is the full integration. The plugin boots the engine, bridges the live page, and injects the
-widget for you.
+Add conciv to your Vite config. In `vite dev` it starts the engine, adds the widget to every page the dev server
+serves, and gives the agent your dev server's config, URLs and module graph. `vite build` leaves it out.
 
-<Tabs items={['init', 'Manual']}>
+<Tabs items={['init', 'By hand']}>
 
 <Tab value="init">
 
@@ -14,16 +14,13 @@ widget for you.
 npx @conciv/cli@latest init
 ```
 
-init detects Vite from your package.json, installs `@conciv/it` with your package manager, and adds
-the `@conciv/it/plugin/vite` plugin to your Vite config. If it cannot prove the shape of your
-config, it prints the exact snippet to paste instead.
-
-init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
-`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
+init finds Vite (or Astro) in your `package.json`, installs `@conciv/it`, and adds `conciv()` to the `plugins` of
+your config. If it cannot read the shape of your config, it prints the snippet to paste instead. See
+[Quick start](/docs/quick-start) for what it asks.
 
 </Tab>
 
-<Tab value="Manual">
+<Tab value="By hand">
 
 <Steps>
 <Step>
@@ -37,8 +34,6 @@ init prints the whole plan and asks once before it writes anything; `--yes` appr
 ```bash
 pnpm add -D @conciv/it
 ```
-
-Under `trustPolicy: no-downgrade`, add `trustPolicyExclude: ['solid-js']` to your `pnpm-workspace.yaml`: Solid 1.x releases are published without provenance and Solid 2 releases with it, and pnpm compares trust by publish date.
 
 </Tab>
 
@@ -63,7 +58,11 @@ yarn add -D @conciv/it
 </Step>
 <Step>
 
-### Add the plugin
+### Add conciv to your config
+
+<Tabs items={['vite.config.ts', 'astro.config.mjs']}>
+
+<Tab value="vite.config.ts">
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -74,16 +73,24 @@ export default defineConfig({
 })
 ```
 
-</Step>
-<Step>
+</Tab>
 
-### Run and open
+<Tab value="astro.config.mjs">
 
-Start your dev server, open the app, and click the conciv button.
+```js title="astro.config.mjs"
+import {defineConfig} from 'astro/config'
+import conciv from '@conciv/it/plugin/vite'
 
-```bash
-vite dev
+export default defineConfig({
+  vite: {
+    plugins: [conciv()],
+  },
+})
 ```
+
+</Tab>
+
+</Tabs>
 
 </Step>
 </Steps>
@@ -92,8 +99,29 @@ vite dev
 
 </Tabs>
 
-<Callout type="warn">
-  Keep conciv out of production. Gate it on the dev command, or set `enabled`. See [Configuration](/docs/configuration).
+<Steps>
+<Step>
+
+### Start your dev server
+
+```bash
+pnpm dev
+```
+
+</Step>
+<Step>
+
+### Open your app and log in
+
+Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
+See [Logging in](/docs/usage/logging-in).
+
+</Step>
+</Steps>
+
+<Callout>
+  With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner, and logs in with no code.
+  See [Logging in](/docs/usage/logging-in#vite-devtools).
 </Callout>
 
-Next: [Usage](/docs/usage) to see what the agent can do.
+Next: [Usage](/docs/usage) to see what the agent can do, and [Configuration](/docs/configuration) for the options.

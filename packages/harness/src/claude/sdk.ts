@@ -7,20 +7,14 @@ import type {
   SlashCommand,
   Options,
 } from '@anthropic-ai/claude-agent-sdk'
-import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
-import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessLoginStatus} from '@conciv/types/chat-types'
+import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/types/harness-types'
 import {onPath} from '../_shared/on-path.js'
 import {CLAUDE_BIN, mcpServerConfig} from './args.js'
 import {claudePluginDir} from './plugin-dir.js'
 
-let claudeAgentSdk: Promise<typeof ClaudeAgentSdk> | undefined
-
 export function loadClaudeAgentSdk(): Promise<typeof ClaudeAgentSdk> {
-  claudeAgentSdk ??= import('@anthropic-ai/claude-agent-sdk').catch((error: unknown) => {
-    claudeAgentSdk = undefined
-    throw error
-  })
-  return claudeAgentSdk
+  return import('@anthropic-ai/claude-agent-sdk')
 }
 
 type InputQueue = {end: () => void; stream: AsyncGenerator<SDKUserMessage>}
@@ -43,18 +37,12 @@ function makeInputQueue(): InputQueue {
   return {end, stream: stream()}
 }
 
-const commandsByCwd = new Map<string, HarnessCommand[]>()
-
 function toHarnessCommand(command: SlashCommand): HarnessCommand {
   return {
     name: command.name,
     description: command.description,
     ...(command.argumentHint ? {argumentHint: command.argumentHint} : {}),
   }
-}
-
-export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): void {
-  commandsByCwd.set(cwd, commands)
 }
 
 const PROBE_START_TIMEOUT_MS = 30_000
@@ -217,7 +205,11 @@ export async function claudeSdkLogin({
   return login
 }
 
-export async function claudeSdkCommands(ctx: HarnessCommandsContext, env: ClaudeProbeEnv): Promise<HarnessCommand[]> {
+export async function claudeSdkCommands(
+  ctx: HarnessCommandsContext,
+  env: ClaudeProbeEnv,
+  commandsByCwd: Map<string, HarnessCommand[]>,
+): Promise<HarnessCommand[]> {
   const cached = commandsByCwd.get(ctx.cwd)
   if (cached) return cached
   const commands = (await probeCommands(ctx, env)).map(toHarnessCommand)

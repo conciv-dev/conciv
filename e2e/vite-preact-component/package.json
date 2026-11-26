@@ -16,8 +16,8 @@
     "preact": "catalog:"
   },
   "devDependencies": {
-    "@conciv/e2e-utils": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/e2e-utils": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "oxlint": "catalog:",

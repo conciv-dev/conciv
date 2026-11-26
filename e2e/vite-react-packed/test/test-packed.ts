@@ -1,8 +1,8 @@
 import {spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
-import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
+import {e2eDevEndpointDir} from '@internal/e2e-utils/dev-endpoint'
+import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@internal/e2e-utils/pack'
 import {PACKED_APP_DIR, PACKED_ROOT} from './packed-app-dir.ts'
 
 const SOURCE_APP = join(WORKSPACE_ROOT, 'e2e/vite-react')

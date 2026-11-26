@@ -17,7 +17,7 @@ The single exception is the first-publish bootstrap for a brand-new package (bel
 
    ```markdown
    ---
-   '@conciv/core': patch
+   '@conciv/app': patch
    ---
 
    Describe the change from the consumer's perspective.
@@ -25,9 +25,9 @@ The single exception is the first-publish bootstrap for a brand-new package (bel
 
    All `@conciv/*` packages are version-fixed (`.changeset/config.json` `fixed: [["@conciv/*"]]`, currently the 0.0.x patch line). One entry naming ANY `@conciv/*` package bumps and releases the whole set in lockstep; do not enumerate packages.
 
-2. **Merge to main.** `changesets/action` opens a `chore: version packages` PR that runs `pnpm release:version` (consumes changesets, bumps versions + CHANGELOGs, resyncs the lockfile). This version PR usually gets NO CI (bot-token pushes don't trigger `pull_request` workflows — its green checkmarks are CodeQL and cache-cleanup, not tests), though a Release run RE-RUN by a human leaks that human as `triggering_actor` and the PR does get CI. Either way is fine: main was already validated at step 1's merge.
+2. **Merge to main.** `changesets/action` opens a `chore: version packages` PR that runs `pnpm release:version` (consumes changesets, bumps versions + CHANGELOGs, resyncs the lockfile). This version PR usually gets NO CI (bot-token pushes don't trigger `pull_request` workflows: its green checkmarks are CodeQL and cache-cleanup, not tests), though a Release run RE-RUN by a human leaks that human as `triggering_actor` and the PR does get CI. Either way is fine: main was already validated at step 1's merge.
 
-3. **Merge the version PR.** CI runs `pnpm release`: `turbo run build publint attw`, then `changeset publish` to npm with provenance, and pushes git tags. Landmine (2026-07-19): the squash-merge push event can be silently swallowed and NO Release run is created — zero runs for the merge SHA, nothing to debug in the workflow. Recovery: any human push to main (e.g. an empty `chore: trigger release` commit) starts a run that publishes everything still unpublished.
+3. **Merge the version PR.** CI runs `pnpm release`: `turbo run build publint attw`, then `changeset publish` to npm with provenance, and pushes git tags. Landmine (2026-07-19): the squash-merge push event can be silently swallowed and NO Release run is created: zero runs for the merge SHA, nothing to debug in the workflow. Recovery: any human push to main (e.g. an empty `chore: trigger release` commit) starts a run that publishes everything still unpublished.
 
 ## Pre-release verification (multi-agent)
 
@@ -40,7 +40,7 @@ Before opening the release PR, fan out verifier agents concurrently (one message
 | gates-runner      | sonnet | Run `pnpm typecheck && pnpm build && pnpm test`, forced test reruns for changed packages, `pnpm lint`, `pnpm format`, `pnpm exec fallow audit --changed-since main --format json`, and `pnpm release:check`. Report raw pass/fail per command with the failing output verbatim. Anything INTRODUCED by fallow blocks.                                                                                                                                                                                 |
 | changeset-auditor | haiku  | Verify `.changeset/*.md` exists for the work being released, frontmatter parses, exactly the fixed-versioning shape (one `@conciv/*` entry, no enumeration), and the description reads from the consumer's perspective.                                                                                                                                                                                                                                                                               |
 | npm-auditor       | haiku  | For each package in `PUBLIC_PACKAGES` (`packages/publish/src/guards.ts`), query the registry: `curl -s https://registry.npmjs.org/@conciv%2f<pkg> \| jq '.versions["<v>"]._npmUser, .versions["<v>"].dist.attestations'`. `_npmUser` "GitHub Actions" plus attestations means trusted publishing is configured; a human `_npmUser` and null attestations means the package will E404 the next CI release. Also flag any `PUBLIC_PACKAGES` entry missing from the registry entirely (needs bootstrap). |
-| phone-smoke       | sonnet | Automated half of the phone smoke gate ONLY: build the embed, run the `embed at a phone viewport` ITs, and report pass/fail per IT plus which of the four checks each one covers. Write the two missing ITs if they are still missing. It must NOT attempt the simulator half: a subagent cannot pause to ask the user, so that half belongs to the orchestrator.                                                                                                                                     |
+| phone-smoke       | sonnet | Automated half of the phone smoke gate ONLY: build the widget bundle, run the phone-viewport specs, and report pass/fail per spec plus which of the four checks each one covers. Write the missing specs if they are still missing. It must NOT attempt the simulator half: a subagent cannot pause to ask the user, so that half belongs to the orchestrator.                                                                                                                                        |
 | release-skeptic   | opus   | Adversarial: read `.github/workflows/release.yml`, `packages/publish/src/guards.ts`, the diff since main, and the other verifiers' outputs. Mission: PROVE THE RELEASE WILL FAIL. Any concrete failure path (permission missing on the reusable ci.yml call, `assertPublicSet` drift, unbootstrapped package, manifest missing `homepage`/`repository.directory`) is a blocking finding with the exact file and line.                                                                                 |
 
 The release PR opens only when gates are green, both halves of the phone smoke gate are green, and the skeptic fails to construct a failure path. Report the skeptic's attempted attacks and why each failed; "skeptic found nothing" with no attack list is not evidence.
@@ -49,34 +49,31 @@ The release PR opens only when gates are green, both halves of the phone smoke g
 
 0.0.16 shipped with every component check green and was broken on a real phone: the chat did not scroll, the panel sheet was transparent, and the composer overflowed its container. The package-level suites cover none of those three at phone size, so component-green is not release-green. This gate exists so that cannot recur.
 
-Build the embed first, because both halves load the prebuilt bundle:
+Build the widget bundle (`packages/app/dist/conciv-widget.global.js`) first, because both halves load it:
 
 ```
-pnpm turbo run build --filter=@conciv/embed
+pnpm turbo run build --filter=@conciv/app
 ```
 
 The gate has two halves and different owners. The automated half runs inside the `phone-smoke` verifier during the fan-out. The simulator half CANNOT: a subagent cannot suspend the conversation to ask the user and wait, so a verifier that owned it would always return UNVERIFIED and the gate could never go green. The simulator half is therefore an orchestrator step in the main conversation, after the fan-out returns and before the release PR opens. Neither half alone clears the gate.
 
-**Automated half (verifier, always run, no simulator needed).** What exists TODAY is the `embed at a phone viewport` describe block in `packages/embed/test/e2e/embed.it.test.ts`, one IT against the built bundle:
+**Automated half (verifier, always run, no simulator needed).** No spec drives the built widget at a phone viewport today, so a green run is not evidence for any of the three browser checks. Behaviour that needs the real built widget in a real browser and is not about a framework is tested once, in the one e2e host app (AGENTS.md, Testing; its specs are in `e2e/vite-react/test/`). Three named gaps must be WRITTEN as part of this release, at a phone viewport (393x800):
 
-- `opens as a full-screen sheet with the launcher hidden and the composer reachable`: at 393x800 (`PHONE_VIEWPORT`) the launcher disappears while the sheet is open, a message round-trips, and closing restores the launcher.
-
-That is open/close behavior only. Nothing asserts the sheet is opaque, nothing asserts the transcript scrolls, and nothing exercises a wrapped multi-line draft, so a green run is not evidence for those three checks. Two named gaps must be WRITTEN as part of this release, in the same describe block:
-
+- `paints an opaque sheet on a phone`: a screenshot of the open sheet over the page.
 - `scrolls the transcript to the latest turn on a phone`: a screenshot after a long turn showing the newest message at the bottom edge.
 - `keeps a multi-line draft inside the composer on a phone`: a screenshot with a wrapped draft, proving no overflow past the sheet.
 
-Assert both as screenshots, never `getBoundingClientRect` or `scrollHeight`, per the no-DOM-measurement rule. The pattern: clip a region, vary only the thing under test, and compare buffers.
+Assert them as screenshots, never `getBoundingClientRect` or `scrollHeight`, per the no-DOM-measurement rule. The pattern: clip a region, vary only the thing under test, and compare buffers.
 
 **Simulator half (ORCHESTRATOR step, never a verifier).** WKWebView, the native bridge, and `pick` returning a real element only exist on-device. Run this in the main conversation once the fan-out has returned and before the release PR opens.
 
-Prerequisite: the demo has no core of its own. `native/swift/ConcivDemo/run.sh` only builds, boots, installs, and launches `dev.conciv.ConcivDemo`; the app then discovers a core through `CONCIV_URL`, the pairing file `~/.conciv/dev-endpoint.json` that a running dev core writes on startup, or the 4599/8787/3000 port probe (`apps/site/content/docs/quick-start/ios.mdx`). So start the core FIRST:
+Prerequisite: the demo has no engine of its own. `native/swift/ConcivDemo/run.sh` only builds, boots, installs, and launches `dev.conciv.ConcivDemo`; the app then finds an engine through `CONCIV_URL`, the pairing file `~/.conciv/dev-endpoint.json` that a running engine writes on startup, or the 4599/8787/3000 port probe (`apps/site/content/docs/quick-start/ios.mdx`). So start the engine FIRST:
 
 ```
 pnpm exec turbo run dev --filter=ios-example
 ```
 
-That example (`native/swift`, package `ios-example`) is a bare Vite host whose `vite.config.ts` pins the core to port 4599 and configures the `@conciv/plugin-ios` plugin against `native/swift/ConcivDemo`, so from the agent panel `ios.build` and `ios.run` build and launch the demo with `SIMCTL_CHILD_CONCIV_URL` already injected. `run.sh` is the equivalent by hand, and works only while that dev core is up. For a consumer app instead of the in-repo demo, follow the same doc (`ios.build` / `ios.run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`).
+That example (`native/swift`, package `ios-example`) is a bare Vite host whose `vite.config.ts` pins the engine to port 4599 and configures the `@conciv/plugin-ios` plugin against `native/swift/ConcivDemo`, so from the agent panel `ios_build` and `ios_run` build and launch the demo with `SIMCTL_CHILD_CONCIV_URL` already injected. `run.sh` is the equivalent by hand, and works only while that engine is up. For a consumer app instead of the in-repo demo, follow the same doc (`ios_build` / `ios_run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`).
 
 Then the interaction problem: `simctl` can launch, screenshot (`io <udid> screenshot`), and stream logs (`spawn <udid> log stream`), but it CANNOT tap, type, or scroll. All four checks are interactive, so the listed commands alone cannot drive them. Two honest options, in order:
 
@@ -87,14 +84,14 @@ If the user does not respond, or the machine has no Xcode simulator, the simulat
 
 The four checks and where each one is verified:
 
-| Check                              | Automated (verifier, embed ITs)                        | Simulator (orchestrator asks the user)                                            |
-| ---------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Chat transcript scrolls to the end | GAP: write the scroll screenshot IT                    | scroll the transcript after a long turn, screenshot the result                    |
-| Panel sheet is opaque              | COVERED by `paints an opaque sheet ...`                | open the sheet over the demo's payments screen, screenshot it                     |
-| Composer does not overflow         | partly: Stop/Send/Select model in-viewport at 320 wide | type a multi-line draft with the keyboard up, screenshot it                       |
-| `pick` returns a real element      | not coverable in the browser                           | REQUIRED: pick a row in the demo, confirm the grab carries text, rect, and source |
+| Check                              | Automated (verifier, phone-viewport specs)      | Simulator (orchestrator asks the user)                                            |
+| ---------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| Chat transcript scrolls to the end | GAP: write the scroll screenshot spec           | scroll the transcript after a long turn, screenshot the result                    |
+| Panel sheet is opaque              | GAP: write the opaque sheet screenshot spec     | open the sheet over the demo's payments screen, screenshot it                     |
+| Composer does not overflow         | GAP: write the multi-line draft screenshot spec | type a multi-line draft with the keyboard up, screenshot it                       |
+| `pick` returns a real element      | not coverable in the browser                    | REQUIRED: pick a row in the demo, confirm the grab carries text, rect, and source |
 
-`pick` has no browser proxy: the bridge is native, so a green IT run says nothing about it. A release that skipped the simulator has not verified `pick`.
+`pick` has no browser proxy: the bridge is native, so a green spec run says nothing about it. A release that skipped the simulator has not verified `pick`.
 
 ## Adding a new published package
 
@@ -103,13 +100,13 @@ A new package with `private` unset/false needs, in the PR:
 - Its name added to `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts`, or `assertPublicSet` aborts the release on drift.
 - `homepage: https://conciv.dev` and a `repository` block with its `directory`, matching every other public manifest.
 
-Then the one-time first publish, because npm trusted publishing CANNOT create a new package ("Package must exist" is a hard registry prerequisite, and `npm trust` needs the human's 2FA session — credentials CI must never hold). After the version PR for the new package has merged (so its manifest carries a real version), a human with npm auth runs ONE argument-less, idempotent command:
+Then the one-time first publish, because npm trusted publishing CANNOT create a new package ("Package must exist" is a hard registry prerequisite, and `npm trust` needs the human's 2FA session: credentials CI must never hold). After the version PR for the new package has merged (so its manifest carries a real version), a human with npm auth runs ONE argument-less, idempotent command:
 
 ```
 pnpm release:sync
 ```
 
-`conciv-publish sync` (packages/publish/src/cli.ts) reconciles npm with `PUBLIC_PACKAGES`: for every listed package it reads the registry state (`missing` / `untrusted` / `trusted`, decided by whether the latest version carries `_npmUser.trustedPublisher`), first-publishes anything missing (`--access public --no-git-checks`), wires the trusted publisher for anything untrusted via `npx npm@^11.15.0 trust github <pkg> --repo conciv-dev/conciv --file release.yml --allow-publish` (no `--environment`, matching the existing packages; skipped when `npm trust list` already shows a config), then runs `changeset git-tag` and pushes tags. When everything is healthy it prints "nothing to do" and exits — safe to run anytime.
+`conciv-publish sync` (packages/publish/src/cli.ts) reconciles npm with `PUBLIC_PACKAGES`: for every listed package it reads the registry state (`missing` / `untrusted` / `trusted`, decided by whether the latest version carries `_npmUser.trustedPublisher`), first-publishes anything missing (`--access public --no-git-checks`), wires the trusted publisher for anything untrusted via `npx npm@^11.15.0 trust github <pkg> --repo conciv-dev/conciv --file release.yml --allow-publish` (no `--environment`, matching the existing packages; skipped when `npm trust list` already shows a config), then runs `changeset git-tag` and pushes tags. When everything is healthy it prints "nothing to do" and exits: safe to run anytime.
 
 Until the trust config exists, every CI release fails that package with `E404 undefined - PUT`. The sync first-publish has no provenance; the next CI publish restores it.
 

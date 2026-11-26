@@ -1,9 +1,9 @@
 ---
-'@conciv/plugin': patch
-'@conciv/plugin-host': patch
-'@conciv/contract': patch
-'@conciv/core': patch
-'@conciv/app': patch
+'@conciv/backend-plugin-api': patch
+'@conciv/backend-app-api': patch
+'@conciv/protocol': patch
+'@conciv/backend': patch
+'@internal/frontend-defaults': patch
 ---
 
 `experimental()` no longer inlines a plugin's dynamic `import()`: the build writes a CommonJS entry, one `.cjs` chunk per `import()` and Vite's manifest beside the entry (`plugin-experimental.cjs.manifest.json`).
