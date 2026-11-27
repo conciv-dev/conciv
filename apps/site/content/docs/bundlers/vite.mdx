@@ -1,38 +1,25 @@
 ---
 title: Vite
-description: Add conciv to a Vite app, or to a framework built on Vite such as Astro or TanStack Start.
+description: Add conciv to a Vite app, or to a framework built on Vite such as Astro.
 ---
 
-Copy this prompt into your coding agent. It sets conciv up in your Vite app:
+conciv runs inside the Vite dev server, through the `conciv()` plugin from `@conciv/it`.
 
-<SetupPrompt framework="vite" />
+<Callout type="success" title="Prefer to let your agent do it?">
+  Copy this prompt into your coding agent. It runs conciv's init command, which makes the same changes as below.
 
-What you get:
+  <SetupPrompt framework="vite" />
+</Callout>
 
-- conciv starts with `vite dev`, and adds a conciv button to every page the dev server serves.
-- The agent can read your dev server's config, URLs and module graph.
-- `vite build` leaves conciv out.
+## Basic
 
-## Set up by hand
-
-<Accordions>
-<Accordion id="by-hand" title="Install and wire conciv yourself">
-
-<Steps>
-<Step>
-
-### Install
+Install `@conciv/it` as a dev dependency:
 
 ```package-install
 npm install -D @conciv/it
 ```
 
-</Step>
-<Step>
-
-### Add conciv to your config
-
-Add the import and the `conciv()` call:
+Add `conciv()` to the plugins of your Vite config:
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -47,37 +34,21 @@ export default defineConfig({
 })
 ```
 
-- `@conciv/it/plugin/vite` is the Vite plugin.
-- `conciv()` takes no options here. Options go in its one argument: see [Configuration](/docs/reference/configuration).
-- Your other plugins stay as they are.
+Options go in the one argument of `conciv()`. Learn more in the [Configuration
+documentation](/docs/reference/configuration).
 
-</Step>
-<Step>
+Start your dev server with `npm run dev`, open your app, and click the conciv button. Type the 6-digit code your dev
+server prints. Learn more in the [Logging in documentation](/docs/usage/logging-in).
 
-### Start your dev server
+## What works
 
-```bash
-npm run dev
-```
+Everything. Vite is the bundler conciv gives the most on:
 
-</Step>
-<Step>
+- The widget on every page the dev server serves, and the engine that starts with `vite dev`.
+- The [dev server tools](/docs/usage/dev-server): the agent reads your config, URLs and module graph.
+- `vite build` leaves conciv out.
 
-### Open your app and log in
-
-Click the conciv button in the corner. Type the 6-digit code your dev server prints in its terminal. See
-[Logging in](/docs/usage/logging-in).
-
-</Step>
-</Steps>
-
-</Accordion>
-</Accordions>
-
-## Edge cases
-
-<Accordions>
-<Accordion id="astro" title="Astro">
+## Astro
 
 Astro takes Vite plugins under its `vite` key:
 
@@ -92,22 +63,18 @@ export default defineConfig({
 })
 ```
 
-</Accordion>
-<Accordion id="devtools" title="Vite DevTools">
-
-With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner. It logs in with no code.
-See [Logging in](/docs/usage/logging-in#vite-devtools).
-
-</Accordion>
-<Accordion id="card" title="init printed a snippet instead of editing the config">
-
-init edits only a config shape it can read. Otherwise it prints the snippet to paste. Add it as in the manual steps
-above.
-
-</Accordion>
+<Accordions type="single">
+  <Accordion id="devtools" title="conciv opened in the Vite DevTools dock?">
+    With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner. It logs in with no
+    code. Learn more in the [Logging in documentation](/docs/usage/logging-in#vite-devtools).
+  </Accordion>
+  <Accordion id="card" title="init printed a snippet instead of editing the config?">
+    init edits only a config shape it can prove: one `plugins` array in the exported config object. For any other shape
+    it prints the snippet to paste. Add it as in Basic above.
+  </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Usage](/docs/usage): what the agent can do in your app.
-- [Configuration](/docs/reference/configuration): the options `conciv()` takes.
+- **[Use conciv](/docs/usage):** what the agent can do in your app.
+- **[Configuration](/docs/reference/configuration):** the options `conciv()` takes.
