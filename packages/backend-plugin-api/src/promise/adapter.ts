@@ -339,6 +339,10 @@ export function fromPromise(plugin: Plugin.Plugin) {
           agent: {
             transform: transform(host.agent),
           },
+          bundler: {
+            transform: (callback) =>
+              register(host.bundler.transform((editor) => callback({add: (hooks) => editor.add(adaptBundler(hooks))}))),
+          },
           event: {
             subscribe: <Type extends Exclude<ConcivEvent['type'], 'server.connected'>>(
               options?: SubscribeOptions<Type>,
@@ -486,14 +490,13 @@ export function fromPromise(plugin: Plugin.Plugin) {
           (cleanup) => (typeof cleanup === 'function' ? Effect.promise(() => Promise.resolve(cleanup())) : Effect.void),
         )
       }),
-    ...(plugin.bundler === undefined ? {} : {bundler: adaptBundler(plugin.bundler)}),
   })
 }
 
 const hookCall = <Answer>(run: () => Answer | Promise<Answer>) =>
   Effect.tryPromise({try: () => Promise.resolve(run()), catch: (cause) => cause})
 
-const adaptBundler = ({transform, resolveId, load}: Plugin.Bundler) => ({
+const adaptBundler = ({transform, resolveId, load}: Plugin.BundlerHooks) => ({
   ...(transform === undefined ? {} : {transform: (code: string, id: string) => hookCall(() => transform(code, id))}),
   ...(resolveId === undefined
     ? {}

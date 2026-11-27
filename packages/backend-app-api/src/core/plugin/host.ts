@@ -26,6 +26,8 @@ import * as PluginHooks from './hooks.js'
 import * as Global from '../../util/global.js'
 import {FSUtil} from '../../util/fs-util.js'
 import type {Interface} from '../plugin.js'
+import type {BundlerRegistry} from './service.js'
+import type * as State from '../state.js'
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
 type RpcEvent = Event.Payload & {
@@ -43,7 +45,10 @@ export const BundlerSource = Context.Service<Bundler.BundlerBridge | undefined>(
 export const EditorSource =
   Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')
 
-export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interface, 'list'>, pluginId: string) {
+export const make = Effect.fn('PluginHost.make')(function* (
+  plugin: Pick<Interface, 'list'> & {readonly bundler: State.Transform<BundlerRegistry>},
+  pluginId: string,
+) {
   yield* Effect.annotateCurrentSpan({plugin: pluginId})
   const app = yield* App.Service
   const agents = yield* Agent.Service
@@ -102,6 +107,12 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
             update: (id, update) => editor.update(Agent.Id.make(id), update),
             remove: (id) => editor.remove(Agent.Id.make(id)),
           })
+        }),
+    },
+    bundler: {
+      transform: (callback) =>
+        plugin.bundler((editor) => {
+          callback({add: (part) => editor.add(part, pluginId)})
         }),
     },
     model: {

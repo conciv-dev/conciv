@@ -1,6 +1,7 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
 import type {
   BundlerCode,
+  BundlerHooks,
   Plugin as PluginDefinition,
   Services,
   TaggedError,
@@ -24,6 +25,12 @@ export interface Interface {
 }
 
 export type TransformedCode = Exclude<BundlerCode, string | null | undefined>
+
+export type BundlerRegistration = {readonly plugin: string; readonly hooks: BundlerHooks}
+
+export interface BundlerRegistry {
+  add(hooks: BundlerHooks, plugin: string): void
+}
 
 export const BundlerHookFailed = Schema.TaggedStruct('Plugin.BundlerHookFailed', {
   hook: Schema.Literals(['transform', 'resolveId', 'load']),

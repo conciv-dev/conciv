@@ -16,6 +16,7 @@ import type {JobDomain} from './job.js'
 import type {SkillDomain} from './skill.js'
 import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
+import type {Transform} from './registration.js'
 import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
@@ -24,6 +25,7 @@ export interface Context {
   readonly location: Info
   readonly options: PluginOptions
   readonly agent: AgentDomain
+  readonly bundler: BundlerDomain
   readonly event: EventDomain
   readonly experimental: {
     /** @remarks Not implemented yet. Always undefined in this version. */
@@ -54,16 +56,23 @@ export type Cleanup = () => Promise<void> | void
 export interface Plugin {
   readonly id: string
   readonly setup: (context: Context) => Promise<Cleanup | void> | Cleanup | void
-  readonly bundler?: Bundler
 }
 
-export interface Bundler {
+export interface BundlerHooks {
   readonly transform?: (code: string, id: string) => BundlerCode | Promise<BundlerCode>
   readonly resolveId?: (
     id: string,
     importer: string | undefined,
   ) => string | null | undefined | Promise<string | null | undefined>
   readonly load?: (id: string) => BundlerCode | Promise<BundlerCode>
+}
+
+export interface BundlerEditor {
+  add(hooks: BundlerHooks): void
+}
+
+export interface BundlerDomain {
+  readonly transform: Transform<BundlerEditor>
 }
 
 export type {BundlerCode, SourceMap} from '../effect/plugin.js'

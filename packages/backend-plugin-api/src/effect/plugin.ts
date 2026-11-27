@@ -15,6 +15,7 @@ import type {JobDomain} from './job.js'
 import type {SkillDomain} from './skill.js'
 import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
+import type {Transform} from './registration.js'
 import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
@@ -23,6 +24,7 @@ export interface Context {
   readonly location: Location.Info
   readonly options: PluginOptions
   readonly agent: AgentDomain
+  readonly bundler: BundlerDomain
   readonly event: EventDomain
   readonly experimental: {
     readonly generate: undefined
@@ -75,16 +77,23 @@ export type BundlerCode =
   | null
   | undefined
 
-export interface Bundler {
+export interface BundlerHooks {
   readonly transform?: (code: string, id: string) => Effect.Effect<BundlerCode, unknown>
   readonly resolveId?: (id: string, importer: string | undefined) => Effect.Effect<string | null | undefined, unknown>
   readonly load?: (id: string) => Effect.Effect<BundlerCode, unknown>
 }
 
+export interface BundlerEditor {
+  add(hooks: BundlerHooks): void
+}
+
+export interface BundlerDomain {
+  readonly transform: Transform<BundlerEditor>
+}
+
 export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
   readonly id: string
   readonly effect: (context: Context) => Effect.Effect<void, E, R>
-  readonly bundler?: Bundler
 }
 
 export function define<R = Scope.Scope, E extends TaggedError = never>(plugin: Plugin<R, E>) {
