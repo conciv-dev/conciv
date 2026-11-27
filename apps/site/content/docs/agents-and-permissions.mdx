@@ -1,6 +1,112 @@
 ---
 title: Agents and permissions
-description: 'An agent is a profile with permission rules; the rules decide when the user is asked.'
+description: 'What decides whether a tool call runs, asks you first, or is refused: agent profiles, rules and saved answers.'
 ---
 
-This page is being written.
+An agent profile is the engine's set of permission rules for the agent in a session. It is not the agent CLI: it is
+what the engine checks before a tool call runs. Each check ends in one of three effects: `allow`, `ask` or `deny`.
+
+## Overview
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      permission: {page_eval: 'allow'}, // <- runs JavaScript in the page with no card
+      permissions: [
+        {action: 'server_restart', resource: '*', effect: 'deny'}, // <- never restarts the dev server
+      ],
+    }),
+  ],
+})
+```
+
+<Playground page="vite-react" script="approvals/allow-once" caption="A Permission card in the chat, answered with Allow once." />
+
+## Agent profile
+
+The engine starts with one profile, `build`. It allows every action, and asks before it reads a `.env` file (but not
+`.env.example`). Plugins can change a profile, and your config rules are added to every profile. Learn more in the
+[Ask for permission documentation](/docs/plugins/guides/permission).
+
+## Rules
+
+A rule has an action, a resource and an effect. The action is the tool's name, such as `page_eval`. The resource is
+what it acts on, such as the code it would run. Both take `*` as a wildcard. Learn more in the [Configuration
+documentation](/docs/reference/configuration#permission).
+
+## The order rules apply in
+
+The last rule that matches decides. The engine reads them in this order:
+
+1. the agent profile's rules, with your config rules at the end;
+2. the tool's fallback, below;
+3. your saved answers.
+
+A `deny` among the first two always wins, before any saved answer is read.
+
+## Fallback ask
+
+A risky tool asks for `fallback: 'ask'`. Then a call that only the catch-all `*` rule allows asks you instead. That is
+why the `build` profile allows everything, yet running JavaScript in the page still asks. A rule that names the action,
+such as `{page_eval: 'allow'}`, skips the card.
+
+## The ask card
+
+An `ask` shows a **Permission** card in the chat, and the call waits until you answer:
+
+- **Allow once** (⌘ Enter or Ctrl Enter) runs this one call.
+- **Allow always** runs it and saves the answer. It shows only when the tool offers a saved answer.
+- **Deny** (Escape) refuses the call. Every other card waiting in the same session is refused with it.
+
+Your agent CLI's own asks, from Claude Code or Gemini CLI, use the same card. They can be allowed once or denied, never
+allowed always. Learn more in the [Approvals documentation](/docs/usage/approvals).
+
+## Saved answers
+
+**Allow always** saves an `allow` rule for the call's action and resources. It is kept for this project, in the
+`permission` table of `.conciv/conciv.db`, and applies to every session. Saved answers come last, so a saved answer
+beats an `ask` rule from your config. Only a `deny` rule beats it.
+
+<Callout type="warn" title="Ask on every call">
+  A rule cannot make a call ask every time once it has been allowed always. A tool that must always ask leaves out its
+  saved answer, so the card has no **Allow always** button. Running JavaScript in the page works this way.
+</Callout>
+
+## Forget a saved answer
+
+conciv has no button or command to forget a saved answer yet. Delete its row from the database instead. List them
+first:
+
+```bash title="Terminal"
+sqlite3 .conciv/conciv.db "select action, resource from permission"
+```
+
+Then delete the one you no longer want:
+
+```bash title="Terminal"
+sqlite3 .conciv/conciv.db "delete from permission where action = 'server_restart'"
+```
+
+The engine reads saved answers on every check, so the next call asks again.
+
+## A deny in plugin code
+
+A tool that asks fails its call when you deny. In a Promise plugin, the ask rejects. In an Effect plugin, a deny rule
+fails it with a `Tool.Error`. A plain **Deny** on the card is different: it interrupts the effect as a defect, so
+`catchTag` never sees it. Learn more in the [Ask for permission documentation](/docs/plugins/guides/permission).
+
+## Outside agents
+
+An agent connected from your own terminal can use your open tabs. With `hubAccess: 'project'`, its first call shows a
+card in the tab. An outside agent can never answer a card itself. Learn more in the [Configuration
+documentation](/docs/reference/configuration#hubaccess).
+
+## Next steps
+
+- **[Approvals](/docs/usage/approvals):** which tools and CLIs ask, and how you answer.
+- **[Ask for permission](/docs/plugins/guides/permission):** make your own tool ask before it acts.
+- **[Configuration](/docs/reference/configuration):** the `permission`, `permissions` and `policies` options.
