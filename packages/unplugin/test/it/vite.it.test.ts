@@ -99,7 +99,7 @@ describe.concurrent('the vite dev server', () => {
     writeFileSync(join(root, 'src', 'virtual.js'), "export {virtualGreeting} from 'virtual:stamper'\n")
     const first = await viteDev(
       {plugins: [plugin('plain'), plugin('stamper')]},
-      {env: {CONCIV_SIMULATE: '1'}, root, vite: {oxc: {jsx: {runtime: 'classic'}}}},
+      {env: {CONCIV_SIMULATE: '1'}, root, vite: {oxc: {jsx: {runtime: 'classic'}}, server: {host: '127.0.0.1'}}},
     )
     const second = await viteDev({port: first.port})
 
