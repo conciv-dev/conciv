@@ -1,4 +1,4 @@
-import {useCallback, useId, useState} from 'react'
+import {useCallback, useId, useState, type CSSProperties} from 'react'
 import {Play, Square} from 'lucide-react'
 import {useMediaQuery} from '@/lib/use-media-query'
 import {cn} from '@/lib/utils'
@@ -9,77 +9,65 @@ import {
   type PlaygroundPage,
   type PlaygroundScriptId,
 } from '@/playground/playground-scripts'
-import type {PageEdit, Reply, UiStep} from '@/playground/script'
+import {Button} from './ui/button'
+import {PanelStill} from './playground-still'
 
 const CHANNEL = 'conciv-playground'
 
 const BUTTON =
   'inline-flex items-center gap-1.5 rounded-md border bg-fd-secondary px-3 py-1.5 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent'
 
-function plain(text: string): string {
-  return text.replaceAll('**', '').replaceAll('`', '')
-}
-
-function describeEdit(edit: PageEdit): string {
-  return [
-    edit.heading === undefined ? [] : [`the heading reads “${edit.heading}”`],
-    edit.button === undefined ? [] : [`the button says “${edit.button}”`],
-    edit.count === undefined ? [] : [`the count is ${edit.count}`],
-  ]
-    .flat()
-    .join(', ')
-}
-
-function describeReply(reply: Reply): string {
-  if (reply.kind !== 'tool') return plain(reply.text)
-  const how = reply.mode === 'code' ? ' from a code mode program' : ''
-  const ask = reply.ask === undefined ? '' : ` A permission card asks first, and the reader clicks ${reply.ask.answer}.`
-  const page = reply.page === undefined ? '' : ` On the page, ${describeEdit(reply.page)}.`
-  return `The agent calls ${reply.name}${how}.${ask}${page}`
-}
-
-function describeStep(step: UiStep): string {
-  if (step.kind === 'point') return `The reader points at the “${step.label}” ${step.role} on the page.`
-  return `The reader clicks “${step.label}”.`
-}
-
-function Transcript({script}: {script: PlaygroundScriptId}) {
-  return (
-    <ol className="flex flex-col gap-3 p-0 list-none">
-      {playgroundScripts[script].turns.map((turn) => (
-        <li key={turn.prompt} className="flex flex-col gap-1.5">
-          {(turn.before ?? []).map((step) => (
-            <p key={step.label} className="text-fd-muted-foreground">
-              {describeStep(step)}
-            </p>
-          ))}
-          <p className="font-medium text-fd-foreground">
-            <span className="text-fd-muted-foreground">{turn.queued === true ? 'You, while it runs: ' : 'You: '}</span>
-            {turn.prompt}
-          </p>
-          {turn.replies.map((reply, index) => (
-            <p
-              key={`${reply.kind}-${index}`}
-              className={reply.kind === 'text' ? 'text-fd-foreground' : 'text-fd-muted-foreground'}
-            >
-              {describeReply(reply)}
-            </p>
-          ))}
-          {(turn.after ?? []).map((step) => (
-            <p key={step.label} className="text-fd-muted-foreground">
-              {describeStep(step)}
-            </p>
-          ))}
-        </li>
-      ))}
-    </ol>
-  )
-}
-
 function readPlayground(page: string, script: string): {page: PlaygroundPage; script: PlaygroundScriptId} {
   if (!isPlaygroundPage(page)) throw new Error(`no playground page ${page}`)
   if (!isPlaygroundScriptId(script)) throw new Error(`no playground script ${script}`)
   return {page, script}
+}
+
+function PlayButton({onPlay, className}: {onPlay: () => void; className?: string}) {
+  return (
+    <Button type="button" size="lg" className={cn('h-11 gap-2 px-5 text-base', className)} onClick={onPlay}>
+      <Play className="size-4.5 fill-current" aria-hidden="true" />
+      Play
+    </Button>
+  )
+}
+
+function Still(props: {
+  script: PlaygroundScriptId
+  title: string
+  height: number
+  poster: boolean
+  onPlay: () => void
+}) {
+  return (
+    <div
+      className="relative flex flex-col gap-4 bg-fd-background p-4 @md:h-(--frame-height) @md:flex-row @md:items-stretch @md:gap-6 @md:pt-9 @md:pr-5 @md:pb-21 @md:pl-8"
+      style={{'--frame-height': `${props.height}px`} as CSSProperties}
+    >
+      <div
+        className={cn('flex flex-col gap-2 @md:flex-1 @md:justify-center @md:gap-4', props.poster && '@md:invisible')}
+      >
+        <p className="text-lg font-semibold text-fd-foreground @md:text-2xl">{props.title}</p>
+        <p className="text-sm text-fd-muted-foreground">
+          A scripted session in the real panel. It plays in your browser, with no server.
+        </p>
+        <PlayButton onPlay={props.onPlay} className="hidden self-start @md:inline-flex" />
+        <p className="text-sm text-fd-muted-foreground @md:hidden">Open on a wider screen to play it.</p>
+      </div>
+      <PanelStill
+        script={props.script}
+        className={cn('@md:w-125 @md:max-w-[65%] @md:shrink-0', props.poster && '@md:opacity-60 @md:blur-[2px]')}
+      />
+      {props.poster ? (
+        <div className="absolute inset-0 hidden flex-col items-center justify-center gap-4 @md:flex">
+          <p className="rounded-lg bg-fd-background/80 px-3 py-1 text-2xl font-semibold text-fd-foreground">
+            {props.title}
+          </p>
+          <PlayButton onPlay={props.onPlay} className="shadow-lg" />
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export function Playground(props: {
@@ -88,6 +76,7 @@ export function Playground(props: {
   height?: number
   caption?: string
   autoplay?: boolean
+  look?: 'frame' | 'poster'
 }) {
   const {page, script} = readPlayground(props.page, props.script)
   const instance = useId()
@@ -121,17 +110,13 @@ export function Playground(props: {
             style={{height: props.height ?? 750}}
           />
         ) : (
-          <div className="flex flex-col gap-4 p-4 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-medium text-fd-foreground">{title}</p>
-              <button type="button" className={cn(BUTTON, 'hidden @md:inline-flex')} onClick={() => setChosen('play')}>
-                <Play className="size-4" aria-hidden="true" />
-                Play
-              </button>
-            </div>
-            <Transcript script={script} />
-            <p className="text-fd-muted-foreground @md:hidden">Open on a wider screen to play it.</p>
-          </div>
+          <Still
+            script={script}
+            title={title}
+            height={props.height ?? 750}
+            poster={props.look === 'poster'}
+            onPlay={() => setChosen('play')}
+          />
         )}
       </div>
       <figcaption className="flex items-center justify-between gap-3 text-sm text-fd-muted-foreground">
