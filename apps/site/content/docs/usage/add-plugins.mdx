@@ -1,96 +1,74 @@
 ---
-title: Built-in plugins
-description: The plugins conciv ships, what each one does, and the line that adds it to your config.
+title: Add plugins
+description: Add a plugin with one line in your config, pass it options, turn one off, and see the plugins conciv ships.
 ---
 
-Two plugins are on in every widget. The rest you add with one line in the `plugins` option. See
-[Add a plugin](/docs/plugins#add-a-plugin) for where that option goes.
+A plugin adds tools for the agent and screens for the widget. You add one with the `plugins` option of your conciv
+config.
 
-## On by default
+## Basic
 
-### Page
+List plugins in `plugins`:
 
-The agent's view of the page you have open. Its tools read and drive the live page: snapshots, screenshots, the
-console, the DOM, forms. Its skill teaches the agent to use them. See [Page control](/docs/usage/page-control).
-
-Nothing to add or configure.
-
-### Terminal
-
-The Terminal tab in the session's pane, for a session whose agent runs in a terminal.
-
-Nothing to add or configure.
-
-## Add one in your config
-
-### Test runner
-
-Package: `@conciv/plugin-test-runner`
-
-- Runs your project's tests when you ask the agent to.
-- Streams each run live in a Tests tab.
-- Shows the finished run as a card in the chat.
-
-```ts twoslash title="vite.config.ts"
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
 import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
-  plugins: [conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]})],
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+    }),
+  ],
 })
 ```
 
-- `runner` picks your test framework: vitest (the default) or playwright.
-- jest and node-test are not built yet. The plugin fails to start with either.
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
 
-See [Live tests](/docs/usage/live-tests).
+const nextConfig: NextConfig = {}
 
-### Recorder
-
-Package: `@conciv/plugin-recorder`
-
-- Keeps a short recording of the page while recording is on.
-- Gives the agent a log of your actions, with screenshots, so it can see what you did.
-- Its Recorder tab replays a recording and exports it as a video.
-
-```ts twoslash title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
-
-export default defineConfig({
-  plugins: [conciv({plugins: [['@conciv/plugin-recorder', {masking: 'inputs', windowMinutes: 10, console: true}]]})],
+export default withConciv(nextConfig, {
+  plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
 })
 ```
 
-- `masking` hides what you type. It is none (the default), inputs or sensitive.
-- `windowMinutes` is how much of the recent page it keeps, up to 60. The default is 10.
-- `console` adds the page's console output to the log. It is on by default.
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
 
-### TanStack
-
-Package: `@conciv/plugin-tanstack`
-
-For an app built with TanStack Router or TanStack Start:
-
-- Gives the agent your dev server's build errors, your route list and recent server function calls.
-- Adds a chip to the session's status area and cards for its tools.
-
-```ts twoslash title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
-
-export default defineConfig({
-  plugins: [conciv({plugins: ['@conciv/plugin-tanstack']})],
-})
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+    }),
+  ],
+}
 ```
 
-### iOS
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
 
-Package: `@conciv/plugin-ios`
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+    }),
+  ],
+}
+```
 
-- Builds and runs your native iOS app on the simulator.
-- Takes screenshots and reads the app's logs.
-- Asks you before each build and each run.
+Restart your dev server to load them.
+
+- `'@conciv/plugin-test-runner'` is a package name. The engine installs it from npm into its own cache, so you do not
+  add it to your `package.json`.
+- `'./tools/deploy'` is a folder in your project. It resolves from your project folder, not from the config file.
+
+## Pass options
+
+Write an entry as a pair, the name and then its options:
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -99,30 +77,95 @@ import conciv from '@conciv/it/plugin/vite'
 export default defineConfig({
   plugins: [
     conciv({
-      plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
+      plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]], // [!code ++]
     }),
   ],
 })
 ```
 
-- `projectRoot` is the folder of your iOS project, from your project root.
-- `bundleId` is your app's bundle id.
-- `buildMode` is xcodebuild (the default) or swiftc.
+Every option value must be JSON: a string, number, boolean, null, array or object.
 
-Without options every tool answers that the plugin is not configured. See [iOS](/docs/bundlers/ios).
+## Turn a plugin off
 
-<Accordions>
-<Accordion title="More iOS options">
+Put `-` before a plugin's id:
 
-- `scheme`: the Xcode scheme to build.
-- `simulator`: the simulator to run on.
-- `developerDir`: the Xcode to use.
-- `extraSourceDirs`: more source folders to build with.
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['-project-version'], // [!code ++]
+    }),
+  ],
+})
+```
+
+This turns off a plugin that loads on its own, such as one in the `conciv/plugins` folder.
+
+## Add a plugin from your project
+
+Every plugin in a `conciv/plugins` folder at your project root loads with no config entry. A plugin there is one
+`.ts` or `.js` file, or a folder:
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="plugins" defaultOpen>
+      <File name="project-version.ts" />
+      <Folder name="deploy" defaultOpen>
+        <File name="server.ts" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+The engine watches these files. Save a change and the plugin loads again, with no restart. Learn to write one in the
+[first plugin guide](/docs/plugins/first-plugin).
+
+## The plugins conciv ships
+
+The first two are on in every widget. Add the others with the line in the third column.
+
+| Plugin      | What it gives you                                                                                             | Add it                          | Options                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
+| Page        | The agent reads and drives the page you have open. See [Page control](/docs/usage/page-control).              | On by default                   | None                                              |
+| Terminal    | The **Terminal** tab, for a session whose agent CLI runs in a terminal.                                       | On by default                   | None                                              |
+| Test runner | Runs your tests from the chat, live in a Tests tab. See [Live tests](/docs/usage/live-tests).                 | `'@conciv/plugin-test-runner'`  | `runner`: vitest (default) or playwright          |
+| Recorder    | A short recording of the page, and a log of your actions for the agent. Its tab replays and exports it.       | `'@conciv/plugin-recorder'`     | `masking`, `windowMinutes`, `console`             |
+| TanStack    | Build errors, the route list and recent server function calls, for TanStack Router and Start apps.            | `'@conciv/plugin-tanstack'`     | `bundlerWaitMs`                                   |
+| iOS         | Builds, runs, screenshots and reads the logs of your iOS app in the simulator. See [iOS](/docs/bundlers/ios). | `['@conciv/plugin-ios', {...}]` | `projectRoot` and `bundleId` (required), and more |
+| Whiteboard  | A shared canvas over the app. See [Whiteboard](/docs/usage/whiteboard).                                       | Example apps only               | None                                              |
+| Try it      | The connect pane of the widget on conciv.dev.                                                                 | Not added in config             | None                                              |
+
+<Accordions type="single">
+<Accordion title="What do the recorder options do?">
+
+- `masking` hides what you type: `none` (the default), `inputs` or `sensitive`.
+- `windowMinutes` is how much of the recent page it keeps, up to 60. The default is 10.
+- `console` adds the page's console output to the log. It is on by default.
+
+</Accordion>
+<Accordion title="Why can I not add the whiteboard or try-it?">
+
+The whiteboard is not on npm yet. It runs only in the example apps inside the conciv repo, which load it from its
+folder. Try-it is published, but conciv.dev composes it into its own widget. It is not a plugin you add in config.
+
+</Accordion>
+<Accordion title="Every way to name a plugin?">
+
+- A string that is not a path is a package name, installed from npm.
+- A path that starts with `./` or `../` resolves from your project folder.
+- An absolute path or a `file://` URL is used as it is.
+- A configured path must be a folder. A file there is skipped with the warning
+  `configured plugin path must be a directory`.
+- A string that starts with `-` turns off the plugin with that id.
 
 </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Add a plugin](/docs/plugins#add-a-plugin): every way to name a plugin in your config.
-- [Add a tool](/docs/plugins/guides/tool): write a plugin of your own.
+- **[Live tests](/docs/usage/live-tests):** the test runner, step by step.
+- **[iOS](/docs/bundlers/ios):** every iOS plugin option.
+- **[Plugins](/docs/plugins):** write a plugin of your own.
