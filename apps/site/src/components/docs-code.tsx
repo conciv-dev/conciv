@@ -6,6 +6,7 @@ import {
   CodeBlockTabsList as FumadocsCodeBlockTabsList,
   Pre,
 } from 'fumadocs-ui/components/codeblock'
+import {TabsTrigger} from 'fumadocs-ui/components/ui/tabs'
 import {PopupContent as TwoslashPopupContent, PopupTrigger as TwoslashPopupTrigger} from 'fumadocs-twoslash/ui'
 import {cn} from '@/lib/utils'
 import {SlidingTabs} from './docs-tabs'
@@ -86,6 +87,18 @@ export function CodeBlockTabsList(props: ComponentProps<typeof FumadocsCodeBlock
       {...props}
       className={cn(
         'col-start-1 row-start-1 pe-6 [--tab-inset:--spacing(2)] mask-r-from-[calc(100%-1.5rem)] [scrollbar-width:none]',
+        props.className,
+      )}
+    />
+  )
+}
+
+export function CodeBlockTabsTrigger(props: ComponentProps<typeof TabsTrigger>) {
+  return (
+    <TabsTrigger
+      {...props}
+      className={cn(
+        'inline-flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-nowrap transition-colors hover:text-fd-accent-foreground data-[state=active]:text-fd-primary [&_svg]:size-3.5',
         props.className,
       )}
     />

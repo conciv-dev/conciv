@@ -2,7 +2,17 @@ import {ArrowUpRight, ChevronDown, Menu} from 'lucide-react'
 import {usePathname} from 'fumadocs-core/framework'
 import Link from 'fumadocs-core/link'
 import {Popover, PopoverContent, PopoverTrigger} from 'fumadocs-ui/components/ui/popover'
-import {SidebarTrigger} from 'fumadocs-ui/layouts/notebook/slots/sidebar'
+import type {ComponentProps} from 'react'
+import type {DocsLayoutProps} from 'fumadocs-ui/layouts/notebook'
+import {Header} from 'fumadocs-ui/layouts/notebook/slots/header'
+import {
+  Sidebar,
+  SidebarCollapseTrigger,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from 'fumadocs-ui/layouts/notebook/slots/sidebar'
+import {cn} from '@/lib/utils'
 import {
   isLinkItemActive,
   LinkItem,
@@ -68,6 +78,30 @@ export function docsDrawerLinks(): LinkItemType[] {
     {...changelog, on: 'menu'},
     {type: 'custom', on: 'menu', children: <DrawerMore />},
   ]
+}
+
+function DocsHeader(props: ComponentProps<'header'>) {
+  const {open} = useSidebar()
+  return <Header {...props} className={cn(props.className, open && 'max-md:z-50')} />
+}
+
+export const docsSlots: NonNullable<DocsLayoutProps['slots']> = {
+  header: DocsHeader,
+  sidebar: {
+    provider: SidebarProvider,
+    root: Sidebar,
+    trigger: () => null,
+    collapseTrigger: SidebarCollapseTrigger,
+    useSidebar,
+  },
+}
+
+export function SidebarBanner(props: ComponentProps<'div'>) {
+  return <div {...props} className={cn('flex flex-col gap-3 p-4 pb-2 empty:hidden max-md:hidden', props.className)} />
+}
+
+export function SidebarFooter(props: ComponentProps<'div'>) {
+  return <div {...props} className={cn(props.className, 'max-md:hidden')} />
 }
 
 export function DocsDrawerTrigger() {

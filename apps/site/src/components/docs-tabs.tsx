@@ -15,7 +15,7 @@ function placeIndicator(list: HTMLElement) {
 }
 
 function watchTabs(wrapper: HTMLDivElement) {
-  const list = wrapper.querySelector<HTMLElement>(':scope > * > [role="tablist"]')
+  const list = wrapper.querySelector<HTMLElement>('[role="tablist"]')
   if (list === null) return
   const place = () => placeIndicator(list)
   const states = new MutationObserver(place)

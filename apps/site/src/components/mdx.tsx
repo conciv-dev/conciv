@@ -8,7 +8,15 @@ import {Accordion, Accordions} from 'fumadocs-ui/components/accordion'
 import {ImageZoom} from 'fumadocs-ui/components/image-zoom'
 import {Callout} from './docs-callout'
 import {Tabs} from './docs-tabs'
-import {CodeBlockPre, CodeBlockTab, CodeBlockTabs, CodeBlockTabsList, PopupContent, PopupTrigger} from './docs-code'
+import {
+  CodeBlockPre,
+  CodeBlockTab,
+  CodeBlockTabs,
+  CodeBlockTabsList,
+  CodeBlockTabsTrigger,
+  PopupContent,
+  PopupTrigger,
+} from './docs-code'
 import {Mermaid} from './mermaid'
 import {Playground} from './playground'
 import {ConfigOptions, TestRunnerOptions} from './config-options'
@@ -29,6 +37,7 @@ function getMDXComponents(components?: MDXComponents) {
     pre: CodeBlockPre,
     CodeBlockTabs,
     CodeBlockTabsList,
+    CodeBlockTabsTrigger,
     CodeBlockTab,
     Callout,
     Step,

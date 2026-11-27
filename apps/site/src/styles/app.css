@@ -306,21 +306,18 @@ figure.twoslash:has(:focus-visible) .twoslash-hover {
   text-decoration-color: currentColor;
 }
 
-[data-sliding-tabs] > * > [role='tablist'] {
+[data-sliding-tabs] :is([role='tablist'], [role='tab']) {
   position: relative;
 }
-[data-sliding-tabs] > * > [role='tablist'] > [role='tab'] {
-  position: relative;
-}
-[data-sliding-tabs] > * > [role='tablist'] > [role='tab']:focus-visible {
+[data-sliding-tabs] [role='tab']:focus-visible {
   outline: none;
 }
 @media (hover: hover) {
-  [data-sliding-tabs] > * > [role='tablist'] > [role='tab'][data-state='inactive']:hover {
+  [data-sliding-tabs] [role='tab'][data-state='inactive']:hover {
     color: var(--color-fd-foreground);
   }
 }
-[data-sliding-tabs] > * > [role='tablist'] > [role='tab']:focus-visible::before {
+[data-sliding-tabs] [role='tab']:focus-visible::before {
   content: '';
   position: absolute;
   inset-block: 0.25rem;
@@ -331,9 +328,6 @@ figure.twoslash:has(:focus-visible) .twoslash-hover {
 }
 [data-tab-indicator] > [role='tab'] {
   border-bottom-color: transparent;
-}
-[data-tab-indicator] > [role='tab'] > div:first-child {
-  background-color: transparent;
 }
 [data-tab-indicator]::after {
   content: '';
@@ -396,6 +390,10 @@ figure.twoslash:has(:focus-visible) .twoslash-hover {
 figure.shiki pre {
   letter-spacing: 0;
   line-height: calc(1em + 4px);
+}
+
+@utility docs-breakout {
+  width: calc(min(100vw, var(--fd-layout-width, 97rem)) - var(--fd-sidebar-col) - var(--fd-toc-col) - 4rem);
 }
 
 @theme inline {

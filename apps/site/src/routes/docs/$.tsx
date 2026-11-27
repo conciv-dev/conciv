@@ -7,7 +7,14 @@ import {DocsBody, DocsDescription, DocsPage, DocsTitle} from 'fumadocs-ui/layout
 import {baseOptions} from '@/lib/layout.shared'
 import {gitConfig, repoUrl} from '@/lib/shared'
 import {DocsSidebarSeparator} from '@/components/docs-sidebar-separator'
-import {DocsDrawerTrigger, DocsHeaderNav, docsDrawerLinks} from '@/components/docs-header-nav'
+import {
+  DocsDrawerTrigger,
+  DocsHeaderNav,
+  docsDrawerLinks,
+  docsSlots,
+  SidebarBanner,
+  SidebarFooter,
+} from '@/components/docs-header-nav'
 import {DocsPageActions, DocsPageActionsRow} from '@/components/docs-page-actions'
 import {buildDocsHead} from '@/lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
@@ -85,7 +92,7 @@ const clientLoader = browserCollections.docs.createClientLoader({
 })
 
 const comparisonTableClass = [
-  'xl:[&_div:has(>table)]:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]',
+  'xl:[&_div:has(>table)]:docs-breakout',
   '[&_table]:w-full',
   '[&_table]:min-w-2xl',
   '[&_table]:table-fixed',
@@ -122,8 +129,6 @@ const sidebarClass = [
   'max-md:shadow-none',
   'max-md:pb-[max(--spacing(4),env(safe-area-inset-bottom))]',
   'max-md:[--fd-sidebar-drawer-offset:-100%]',
-  'max-md:[&>div:first-child]:hidden',
-  'max-md:[&>div:last-child]:hidden',
   '[&_:is(a[data-active],button[aria-expanded])]:py-1.5',
   '[&_:is(a[data-active],button[aria-expanded])]:bg-transparent',
   '[&_:is(a[data-active=false],button[aria-expanded]):hover]:text-fd-foreground',
@@ -136,8 +141,6 @@ const sidebarClass = [
 ].join(' ')
 
 const mobileHeaderClass = [
-  'max-md:[&:has(>#nd-sidebar-mobile[data-state=open])>#nd-subnav]:z-50',
-  'max-md:[&_[data-header-body]>div:last-child_[aria-controls=nd-sidebar-mobile]]:hidden',
   'max-md:[&_[data-header-body]>div:last-child>a]:inline-flex',
   'max-md:[&_[data-header-body]>div:last-child>a]:order-1',
   'max-md:[&_[data-header-body]>div:last-child>div:last-child]:flex',
@@ -166,7 +169,14 @@ function Page() {
       links={docsDrawerLinks()}
       containerProps={{className: mobileHeaderClass}}
       githubUrl={repoUrl}
-      sidebar={{collapsible: false, className: sidebarClass, components: {Separator: DocsSidebarSeparator}}}
+      slots={docsSlots}
+      sidebar={{
+        collapsible: false,
+        className: sidebarClass,
+        banner: SidebarBanner,
+        footer: SidebarFooter,
+        components: {Separator: DocsSidebarSeparator},
+      }}
       tree={pageTree}
     >
       <Suspense>{clientLoader.useContent(path, {markdownUrl, path})}</Suspense>
