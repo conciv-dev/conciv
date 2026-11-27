@@ -7,8 +7,8 @@ Package internal to @conciv/it that provides Solid terminal components on xterm.
 ## Interface
 
 - `exports['.']` (`package.json`): ./dist/ui-kit-terminal.js
-- `scripts` (`package.json`): build (`vite build && tsc -p tsconfig.build.json`), typecheck, publint, attw; no `test` script
-- `vite.config.ts`: `solidLibConfig` from `@internal/vite-config` with entry src/ui-kit-terminal.tsx
+- `scripts` (`package.json`): build (`vite build`), typecheck, publint, attw; no `test` script
+- `vite.config.ts`: `libConfig` from `@internal/vite-config` with entry src/ui-kit-terminal.tsx
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - terminal model and components
 

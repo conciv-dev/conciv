@@ -3,7 +3,7 @@ import {RPCLink, type RPCLinkOptions} from '@orpc/client/fetch'
 import {ValidationError, type RouterContractClient} from '@orpc/contract'
 import {ResponseValidationLinkPlugin} from '@orpc/contract/plugins'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER} from '@conciv/types/rpc-types'
-import {contract, contractCode, engineErrors} from '@conciv/protocol'
+import {contract, contractCode} from '@conciv/protocol'
 import contractManifest from '../../../protocol/package.json' with {type: 'json'}
 import {
   engineUnreachable,
@@ -11,6 +11,7 @@ import {
   type RpcClientContext,
   type SessionAccessor,
 } from './engine-connection.js'
+import {engineErrors} from '@conciv/errors'
 
 export type EngineClient = RouterContractClient<typeof contract, RpcClientContext>
 

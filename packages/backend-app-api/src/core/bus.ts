@@ -8,6 +8,7 @@ import {EventSequenceTable, EventTable} from './event/sql.js'
 import {sessions as SessionTable} from './session/sql.js'
 import type * as Location from '@conciv/protocol/schema/location'
 import * as KeyedMutex from './effect/keyed-mutex.js'
+import {coreErrors} from '@conciv/errors'
 import {isDeepStrictEqual} from 'node:util'
 import {Durable} from '../schema/durable-event-manifest.js'
 import * as SessionEvent from '@conciv/protocol/schema/session-event'
@@ -55,19 +56,6 @@ export type SerializedEvent = {
   readonly data: Record<string, unknown>
 }
 
-export const InvalidDurableEventError = Schema.TaggedStruct('Bus.InvalidDurableEvent', {
-  type: Schema.String,
-  message: Schema.String,
-})
-export type InvalidDurableEventError = typeof InvalidDurableEventError.Type & globalThis.Error
-
-export const makeInvalidDurableEventError = (
-  fields: Omit<typeof InvalidDurableEventError.Type, '_tag'>,
-): InvalidDurableEventError =>
-  Object.assign(new globalThis.Error(fields.message), InvalidDurableEventError.make(fields), {
-    name: 'Bus.InvalidDurableEvent',
-  })
-
 const envelope = (aggregateId: string, seq: number, version: number) => ({
   aggregateID: aggregateId,
   seq: Event.Seq.make(seq),
@@ -77,7 +65,7 @@ const envelope = (aggregateId: string, seq: number, version: number) => ({
 const requireAggregateId = (type: string, aggregate: string, data: unknown) => {
   const aggregateId = (data as Record<string, unknown>)[aggregate]
   if (typeof aggregateId === 'string') return Effect.succeed(aggregateId)
-  return Effect.die(makeInvalidDurableEventError({type, message: `Expected string aggregate field ${aggregate}`}))
+  return Effect.die(coreErrors.INVALID_DURABLE_EVENT({type, reason: `Expected string aggregate field ${aggregate}`}))
 }
 
 const decodeStoredData = (definition: Event.DurableDefinition, data: unknown) =>
@@ -86,7 +74,7 @@ const decodeStoredData = (definition: Event.DurableDefinition, data: unknown) =>
 const decodeSerializedEvent = (event: SerializedEvent): Event.Payload => {
   const definition = Durable.get(event.type)
   if (!definition?.durable) {
-    throw makeInvalidDurableEventError({type: event.type, message: `Unknown durable event type ${event.type}`})
+    throw coreErrors.INVALID_DURABLE_EVENT({type: event.type, reason: `Unknown durable event type ${event.type}`})
   }
   return {
     id: event.id,
@@ -266,9 +254,9 @@ export function configured(options?: Options) {
           const aggregateId = yield* requireAggregateId(event.type, durable.aggregate, event.data)
           if (input && input.aggregateID !== aggregateId) {
             yield* Effect.die(
-              makeInvalidDurableEventError({
+              coreErrors.INVALID_DURABLE_EVENT({
                 type: event.type,
-                message: `Aggregate mismatch: expected ${input.aggregateID}, got ${aggregateId}`,
+                reason: `Aggregate mismatch: expected ${input.aggregateID}, got ${aggregateId}`,
               }),
             )
           }
@@ -289,9 +277,9 @@ export function configured(options?: Options) {
                       Schema.encodeUnknownSync(definition.data)(event.data) as Record<string, unknown>
                     if (input?.strictOwner && row?.ownerID && row.ownerID !== input.ownerID) {
                       yield* Effect.die(
-                        makeInvalidDurableEventError({
+                        coreErrors.INVALID_DURABLE_EVENT({
                           type: event.type,
-                          message: `Replay owner mismatch for aggregate ${aggregateId}: expected ${row.ownerID}, got ${input.ownerID ?? 'none'}`,
+                          reason: `Replay owner mismatch for aggregate ${aggregateId}: expected ${row.ownerID}, got ${input.ownerID ?? 'none'}`,
                         }),
                       )
                     }
@@ -320,9 +308,9 @@ export function configured(options?: Options) {
                         return
                       }
                       yield* Effect.die(
-                        makeInvalidDurableEventError({
+                        coreErrors.INVALID_DURABLE_EVENT({
                           type: event.type,
-                          message: `Replay diverged at aggregate ${aggregateId} sequence ${input.seq}`,
+                          reason: `Replay diverged at aggregate ${aggregateId} sequence ${input.seq}`,
                         }),
                       )
                     }
@@ -332,9 +320,9 @@ export function configured(options?: Options) {
                     const seq = input?.seq ?? latest + 1
                     if (input && seq !== latest + 1) {
                       yield* Effect.die(
-                        makeInvalidDurableEventError({
+                        coreErrors.INVALID_DURABLE_EVENT({
                           type: event.type,
-                          message: `Sequence mismatch for aggregate ${aggregateId}: expected ${latest + 1}, got ${seq}`,
+                          reason: `Sequence mismatch for aggregate ${aggregateId}: expected ${latest + 1}, got ${seq}`,
                         }),
                       )
                     }
@@ -347,9 +335,9 @@ export function configured(options?: Options) {
                         .pipe(Effect.orDie)
                       if (stored)
                         yield* Effect.die(
-                          makeInvalidDurableEventError({
+                          coreErrors.INVALID_DURABLE_EVENT({
                             type: event.type,
-                            message: `Event ${event.id} already exists at aggregate ${stored.aggregateID} sequence ${stored.seq}`,
+                            reason: `Event ${event.id} already exists at aggregate ${stored.aggregateID} sequence ${stored.seq}`,
                           }),
                         )
                     }
@@ -415,9 +403,9 @@ export function configured(options?: Options) {
         return Effect.gen(function* () {
           if (!definition.durable && commit)
             return yield* Effect.die(
-              makeInvalidDurableEventError({
+              coreErrors.INVALID_DURABLE_EVENT({
                 type: event.type,
-                message: 'Local commit hooks require a durable event',
+                reason: 'Local commit hooks require a durable event',
               }),
             )
           if (definition.durable) {
@@ -506,9 +494,9 @@ export function configured(options?: Options) {
           const aggregateId = payloads[0].aggregateID
           if (payloads.some((item) => item.aggregateID !== aggregateId)) {
             return yield* Effect.die(
-              makeInvalidDurableEventError({
+              coreErrors.INVALID_DURABLE_EVENT({
                 type: payloads[0].definition.type,
-                message: 'Published events must belong to the same aggregate',
+                reason: 'Published events must belong to the same aggregate',
               }),
             )
           }
@@ -538,9 +526,9 @@ export function configured(options?: Options) {
                         if (persist) {
                           if (ids.has(item.event.id))
                             yield* Effect.die(
-                              makeInvalidDurableEventError({
+                              coreErrors.INVALID_DURABLE_EVENT({
                                 type: item.event.type,
-                                message: `Event ${item.event.id} appears more than once in the batch`,
+                                reason: `Event ${item.event.id} appears more than once in the batch`,
                               }),
                             )
                           ids.add(item.event.id)
@@ -552,9 +540,9 @@ export function configured(options?: Options) {
                             .pipe(Effect.orDie)
                           if (stored)
                             yield* Effect.die(
-                              makeInvalidDurableEventError({
+                              coreErrors.INVALID_DURABLE_EVENT({
                                 type: item.event.type,
-                                message: `Event ${item.event.id} already exists at aggregate ${stored.aggregateID} sequence ${stored.seq}`,
+                                reason: `Event ${item.event.id} already exists at aggregate ${stored.aggregateID} sequence ${stored.seq}`,
                               }),
                             )
                         }
@@ -614,7 +602,7 @@ export function configured(options?: Options) {
           const definition = Durable.get(event.type)
           if (!definition?.durable)
             return yield* Effect.die(
-              makeInvalidDurableEventError({type: event.type, message: `Unknown durable event type ${event.type}`}),
+              coreErrors.INVALID_DURABLE_EVENT({type: event.type, reason: `Unknown durable event type ${event.type}`}),
             )
           yield* durableLocks.withLock(event.aggregateID)(
             Effect.gen(function* () {

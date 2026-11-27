@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
-import {mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {cpSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
@@ -70,10 +70,10 @@ describe.concurrent('the vite dev server', () => {
     const agent = Number(readFileSync(pidFile, 'utf8'))
     started.push(agent)
     expect(adapterFiles(project)).toHaveLength(3)
-    const stored = (text: string) => browser.rpc.logs.query({text, source: 'engine', limit: 10})
-    expect((await stored('watcher started')).events).toContainEqual(
-      expect.objectContaining({level: 'info', message: 'watcher started'}),
-    )
+    const stored = (query: string) => browser.rpc.logs.query({text: query, source: 'engine', limit: 10})
+    await expect
+      .poll(async () => (await stored('watcher started')).events)
+      .toContainEqual(expect.objectContaining({level: 'info', message: 'watcher started'}))
     expect((await stored('the engine started')).events).toContainEqual(
       expect.objectContaining({level: 'info', message: 'conciv: the engine started'}),
     )
@@ -88,15 +88,32 @@ describe.concurrent('the vite dev server', () => {
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test('a second dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
+  test("a dev server whose engine port is taken still boots, with its engine on another port, a dev server started with CONCIV_SIMULATE runs its engine in simulation, and that server's plugin bundler part transforms a served module after the source stamp, serves a virtual module, and swaps its transform when its file is rewritten", async ({
+    project,
     viteDev,
+    holdPort,
     browser: openBrowser,
     expect,
   }) => {
-    const first = await viteDev({}, {CONCIV_SIMULATE: '1'})
-    const second = await viteDev({port: first.port})
+    const plugin = (name: string) => join(import.meta.dirname, '..', 'fixtures', 'plugins', name)
+    const root = realpathSync(project('app'))
+    const stamper = join(root, 'stamper')
+    cpSync(plugin('stamper'), stamper, {recursive: true})
+    writeFileSync(join(root, 'src', 'virtual.js'), "export {virtualGreeting} from 'virtual:stamper'\n")
+    const taken = await holdPort()
+    const [first, second] = await Promise.all([
+      viteDev(
+        {plugins: [plugin('plain'), stamper]},
+        {
+          env: {CONCIV_SIMULATE: '1', CONCIV_DISABLE_FILEWATCHER: 'false'},
+          root,
+          vite: {oxc: {jsx: {runtime: 'classic'}}, server: {host: '127.0.0.1'}},
+        },
+      ),
+      viteDev({port: taken}),
+    ])
 
-    expect(second.port).not.toBe(first.port)
+    expect(second.port).not.toBe(taken)
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
 
@@ -114,6 +131,31 @@ describe.concurrent('the vite dev server', () => {
       type: ChatEventType.RUN_ERROR,
       message: expect.stringContaining('the simulation has no driver'),
     })
+
+    const served = async (path: string) => (await fetch(new URL(path, first.url))).text()
+    const app = await served('/src/app.jsx')
+    expect(app).toContain('data-tsd-source')
+    expect(app).toContain('export const stamperSawSource = true')
+    expect(await served('/src/virtual.js')).toContain('/@id/__x00__virtual:stamper')
+    expect(await served('/@id/__x00__virtual:stamper')).toContain("virtualGreeting = 'from the stamper'")
+
+    const HmrMessage = z.object({type: z.string()})
+    const hmr = new WebSocket(first.url.replace(/^http/, 'ws'), 'vite-hmr')
+    const hmrMessage = (type: string) =>
+      new Promise<void>((resolve) =>
+        hmr.addEventListener('message', (event) => {
+          if (HmrMessage.safeParse(JSON.parse(String(event.data))).data?.type === type) resolve()
+        }),
+      )
+    await hmrMessage('connected')
+    const reloaded = hmrMessage('full-reload')
+    const stamperServer = join(stamper, 'server.js')
+    writeFileSync(stamperServer, readFileSync(stamperServer, 'utf8').replace('stamperSawSource', 'stamperReloaded'))
+    await reloaded
+    hmr.close()
+    expect((await served('/src/app.jsx')).match(/export const stamper\w+ = true/g)).toEqual([
+      'export const stamperReloaded = true',
+    ])
   })
   test.for([
     {name: 'a plain folder', folder: 'widget'},

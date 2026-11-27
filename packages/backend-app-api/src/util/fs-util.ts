@@ -1,25 +1,12 @@
 import path, {isAbsolute, relative, sep} from 'path'
-import {Context, Effect, FileSystem, Layer, Schema} from 'effect'
+import {Context, Effect, FileSystem, Layer} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
+import type {EvlogError} from 'evlog'
+import {filesystemErrors} from '@conciv/errors'
 import * as Glob from './glob.js'
 
 export namespace FSUtil {
-  export const FileSystemError = Schema.TaggedStruct('FileSystemError', {
-    method: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  })
-  export type FileSystemError = typeof FileSystemError.Type & globalThis.Error
-  export const makeFileSystemError = (fields: Omit<typeof FileSystemError.Type, '_tag'>): FileSystemError => {
-    const detail =
-      fields.cause instanceof globalThis.Error ? fields.cause.message : fields.cause && String(fields.cause)
-    return Object.assign(
-      new globalThis.Error(`Filesystem operation failed: ${fields.method}${detail ? `: ${detail}` : ''}`),
-      FileSystemError.make(fields),
-      {name: 'FileSystemError'},
-    )
-  }
-
-  export type Error = PlatformError | FileSystemError
+  export type Error = PlatformError | EvlogError
 
   export interface Interface extends FileSystem.FileSystem {
     readonly isDir: (path: string) => Effect.Effect<boolean>
@@ -80,7 +67,11 @@ export namespace FSUtil {
         const text = yield* fs.readFileString(path)
         return yield* Effect.try({
           try: () => JSON.parse(text),
-          catch: (cause) => makeFileSystemError({method: 'readJson', cause}),
+          catch: (cause) =>
+            filesystemErrors.FILESYSTEM_FAILED({
+              method: 'readJson',
+              cause: cause instanceof globalThis.Error ? cause : undefined,
+            }),
         })
       })
 
@@ -96,7 +87,11 @@ export namespace FSUtil {
       const scan = Effect.fn('FileSystem.scan')(function* (pattern: string, options?: Glob.Options) {
         return yield* Effect.tryPromise({
           try: () => Glob.scan(pattern, options),
-          catch: (cause) => makeFileSystemError({method: 'glob', cause}),
+          catch: (cause) =>
+            filesystemErrors.FILESYSTEM_FAILED({
+              method: 'glob',
+              cause: cause instanceof globalThis.Error ? cause : undefined,
+            }),
         })
       })
 

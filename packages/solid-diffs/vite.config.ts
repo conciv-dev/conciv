@@ -1,9 +1,16 @@
 import {defineConfig} from 'vite'
-import {solidLibConfig} from '@internal/vite-config'
+import solid from 'vite-plugin-solid'
+import {libConfig} from '@internal/vite-config'
 
 export default defineConfig(
-  solidLibConfig({
-    entry: new URL('src/solid-diffs.tsx', import.meta.url),
-    external: [/^solid-js/, /^@pierre\/diffs(?!.*\?worker)/, /^shiki/, /^@shikijs\//, /^@tanstack\/solid-pacer/],
+  libConfig({
+    root: import.meta.url,
+    plugins: [solid()],
+    environments: {
+      client: {
+        entries: ['src/solid-diffs.tsx'],
+        external: [/^solid-js/, /^@pierre\/diffs(?!.*\?worker)/, /^shiki/, /^@shikijs\//, /^@tanstack\/solid-pacer/],
+      },
+    },
   }),
 )

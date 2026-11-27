@@ -1,6 +1,6 @@
 {
   "name": "@conciv/backend-test-utils",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Starts the real conciv engine with the simulation's scripted model for engine tests.",
   "keywords": [
     "conciv",
@@ -35,7 +35,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsdown -c tsdown.types.config.ts",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
@@ -44,6 +44,7 @@
     "@conciv/backend-defaults": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/simulation": "workspace:^",
@@ -56,14 +57,17 @@
   "devDependencies": {
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
     "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

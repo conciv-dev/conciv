@@ -1,3 +1,4 @@
+import {testKitErrors} from '@conciv/errors'
 import {ORPCError} from '@orpc/server'
 import type {MarkerRow, SessionHit, SessionMeta} from '@conciv/protocol'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
@@ -24,7 +25,7 @@ function sessionNotFound(): never {
 
 function makeSessionId(): SessionId {
   const id = `ses_${crypto.randomUUID().replaceAll('-', '')}`
-  if (!isSessionId(id)) throw new Error(`the fake engine made a session id the schema refuses: ${id}`)
+  if (!isSessionId(id)) throw testKitErrors.FAKE_SESSION_ID_REFUSED({id})
   return id
 }
 

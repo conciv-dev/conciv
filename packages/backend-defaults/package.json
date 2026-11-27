@@ -1,6 +1,6 @@
 {
   "name": "@conciv/backend-defaults",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine with no plugin in it: its HTTP, rpc, MCP and login surface, and the chat plane (turns through TanStack AI's chat(), hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores).",
   "keywords": [
     "ai",
@@ -49,7 +49,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -60,6 +60,7 @@
     "@conciv/backend-app-api": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/home": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -111,16 +112,16 @@
     "@effect/vitest": "catalog:",
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/which": "catalog:",
     "drizzle-kit": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=26.0.0"
+    "node": ">=22.16.0"
   }
 }

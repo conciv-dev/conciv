@@ -6,6 +6,8 @@ import * as Instructions from '@conciv/backend-app-api/core/instructions/instruc
 import * as SessionEvent from '@conciv/protocol/schema/session-event'
 import * as Session from '@conciv/protocol/schema/session'
 import {InstructionBlobTable, InstructionStateTable} from './sql.js'
+import {sessionErrors} from '@conciv/errors'
+import type {EvlogError} from 'evlog'
 
 type DatabaseService = Database.Interface['db']
 
@@ -20,7 +22,7 @@ export const observe = Effect.fn('InstructionState.observe')(function* (
   db: DatabaseService,
   instructions: Instructions.List,
   sessionId: Session.Id,
-): Effect.fn.Return<Observation, Instructions.InitializationBlocked> {
+): Effect.fn.Return<Observation, EvlogError> {
   const [observed, stored] = yield* Effect.all([Instructions.read(instructions), find(db, sessionId)], {
     concurrency: 'unbounded',
   })
@@ -153,7 +155,7 @@ export const initial = Effect.fn('InstructionState.initial')(function* (
   instructions: Instructions.List,
 ) {
   const state = yield* find(db, sessionId)
-  if (!state) return yield* Effect.die(new Error(`Instruction state not found during assembly: ${sessionId}`))
+  if (!state) return yield* Effect.die(sessionErrors.INSTRUCTION_STATE_MISSING({sessionId}))
   const blobs = yield* loadBlobs(db, Object.values(state.initial_values))
   return Instructions.renderInitial(instructions, dereference(state.initial_values, blobs))
 })
@@ -224,7 +226,7 @@ const loadBlobs = Effect.fnUntraced(function* (db: DatabaseService, values: Read
   )).flat()
   const blobs = new Map(rows.map((row) => [row.hash, row.value]))
   for (const hash of hashes) {
-    if (!blobs.has(hash)) return yield* Effect.die(new Error(`Instruction blob not found: ${hash}`))
+    if (!blobs.has(hash)) return yield* Effect.die(sessionErrors.INSTRUCTION_BLOB_MISSING({hash}))
   }
   return blobs
 })
@@ -250,6 +252,6 @@ function dereferenceDelta(
 
 function requireBlob(blobs: ReadonlyMap<Instructions.Hash, Schema.Json>, hash: Instructions.Hash) {
   const value = blobs.get(hash)
-  if (value === undefined) throw new Error(`Instruction blob not found: ${hash}`)
+  if (value === undefined) throw sessionErrors.INSTRUCTION_BLOB_MISSING({hash})
   return value
 }

@@ -1,6 +1,6 @@
 {
   "name": "site",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "private": true,
   "homepage": "https://conciv.dev",
   "repository": {
@@ -11,17 +11,18 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "dev": "node scripts/build-reference.mjs && node scripts/build-playground-shell.mjs && vite dev --port 3001",
-    "build": "node scripts/build-source-manifest.mjs && node scripts/build-reference.mjs && node scripts/build-playground-shell.mjs && vite build",
+    "dev": "node scripts/build-playground-shell.mjs && vite dev --port 3001",
+    "build": "node scripts/build-source-manifest.mjs && node scripts/build-playground-shell.mjs && vite build",
     "start": "vite preview",
     "preview": "vite preview",
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "typecheck": "node scripts/build-reference.mjs && fumadocs-mdx && tsc --noEmit && tsc -p playground-shell/tsconfig.json --noEmit && tsc -p content/docs/plugins/tsconfig.json --noEmit",
+    "typecheck": "fumadocs-mdx && tsc --noEmit && tsc -p playground-shell/tsconfig.json --noEmit && tsc -p content/docs/plugins/tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/mascot-react": "workspace:*",
@@ -65,9 +66,7 @@
     "@cloudflare/vite-plugin": "1.69.1",
     "@conciv/backend-plugin-api": "workspace:*",
     "@conciv/backend-test-utils": "workspace:*",
-    "@conciv/cli": "workspace:*",
     "@conciv/client": "workspace:*",
-    "@conciv/harness": "workspace:*",
     "@conciv/plugin-page": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
     "@conciv/preact": "workspace:*",
@@ -76,6 +75,7 @@
     "@internal/frontend-defaults": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/plugin-terminal": "workspace:*",
+    "@internal/reference": "workspace:*",
     "@internal/test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",

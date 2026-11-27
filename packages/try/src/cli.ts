@@ -1,7 +1,8 @@
 import {intro, log, note, outro, spinner} from '@clack/prompts'
-import {defineCommand, runMain} from 'citty'
+import {defineCommand, runCommand, runMain} from 'citty'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
 import {runConnect, type ConnectEvent} from './connect.js'
+import {formatCliError} from '@conciv/errors'
 import {startTryLog} from './log.js'
 
 export function attachCommand(port: number, token: string): string {
@@ -95,5 +96,13 @@ const main = defineCommand({
 
 export function runCli(): void {
   startTryLog()
-  void runMain(main)
+  const rawArgs = process.argv.slice(2)
+  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+    void runMain(main)
+    return
+  }
+  void runCommand(main, {rawArgs}).catch((error: unknown) => {
+    process.stderr.write(`${formatCliError(error)}\n`)
+    process.exitCode = 1
+  })
 }

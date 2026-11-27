@@ -12,6 +12,7 @@ import {statics} from '@conciv/protocol/schema/schema'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/protocol'
 import type {SettingsState} from '@conciv/client'
 import type {EngineRuntime} from '../lib/logging.js'
+import {engineRuntimeErrors} from '@conciv/errors'
 
 const WRITE_DEBOUNCE_MS = 100
 
@@ -72,7 +73,7 @@ export function createSettingsStorage(storages: SettingsStorages, runtime: Engin
 function settingsKey(namespace: string): string {
   const parsed = SettingsNamespaceSchema.safeParse(namespace)
   if (!parsed.success)
-    throw new Error(`conciv: the settings namespace "${namespace}" is refused: ${z.prettifyError(parsed.error)}`)
+    throw engineRuntimeErrors.SETTINGS_NAMESPACE_REFUSED({namespace, reason: z.prettifyError(parsed.error)})
   return `${parsed.data}.json`
 }
 

@@ -1,13 +1,17 @@
-import {defineConfig, mergeConfig} from 'vite'
-import {solidLibConfig} from '@internal/vite-config'
+import {defineConfig} from 'vite'
+import solid from 'vite-plugin-solid'
+import {libConfig} from '@internal/vite-config'
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig(
-  mergeConfig(
-    solidLibConfig({
-      entry: new URL('src/ui-kit-chat-tools.tsx', import.meta.url),
-      external: [/^solid-js/, /^zod/, /^@conciv\//, /^@pierre\/diffs/, /^shiki/, /^@shikijs\//, /^lucide-solid/],
-    }),
-    {plugins: [concivTest()]},
-  ),
+  libConfig({
+    root: import.meta.url,
+    plugins: [solid(), concivTest()],
+    environments: {
+      client: {
+        entries: ['src/ui-kit-chat-tools.tsx'],
+        external: [/^solid-js/, /^zod/, /^@conciv\//, /^@pierre\/diffs/, /^shiki/, /^@shikijs\//, /^lucide-solid/],
+      },
+    },
+  }),
 )

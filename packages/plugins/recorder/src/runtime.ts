@@ -17,11 +17,7 @@ const renderFrames = Effect.fn('recorder.renderFrames')(function* (
   const renderers = yield* RendererCache
   const frames = yield* renderers
     .use((renderer) => renderer.render(events, pickKeyframeTimestamps(log, lastTs, keyframeCount)))
-    .pipe(
-      Effect.catchTag('RecorderRenderFailed', (failed) =>
-        Effect.as(Effect.logError('rendering the keyframes failed', failed.cause), Option.none()),
-      ),
-    )
+    .pipe(Effect.catch((failed) => Effect.as(Effect.logError('rendering the keyframes failed', failed), Option.none())))
   return Option.getOrElse(frames, () => [])
 })
 

@@ -84,7 +84,7 @@ async function* runEnd(
 ): AsyncGenerator<ChatEvent> {
   if (abortSignal?.aborted) return
   if (options.shouldError) {
-    yield {type: ChatEventType.RUN_ERROR, message: (options.error ?? new Error('Story stream error')).message}
+    yield {type: ChatEventType.RUN_ERROR, message: options.error?.message ?? 'Story stream error'}
     return
   }
   if (options.runsUntilStopped) {

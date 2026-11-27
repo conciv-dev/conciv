@@ -6,6 +6,7 @@ import type {App} from '../app.js'
 import type {PluginOptions} from '@conciv/protocol/options'
 import type {Servers} from '@conciv/client'
 import type {AgentDomain} from './agent.js'
+import type {BundlerDomain} from './bundler.js'
 import type {EventDomain} from './event.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
@@ -18,11 +19,14 @@ import type {ToolDomain} from './tool.js'
 import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
+export type {BundlerCode, BundlerDomain, BundlerEditor, BundlerHooks, SourceMap} from './bundler.js'
+
 export interface Context {
   readonly app: App
   readonly location: Location.Info
   readonly options: PluginOptions
   readonly agent: AgentDomain
+  readonly bundler: BundlerDomain
   readonly event: EventDomain
   readonly experimental: {
     readonly generate: undefined
@@ -54,16 +58,11 @@ export interface BrowserTabDomain {
 
 export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 
-export interface TaggedError {
-  readonly _tag: string
-  readonly message?: string
-}
-
-export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
+export interface Plugin<R = Scope.Scope, E extends Error = never> {
   readonly id: string
   readonly effect: (context: Context) => Effect.Effect<void, E, R>
 }
 
-export function define<R = Scope.Scope, E extends TaggedError = never>(plugin: Plugin<R, E>) {
+export function define<R = Scope.Scope, E extends Error = never>(plugin: Plugin<R, E>) {
   return plugin
 }

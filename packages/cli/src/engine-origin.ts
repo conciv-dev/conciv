@@ -5,8 +5,8 @@ import {differenceBy, partition} from 'es-toolkit'
 import {checkEngines, concivHome} from '@conciv/home'
 import type {SessionId} from '@conciv/types/chat-types'
 import {concivStateDir} from '@conciv/types/state-types'
-import {cliErrors} from './failure.js'
 import {askAgain, askTabs, ENGINE_READ_MS, PROBE_MS, silence, type Silent, type TabAsk} from './engine-read.js'
+import {cliErrors} from '@conciv/errors'
 
 const DEFAULT_ENGINE_PORT = '5173'
 

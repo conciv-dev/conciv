@@ -3,6 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
 import {FieldShell} from './field-shell.js'
 import {PasswordInput} from './password-input.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-system/PasswordInput'}
 export default meta
@@ -45,7 +46,7 @@ export const Keyboard: Story = {
     await expect(token).toHaveAttribute('aria-invalid', 'true')
 
     const [reveal] = canvas.getAllByRole('button', {name: 'Show secret'})
-    if (!reveal) throw new Error('the password input renders no reveal button')
+    if (!reveal) throw storyErrors.ELEMENT_MISSING({element: 'password reveal button'})
     await userEvent.click(reveal)
     await waitFor(() => expect(apiKey).toHaveAttribute('type', 'text'))
     await expect(canvas.getAllByRole('button', {name: 'Hide secret'})[0]).toBeVisible()

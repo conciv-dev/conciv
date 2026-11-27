@@ -3,7 +3,7 @@ import {optional} from './schema.js'
 import type {Maker} from './identifier.js'
 import * as Location from './location.js'
 import {statics} from './schema.js'
-import {engineErrors} from '../errors.js'
+import {engineErrors} from '@conciv/errors'
 
 export const Id = Schema.String.check(Schema.isStartingWith('evt_')).pipe(
   Schema.brand('Event.ID'),

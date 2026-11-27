@@ -13,6 +13,7 @@ import type {
 } from './engine.js'
 import type {Outside, OutsideAgent, OutsideReply} from './outside.js'
 import type {EngineDrive} from './drive.js'
+import {testKitErrors} from '@conciv/errors'
 
 export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string; home: string}
 
@@ -92,18 +93,18 @@ export function engineCommands(
   }
   const engineFor = (engineId: string): BrowserEngine => {
     const found = engines[engineId]
-    if (found === undefined) throw new Error(`no engine ${engineId}: it was never made or has stopped`)
+    if (found === undefined) throw testKitErrors.NO_ENGINE({engineId})
     return found
   }
   const engine = (engineId: string): StartedEngine => engineFor(engineId).started
   const sessionFor = (engineId: string, sessionId: string): EngineSession => {
     const found = engineFor(engineId).sessions[sessionId]
-    if (found === undefined) throw new Error(`engine ${engineId} has no session ${sessionId}`)
+    if (found === undefined) throw testKitErrors.NO_SESSION({engineId, sessionId})
     return found
   }
   const gateFor = (engineId: string, gateId: string): Gate => {
     const found = engineFor(engineId).gates[gateId]
-    if (found === undefined) throw new Error(`engine ${engineId} has no gate ${gateId}`)
+    if (found === undefined) throw testKitErrors.NO_GATE({engineId, gateId})
     return found
   }
   const stop = async (engineId: string): Promise<void> => {
@@ -152,7 +153,7 @@ export function engineCommands(
       concivEventArrived: (_context, engineId, waitId) => {
         const owner = engineFor(engineId)
         const wait = owner.waits[waitId]
-        if (wait === undefined) throw new Error(`engine ${engineId} has no event wait ${waitId}`)
+        if (wait === undefined) throw testKitErrors.NO_EVENT_WAIT({engineId, waitId})
         delete owner.waits[waitId]
         return wait.arrived
       },

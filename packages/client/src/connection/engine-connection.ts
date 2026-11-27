@@ -47,9 +47,8 @@ import {
 import {Socket} from 'effect/socket'
 import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/types/rpc-types'
-import {contract, contractCode, engineErrors, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
+import {contract, contractCode, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
 import {EvlogError} from 'evlog'
-import {clientErrors} from './client-errors.js'
 import {
   createConnectionState,
   defaultEngineConnectionTimings,
@@ -61,6 +60,7 @@ import {
   type EngineConnectionTimings,
   type TrustStatus,
 } from './engine-connection-machine.js'
+import {clientErrors, engineErrors} from '@conciv/errors'
 
 export type RpcClientContext = RetryLinkPluginContext & {concivSessionId?: string}
 

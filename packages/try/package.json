@@ -1,6 +1,6 @@
 {
   "name": "@conciv/try",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv engine powered by your own agent.",
   "keywords": [
     "ai-agent",
@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && chmod +x dist/bin.js && tsc -p tsconfig.build.json",
+    "build": "vite build && chmod +x dist/bin.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -41,6 +41,7 @@
   "dependencies": {
     "@clack/prompts": "catalog:",
     "@conciv/backend": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/types": "workspace:^",
     "citty": "catalog:",
@@ -49,11 +50,14 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

@@ -5,6 +5,7 @@ import type {App} from '../app.js'
 import type {PluginOptions} from '@conciv/protocol/options'
 import type {Info, PublicRef} from '@conciv/protocol/schema/location'
 import type {AgentDomain} from './agent.js'
+import type {BundlerDomain} from './bundler.js'
 import type {EventDomain} from './event.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
@@ -23,6 +24,7 @@ export interface Context {
   readonly location: Info
   readonly options: PluginOptions
   readonly agent: AgentDomain
+  readonly bundler: BundlerDomain
   readonly event: EventDomain
   readonly experimental: {
     /** @remarks Not implemented yet. Always undefined in this version. */

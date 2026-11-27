@@ -1,6 +1,7 @@
 export * as RendererCacheModel from './renderer-cache.js'
 import {Context, Effect, Layer, Option, RcMap, type Scope} from 'effect'
-import type {KeyframeRenderer, RendererUnavailable} from './render.js'
+import type {EvlogError} from 'evlog'
+import type {KeyframeRenderer} from './render.js'
 
 const RENDERER_IDLE = '5 minutes'
 
@@ -13,7 +14,7 @@ export type RendererCacheInterface = {
 export const RendererCache = Context.Service<RendererCacheInterface>('@conciv/plugin-recorder/RendererCache')
 
 export function rendererCacheLayer<Requirements>(
-  launch: Effect.Effect<KeyframeRenderer, RendererUnavailable, Scope.Scope | Requirements>,
+  launch: Effect.Effect<KeyframeRenderer, EvlogError, Scope.Scope | Requirements>,
 ) {
   return Layer.effect(
     RendererCache,
@@ -23,8 +24,8 @@ export function rendererCacheLayer<Requirements>(
         use: (work) =>
           RcMap.get(renderers, 'chromium').pipe(
             Effect.map(Option.some),
-            Effect.catchTag('RecorderRendererUnavailable', (unavailable) =>
-              Effect.logWarning('the keyframe renderer could not launch', unavailable.cause).pipe(
+            Effect.catch((unavailable) =>
+              Effect.logWarning('the keyframe renderer could not launch', unavailable).pipe(
                 Effect.andThen(RcMap.invalidate(renderers, 'chromium')),
                 Effect.as(Option.none()),
               ),

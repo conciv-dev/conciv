@@ -1,6 +1,6 @@
 {
   "name": "@conciv/app",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react, @conciv/preact and @conciv/solid wrapper components. The conciv widget bundle: mounts the conciv shell (@internal/frontend-defaults) into a Shadow DOM on the host page. Inlines the private shell and the built-in plugins' browser parts (page, terminal); externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",
@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -42,6 +42,7 @@
     "@ark-ui/solid": "catalog:",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
@@ -69,6 +70,7 @@
     "@internal/plugin-terminal": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
@@ -81,6 +83,6 @@
     "zod": "catalog:"
   },
   "engines": {
-    "node": ">=26.0.0"
+    "node": ">=22.16.0"
   }
 }

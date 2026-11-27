@@ -32,7 +32,7 @@
     "./assets/*": "./assets/*"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -42,6 +42,7 @@
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@storybook/addon-docs": "catalog:",
     "@types/node": "catalog:",
     "solid-js": "catalog:",

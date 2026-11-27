@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ui-kit-chat-tools",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv tool-card vocabulary: concrete tool-call cards (Bash, Edit, Read, Search, Todo, apply_patch, …) built on @conciv/ui-kit-chat's tool-building primitives + @conciv/ui-kit-system. ui-kit-chat stays tool-agnostic; this package knows the tools.",
   "keywords": [
     "ai-chat",
@@ -30,13 +30,14 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/types": "workspace:^",

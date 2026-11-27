@@ -7,7 +7,6 @@ import {
   BACKEND_CAPABILITIES,
   backendContract,
   dispatchHandshake,
-  simulationErrors,
   type FinishReason,
   type Item,
   type LlmNotification,
@@ -15,6 +14,7 @@ import {
   type ProviderInvocation,
 } from '@conciv/protocol/simulation'
 import * as SimulatedTools from './simulated-tools.js'
+import {simulationErrors} from '@conciv/errors'
 
 const RESPONSE_LIMIT = 256
 

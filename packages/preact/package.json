@@ -1,6 +1,6 @@
 {
   "name": "@conciv/preact",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Preact component for the conciv widget: render <ConcivWidget /> to mount the conciv dev agent in any Preact app.",
   "keywords": [
     "ai",
@@ -33,7 +33,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -48,13 +48,13 @@
   "devDependencies": {
     "@conciv/backend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "playwright": "catalog:",
     "preact": "catalog:",
     "publint": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
@@ -64,6 +64,6 @@
     "preact": ">=10"
   },
   "engines": {
-    "node": ">=26.0.0"
+    "node": ">=22.16.0"
   }
 }

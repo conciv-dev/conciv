@@ -1,6 +1,7 @@
 import {Plugin, type Rpc} from '@conciv/backend-plugin-api/effect'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
-import {Effect, FileSystem, Layer, Path, Queue, Stream, Schema} from 'effect'
+import {Effect, FileSystem, Layer, Path, Queue, Stream} from 'effect'
+import type {EvlogError} from 'evlog'
 import {z} from 'zod'
 import {MAX_FILE_BYTES, Recorder, recorderConfig, type RecorderConfig, type RrwebEvent} from './rpc.js'
 import {CaptureControlModel, CaptureControl} from './capture-control.js'
@@ -12,9 +13,7 @@ import {ClientRingsModel, ClientRings} from './rings.js'
 import {readVideoPiece, renderVideoFile} from './video.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
-
-const ConfigInvalid = Schema.TaggedStruct('RecorderConfigInvalid', {message: Schema.String})
-type ConfigInvalid = typeof ConfigInvalid.Type
+import {recorderErrors} from './errors/errors.js'
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
 
@@ -29,6 +28,19 @@ function foundRecording(events: RrwebEvent[]): {kind: 'found'; events: RrwebEven
 }
 
 const VIDEO: {name: 'recording.webm'; mime: 'video/webm'} = {name: 'recording.webm', mime: 'video/webm'}
+
+type ExportFailure = 'missing' | 'expired' | 'render-failed' | 'unreadable'
+
+const EXPORT_FAILURES: Record<string, ExportFailure> = {
+  [recorderErrors.RECORDING_NOT_FOUND.code]: 'missing',
+  [recorderErrors.RECORDING_EXPIRED.code]: 'expired',
+  [recorderErrors.VIDEO_UNRENDERED.code]: 'render-failed',
+  [recorderErrors.VIDEO_UNREADABLE.code]: 'unreadable',
+}
+
+function readExportFailure(error: EvlogError): ExportFailure {
+  return EXPORT_FAILURES[error.code ?? ''] ?? 'unreadable'
+}
 
 function recordingsDirectory(path: Path.Path, projectDirectory: string): string {
   return path.join(projectDirectory, '.conciv', 'recorder', 'recordings')
@@ -85,28 +97,19 @@ const registerRpc = Effect.fn('recorder.registerRpc')(function* (
     'recordings.get': (input) =>
       recordings.get(input.recordingId).pipe(
         Effect.map(foundRecording),
-        Effect.catchTags({
-          RecorderRecordingExpired: () => Effect.succeed(EXPIRED),
-          RecorderRecordingNotFound: () => Effect.succeed(MISSING),
-        }),
+        Effect.catch((error) =>
+          Effect.succeed(error.code === recorderErrors.RECORDING_EXPIRED.code ? EXPIRED : MISSING),
+        ),
       ),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {
         const file = yield* recordings.videoFile(input.id)
         const events = yield* recordings.get(input.id)
-        yield* renderVideoFile(file, events)
-        const piece = yield* readVideoPiece(file, input.offset, MAX_FILE_BYTES)
+        yield* renderVideoFile(input.id, file, events)
+        const piece = yield* readVideoPiece(input.id, file, input.offset, MAX_FILE_BYTES)
         return {...piece, ...VIDEO}
       }).pipe(
-        Effect.catchTags({
-          RecorderRecordingExpired: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
-          RecorderRecordingNotFound: () =>
-            Effect.fail(call.error('missing', `There is no saved recording ${input.id}`)),
-          RecorderVideoUnrendered: () =>
-            Effect.fail(call.error('render-failed', `The recording ${input.id} could not be rendered to video`)),
-          RecorderVideoUnreadable: () =>
-            Effect.fail(call.error('unreadable', `The video of the recording ${input.id} could not be read`)),
-        }),
+        Effect.catch((error) => Effect.fail(call.error(readExportFailure(error), error.message))),
         Effect.provideContext(services),
       ),
   })
@@ -121,12 +124,13 @@ function servicesLayer(config: RecorderConfig, directory: string) {
   )
 }
 
-export default Plugin.define<Plugin.Services, ConfigInvalid>({
+export default Plugin.define<Plugin.Services, EvlogError>({
   id: 'recorder',
   effect: (ctx) =>
     Effect.gen(function* () {
       const parsed = recorderConfig.safeParse(ctx.options)
-      if (!parsed.success) return yield* Effect.fail(ConfigInvalid.make({message: z.prettifyError(parsed.error)}))
+      if (!parsed.success)
+        return yield* Effect.fail(recorderErrors.CONFIG_INVALID({detail: z.prettifyError(parsed.error)}))
       const config = parsed.data
       const path = yield* Path.Path
       const services = yield* Layer.build(servicesLayer(config, recordingsDirectory(path, ctx.location.directory)))

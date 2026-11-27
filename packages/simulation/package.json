@@ -1,6 +1,6 @@
 {
   "name": "@conciv/simulation",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "The conciv engine's simulation: the scripted agent and fixed network table an engine started in simulation is built with, the control socket a driver answers model turns and tool calls through, and the driver.",
   "keywords": [
     "conciv",
@@ -55,7 +55,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsdown -c tsdown.types.config.ts",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -64,6 +64,7 @@
   "dependencies": {
     "@conciv/backend-app-api": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
@@ -83,13 +84,16 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "get-port": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

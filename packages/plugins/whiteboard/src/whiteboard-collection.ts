@@ -5,19 +5,18 @@ import type {
   SyncConfig,
   UpdateMutationFnParams,
 } from '@tanstack/solid-db'
-import {Effect, Fiber, Option, Ref, Schema, Stream} from 'effect'
+import {Effect, Fiber, Option, Ref, Stream} from 'effect'
 import type {WhiteboardRuntime} from './solid-runtime.js'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from './rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
+import {canvasErrors} from './errors/canvas-errors.js'
+import {causeFrom} from './errors/cause.js'
 
 const ELEMENT_WRITE_THROTTLE_MS = 50
 
 const NotFound = z.object({type: z.literal('NOT_FOUND')})
 const Conflict = z.object({type: z.literal('CONFLICT'), data: z.object({current: elementRow})})
-
-const RowMissing = Schema.TaggedStruct('RowMissing', {})
-const RowsUnreadable = Schema.TaggedStruct('RowsUnreadable', {message: Schema.String})
 
 type SyncParams<Row extends object> = Parameters<SyncConfig<Row, string>['sync']>[0]
 
@@ -52,9 +51,7 @@ const readRows = <Row>(read: () => Promise<Row>) =>
   Effect.tryPromise({
     try: read,
     catch: (cause) =>
-      NotFound.safeParse(cause).success
-        ? RowMissing.make({})
-        : RowsUnreadable.make({message: cause instanceof Error ? cause.message : String(cause)}),
+      NotFound.safeParse(cause).success ? canvasErrors.ROW_MISSING() : canvasErrors.ROWS_UNREADABLE(causeFrom(cause)),
   })
 
 const buildSync = <Row extends object>(deps: {
@@ -89,7 +86,10 @@ const buildSync = <Row extends object>(deps: {
         if (message.type === 'reload') return load(true)
         if (message.type === 'delete') return Effect.sync(() => write(message.key, undefined))
         return readRows(() => readRow(message.key)).pipe(
-          Effect.catchTag('RowMissing', () => Effect.succeed(undefined)),
+          Effect.catchIf(
+            (error) => error.code === canvasErrors.ROW_MISSING.code,
+            () => Effect.succeed(undefined),
+          ),
           Effect.map((row) => write(message.key, row)),
         )
       }

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/solid-streamdown",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). A SolidJS streaming-markdown renderer: a port of Vercel's streamdown (block memoization, incomplete-markdown handling, token fade-in) onto Solid + the unified pipeline. Encapsulated so the widget can swap it without churn.",
   "keywords": [
     "conciv",
@@ -33,7 +33,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css",
@@ -53,7 +53,9 @@
     "unified": "catalog:"
   },
   "devDependencies": {
+    "@conciv/errors": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",

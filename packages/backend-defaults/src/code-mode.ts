@@ -2,7 +2,9 @@ import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
 import {partition} from 'es-toolkit'
 import type {Maker} from '@conciv/protocol/schema/identifier'
+import {EvlogError} from 'evlog'
 import {approvalDenied, CodeFilesCapability, describeSchemas} from './ai.js'
+import {aiErrors, causeFrom} from '@conciv/errors'
 import {cappedValue, safeStringify} from '@conciv/protocol'
 import {Agent, Permission, SessionSchema, Tool, ToolRuntime} from '@conciv/backend-app-api'
 import * as CodeMode from './codemode/codemode.js'
@@ -83,16 +85,12 @@ function toolContext(request: ToolRequest, agent: Agent.Id, ids: Maker): Tool.Co
   }
 }
 
-const isDeclined = Schema.is(Permission.DeclinedError)
-const isBlocked = Schema.is(Permission.BlockedError)
-const isCorrected = Schema.is(Permission.CorrectedError)
 const isToolError = Schema.is(Tool.Error)
 
 type SessionError = {type: string; message: string}
 
 function toSessionError(error: unknown): SessionError {
-  if (error instanceof Error && isBlocked(error)) return {type: 'permission.rejected', message: error.message}
-  if (isCorrected(error)) return {type: 'permission.rejected', message: error.feedback}
+  if (Permission.isRefused(error)) return {type: 'permission.rejected', message: error.message}
   if (isToolError(error)) {
     if (error.error === undefined) return {type: 'tool.execution', message: error.message}
     const unwrapped = toSessionError(error.error)
@@ -103,12 +101,12 @@ function toSessionError(error: unknown): SessionError {
 
 function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
-  if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
+  if (Result.isSuccess(defect)) return Permission.isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)
-  if (Option.isSome(failure) && isDeclined(failure.value.error)) return approvalDenied(name)
+  if (Option.isSome(failure) && Permission.isDeclined(failure.value.error)) return approvalDenied(name)
   if (Option.isSome(failure)) {
     const {type, message} = toSessionError(failure.value)
-    return Object.assign(new Error(message), {type})
+    return aiErrors.TOOL_FAILED({message, internal: {type}})
   }
   return Cause.squash(cause)
 }
@@ -266,8 +264,12 @@ function directCall(name: string, input: unknown, context: Tool.Context): Parame
   }
 }
 
+const CARRIER_CODES: readonly string[] = [aiErrors.TOOL_FAILED.code, aiErrors.APPROVAL_DENIED.code]
+
 function readDeclaredCode(error: unknown): string | null {
   if (!(error instanceof Error)) return null
+  if (EvlogError.isEvlogError(error))
+    return error.code === undefined || error.code === '' || CARRIER_CODES.includes(error.code) ? null : error.code
   if (!('code' in error) || typeof error.code !== 'string' || error.code === '') return null
   return error.code
 }
@@ -275,9 +277,10 @@ function readDeclaredCode(error: unknown): string | null {
 function withDeclaredCode(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   const code = readDeclaredCode(error)
-  if (code === null || message.startsWith(`${code}: `)) return error instanceof Error ? error : new Error(message)
+  if (code === null || message.startsWith(`${code}: `))
+    return error instanceof Error ? error : aiErrors.TOOL_FAILED({message, internal: {thrown: message}})
   const bare = message.startsWith(`${code}:`) ? message.slice(code.length + 1).trimStart() : message
-  return new Error(`${code}: ${bare}`)
+  return aiErrors.TOOL_FAILED({message: `${code}: ${bare}`, ...causeFrom(error)})
 }
 
 type CatalogNode = {

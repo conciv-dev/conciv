@@ -10,16 +10,16 @@ The oRPC contract (procedures plus zod schemas) shared by the engine and its cli
 
 - [src/README.md](./src/README.md): what each source file holds.
 - `exports` (`package.json`): `.` (`src/protocol.ts`), one subpath per `src/schema/*` file, `./execute-schemas`,
-  `./options` and `./simulation`, built by tsdown (`tsdown.config.ts`).
+  `./options` and `./simulation`, built by `vite build` (`vite.config.ts`).
 
 ## Invariants
 
-- ESM only: `"type": "module"`, tsdown `format: 'esm'`, attw `--profile esm-only` (`package.json`, `tsdown.config.ts`).
+- ESM only: `"type": "module"`, ESM output, attw `--profile esm-only` (`package.json`, `vite.config.ts`).
 - The contract holds no transport: the browser's connection and the node rpc client live in `@conciv/client`.
 
 ## Side Effects
 
-- `build` writes `dist/` (`tsdown.config.ts`).
+- `build` writes `dist/` (`vite.config.ts`).
 
 ## Verification
 

@@ -7,6 +7,7 @@ import type {
   UiElement,
   UiState,
 } from '@conciv/protocol/simulation'
+import {driveErrors} from '@conciv/errors'
 
 export type DriveRoot = ParentNode & DocumentOrShadowRoot
 
@@ -87,7 +88,7 @@ function outside(rect: DOMRect, x: number, y: number): boolean {
 
 function pointAt(found: Element, x: number, y: number): MouseEventInit {
   const rect = found.getBoundingClientRect()
-  if (outside(rect, x, y)) throw new Error('the click position must be within the target element')
+  if (outside(rect, x, y)) throw driveErrors.CLICK_OUTSIDE_TARGET()
   return {bubbles: true, composed: true, cancelable: true, clientX: rect.x + x, clientY: rect.y + y, button: 0}
 }
 
@@ -158,13 +159,13 @@ export function createWidgetDom(root: DriveRoot): WidgetDom {
 
   const find = (target: number): Element => {
     const element = shown().find((candidate) => numbers.get(candidate) === target)
-    if (element === undefined) throw new Error(`the target element is stale or unavailable: ${target}`)
+    if (element === undefined) throw driveErrors.TARGET_STALE({target})
     return element
   }
 
   const focused = (): Element => {
     const active = deepActive(root)
-    if (active === null) throw new Error('nothing in the widget has focus')
+    if (active === null) throw driveErrors.NOTHING_FOCUSED()
     return active
   }
 
@@ -252,7 +253,7 @@ export function createWidgetDom(root: DriveRoot): WidgetDom {
 
   const focus = (target: number): void => {
     const found = find(target)
-    if (!(found instanceof HTMLElement)) throw new Error(`the target element cannot take focus: ${target}`)
+    if (!(found instanceof HTMLElement)) throw driveErrors.TARGET_NOT_FOCUSABLE({target})
     found.focus()
   }
 
@@ -261,7 +262,7 @@ export function createWidgetDom(root: DriveRoot): WidgetDom {
     if (semantic === undefined) return
     const current = snapshot().nodes.find((node) => node.element === params.target)
     if (current?.id !== semantic.id || current.instance !== semantic.instance)
-      throw new Error(`the semantic click target is stale or unavailable: ${semantic.id}`)
+      throw driveErrors.SEMANTIC_TARGET_STALE({id: semantic.id})
   }
 
   const click = (params: ClickParams): void => {

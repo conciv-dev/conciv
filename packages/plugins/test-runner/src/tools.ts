@@ -1,16 +1,17 @@
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Tool from '@conciv/protocol/schema/tool'
 import {Effect} from 'effect'
+import type {EvlogError} from 'evlog'
 import {z} from 'zod'
-import type {RunnerUnavailable, TestRunnerManager} from './runner.js'
+import type {TestRunnerManager} from './runner.js'
 import {TestRunResultSchema} from './events.js'
 import {ListResultSchema} from './rpc.js'
 
 const codeMode = {namespace: 'test_runner', codemode: true}
 const direct = {namespace: 'test_runner', codemode: false}
 
-function toolFailure(error: RunnerUnavailable) {
-  return Effect.fail(Tool.toolError({message: error.message, error}))
+function toolFailure(error: EvlogError) {
+  return Effect.fail(Tool.toolError({message: error.message, error, metadata: {code: error.code, fix: error.fix}}))
 }
 
 export const register = Effect.fn('TestRunnerTools.register')(function* (
@@ -31,7 +32,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       execute: () =>
         manager.list(false).pipe(
           Effect.map((output) => ({output})),
-          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+          Effect.catch(toolFailure),
         ),
     })
     editor.add({
@@ -43,7 +44,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       execute: ({pattern}) =>
         manager.run({patterns: pattern ? [pattern] : undefined}).pipe(
           Effect.map((output) => ({output})),
-          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+          Effect.catch(toolFailure),
         ),
     })
     editor.add({

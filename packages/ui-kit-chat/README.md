@@ -15,7 +15,7 @@ npm install -D @conciv/it
 ## Interface
 
 - `package.json:exports` - `.` (`dist/ui-kit-chat.js`), `./tools` (`dist/tools.js`), `./draft-storage` (`dist/draft-storage.js`), `./theme/tokens.css` (source CSS), `./theme/fonts`, `./theme/code-theme`.
-- `package.json:scripts` - `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `publint`, `attw`. No `test` script.
+- `package.json:scripts` - `build` (`vite build`), `typecheck`, `publint`, `attw`. No `test` script.
 - `package.json:peerDependencies` - `solid-js` `^1.9.13`.
 - Subdirectory: [src](./src/README.md) - entries, store, behaviors, primitives, styled, tools, theme.
 

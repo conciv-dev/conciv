@@ -1,6 +1,6 @@
 {
   "name": "@conciv/it",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Conceive it. Claude Code, living inside your running app. Plugin for vite, webpack, rspack, rollup, esbuild, nextjs.",
   "keywords": [
     "ai",
@@ -23,35 +23,35 @@
   "type": "module",
   "exports": {
     "./plugin/vite": {
-      "types": "./dist/plugin/vite.d.ts",
+      "types": "./dist/vite.d.ts",
       "import": "./dist/vite.js"
     },
     "./plugin/webpack": {
-      "types": "./dist/plugin/webpack.d.ts",
+      "types": "./dist/webpack.d.ts",
       "import": "./dist/webpack.js",
       "default": "./dist/webpack.js"
     },
     "./plugin/rspack": {
-      "types": "./dist/plugin/rspack.d.ts",
+      "types": "./dist/rspack.d.ts",
       "import": "./dist/rspack.js",
       "default": "./dist/rspack.js"
     },
     "./plugin/rollup": {
-      "types": "./dist/plugin/rollup.d.ts",
+      "types": "./dist/rollup.d.ts",
       "import": "./dist/rollup.js"
     },
     "./plugin/esbuild": {
-      "types": "./dist/plugin/esbuild.d.ts",
+      "types": "./dist/esbuild.d.ts",
       "import": "./dist/esbuild.js"
     },
     "./plugin/nextjs": {
-      "types": "./dist/plugin/nextjs.d.ts",
+      "types": "./dist/nextjs.d.ts",
       "edge-light": "./dist/nextjs-edge.js",
       "import": "./dist/nextjs.js",
       "default": "./dist/nextjs.js"
     },
     "./plugin/nextjs/widget": {
-      "types": "./dist/plugin/nextjs-widget.d.ts",
+      "types": "./dist/nextjs-widget.d.ts",
       "import": "./dist/nextjs-widget.js",
       "default": "./dist/nextjs-widget.js"
     }
@@ -60,7 +60,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "sync-injected": "true",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
@@ -72,8 +72,8 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:"
   },
@@ -88,5 +88,8 @@
     "next": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

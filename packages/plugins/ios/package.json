@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-ios",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "The conciv iOS plugin: the engine part builds, runs, screenshots and reads the logs of a native iOS app on the simulator through xcodebuild, swiftc and simctl; the browser part is the WKWebView bridge the widget's native page speaks to the app.",
   "keywords": [
     "bridge",
@@ -46,7 +46,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "gen:fixtures": "node test/fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
@@ -59,6 +59,7 @@
     "@conciv/types": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -69,10 +70,10 @@
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
@@ -83,5 +84,8 @@
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "solid-js": "^1.9.13"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

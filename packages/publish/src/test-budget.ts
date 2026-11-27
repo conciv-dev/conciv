@@ -4,6 +4,7 @@ import {execa} from 'execa'
 import {parseSync, Visitor, type CallExpression, type Expression, type Super} from 'oxc-parser'
 import {z} from 'zod'
 import {findOwner, readWorkspacePackages} from './workspace.ts'
+import {publishErrors} from './errors/errors.ts'
 
 const BUDGET_FILE = 'test-budget.json'
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
@@ -65,7 +66,7 @@ function makesTest(call: CallExpression, testNames: Set<string>): boolean {
 function countTestCases(filename: string, source: string): number {
   const parsed = parseSync(filename, source)
   const [error] = parsed.errors
-  if (error) throw new Error(`${filename}: cannot parse - ${error.message}`)
+  if (error) throw publishErrors.TEST_FILE_UNPARSABLE({filename, reason: error.message})
   const testNames = new Set(TEST_FUNCTIONS)
   const curried = new Set<CallExpression>()
   let count = 0
@@ -111,7 +112,7 @@ async function countTestCasesByPackage(cwd: string): Promise<Map<string, number>
 async function readBudget(cwd: string): Promise<Record<string, number>> {
   const path = join(cwd, BUDGET_FILE)
   const result = budgetSchema.safeParse(JSON.parse(await readFile(path, 'utf8')))
-  if (!result.success) throw new Error(`${path}: expected {"<package name>": <test count>}\n${result.error.message}`)
+  if (!result.success) throw publishErrors.INVALID_BUDGET({path, reason: result.error.message})
   return result.data
 }
 
@@ -124,8 +125,8 @@ export async function assertTestsWithinBudget(cwd: string): Promise<string[]> {
     return cases > allowed ? [`${name}: ${cases} tests, budget ${allowed}`] : []
   })
   if (over.length > 0) {
-    throw new Error(
-      [
+    throw publishErrors.OVER_BUDGET({
+      lines: [
         `a package has more tests than ${BUDGET_FILE} allows:`,
         ...over,
         '',
@@ -134,8 +135,8 @@ export async function assertTestsWithinBudget(cwd: string): Promise<string[]> {
         '2. For each one, name the existing test or suite you checked and say why it does not already cover this.',
         '3. Fold it into an existing journey test when one fits: one journey, not one test per behaviour.',
         `4. Only a test that survives this gets a raised number in ${BUDGET_FILE}, and the PR body carries this account, test by test, for the maintainer to approve.`,
-      ].join('\n'),
-    )
+      ],
+    })
   }
   return names.flatMap((name) => {
     const cases = counts.get(name) ?? 0

@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {docsRoute} from './shared'
+import {siteErrors} from '@conciv/errors'
 
 const docsIcons: Record<string, LucideIcon> = {
   BookMarked,
@@ -39,7 +40,7 @@ function docsIcon(name: string | undefined) {
   if (name === undefined) return undefined
   const icon = docsIcons[name]
   if (icon === undefined) {
-    throw new Error(`docs icon "${name}" is not in docsIcons in apps/site/src/lib/source.ts; add the lucide icon there`)
+    throw siteErrors.DOCS_ICON_UNKNOWN({name})
   }
   return createElement(
     'span',

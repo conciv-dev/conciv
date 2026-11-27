@@ -1,3 +1,4 @@
+import {engineRuntimeErrors} from '@conciv/errors'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {it} from '@effect/vitest'
@@ -56,7 +57,7 @@ describe('two openers', () => {
       const refused = yield* openDb(root, {busyTimeoutMs: 50}).pipe(Effect.flip, Effect.scoped)
 
       expect(refused).toMatchObject({
-        _tag: 'ConcivDb.MigrationLockError',
+        code: engineRuntimeErrors.MIGRATION_LOCK_HELD.code,
         cause: expect.objectContaining({message: 'database is locked'}),
       })
 

@@ -1,20 +1,11 @@
 export * as IosBridge from './bridge.js'
-import {Effect, FiberHandle, Option, PubSub, Schedule, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
+import {Effect, FiberHandle, Option, PubSub, Schedule, Semaphore, Stream, SubscriptionRef} from 'effect'
+import type {EvlogError} from 'evlog'
 import {z} from 'zod'
 import type {Grab} from '@conciv/grab'
 import {NativeToPageSchema, type GrabMode, type PageToNativeMessage} from './rpc.js'
 import {IosBridgeMachine} from './bridge-machine.js'
-
-export const PickTimedOut = Schema.TaggedStruct('Ios.PickTimedOut', {requestId: Schema.String})
-export type PickTimedOut = typeof PickTimedOut.Type
-
-const PickFailed = Schema.TaggedStruct('Ios.PickFailed', {requestId: Schema.String})
-type PickFailed = typeof PickFailed.Type
-
-export const PickUnparseable = Schema.TaggedStruct('Ios.PickUnparseable', {requestId: Schema.String})
-export type PickUnparseable = typeof PickUnparseable.Type
-
-type PickError = PickTimedOut | PickFailed | PickUnparseable
+import {iosErrors} from './errors/errors.js'
 
 export type NativeTransport = {
   readonly calls: Stream.Stream<unknown>
@@ -24,7 +15,7 @@ export type NativeTransport = {
 export type NativeClient = {
   readonly state: SubscriptionRef.SubscriptionRef<IosBridgeMachine.NativeState>
   readonly signals: Stream.Stream<IosBridgeMachine.NativeSignal>
-  readonly pick: (mode: GrabMode) => Effect.Effect<Grab | null, PickError>
+  readonly pick: (mode: GrabMode) => Effect.Effect<Grab | null, EvlogError>
   readonly cancel: Effect.Effect<void>
   readonly panelToggled: (toggle: IosBridgeMachine.PanelToggle) => Effect.Effect<void>
 }
@@ -43,12 +34,13 @@ function decodeCall(raw: unknown): IosBridgeMachine.NativeEvent {
   return {type: 'native-unparseable', grabRequestId: grabResult.success ? grabResult.data.requestId : undefined}
 }
 
-function settleOutcome(outcome: IosBridgeMachine.PickOutcome): Effect.Effect<Grab | null, PickError> {
+function settleOutcome(outcome: IosBridgeMachine.PickOutcome): Effect.Effect<Grab | null, EvlogError> {
   if (outcome.type === 'picked') return Effect.succeed(outcome.grab)
   if (outcome.type === 'cancelled') return Effect.succeed(null)
-  if (outcome.failure === 'timed-out') return Effect.fail(PickTimedOut.make({requestId: outcome.requestId}))
-  if (outcome.failure === 'unparseable') return Effect.fail(PickUnparseable.make({requestId: outcome.requestId}))
-  return Effect.fail(PickFailed.make({requestId: outcome.requestId}))
+  const internal = {requestId: outcome.requestId}
+  if (outcome.failure === 'timed-out') return Effect.fail(iosErrors.PICK_TIMED_OUT({internal}))
+  if (outcome.failure === 'unparseable') return Effect.fail(iosErrors.PICK_UNPARSEABLE({internal}))
+  return Effect.fail(iosErrors.PICK_FAILED({internal}))
 }
 
 export const makeNativeClient = Effect.fn('ios.bridge.makeClient')(function* (options: {

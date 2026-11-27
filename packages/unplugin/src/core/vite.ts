@@ -14,6 +14,7 @@ import {makeViteBridge} from './vite-bridge.js'
 import {createShutdownTracker, install as installShutdownDeadline} from './shutdown-deadline.js'
 import type {Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
+import {unpluginErrors} from '@conciv/errors'
 
 const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/', 'node_modules']
 
@@ -204,6 +205,11 @@ async function bootEngine(
   })
 }
 
+function reloadAfterBundlerChange(server: ViteDevServer) {
+  for (const environment of Object.values(server.environments)) environment.moduleGraph.invalidateAll()
+  server.environments.client.hot.send({type: 'full-reload', path: '*'})
+}
+
 function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine {
   const closing = Promise.withResolvers<void>()
   const stopped = closing.promise
@@ -296,7 +302,10 @@ type DevToolsContext = {
   }
 }
 
-type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
+type DevToolsPlugin = Plugin & {
+  devtools: {setup: (context: DevToolsContext) => void}
+  api: {engine: () => Engine | undefined}
+}
 
 function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): ConcivSettingsInit | false | undefined {
   if (widget === false || !docked) return widget
@@ -323,6 +332,7 @@ export function makeViteHook(
     name: 'conciv',
     apply: 'serve',
     enforce: 'pre',
+    api: {engine: () => engines.at(-1)},
     devtools: {
       setup(context) {
         if (!docked) return
@@ -338,7 +348,7 @@ export function makeViteHook(
           type: 'action',
           handler: async () => {
             const engine = engines.at(-1)
-            if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
+            if (!engine || !devServer) throw unpluginErrors.ENGINE_NOT_STARTED()
             return engine.trustBrowser(
               {browser: 'via Vite DevTools', origin: devOrigins(devServer)[0] ?? 'Vite DevTools'},
               Date.now(),
@@ -422,6 +432,7 @@ export function makeViteHook(
         await installConcivBinShim(concivStateDir(cfg.stateRoot)),
         builtins.widgetPageDir,
       )
+      booted.bundler.changes(() => reloadAfterBundlerChange(server))
       engines.push(stopWhenHttpServerCloses(server, booted))
       if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline(shutdown))
       apiBase = `http://127.0.0.1:${booted.port}`

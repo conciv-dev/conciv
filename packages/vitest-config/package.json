@@ -23,6 +23,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@testing-library/jest-dom": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "playwright": "catalog:",

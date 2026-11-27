@@ -121,7 +121,7 @@ async function reachHome(home: string): Promise<{ok: true; home: PreparedHome} |
   try {
     return {ok: true, home: await prepareHome(home)}
   } catch (error) {
-    return {ok: false, message: `conciv could not reach its home db: ${String(error)}`}
+    return {ok: false, message: `conciv could not reach its home db: ${errorText(error)}`}
   }
 }
 
@@ -142,7 +142,7 @@ async function underLease(
         if (withHomeDb(home, (db) => markHubOperationChild(db, operation, pid))) return null
         return `conciv lost the ${name} lease to another connect or disconnect; try again`
       } catch (error) {
-        return `conciv could not record the ${name} process in its home db: ${String(error)}`
+        return `conciv could not record the ${name} process in its home db: ${errorText(error)}`
       }
     }
   try {
@@ -168,7 +168,7 @@ function takeLease(
     if (withHomeDb(home, (db) => takeHubOperation(db, operation, staleFor(operation.startedAt)))) return {ok: true}
     return {ok: false, outcome: BUSY}
   } catch (error) {
-    return {ok: false, outcome: {ok: false, message: `conciv could not reach its home db: ${String(error)}`}}
+    return {ok: false, outcome: {ok: false, message: `conciv could not reach its home db: ${errorText(error)}`}}
   }
 }
 
@@ -196,7 +196,7 @@ async function readable(
   try {
     return {ok: true, connections: await list()}
   } catch (error) {
-    return {ok: false, message: String(error)}
+    return {ok: false, message: errorText(error)}
   }
 }
 
@@ -228,7 +228,7 @@ function readGeneration(home: PreparedHome): {ok: true; generation: number} | {o
   try {
     return {ok: true, generation: withHomeDb(home, lastHubRevocation)}
   } catch (error) {
-    return {ok: false, message: `conciv could not reach its home db: ${String(error)}`}
+    return {ok: false, message: `conciv could not reach its home db: ${errorText(error)}`}
   }
 }
 
@@ -237,7 +237,7 @@ function recordSince(home: PreparedHome, harness: InitHarnessId, name: string, g
     if (withHomeDb(home, (db) => recordHubConnection(db, harness, Date.now(), generation))) return {ok: true}
     return {ok: false, message: `${name} was disconnected while connecting; connect again`}
   } catch (error) {
-    return {ok: false, message: `conciv could not record the connection: ${String(error)}`}
+    return {ok: false, message: `conciv could not record the connection: ${errorText(error)}`}
   }
 }
 
@@ -246,6 +246,10 @@ function forget(home: PreparedHome, harness: InitHarnessId): HubOutcome {
     withHomeDb(home, (db) => removeHubConnection(db, harness))
     return {ok: true}
   } catch (error) {
-    return {ok: false, message: `conciv could not forget the connection: ${String(error)}`}
+    return {ok: false, message: `conciv could not forget the connection: ${errorText(error)}`}
   }
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

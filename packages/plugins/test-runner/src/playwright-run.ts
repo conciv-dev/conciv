@@ -1,5 +1,5 @@
 import {createRequire} from 'node:module'
-import {Effect, Schema, Stream} from 'effect'
+import {Effect, Stream} from 'effect'
 import {FileSystem} from 'effect/FileSystem'
 import {Path} from 'effect/Path'
 import {ChildProcess} from 'effect/process'
@@ -8,18 +8,7 @@ import type {Summary, TestError, TestRow} from './events.js'
 import {readChildExit, type ChildExitStatus} from './child-exit.js'
 import {sendChildMessage, type ChildArgs} from './child-main.js'
 import {parsePlaywrightReport} from './playwright-report.js'
-
-const CliFailed = Schema.TaggedStruct('TestRunner.CliFailed', {message: Schema.String})
-type CliFailed = typeof CliFailed.Type & globalThis.Error
-const makeCliFailed = (fields: Omit<typeof CliFailed.Type, '_tag'>): CliFailed =>
-  Object.assign(new globalThis.Error(fields.message), CliFailed.make(fields), {name: 'TestRunner.CliFailed'})
-
-const ReportUnreadable = Schema.TaggedStruct('TestRunner.ReportUnreadable', {message: Schema.String})
-type ReportUnreadable = typeof ReportUnreadable.Type & globalThis.Error
-const makeReportUnreadable = (fields: Omit<typeof ReportUnreadable.Type, '_tag'>): ReportUnreadable =>
-  Object.assign(new globalThis.Error(fields.message), ReportUnreadable.make(fields), {
-    name: 'TestRunner.ReportUnreadable',
-  })
+import {testRunnerErrors} from './errors/errors.js'
 
 const CLI_IDS = ['playwright/cli', '@playwright/test/cli']
 const OUTPUT_TAIL_LENGTH = 500
@@ -29,7 +18,7 @@ type CliResult = ChildExitStatus & {readonly stdout: string; readonly stderr: st
 function resolveCli(cwd: string, path: Path) {
   const require = createRequire(path.join(cwd, 'noop.js'))
   return Effect.firstSuccessOf(CLI_IDS.map((id) => Effect.try({try: () => require.resolve(id), catch: () => id}))).pipe(
-    Effect.mapError(() => makeCliFailed({message: 'playwright not found in the app (install @playwright/test)'})),
+    Effect.mapError(() => testRunnerErrors.PLAYWRIGHT_NOT_FOUND()),
   )
 }
 
@@ -56,13 +45,17 @@ const runCli = Effect.fn('TestRunner.playwrightCli')(
     )
     const report = yield* fileSystem.readFileString(reportFile).pipe(
       Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed('')),
-      Effect.catchTag('PlatformError', (error) => Effect.fail(makeReportUnreadable({message: error.message}))),
+      Effect.catchTag('PlatformError', (error) =>
+        Effect.fail(testRunnerErrors.PLAYWRIGHT_REPORT_UNREADABLE({message: error.message, cause: error})),
+      ),
     )
     const result: CliResult = {...exit, stdout, stderr, report}
     return result
   },
   Effect.scoped,
-  Effect.catchTag('PlatformError', (error) => Effect.fail(makeCliFailed({message: error.message}))),
+  Effect.catchTag('PlatformError', (error) =>
+    Effect.fail(testRunnerErrors.PLAYWRIGHT_CLI_FAILED({message: error.message, cause: error})),
+  ),
 )
 
 function tail(text: string): string {
@@ -78,7 +71,7 @@ function describeMissingReport(result: CliResult): string {
 
 function readReport(result: CliResult) {
   if (result.report.trim().startsWith('{')) return Effect.succeed(parsePlaywrightReport(result.report))
-  return Effect.fail(makeReportUnreadable({message: describeMissingReport(result)}))
+  return Effect.fail(testRunnerErrors.PLAYWRIGHT_REPORT_UNREADABLE({message: describeMissingReport(result)}))
 }
 
 function summarize(rows: readonly TestRow[]): Summary {

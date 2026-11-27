@@ -3,12 +3,14 @@ import type {Plugin} from '@conciv/frontend-plugin-api'
 import type {PluginModule, Entry} from '@conciv/frontend-plugin-api/host'
 import type {PluginChunk} from './installed'
 import type {BridgePluginExperimental} from './startup'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const modules = {
   effect: () => import('effect'),
   '@conciv/frontend-plugin-api': () => import('@conciv/frontend-plugin-api'),
   '@conciv/protocol/schema/rpc': () => import('@conciv/protocol/schema/rpc'),
   zod: () => import('zod'),
+  '@conciv/errors': () => import('@conciv/errors'),
   'solid-js': () => import('solid-js'),
   'solid-js/web': () => import('solid-js/web'),
   'solid-js/store': () => import('solid-js/store'),
@@ -48,27 +50,22 @@ export async function pluginDefinition(
 
     if (mainOnlyModule(name)) return inertModule(name)
 
-    throw new Error(`A plugin's ./plugin-experimental bundle requires a module the app does not share: ${name}`)
+    throw widgetPluginErrors.MODULE_NOT_SHARED({name})
   }
 
   const described = (requirer: string) => (requirer === experimental.file ? 'bundle' : `chunk ${requirer}`)
 
   const unfinishedEntry = (requirer: string) => {
-    throw new Error(
-      `A plugin's ./plugin-experimental ${described(requirer)} requires the entry ${experimental.file} before it finished evaluating`,
-    )
+    throw widgetPluginErrors.ENTRY_NOT_EVALUATED({requirer: described(requirer), entry: experimental.file})
   }
 
   const unloadedChunk = (requirer: string, file: string): Promise<object> => {
-    if (!evaluated.has(requirer))
-      throw new Error(
-        `A plugin's ./plugin-experimental ${described(requirer)} requires the chunk ${file}, which the engine did not send before it`,
-      )
+    if (!evaluated.has(requirer)) throw widgetPluginErrors.CHUNK_NOT_SENT({requirer: described(requirer), file})
 
     return fetchChunks(file).then((chunks) => {
       evaluate(chunks)
 
-      return evaluated.get(file) ?? Promise.reject(new Error(`The engine answered without the chunk ${file}`))
+      return evaluated.get(file) ?? Promise.reject(widgetPluginErrors.CHUNK_MISSING({file}))
     })
   }
 
@@ -200,14 +197,12 @@ function evaluatePluginBundle(code: string, host: PluginBundleHost): PluginBundl
     const decoded = BundleDefinition.safeParse(plugin)
     const problem = decoded.success ? 'it does not match' : z.prettifyError(decoded.error)
 
-    throw new Error(
-      `A plugin's ./plugin-experimental bundle must default-export a \`Plugin.define\` from \`@conciv/frontend-plugin-api\`: ${problem}`,
-    )
+    throw widgetPluginErrors.BUNDLE_NOT_PLUGIN({problem})
   }
 
   const {setup, ...definition} = plugin
 
-  if (!setup) throw new Error("A plugin's ./plugin-experimental bundle must have a window `setup`")
+  if (!setup) throw widgetPluginErrors.BUNDLE_NO_SETUP()
 
   return {definition, setup, exports}
 }

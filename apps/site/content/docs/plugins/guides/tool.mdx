@@ -201,8 +201,37 @@ export default Plugin.define({
 ```
 
 `Tool.toolError` makes the error. Its `message` is what the agent sees. In the Promise tab, any other thrown
-error also fails the call, with that error's message. In the Effect tab the failure type is `Tool.Error`, so turn a
-typed error of your own into one with `Effect.mapError`.
+error also fails the call, with that error's message. In the Effect tab the failure type is `Tool.Error`.
+
+Errors of your own come from one evlog error catalog, in your plugin's `errors.ts`. Each entry has a `message`, and
+`why` and `fix` where someone can act on it:
+
+```ts title="conciv/plugins/tickets/errors.ts"
+import {defineErrorCatalog} from 'evlog'
+
+export const ticketErrors = defineErrorCatalog('tickets', {
+  TRACKER_DOWN: {
+    message: ({id}: {id: string}) => `The tracker did not answer for ${id}.`,
+    fix: 'Check that the tracker is up, then ask again.',
+  },
+})
+
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    tickets: typeof ticketErrors
+  }
+}
+```
+
+Fail with `Effect.fail(ticketErrors.TRACKER_DOWN({id}))`. Turn it into a `Tool.Error` once, at the edge, and branch
+on `error.code`, never on a tag:
+
+```ts
+Effect.catchIf(
+  (error) => error.code === ticketErrors.TRACKER_DOWN.code,
+  (error) => Effect.fail(Tool.toolError({message: error.message, error})),
+)
+```
 
 ## Draw a card
 

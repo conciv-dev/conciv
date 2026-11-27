@@ -93,10 +93,10 @@ conditional pairs (`packages/harness/src/_shared/contract.ts:36-52`):
 
 The other flags are read at run time by the turn code in `@conciv/backend-defaults`:
 `harness.capabilities.resume` gates whether a resume token is used (`resumableToken`,
-`packages/backend-defaults/src/turn.ts:120-150`), `harness.capabilities.compaction` picks `/compact`
-or a fallback prompt (`packages/backend-defaults/src/turn.ts:200`), and
+`packages/backend-defaults/src/turn.ts:116-146`), `harness.capabilities.compaction` picks `/compact`
+or a fallback prompt (`packages/backend-defaults/src/turn.ts:196`), and
 `harness.capabilities.systemPrompt` decides how the prompt is built
-(`packages/backend-defaults/src/turn.ts:308`). Declare them honestly: `resume: false` when the CLI has
+(`packages/backend-defaults/src/turn.ts:300`). Declare them honestly: `resume: false` when the CLI has
 no session-resume flag, `mcp: 'none'` when it cannot take an MCP server, and so on. The engine
 branches on these values to decide what to attempt.
 
@@ -130,7 +130,7 @@ export type HarnessChatConfig = {
 default model from its config), but starts no process when it is called. Its `adapter` comes from a
 factory in `packages/harness/src/adapters/adapters.ts` (`claudeCode`, `codex`, `opencode`, `acp`: thin
 typed wrappers over the published `@tanstack/ai-*` adapters). When none fits your CLI, build one with
-`makeTextAdapter(name, stream)` from the same file (`packages/harness/src/adapters/adapters.ts:37`),
+`makeTextAdapter(name, stream)` from the same file (`packages/harness/src/adapters/adapters.ts:38`),
 where `stream` is your own `AsyncIterable<ChatEvent>` producer. Adapter code imports these factories,
 not `@tanstack/ai-*` directly.
 
@@ -172,11 +172,11 @@ adapters want `Record<string, string>`, so pass it through `definedEntries`
 
 `prepareMessages` rewrites the turn before it reaches the adapter. Claude's chat config sends a literal
 `/compact` for a compaction turn and swaps in image file references otherwise (`claudeChatConfig`,
-`packages/harness/src/claude/chat.ts:131-132`). Add it only when your CLI needs the messages reshaped.
+`packages/harness/src/claude/chat.ts:130-131`). Add it only when your CLI needs the messages reshaped.
 
 ## `chat()` owns the turn
 
-The turn code is the only caller of `chatConfig` (`packages/backend-defaults/src/turn.ts:322-331`). The
+The turn code is the only caller of `chatConfig` (`packages/backend-defaults/src/turn.ts:314-323`). The
 plan it returns reaches `chat()` in the chat server (`packages/backend-defaults/src/ai/chat-server.ts:879-890`):
 
 ```ts
@@ -204,7 +204,7 @@ limit until the adapter's first `RUN_STARTED`, then a silence limit until its fi
 
 A plugin tool that asks does so itself through `ctx.permission.assert` and waits on the user's card. A
 CLI's own commands are governed by that CLI's native permission mode (`permissionMode: 'auto'` for
-Claude Code, `packages/harness/src/claude/chat.ts:130`), set in `chatConfig`. When the CLI itself decides
+Claude Code, `packages/harness/src/claude/chat.ts:129`), set in `chatConfig`. When the CLI itself decides
 to ask, the ask goes to conciv's permission service and waits on the user's card: Claude Code through
 its permission prompt tool, which conciv's tool bridge serves (`askingToolProvisioner`,
 `packages/backend-defaults/src/ai/chat-server.ts:906-910`); an ACP CLI through `onPermissionRequest`,
@@ -223,14 +223,14 @@ host-absolute path on top of the root is resolved again, relative to the sandbox
 (`packages/harness/src/codex/codex.ts:23-30`), and that is correct.
 
 `deps.cwd` is still fine for anything that is not the process's working directory: claude's chat
-config passes it as `addDirs: [deps.cwd]` (`packages/harness/src/claude/chat.ts:117`), an extra
+config passes it as `addDirs: [deps.cwd]` (`packages/harness/src/claude/chat.ts:116`), an extra
 directory grant, not a `cwd` override.
 
 `tty.command(ctx)` is a different seam: it builds the argv for the CLI in the built-in terminal pane,
 which runs the raw CLI outside `chat()`'s sandbox. There `ctx.cwd` (`HarnessConnectContext`,
 `packages/types/src/harness-types.ts:57-60`) is the right thing to pass through, and claude's
 slash-command probe passes `cwd: ctx.cwd` into the Claude Agent SDK's `query()`
-(`packages/harness/src/claude/sdk.ts:76`), also outside the sandbox. Don't copy that habit into
+(`packages/harness/src/claude/sdk.ts:75`), also outside the sandbox. Don't copy that habit into
 `chatConfig`.
 
 ## Sidecars
@@ -288,7 +288,7 @@ sessions. `HarnessTranscriptPaths` (`packages/types/src/harness-types.ts:155-161
 loose optionals: declare BOTH `transcriptPath` and `transcriptRoot` or neither, because the engine
 resolves one against the other and refuses a transcript that escapes the root
 (`transcriptPathWithin`, `packages/harness/src/_shared/contained-path.ts:29-38`, used for resume by
-`resumableToken`, `packages/backend-defaults/src/turn.ts:146`). See
+`resumableToken`, `packages/backend-defaults/src/turn.ts:142`). See
 [transcript-history](references/transcript-history.md) for the worked walkthrough (event folding,
 project scoping by the recorded cwd).
 

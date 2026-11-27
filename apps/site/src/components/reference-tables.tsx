@@ -1,24 +1,27 @@
 import {TypeTable, type TypeNode} from 'fumadocs-ui/components/type-table'
-import reference from '../../.reference/reference.json'
+import commands from '@internal/reference/data/commands.json'
+import harnessList from '@internal/reference/data/harnesses.json'
 
-type Command = (typeof reference.cli)[number]
+type Param = {kind?: string; label?: string; description?: string}
 
-function readParam(param: Command['params'][number]): [string, TypeNode] {
-  return [param.label, {type: param.kind, description: param.description}]
+function readParam({kind, label, description}: Param): [string, TypeNode][] {
+  return label === undefined ? [] : [[label, {type: kind, description}]]
 }
 
 export function CliCommands() {
-  return reference.cli
-    .filter((command) => command.runs || command.params.length > 0)
-    .map((command) => (
+  return commands.flatMap((command) => {
+    const params = command.params.flatMap(readParam)
+    if (!command.runs && params.length === 0) return []
+    return [
       <section key={command.path}>
         <h3>
           <code>{command.path}</code>
         </h3>
         <p>{command.description}</p>
-        {command.params.length > 0 && <TypeTable type={Object.fromEntries(command.params.map(readParam))} />}
-      </section>
-    ))
+        {params.length > 0 && <TypeTable type={Object.fromEntries(params)} />}
+      </section>,
+    ]
+  })
 }
 
 const CAPABILITY_LABELS = [
@@ -29,7 +32,7 @@ const CAPABILITY_LABELS = [
   ['compaction', 'Its own /compact'],
 ] as const
 
-type Harness = (typeof reference.harnesses)[number]
+type Harness = (typeof harnessList)[number]
 
 function writeCapability(value: string | boolean) {
   return value === false || value === 'none' ? 'no' : 'yes'
@@ -40,13 +43,12 @@ function writeModels(harness: Harness) {
 }
 
 export function HarnessTable() {
-  const harnesses = reference.harnesses
   return (
     <table>
       <thead>
         <tr>
           <th />
-          {harnesses.map((harness) => (
+          {harnessList.map((harness) => (
             <th key={harness.id}>{harness.name}</th>
           ))}
         </tr>
@@ -56,7 +58,7 @@ export function HarnessTable() {
           <td>
             <code>harness</code>
           </td>
-          {harnesses.map((harness) => (
+          {harnessList.map((harness) => (
             <td key={harness.id}>
               <code>{harness.id}</code>
             </td>
@@ -64,7 +66,7 @@ export function HarnessTable() {
         </tr>
         <tr>
           <td>CLI on your PATH</td>
-          {harnesses.map((harness) => (
+          {harnessList.map((harness) => (
             <td key={harness.id}>
               <code>{harness.bin}</code>
             </td>
@@ -72,21 +74,21 @@ export function HarnessTable() {
         </tr>
         <tr>
           <td>Models in the menu</td>
-          {harnesses.map((harness) => (
+          {harnessList.map((harness) => (
             <td key={harness.id}>{writeModels(harness)}</td>
           ))}
         </tr>
         {CAPABILITY_LABELS.map(([key, label]) => (
           <tr key={key}>
             <td>{label}</td>
-            {harnesses.map((harness) => (
+            {harnessList.map((harness) => (
               <td key={harness.id}>{writeCapability(harness.capabilities[key])}</td>
             ))}
           </tr>
         ))}
         <tr>
           <td>Terminal tab</td>
-          {harnesses.map((harness) => (
+          {harnessList.map((harness) => (
             <td key={harness.id}>{writeCapability(harness.terminal)}</td>
           ))}
         </tr>

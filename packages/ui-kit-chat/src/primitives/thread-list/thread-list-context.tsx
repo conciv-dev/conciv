@@ -1,5 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {ChatSessionMeta} from '@conciv/types/chat-types'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ThreadListActions = {
   sessions: Accessor<ChatSessionMeta[]>
@@ -20,7 +21,7 @@ export const ThreadListProvider = ThreadListContext.Provider
 
 export function useThreadList(): ThreadListActions {
   const context = useContext(ThreadListContext)
-  if (!context) throw new Error('ThreadList.* must be used within a ThreadListProvider')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'ThreadList.*', provider: 'a ThreadListProvider'})
   return context
 }
 
@@ -30,6 +31,6 @@ export const ThreadListItemProvider = ThreadListItemContext.Provider
 
 export function useThreadListItem(): ChatSessionMeta {
   const context = useContext(ThreadListItemContext)
-  if (!context) throw new Error('ThreadListItem.* must be used within a ThreadList.Items')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'ThreadListItem.*', provider: 'a ThreadList.Items'})
   return context
 }

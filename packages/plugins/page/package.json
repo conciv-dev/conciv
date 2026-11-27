@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-page",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "conciv's page plugin: the engine part (the connection to the page, its tools, skill and RPC contract) and the browser part the widget runs (DOM helpers, page operations, cards).",
   "keywords": [
     "conciv",
@@ -54,7 +54,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -63,6 +63,7 @@
   "dependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -80,6 +81,7 @@
     "bippy": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "js-beautify": "^2.0.3",
     "lucide-solid": "catalog:",
     "react-grab": "catalog:",
@@ -93,6 +95,7 @@
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-router": "catalog:",
@@ -112,7 +115,6 @@
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
@@ -121,6 +123,9 @@
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   },
   "conciv": {
     "builtin": true

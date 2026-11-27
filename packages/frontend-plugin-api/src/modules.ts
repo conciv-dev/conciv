@@ -3,6 +3,7 @@ export const pluginSharedModules = [
   '@conciv/frontend-plugin-api',
   '@conciv/protocol/schema/rpc',
   'zod',
+  '@conciv/errors',
 ] as const
 
 export const pluginWindowModules = [

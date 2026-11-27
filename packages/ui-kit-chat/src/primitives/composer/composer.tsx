@@ -35,6 +35,7 @@ import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
 import {useSendFromUser} from '../thread/viewport-context.js'
+import {chatKitErrors} from '@conciv/errors'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
   attachmentAdapter?: AttachmentAdapter
@@ -89,7 +90,7 @@ async function sendContent(
 }
 
 function sendFailure(error: unknown): unknown {
-  return error ?? new Error('The message could not be sent')
+  return error ?? chatKitErrors.SEND_FAILED()
 }
 
 type SendOutcome = {failure: unknown; left: boolean}
@@ -101,13 +102,13 @@ function isAsyncGenerator(
 }
 
 function requireAttachmentAdapter(adapter: AttachmentAdapter | undefined): AttachmentAdapter {
-  if (!adapter) throw new Error('Attachments are not supported')
+  if (!adapter) throw chatKitErrors.ATTACHMENTS_UNSUPPORTED()
   return adapter
 }
 
 function assertAcceptedFile(file: File, adapter: AttachmentAdapter): void {
   if (fileMatchesAccept(file, adapter.accept)) return
-  throw new Error(`File type ${file.type || 'unknown'} is not accepted. Accepted types: ${adapter.accept}`)
+  throw chatKitErrors.FILE_TYPE_NOT_ACCEPTED({type: file.type || 'unknown', accept: adapter.accept})
 }
 
 function errorMessage(error: unknown): string {
@@ -150,7 +151,7 @@ async function addAdapterAttachment(
 
 function requireAttachment(attachments: Attachment[], id: string): Attachment {
   const attachment = attachments.find((value) => value.id === id)
-  if (!attachment) throw new Error('Attachment not found')
+  if (!attachment) throw chatKitErrors.ATTACHMENT_NOT_FOUND()
   return attachment
 }
 

@@ -1,3 +1,4 @@
+import {engineRuntimeErrors} from '@conciv/errors'
 import {it} from '@effect/vitest'
 import {Effect, Stream} from 'effect'
 import {describe, expect} from 'vitest'
@@ -31,7 +32,10 @@ describe('event feed', () => {
         }),
       )
 
-      expect(overflow).toMatchObject({_tag: 'EventFeed.SubscriberOverflow', capacity: 2})
+      expect(overflow).toMatchObject({
+        code: engineRuntimeErrors.SUBSCRIBER_OVERFLOW.code,
+        message: engineRuntimeErrors.SUBSCRIBER_OVERFLOW({capacity: 2}).message,
+      })
     }),
   )
 })

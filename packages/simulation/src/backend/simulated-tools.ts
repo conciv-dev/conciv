@@ -7,7 +7,6 @@ import {Tool} from '@conciv/backend-app-api'
 import {isClosed, type Connection} from '../control-server.js'
 import {
   exposedToolName,
-  simulationErrors,
   type ToolFailParams,
   type ToolFinishParams,
   type ToolInvocation,
@@ -16,6 +15,7 @@ import {
   type ToolRegistration,
   type ToolUpdateParams,
 } from '@conciv/protocol/simulation'
+import {simulationErrors} from '@conciv/errors'
 
 const COMPLETED_RETENTION = 256
 

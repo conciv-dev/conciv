@@ -25,19 +25,6 @@ export const PageErrorSchema = z.object({
 })
 export type PageError = z.infer<typeof PageErrorSchema>
 
-export type PageFailureError = {code: PageErrorCode; message: string; raised?: PageRaisedError}
-
-export type PageFailure = Error & {readonly isPageFailure: true; error: PageFailureError}
-
-export function pageFailure(code: PageErrorCode, message: string, raised?: PageRaisedError): PageFailure {
-  const error: PageFailureError = raised === undefined ? {code, message} : {code, message, raised}
-  return Object.assign(new Error(message), {isPageFailure: true as const, error})
-}
-
-export function isPageFailure(value: unknown): value is PageFailure {
-  return value instanceof Error && 'isPageFailure' in value && value.isPageFailure === true
-}
-
 export type PageResult = Record<string, unknown>
 
 export function ok(data: Record<string, unknown> = {}): PageResult {

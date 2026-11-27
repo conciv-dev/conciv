@@ -1,4 +1,4 @@
-export * as Plugin from './plugin.js'
+export * as Plugin from './plugin-namespace.js'
 export type {StorageEntry, StorageScanOptions, StorageScanResult} from '../storage.js'
 
 export * as Agent from '@conciv/protocol/schema/agent'

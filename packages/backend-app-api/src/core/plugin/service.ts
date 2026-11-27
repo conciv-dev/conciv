@@ -1,10 +1,20 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
-import type {Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
-import {Context, type Effect, type Exit} from 'effect'
+import type {
+  BundlerCode,
+  BundlerHooks,
+  Plugin as PluginDefinition,
+  Services,
+} from '@conciv/backend-plugin-api/effect/plugin'
+import {Context, type Effect, type Exit, type Stream} from 'effect'
+import type {EvlogError} from 'evlog'
 
 export interface Interface {
   readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Plugin.Info[]>
+  readonly transform: (code: string, id: string) => Effect.Effect<TransformedCode | null, EvlogError>
+  readonly resolveId: (id: string, importer: string | undefined) => Effect.Effect<string | null, EvlogError>
+  readonly load: (id: string) => Effect.Effect<TransformedCode | null, EvlogError>
+  readonly bundlerChanges: Stream.Stream<void>
   readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
   readonly experimentalChunk: (
     id: Plugin.Id,
@@ -15,9 +25,19 @@ export interface Interface {
   readonly hold: () => Effect.Effect<Effect.Effect<void>>
 }
 
+export type TransformedCode = Exclude<BundlerCode, string | null | undefined>
+
+export type BundlerRegistration = {readonly plugin: string; readonly hooks: BundlerHooks}
+
+export interface BundlerRegistry {
+  add(hooks: BundlerHooks, plugin: string): void
+}
+
+export type BundlerHook = 'transform' | 'resolveId' | 'load'
+
 export type Failure = Plugin.Info & {readonly state: Extract<Plugin.State, {readonly status: 'failed'}>}
 
-export type Generation = PluginDefinition<Services, TaggedError> & {
+export type Generation = PluginDefinition<Services, Error> & {
   readonly revision: string
   readonly source?: Plugin.Source
   readonly features?: Plugin.Features

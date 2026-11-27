@@ -1,6 +1,6 @@
 import {Clock, Context, Effect, Exit, Layer, Option, PubSub, Stream} from 'effect'
+import type {EvlogError} from 'evlog'
 import * as Npm from '../../util/npm.js'
-import {EffectFlock} from '../../util/effect-flock.js'
 import * as KeyedMutex from '../effect/keyed-mutex.js'
 
 const interval = 24 * 60 * 60 * 1_000
@@ -13,7 +13,7 @@ interface Change {
 
 export interface Interface {
   readonly check: (target: string, options?: {readonly refresh?: boolean}) => Effect.Effect<boolean>
-  readonly update: (target: string) => Effect.Effect<void, Npm.InstallFailedError | EffectFlock.LockError>
+  readonly update: (target: string) => Effect.Effect<void, EvlogError>
   readonly changes: () => Stream.Stream<Change>
 }
 

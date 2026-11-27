@@ -1,6 +1,6 @@
 {
   "name": "@internal/frontend-defaults",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "private": true,
   "description": "The conciv browser shell with no plugin in it: router, pane, composer, sessions and settings over the @conciv/protocol rpc surface. Inlined by @conciv/app.",
   "type": "module",
@@ -20,6 +20,7 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
