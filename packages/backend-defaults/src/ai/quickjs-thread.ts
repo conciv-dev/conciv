@@ -6,6 +6,7 @@ import {ORPCError, os} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/message-port'
 import {move, Piscina, transferableSymbol, valueSymbol} from 'piscina'
 import {z} from 'zod'
+import {context, type Context} from '@opentelemetry/api'
 import type {ExecutionResult, IsolateConfig, IsolateContext, IsolateDriver} from '@tanstack/ai-code-mode'
 import {Effect} from 'effect'
 import type {QuickJSTask} from './quickjs-worker.js'
@@ -31,6 +32,7 @@ type Deadlines = {notStarted: AbortSignal; hardStop: AbortSignal}
 
 type ToolContext = {
   bindings: IsolateConfig['bindings']
+  caller: Context
   started: () => void
   retire: (result: ExecutionResult) => void
 }
@@ -42,11 +44,11 @@ const toolRouter = {
   invoke: os
     .$context<ToolContext>()
     .input(z.object({name: z.string(), args: z.unknown()}))
-    .handler(async ({input, context}) => {
-      const binding = context.bindings[input.name]
+    .handler(async ({input, context: {bindings, caller}}) => {
+      const binding = bindings[input.name]
       if (binding === undefined) throw new ORPCError('NOT_FOUND', {message: `${input.name} is not a tool binding`})
       try {
-        return await binding.execute(input.args)
+        return await context.with(caller, () => binding.execute(input.args))
       } catch (error) {
         throw new ORPCError('TOOL_FAILED', {message: error instanceof Error ? error.message : String(error)})
       }
@@ -151,7 +153,7 @@ async function run(
     began.abort()
     AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS).addEventListener('abort', () => hardStop.abort(), {once: true})
   }
-  toolHandler.upgrade(port1, {context: {bindings: config.bindings, started, retire}})
+  toolHandler.upgrade(port1, {context: {bindings: config.bindings, caller: context.active(), started, retire}})
   const task: QuickJSTask = {
     code,
     names: Object.keys(config.bindings),
