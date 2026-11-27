@@ -27,7 +27,7 @@ import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/types/cha
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
 import type {EngineRuntime} from '../engine/lib/logging.js'
 import {isApprovalDenied} from './approval-denied.js'
-import {aiErrors, SECRET_REFUSAL} from '@conciv/errors'
+import {causeFrom, aiErrors, SECRET_REFUSAL} from '@conciv/errors'
 import {inSpan, type Tracer} from './spans.js'
 
 const QUICKJS_MEMORY_LIMIT_MB = 256
@@ -265,7 +265,7 @@ function validated(schema: SchemaInput | undefined, value: unknown, failure: str
     throw aiErrors.SCHEMA_INVALID({
       failure,
       reason: error instanceof Error ? error.message : 'Validation failed',
-      cause: error instanceof Error ? error : undefined,
+      ...causeFrom(error),
     })
   }
 }

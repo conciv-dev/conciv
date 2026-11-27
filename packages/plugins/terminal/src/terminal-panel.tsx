@@ -1,7 +1,7 @@
 import {createMemo, ErrorBoundary, lazy, Show, Suspense, type JSX} from 'solid-js'
 import {usePlugin, type MountedSession} from '@conciv/frontend-plugin-api'
 import {EvlogError} from 'evlog'
-import {terminalErrors} from './errors/errors.js'
+import {causeFrom, terminalErrors} from './errors/errors.js'
 import type {TerminalState} from './terminal-state.js'
 import {TerminalToolbar} from './terminal-toolbar.js'
 
@@ -57,11 +57,7 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
                     })
                     return (
                       <FailureNotice
-                        error={
-                          EvlogError.isEvlogError(cause)
-                            ? cause
-                            : terminalErrors.OPEN_FAILED({cause: cause instanceof Error ? cause : undefined})
-                        }
+                        error={EvlogError.isEvlogError(cause) ? cause : terminalErrors.OPEN_FAILED(causeFrom(cause))}
                         onRetry={reset}
                       />
                     )

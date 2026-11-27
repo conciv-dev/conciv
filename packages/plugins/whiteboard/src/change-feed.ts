@@ -6,6 +6,7 @@ import {canvasErrors} from './errors/canvas-errors.js'
 import {Whiteboard} from './rpc.js'
 import {WhiteboardChangeFeedMachine} from './change-feed-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
+import {causeFrom} from './errors/cause.js'
 
 export type ChangeMessage = {type: 'upsert' | 'delete'; key: string} | {type: 'reload'}
 export type FeedEvent =
@@ -34,8 +35,6 @@ const ChangedEvent = z.object({
 const LATEST = Number.MAX_SAFE_INTEGER
 const RETRY_MAX_WAIT_MS = 10_000
 
-const readCause = (cause: unknown) => ({cause: cause instanceof Error ? cause : undefined})
-
 export function rpcChangeSource(client: Context['client'], room: string): ChangeSource {
   const whiteboard = client.rpc(Whiteboard)
   const decode = (event: {type: string}): Effect.Effect<readonly FeedEvent[]> => {
@@ -50,12 +49,12 @@ export function rpcChangeSource(client: Context['client'], room: string): Change
     since: (cursor) =>
       Effect.tryPromise({
         try: (signal) => whiteboard.since({room, cursor}, {signal}),
-        catch: (cause) => canvasErrors.SINCE_FAILED(readCause(cause)),
+        catch: (cause) => canvasErrors.SINCE_FAILED(causeFrom(cause)),
       }),
     events: Stream.unwrap(
       Effect.sync(() =>
         Stream.fromAsyncIterable(client.event.subscribe({types: ['rpc.whiteboard.changed']}), (cause) =>
-          canvasErrors.EVENTS_STOPPED(readCause(cause)),
+          canvasErrors.EVENTS_STOPPED(causeFrom(cause)),
         ),
       ),
     ).pipe(Stream.mapEffect(decode), Stream.flattenIterable),

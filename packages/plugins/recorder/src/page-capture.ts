@@ -9,7 +9,7 @@ import {loadCaptureLibrary, recordPage, takeFreshSnapshot} from './capture.js'
 import {openCaptureSession} from './capture-session.js'
 import {makeFlusher} from './flusher.js'
 import {followRecording, type ReplaySource} from './player-follow.js'
-import {causeOverrides, recorderErrors} from './errors/errors.js'
+import {causeFrom, recorderErrors} from './errors/errors.js'
 import {accessorStream, type RecorderRuntime} from './solid-runtime.js'
 
 const FLUSH_CUES: readonly [Window | Document, string][] = [
@@ -51,7 +51,7 @@ export function bootCapture(
   )
   const readConfig = Effect.tryPromise({
     try: (signal) => recorder.config(undefined, {signal}),
-    catch: (cause) => recorderErrors.CONFIG_READ_FAILED(causeOverrides(cause)),
+    catch: (cause) => recorderErrors.CONFIG_READ_FAILED(causeFrom(cause)),
   })
 
   return Effect.gen(function* () {
@@ -59,14 +59,14 @@ export function bootCapture(
       send: (events) =>
         Effect.tryPromise({
           try: () => recorder.flush({clientId, events: [...events]}),
-          catch: (cause) => recorderErrors.FLUSH_FAILED(causeOverrides(cause)),
+          catch: (cause) => recorderErrors.FLUSH_FAILED(causeFrom(cause)),
         }),
     })
     const boot = yield* runBoot({
       connected,
       readLive: Effect.tryPromise({
         try: (signal) => recorder.state(undefined, {signal}),
-        catch: (cause) => recorderErrors.STATE_READ_FAILED(causeOverrides(cause)),
+        catch: (cause) => recorderErrors.STATE_READ_FAILED(causeFrom(cause)),
       }).pipe(Effect.map((current) => current.live)),
       controls,
       selector,
@@ -113,7 +113,7 @@ export function followClient(ctx: Context, clientId: string): (cursor: number) =
       (subscription) =>
         Stream.fromAsyncIterable(
           ctx.client.event.subscribe({types: [APPENDED_EVENT], signal: subscription.signal}),
-          (cause) => recorderErrors.FOLLOW_FAILED(causeOverrides(cause)),
+          (cause) => recorderErrors.FOLLOW_FAILED(causeFrom(cause)),
         ),
     ),
   ).pipe(
@@ -128,7 +128,7 @@ export function followClient(ctx: Context, clientId: string): (cursor: number) =
       readSince: (from) =>
         Effect.tryPromise({
           try: (signal) => recorder.since({clientId, cursor: from}, {signal}),
-          catch: (cause) => recorderErrors.FOLLOW_FAILED(causeOverrides(cause)),
+          catch: (cause) => recorderErrors.FOLLOW_FAILED(causeFrom(cause)),
         }),
     })
 }

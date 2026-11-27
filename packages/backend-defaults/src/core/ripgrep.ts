@@ -6,7 +6,7 @@ import {NonNegativeInt, PositiveInt, RelativePath} from '@conciv/protocol/schema
 import {Entry, Match} from '../schema/filesystem.js'
 import {collectStream, waitForAbort} from '../util/process.js'
 import * as RipgrepBinary from './ripgrep/binary.js'
-import {ripgrepErrors} from '@conciv/errors'
+import {causeFrom, ripgrepErrors} from '@conciv/errors'
 
 const ERROR_BYTES = 8 * 1024
 const MAX_SUBMATCHES = 100
@@ -73,8 +73,7 @@ export interface Interface {
 
 export const Service = Context.Service<Interface>('@conciv/Ripgrep')
 
-const failure = (message: string, cause?: unknown) =>
-  ripgrepErrors.FAILED({message, cause: cause instanceof Error ? cause : undefined})
+const failure = (message: string, cause?: unknown) => ripgrepErrors.FAILED({message, ...causeFrom(cause)})
 
 const normalizePath = (value: string) =>
   value

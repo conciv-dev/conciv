@@ -3,7 +3,7 @@ import * as Host from '@conciv/backend-plugin-api/host'
 import {ExperimentalBundle, type Source} from '@conciv/protocol/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
 import {Hash} from '../../util/hash.js'
-import {pluginHostErrors} from '@conciv/errors'
+import {causeFrom, pluginHostErrors} from '@conciv/errors'
 import * as Npm from '../../util/npm.js'
 import {Deferred, Duration, Effect, FiberSet, PubSub, RcMap, Schema, Stream} from 'effect'
 import path from 'path'
@@ -164,8 +164,7 @@ const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
   if (watch) yield* watch(entry)
   const code = yield* Effect.tryPromise({
     try: () => readFile(entry, 'utf8'),
-    catch: (cause) =>
-      pluginHostErrors.EXPERIMENTAL_UNREADABLE({entry, cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => pluginHostErrors.EXPERIMENTAL_UNREADABLE({entry, ...causeFrom(cause)}),
   })
   return {
     file,
@@ -193,7 +192,7 @@ const Manifest = z.record(
 const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
   const manifest = `${entry}.manifest.json`
   const refusal = (problem: string, cause?: unknown) =>
-    pluginHostErrors.CHUNK_MANIFEST_INVALID({entry, problem, cause: cause instanceof Error ? cause : undefined})
+    pluginHostErrors.CHUNK_MANIFEST_INVALID({entry, problem, ...causeFrom(cause)})
   const text = yield* Effect.tryPromise({
     try: () =>
       readFile(manifest, 'utf8').catch((error: NodeJS.ErrnoException) => {

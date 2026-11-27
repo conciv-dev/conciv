@@ -27,7 +27,7 @@ import {isolatedEnv} from '@internal/vitest-config/isolated-env'
 import {commitAll, initGitProject} from './git-project.js'
 import {startSimulation} from '@conciv/simulation/backend'
 import {connectDrive, writeDriveManifest, type DriveEndpoints, type EngineDrive} from './drive.js'
-import {testKitErrors} from '@conciv/errors'
+import {causeFrom, relayRunError, testKitErrors} from '@conciv/errors'
 
 type EngineTimeouts = {
   firstChunkTimeoutMs?: number
@@ -233,8 +233,7 @@ async function readTurn(
   failed: (error: Error) => void,
 ): Promise<void> {
   for await (const event of events) {
-    if (event.type === ChatEventType.RUN_ERROR)
-      failed(testKitErrors.RUN_FAILED({text: event.message, internal: {code: event.code}}))
+    if (event.type === ChatEventType.RUN_ERROR) failed(relayRunError({code: event.code, message: event.message}))
     else if (endsRun(event, runId)) ended()
   }
   ended()
@@ -591,7 +590,7 @@ async function bootOnConnectPort(boot: Boot, port: number, refused: unknown): Pr
       first: CONNECT_FIRST_PORT,
       last: CONNECT_LAST_PORT,
       reason: refused instanceof Error ? refused.message : String(refused),
-      cause: refused instanceof Error ? refused : undefined,
+      ...causeFrom(refused),
     })
   }
   return bootApp(boot, undefined, port).catch((error: unknown) => {

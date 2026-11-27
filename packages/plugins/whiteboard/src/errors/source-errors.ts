@@ -11,7 +11,9 @@ export const sourceErrors = defineErrorCatalog('whiteboard.source', {
     message: ({file}: {file: string}) => `path escapes project root: ${file}`,
     fix: 'Anchor the comment to a file path inside the project.',
   },
-  UNREADABLE: {message: ({file}: {file: string}) => `the source file ${file} could not be read`},
+  UNREADABLE: {
+    message: ({file, reason}: {file: string; reason: string}) => `the source file ${file} could not be read: ${reason}`,
+  },
   GIT_FAILED: {
     message: ({command}: {command: string}) => `git ${command} failed`,
     why: 'The project is not a git repository, or git is not installed.',

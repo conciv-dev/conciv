@@ -1,14 +1,14 @@
 import {Effect, FileSystem, Option} from 'effect'
 import type {RrwebEvent} from './rpc.js'
 import {RendererCache} from './renderer-cache.js'
-import {causeOverrides, recorderErrors} from './errors/errors.js'
+import {causeFrom, recorderErrors} from './errors/errors.js'
 
 export const renderVideoFile = Effect.fn('recorder.video.render')(function* (
   id: string,
   file: string,
   events: RrwebEvent[],
 ) {
-  const unrendered = (cause: unknown) => recorderErrors.VIDEO_UNRENDERED({id, ...causeOverrides(cause)})
+  const unrendered = (cause: unknown) => recorderErrors.VIDEO_UNRENDERED({id, ...causeFrom(cause)})
   const fs = yield* FileSystem.FileSystem
   const existing = yield* fs.stat(file).pipe(Effect.option)
   if (Option.isSome(existing) && existing.value.type === 'File') return
@@ -47,5 +47,5 @@ export const readVideoPiece = Effect.fn('recorder.video.read')(function* (
       const bytes = Option.getOrElse(read, () => new Uint8Array())
       return {data: Buffer.from(bytes).toString('base64'), eof: offset + bytes.length >= Number(size)}
     }),
-  ).pipe(Effect.mapError((cause) => recorderErrors.VIDEO_UNREADABLE({id, ...causeOverrides(cause)})))
+  ).pipe(Effect.mapError((cause) => recorderErrors.VIDEO_UNREADABLE({id, ...causeFrom(cause)})))
 })

@@ -25,7 +25,8 @@ export const filesystemErrors = defineErrorCatalog('filesystem', {
     why: 'The lock folder no longer belongs to this process.',
   },
   INSTALL_FAILED: {
-    message: ({target}: {target: string}) => `Failed to install ${target}`,
+    message: ({target, detail}: {target: string; detail: string}) =>
+      detail ? `Failed to install ${target}: ${detail}` : `Failed to install ${target}`,
     fix: 'Check the package name and your network, then try again.',
   },
   INSTALL_UNSUPPORTED_SPEC: {

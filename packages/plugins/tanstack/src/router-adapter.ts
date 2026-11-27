@@ -13,7 +13,7 @@ import type {
   RouterCurrent,
   RouterLocation,
 } from './rpc.js'
-import {tanstackErrors} from './errors/errors.js'
+import {causeFrom, tanstackErrors} from './errors/errors.js'
 
 const MAX_FIBER_NODES = 50_000
 const MAX_TREE_DEPTH = 20
@@ -87,7 +87,7 @@ export function failureMessage(cause: unknown): string {
 export function callFailed(cause: unknown): EvlogError {
   return tanstackErrors.HANDLER_FAILED({
     detail: failureMessage(cause),
-    cause: cause instanceof Error ? cause : undefined,
+    ...causeFrom(cause),
   })
 }
 

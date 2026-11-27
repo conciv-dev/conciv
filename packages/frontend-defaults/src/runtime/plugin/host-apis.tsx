@@ -89,7 +89,7 @@ import {
   type StoreLoads,
 } from '@internal/frontend-app-api/plugin/stores'
 import {ui} from '@internal/frontend-app-api/plugin/ui'
-import {widgetPluginErrors} from '@conciv/errors'
+import {causeFrom, widgetPluginErrors} from '@conciv/errors'
 
 type Attached = {
   sessions: Accessor<readonly SessionRef[]>
@@ -312,7 +312,7 @@ export function createHostApis() {
     system: () => ({
       copy: (text) =>
         writeClipboardText(text).catch((cause: unknown) =>
-          Promise.reject(widgetPluginErrors.CLIPBOARD_REFUSED({cause: cause instanceof Error ? cause : undefined})),
+          Promise.reject(widgetPluginErrors.CLIPBOARD_REFUSED(causeFrom(cause))),
         ),
       async save(file) {
         const url = URL.createObjectURL(new Blob([file.content], {type: 'application/octet-stream'}))

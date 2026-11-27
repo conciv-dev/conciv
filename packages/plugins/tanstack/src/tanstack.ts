@@ -2,7 +2,7 @@ import {Effect, Layer} from 'effect'
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import {diagnosticsLayer} from './diagnostics.js'
-import {tanstackErrors} from './errors/errors.js'
+import {causeFrom, tanstackErrors} from './errors/errors.js'
 import {Definition} from './rpc.js'
 import {serverFnTraceLayer} from './serverfn-trace.js'
 import {capabilities, register} from './tools.js'
@@ -43,7 +43,7 @@ export default Plugin.define({
           Effect.mapError((cause) =>
             tanstackErrors.RPC_REGISTER_FAILED({
               detail: failureMessage(cause),
-              cause: cause instanceof Error ? cause : undefined,
+              ...causeFrom(cause),
             }),
           ),
         )

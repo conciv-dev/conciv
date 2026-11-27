@@ -2,21 +2,22 @@ import path from 'path'
 import {createHash, randomUUID} from 'node:crypto'
 import {Clock, Effect, Schema, Context, Layer, Option, FileSystem} from 'effect'
 import type {EvlogError} from 'evlog'
-import {filesystemErrors} from '@conciv/errors'
+import {causeFrom, filesystemErrors} from '@conciv/errors'
 import {FSUtil} from './fs-util.js'
 import * as Global from './global.js'
 import {EffectFlock} from './effect-flock.js'
 import * as NpmConfig from './npm-config.js'
 
 const installFailed = (fields: {add?: readonly string[]; dir: string; cause?: unknown}): EvlogError => {
-  const cause = fields.cause instanceof Error ? fields.cause : undefined
-  const stderr = Reflect.get(cause ?? {}, 'stderr')
-  const output = typeof stderr === 'string' ? stderr.trim() : ''
+  const {cause} = fields
+  const stderr = typeof cause === 'object' && cause !== null ? Reflect.get(cause, 'stderr') : undefined
+  const reason = cause instanceof Error ? cause.message : cause === undefined ? '' : String(cause)
+  const detail = [reason, typeof stderr === 'string' ? stderr.trim() : ''].filter(Boolean).join('\n')
   return filesystemErrors.INSTALL_FAILED({
     target: fields.add?.join(', ') || fields.dir,
-    cause,
-    why: cause && [cause.message, output].filter(Boolean).join('\n'),
-    internal: {dir: fields.dir},
+    detail,
+    why: detail || undefined,
+    ...causeFrom(cause, {dir: fields.dir}),
   })
 }
 

@@ -12,7 +12,7 @@ import {
 } from '@conciv/types/chat-types'
 import {Agent, type Bus, type KV, Session} from '@conciv/backend-app-api'
 import type * as Job from '@conciv/backend-app-api/core/job'
-import {sessionErrors} from '@conciv/errors'
+import {causeFrom, sessionErrors} from '@conciv/errors'
 import {SessionInbox, SessionSynthetic} from '../../backend-defaults.js'
 import * as Model from '@conciv/protocol/schema/model'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
@@ -141,7 +141,7 @@ async function describeCreated(
 const readCursor = (cursor: string) =>
   Effect.try({
     try: () => HarnessListCursorSchema.parse(JSON.parse(cursor)),
-    catch: (cause) => sessionErrors.INVALID_LIST_CURSOR({cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => sessionErrors.INVALID_LIST_CURSOR(causeFrom(cause)),
   })
 
 const metadataSchema = SessionRecordSchema.shape.metadata.unwrap().unwrap()
@@ -235,7 +235,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
             catch: (cause) =>
               sessionErrors.HARNESS_READ_FAILED({
                 sessionId: input.sessionId,
-                cause: cause instanceof Error ? cause : undefined,
+                ...causeFrom(cause),
               }),
           }).pipe(Effect.orDie)
           const choice = yield* modelChoice(harness, input.model, chat.signal)

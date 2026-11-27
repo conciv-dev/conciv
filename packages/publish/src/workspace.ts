@@ -4,7 +4,7 @@ import {chunk} from 'es-toolkit'
 import {load} from 'js-yaml'
 import {minimatch} from 'minimatch'
 import {z} from 'zod'
-import {publishErrors} from './errors/errors.ts'
+import {causeFrom, publishErrors} from './errors/errors.ts'
 
 const manifestSchema = z.object({
   name: z.string().optional(),
@@ -79,7 +79,7 @@ function readManifestAt(packageJsonPath: string): Manifest {
   try {
     raw = JSON.parse(content)
   } catch (error: unknown) {
-    throw publishErrors.INVALID_JSON({path: packageJsonPath, cause: error instanceof Error ? error : undefined})
+    throw publishErrors.INVALID_JSON({path: packageJsonPath, ...causeFrom(error)})
   }
   return parseManifest(raw, packageJsonPath)
 }

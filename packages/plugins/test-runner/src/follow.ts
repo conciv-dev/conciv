@@ -6,7 +6,7 @@ import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
 import {TestRunnerFollowMachine} from './follow-machine.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
-import {causeOverrides, testRunnerErrors} from './errors/errors.js'
+import {causeFrom, testRunnerErrors} from './errors/errors.js'
 
 type Client = Context['client']
 
@@ -22,7 +22,7 @@ function readRun(client: Client) {
       const current = await runner.current(undefined, {signal})
       return {status, current}
     },
-    catch: (cause) => testRunnerErrors.RUN_READ_FAILED(causeOverrides(cause)),
+    catch: (cause) => testRunnerErrors.RUN_READ_FAILED(causeFrom(cause)),
   })
 }
 
@@ -70,7 +70,7 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
   yield* Stream.fromAsyncIterable(client.event.subscribe({types: [TEST_EVENT]}), (cause) =>
-    testRunnerErrors.EVENTS_FAILED(causeOverrides(cause)),
+    testRunnerErrors.EVENTS_FAILED(causeFrom(cause)),
   ).pipe(
     Stream.runForEach((event) => dispatch(decodeEvent(event))),
     Effect.catch((error) => dispatch({type: 'stream-failed', error})),

@@ -4,7 +4,7 @@ import type {record} from 'rrweb'
 import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
 import type {RecorderConfig, RrwebEvent} from './rpc.js'
-import {causeOverrides, recorderErrors} from './errors/errors.js'
+import {causeFrom, recorderErrors} from './errors/errors.js'
 
 const CHECKOUT_MS = 60_000
 
@@ -21,7 +21,7 @@ type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof get
 
 export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, EvlogError> = Effect.tryPromise({
   try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),
-  catch: (cause) => recorderErrors.CAPTURE_LIBRARY_LOAD_FAILED(causeOverrides(cause)),
+  catch: (cause) => recorderErrors.CAPTURE_LIBRARY_LOAD_FAILED(causeFrom(cause)),
 }).pipe(
   Effect.map(([rrweb, consoleRecord]) => ({
     record: rrweb.record,

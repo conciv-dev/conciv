@@ -2,14 +2,14 @@ import {execFile} from 'node:child_process'
 import {promisify} from 'node:util'
 import {Effect, Option} from 'effect'
 import {sourceErrors} from './errors/source-errors.js'
+import {causeFrom} from './errors/cause.js'
 
 const run = promisify(execFile)
 
 const git = (root: string, args: string[]) =>
   Effect.tryPromise({
     try: () => run('git', args, {cwd: root, maxBuffer: 16 * 1024 * 1024}),
-    catch: (error) =>
-      sourceErrors.GIT_FAILED({command: args[0] ?? '', cause: error instanceof Error ? error : undefined}),
+    catch: (error) => sourceErrors.GIT_FAILED({command: args[0] ?? '', ...causeFrom(error)}),
   }).pipe(Effect.map(({stdout}) => stdout))
 
 export const headCommit = (root: string) =>

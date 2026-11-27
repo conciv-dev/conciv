@@ -7,7 +7,7 @@ import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
 import * as Global from '@conciv/backend-app-api/util/global'
 import {which} from '../util/which.js'
-import {ripgrepErrors} from '@conciv/errors'
+import {causeFrom, ripgrepErrors} from '@conciv/errors'
 
 const VERSION = '15.1.0'
 
@@ -63,7 +63,7 @@ const readPlatform = (key: string): PlatformConfig | undefined =>
 const failure = (cause: unknown): Error =>
   cause instanceof Error
     ? cause
-    : ripgrepErrors.FAILED({message: 'ripgrep could not be installed', internal: {thrown: String(cause)}})
+    : ripgrepErrors.FAILED({message: 'ripgrep could not be installed', ...causeFrom(cause)})
 
 export function verify(bytes: Uint8Array, filename: string, expected: string) {
   const actual = createHash('sha256').update(bytes).digest('hex')

@@ -6,7 +6,7 @@ import * as Permission from '@conciv/backend-app-api/core/permission'
 import * as Rpc from '@conciv/backend-app-api/core/rpc'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {EvlogError} from 'evlog'
-import {toolErrors} from '@conciv/errors'
+import {causeFrom, toolErrors} from '@conciv/errors'
 
 const isUnavailable = (failure: EvlogError) => failure.code === toolErrors.BUNDLER_UNAVAILABLE.code
 
@@ -87,7 +87,7 @@ const withBundler = <A>(
     catch: (error) =>
       toolErrors.BUNDLER_FAILED({
         action: failure,
-        cause: error instanceof Error ? error : undefined,
+        ...causeFrom(error),
       }),
   })
 }

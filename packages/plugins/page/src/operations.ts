@@ -8,7 +8,7 @@ import {
   PageRaisedErrorSchema,
   type PageResult,
 } from './page-types.js'
-import {pageErrors} from './errors/errors.js'
+import {causeFrom, pageErrors} from './errors/errors.js'
 import type {
   CssBundle,
   ElementCapture,
@@ -822,7 +822,7 @@ export function toPageFailure(error: unknown): EvlogError {
   if (isSchemaRejection(error)) return pageErrors.INVALID_ARGS({message: error.message, cause: error})
   return pageErrors.OPERATION_FAILED({
     message: error instanceof Error ? error.message : String(error),
-    cause: error instanceof Error ? error : undefined,
+    ...causeFrom(error),
   })
 }
 

@@ -2,7 +2,7 @@ import {Bus, Event, EventManifest, Rpc} from '@conciv/backend-app-api'
 import {EventEnvelopeSchema} from '@conciv/protocol'
 import {Cause, Context, Effect, Layer, Queue, Schema, Scope, Stream} from 'effect'
 import type {EvlogError} from 'evlog'
-import {engineRuntimeErrors} from '@conciv/errors'
+import {causeFrom, engineRuntimeErrors} from '@conciv/errors'
 import type {z} from 'zod'
 
 export const SubscriberCapacity = 4_096
@@ -54,8 +54,7 @@ export const make = Effect.fn('core.eventFeed.make')(function* (
         catch: (cause) =>
           engineRuntimeErrors.EVENT_ENCODING_FAILED({
             eventType: event.type,
-            cause: cause instanceof Error ? cause : undefined,
-            internal: {eventId: event.id},
+            ...causeFrom(cause, {eventId: event.id}),
           }),
       }).pipe(
         Effect.catch((error) =>

@@ -28,7 +28,7 @@ export async function registryRecord(name: string): Promise<RegistryRecord> {
   const response = await fetch(`https://registry.npmjs.org/${name.replaceAll('/', '%2f')}`)
   if (response.status === 404) return {state: 'missing', versions: []}
   if (!response.ok) {
-    throw publishErrors.REGISTRY_LOOKUP_FAILED({name, status: response.status})
+    throw publishErrors.REGISTRY_LOOKUP_FAILED({name, httpStatus: response.status})
   }
   return recordFromDocument(await response.json())
 }

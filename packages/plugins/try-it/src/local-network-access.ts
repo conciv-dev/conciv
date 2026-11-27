@@ -1,5 +1,5 @@
 import {Effect, Stream, SubscriptionRef} from 'effect'
-import {tryItErrors} from './errors/errors.js'
+import {causeFrom, tryItErrors} from './errors/errors.js'
 
 declare global {
   interface Permissions {
@@ -22,7 +22,7 @@ export const localNetworkAccess = Effect.fn('try-it.localNetworkAccess')(functio
   const state = yield* SubscriptionRef.make<LocalNetworkAccessState>('unknown')
   yield* Effect.tryPromise({
     try: () => navigator.permissions.query({name: 'local-network-access'}),
-    catch: (cause) => tryItErrors.PERMISSION_UNSUPPORTED({cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => tryItErrors.PERMISSION_UNSUPPORTED(causeFrom(cause)),
   }).pipe(
     Effect.flatMap((status) => follow(state, status)),
     Effect.catchIf(

@@ -2,7 +2,7 @@ import {homedir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
 import {Config, Effect, FileSystem, Predicate, Schema} from 'effect'
 import type {EvlogError} from 'evlog'
-import {simulationErrors} from '@conciv/errors'
+import {causeFrom, simulationErrors} from '@conciv/errors'
 import {failureText} from '@conciv/protocol'
 
 const ENDPOINT = 'a loopback WebSocket endpoint with an explicit port'
@@ -57,7 +57,7 @@ const decode = Schema.decodeUnknownEffect(Schema.fromJsonString(ManifestSchema))
 const configError = (cause: unknown) =>
   simulationErrors.MANIFEST_CONFIG_INVALID({
     reason: failureText(cause),
-    cause: cause instanceof Error ? cause : undefined,
+    ...causeFrom(cause),
   })
 
 export const resolve: () => Effect.Effect<Manifest, EvlogError, FileSystem.FileSystem> = Effect.fn(

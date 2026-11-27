@@ -18,7 +18,6 @@ import {
 import {z} from 'zod'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
-import type {EvlogError} from 'evlog'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {SessionId} from '@conciv/types/chat-types'
 import {
@@ -44,9 +43,8 @@ import {
   queueNotice,
 } from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
-import {pageErrors} from './errors/errors.js'
-import {sessionErrors} from '@conciv/errors'
-import {isCatalogError} from '@conciv/protocol'
+import {SESSION_NOT_FOUND_CODE, pageErrors} from './errors/errors.js'
+import {EvlogError} from 'evlog'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/backend-plugin-api/effect'
 
@@ -164,7 +162,7 @@ function timedOut(action: Work, timeoutMs: number) {
 }
 
 function sessionNotFound(error: unknown): boolean {
-  return isCatalogError(sessionErrors._prefix, error) && error.code === sessionErrors.NOT_FOUND.code
+  return EvlogError.isEvlogError(error) && error.code === SESSION_NOT_FOUND_CODE
 }
 
 function queueJobNotice(jobID: string, result: PageQueueResult) {

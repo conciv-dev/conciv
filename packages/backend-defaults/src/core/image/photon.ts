@@ -2,7 +2,7 @@ import {Effect, Exit, Semaphore} from 'effect'
 import type {EvlogError} from 'evlog'
 import type {Worker} from 'node:worker_threads'
 import type {Content as ImageContent, Limits} from '@conciv/backend-app-api/core/image'
-import {imageErrors} from '@conciv/errors'
+import {causeFrom, imageErrors} from '@conciv/errors'
 import * as PhotonNormalize from './photon-normalize.js'
 import type {Reply, Request} from './photon-worker.js'
 
@@ -30,7 +30,7 @@ export const spawnWorker = (url?: URL) =>
       }
       return worker
     },
-    catch: (cause) => imageErrors.WORKER_UNAVAILABLE({cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => imageErrors.WORKER_UNAVAILABLE(causeFrom(cause)),
   })
 
 const request = (worker: Worker, content: PhotonNormalize.Content, limits: Readonly<Limits>) =>
@@ -94,7 +94,7 @@ export function makeWith(spawn: Effect.Effect<Worker, EvlogError>, idleMillis = 
   const inProcess = (content: PhotonNormalize.Content, limits: Readonly<Limits>) =>
     Effect.tryPromise({
       try: () => (photon ??= PhotonNormalize.load()),
-      catch: (cause) => imageErrors.RESIZER_UNAVAILABLE({cause: cause instanceof Error ? cause : undefined}),
+      catch: (cause) => imageErrors.RESIZER_UNAVAILABLE(causeFrom(cause)),
     }).pipe(Effect.map((photon) => PhotonNormalize.normalize(photon, content, limits)))
 
   return Effect.fn('Image.Photon.normalize')(function* (

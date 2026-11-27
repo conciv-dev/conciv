@@ -5,7 +5,7 @@ import {execa} from 'execa'
 import {z} from 'zod'
 import {typecheckProjects} from './typecheck-coverage.ts'
 import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
-import {publishErrors} from './errors/errors.ts'
+import {causeFrom, publishErrors} from './errors/errors.ts'
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]s|[jt]sx)$/
 const BUILD_CONFIG = /^(?:tsdown|vite)\.config\.[cm]?[jt]s$/
@@ -72,7 +72,7 @@ function parseJson(path: string, text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error: unknown) {
-    throw publishErrors.INVALID_JSON({path, cause: error instanceof Error ? error : undefined})
+    throw publishErrors.INVALID_JSON({path, ...causeFrom(error)})
   }
 }
 

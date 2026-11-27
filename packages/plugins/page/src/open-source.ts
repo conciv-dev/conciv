@@ -4,7 +4,7 @@ import type {Desktop, MountedSession} from '@conciv/frontend-plugin-api'
 import type {GrabFrame} from '@conciv/frontend-plugin-api/grab'
 import type {LocateResult, Page, SourceLoc} from '@conciv/frontend-plugin-api/page'
 import {Definition} from './rpc.js'
-import {pageErrors} from './errors/errors.js'
+import {causeFrom, pageErrors} from './errors/errors.js'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 
@@ -29,7 +29,7 @@ export function symbolicateInSession(routed: () => MountedSession | undefined, q
 function attempt<A>(run: () => Promise<A>) {
   return Effect.tryPromise({
     try: run,
-    catch: (cause) => pageErrors.SOURCE_OPEN_FAILED({cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => pageErrors.SOURCE_OPEN_FAILED(causeFrom(cause)),
   })
 }
 

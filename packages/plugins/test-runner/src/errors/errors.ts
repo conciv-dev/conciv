@@ -21,8 +21,11 @@ export const testRunnerErrors = defineErrorCatalog('testRunner', {
   EVENTS_FAILED: {message: 'The live test events stopped'},
 })
 
-export function causeOverrides(cause: unknown): {cause: Error} | {internal: {thrown: string}} {
-  return cause instanceof Error ? {cause} : {internal: {thrown: String(cause)}}
+export function causeFrom(
+  thrown: unknown,
+  internal?: Record<string, unknown>,
+): {cause: Error; internal?: Record<string, unknown>} | {internal: Record<string, unknown>} {
+  return thrown instanceof Error ? {cause: thrown, internal} : {internal: {...internal, thrown}}
 }
 
 declare module 'evlog' {

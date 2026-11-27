@@ -11,6 +11,7 @@ import {z} from 'zod'
 import {elementRow, type ElementRow} from './rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 import {canvasErrors} from './errors/canvas-errors.js'
+import {causeFrom} from './errors/cause.js'
 
 const ELEMENT_WRITE_THROTTLE_MS = 50
 
@@ -50,9 +51,7 @@ const readRows = <Row>(read: () => Promise<Row>) =>
   Effect.tryPromise({
     try: read,
     catch: (cause) =>
-      NotFound.safeParse(cause).success
-        ? canvasErrors.ROW_MISSING()
-        : canvasErrors.ROWS_UNREADABLE({cause: cause instanceof Error ? cause : undefined}),
+      NotFound.safeParse(cause).success ? canvasErrors.ROW_MISSING() : canvasErrors.ROWS_UNREADABLE(causeFrom(cause)),
   })
 
 const buildSync = <Row extends object>(deps: {

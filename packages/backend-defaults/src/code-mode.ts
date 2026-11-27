@@ -4,7 +4,7 @@ import {partition} from 'es-toolkit'
 import type {Maker} from '@conciv/protocol/schema/identifier'
 import {EvlogError} from 'evlog'
 import {approvalDenied, CodeFilesCapability, describeSchemas} from './ai.js'
-import {aiErrors} from '@conciv/errors'
+import {aiErrors, causeFrom} from '@conciv/errors'
 import {cappedValue, safeStringify} from '@conciv/protocol'
 import {Agent, Permission, SessionSchema, Tool, ToolRuntime} from '@conciv/backend-app-api'
 import * as CodeMode from './codemode/codemode.js'
@@ -265,7 +265,8 @@ function directCall(name: string, input: unknown, context: Tool.Context): Parame
 }
 
 function readDeclaredCode(error: unknown): string | null {
-  if (!(error instanceof Error) || EvlogError.isEvlogError(error)) return null
+  if (!(error instanceof Error)) return null
+  if (EvlogError.isEvlogError(error)) return error.code === undefined || error.code === '' ? null : error.code
   if (!('code' in error) || typeof error.code !== 'string' || error.code === '') return null
   return error.code
 }
@@ -276,7 +277,7 @@ function withDeclaredCode(error: unknown): Error {
   if (code === null || message.startsWith(`${code}: `))
     return error instanceof Error ? error : aiErrors.TOOL_FAILED({message, internal: {thrown: message}})
   const bare = message.startsWith(`${code}:`) ? message.slice(code.length + 1).trimStart() : message
-  return aiErrors.TOOL_FAILED({message: `${code}: ${bare}`, cause: error instanceof Error ? error : undefined})
+  return aiErrors.TOOL_FAILED({message: `${code}: ${bare}`, ...causeFrom(error)})
 }
 
 type CatalogNode = {

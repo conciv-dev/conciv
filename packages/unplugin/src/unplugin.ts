@@ -12,7 +12,7 @@ import {concivStateDir} from '@conciv/types/state-types'
 import {isEnginePort} from './core/widget-start.js'
 import {widgetStarterPath} from './core/widget-module.js'
 import {startHostLog} from './core/host-log.js'
-import {unpluginErrors} from '@conciv/errors'
+import {causeFrom, unpluginErrors} from '@conciv/errors'
 
 const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
 
@@ -97,7 +97,7 @@ function withAlias(alias: ResolveAlias, specifier: string, path: string): Resolv
 }
 
 function reportStartFailure(error: unknown): never {
-  throw unpluginErrors.ENGINE_START_FAILED({cause: error instanceof Error ? error : undefined})
+  throw unpluginErrors.ENGINE_START_FAILED(causeFrom(error))
 }
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {

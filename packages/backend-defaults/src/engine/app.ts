@@ -95,7 +95,7 @@ import {GROUP_EXIT_TIMEOUT_MS} from '@conciv/harness/local-sandbox'
 import {inSpan, loadIsolateDriver, type Tracer} from '../ai.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
-import {aiErrors, engineRuntimeErrors} from '@conciv/errors'
+import {aiErrors, causeFrom, engineRuntimeErrors} from '@conciv/errors'
 import {
   connectToken,
   engineMcpUrl,
@@ -121,16 +121,14 @@ import type {SimulationParts} from './lib/simulation.js'
 
 type ServeBindings = Parameters<ServeFetch>[1]
 
-const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
-
 export function outsideRunCapabilities(capabilities: readonly CodeCapability[]): CodeCapability[] {
   return capabilities.map((capability): CodeCapability => {
     if (capability.direct === true) return capability
     return {
       ...capability,
-      errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
+      errors: [...capability.errors, {code: aiErrors.NO_TAB.code, message: aiErrors.NO_TAB.message}],
       execute: () => {
-        throw aiErrors.TOOL_FAILED({message: `NO_TAB: ${NO_TAB_MESSAGE}`})
+        throw aiErrors.NO_TAB()
       },
     }
   })
@@ -1093,13 +1091,13 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig, r
     await ensureAgentRow(rows, harnessSessionId).catch((error: unknown) => {
       throw engineRuntimeErrors.HARNESS_SESSION_NOT_ENSURED({
         harnessSessionId,
-        cause: error instanceof Error ? error : undefined,
+        ...causeFrom(error),
       })
     })
   }
   if (sessionId !== undefined) {
     await ensureRow(rows, sessionId).catch((error: unknown) => {
-      throw engineRuntimeErrors.SESSION_NOT_ENSURED({sessionId, cause: error instanceof Error ? error : undefined})
+      throw engineRuntimeErrors.SESSION_NOT_ENSURED({sessionId, ...causeFrom(error)})
     })
   }
 }

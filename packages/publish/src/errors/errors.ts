@@ -100,7 +100,8 @@ export const publishErrors = defineErrorCatalog('publish', {
     fix: 'Check out with fetch-depth: 0.',
   },
   REGISTRY_LOOKUP_FAILED: {
-    message: ({name, status}: {name: string; status: number}) => `registry lookup for ${name} failed with ${status}`,
+    message: ({name, httpStatus}: {name: string; httpStatus: number}) =>
+      `registry lookup for ${name} failed with ${httpStatus}`,
   },
   SYNC_FAILED: {
     message: ({names}: {names: string}) => `sync failed for ${names}; tags not pushed.`,
@@ -178,6 +179,13 @@ export const publishErrors = defineErrorCatalog('publish', {
     message: ({path}: {path: string}) => `${path}: "packages" must be a list of glob strings`,
   },
 })
+
+export function causeFrom(
+  thrown: unknown,
+  internal?: Record<string, unknown>,
+): {cause: Error; internal?: Record<string, unknown>} | {internal: Record<string, unknown>} {
+  return thrown instanceof Error ? {cause: thrown, internal} : {internal: {...internal, thrown}}
+}
 
 declare module 'evlog' {
   interface RegisteredErrorCatalogs {

@@ -2,7 +2,7 @@ import {onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/frontend-plugin-api'
-import {terminalErrors} from './errors/errors.js'
+import {causeFrom, terminalErrors} from './errors/errors.js'
 import {PANEL_KEY, type TerminalState} from './terminal-state.js'
 import type {HeldPty} from './terminal-transport.js'
 
@@ -90,7 +90,7 @@ export default function TerminalSurface(props: {
       const request = {sessionId, size, model: untrack(() => props.terminal.spawnModel(sessionId))}
       const ptyId = await openPty(server, request).catch((cause: unknown) => {
         ctx.log.error({action: 'terminal', message: 'opening the session terminal failed', sessionId, error: cause})
-        const error = terminalErrors.OPEN_FAILED({cause: cause instanceof Error ? cause : undefined})
+        const error = terminalErrors.OPEN_FAILED(causeFrom(cause))
         ctx.toast.show({title: error.message, description: error.fix, variant: 'error'})
         props.terminal.fail(terminalKey, error)
         throw error

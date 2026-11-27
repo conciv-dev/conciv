@@ -3,7 +3,7 @@ import os from 'os'
 import {randomUUID} from 'crypto'
 import {Context, Effect, Function, Layer, Option, Schedule, Schema} from 'effect'
 import type {EvlogError} from 'evlog'
-import {filesystemErrors} from '@conciv/errors'
+import {causeFrom, filesystemErrors} from '@conciv/errors'
 import type {FileSystem, Scope} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
 import {FSUtil} from './fs-util.js'
@@ -214,7 +214,7 @@ export namespace EffectFlock {
             catch: (cause) =>
               filesystemErrors.LOCK_RELEASE_REFUSED({
                 detail: 'lock is compromised (metadata invalid)',
-                cause: cause instanceof Error ? cause : undefined,
+                ...causeFrom(cause),
               }),
           }).pipe(Effect.orDie)
 

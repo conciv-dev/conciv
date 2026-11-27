@@ -5,7 +5,7 @@ import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
 import {contractCode, type Project, type SessionMeta} from '@conciv/protocol'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 import {SessionId} from '@conciv/types/chat-types'
-import {cliErrors, engineErrors} from '@conciv/errors'
+import {causeFrom, cliErrors, engineErrors} from '@conciv/errors'
 
 export const ENGINE_READ_MS = 2_000
 
@@ -74,7 +74,7 @@ export async function runningEngines(home: string): Promise<Checked> {
 
 export function homeRead(home: string, reading: Promise<Checked>): Promise<Checked> {
   return reading.catch((error: unknown) => {
-    throw cliErrors.HOME_UNREADABLE({home, reason: errorText(error), ...(error instanceof Error ? {cause: error} : {})})
+    throw cliErrors.HOME_UNREADABLE({home, reason: errorText(error), ...causeFrom(error)})
   })
 }
 

@@ -4,7 +4,7 @@ import type {EvlogError} from 'evlog'
 import type {Live} from '@conciv/frontend-plugin-api'
 import type {ReactTree} from '@conciv/frontend-plugin-api/page'
 import {ErrorRingService, type ErrorRing} from './error-ring.js'
-import {tanstackErrors} from './errors/errors.js'
+import {causeFrom, tanstackErrors} from './errors/errors.js'
 import {invalidateQuery, readQueryCache, refetchQuery} from './query-adapter.js'
 import {Action, SHORT_MAX, type Method, type Reply} from './rpc.js'
 import {
@@ -66,7 +66,7 @@ function perform<Type extends keyof ActionMap>(tree: ReactTree, type: Type, acti
 function invalidAction(cause: unknown) {
   return tanstackErrors.INVALID_ACTION({
     detail: failureMessage(cause),
-    cause: cause instanceof Error ? cause : undefined,
+    ...causeFrom(cause),
   })
 }
 

@@ -102,6 +102,15 @@ export const pageErrors = defineErrorCatalog('page', {
   },
 })
 
+export const SESSION_NOT_FOUND_CODE = 'session.NOT_FOUND'
+
+export function causeFrom(
+  thrown: unknown,
+  internal?: Record<string, unknown>,
+): {cause: Error; internal?: Record<string, unknown>} | {internal: Record<string, unknown>} {
+  return thrown instanceof Error ? {cause: thrown, internal} : {internal: {...internal, thrown}}
+}
+
 declare module 'evlog' {
   interface RegisteredErrorCatalogs {
     page: typeof pageErrors

@@ -4,7 +4,7 @@ import {join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
-import {publishErrors} from './errors/errors.ts'
+import {causeFrom, publishErrors} from './errors/errors.ts'
 
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
 const PRESET_PREFIX = '@internal/tsconfig/'
@@ -111,7 +111,7 @@ function parseJson(path: string, text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error: unknown) {
-    throw publishErrors.TSCONFIG_NOT_JSON({path, cause: error instanceof Error ? error : undefined})
+    throw publishErrors.TSCONFIG_NOT_JSON({path, ...causeFrom(error)})
   }
 }
 

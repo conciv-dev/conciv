@@ -8,7 +8,7 @@ import {ConcivConfigSchema, readLogLevel, type ConcivConfig} from '@conciv/types
 import {startHostLog} from './host-log.js'
 import {concivStateDir} from '@conciv/types/state-types'
 import type * as Boot from './boot.js'
-import {unpluginErrors} from '@conciv/errors'
+import {causeFrom, unpluginErrors} from '@conciv/errors'
 
 export const CONCIV_DEFAULT_PORT = 24170
 
@@ -156,6 +156,6 @@ function parseJson(text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error) {
-    throw unpluginErrors.OPTIONS_NOT_JSON({cause: error instanceof Error ? error : undefined})
+    throw unpluginErrors.OPTIONS_NOT_JSON(causeFrom(error))
   }
 }

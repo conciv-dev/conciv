@@ -1,7 +1,7 @@
 import {mkdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {z} from 'zod'
-import {toolErrors} from '@conciv/errors'
+import {causeFrom, toolErrors} from '@conciv/errors'
 
 export const CONCIV_STATE_DIR = '.conciv'
 
@@ -20,7 +20,7 @@ export async function createConcivStateDir(stateDir: string): Promise<string> {
     await writeFile(ignoreFile, CONCIV_STATE_GITIGNORE, {flag: 'wx'})
   } catch (error) {
     if (!ExistingFileErrorSchema.safeParse(error).success)
-      throw toolErrors.STATE_IGNORE_UNWRITABLE({file: ignoreFile, cause: error instanceof Error ? error : undefined})
+      throw toolErrors.STATE_IGNORE_UNWRITABLE({file: ignoreFile, ...causeFrom(error)})
   }
   return stateDir
 }

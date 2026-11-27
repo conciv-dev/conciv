@@ -5,7 +5,7 @@ import {sql} from 'drizzle-orm'
 import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {migrate} from 'drizzle-orm/sqlite-core/effect/session'
 import {Effect, Layer} from 'effect'
-import {engineRuntimeErrors} from '@conciv/errors'
+import {causeFrom, engineRuntimeErrors} from '@conciv/errors'
 import {migrations} from './migrations.gen.js'
 import {takeMigrationLock} from '@conciv/types/migration-lock'
 import {markRunningRunsDetached} from './run-migrations.js'
@@ -22,8 +22,7 @@ function whileMigrationLockHeld<A, E, R>(
   return Effect.acquireUseRelease(
     Effect.try({
       try: () => takeMigrationLock(lockFile, busyTimeoutMs),
-      catch: (cause) =>
-        engineRuntimeErrors.MIGRATION_LOCK_HELD({lockFile, cause: cause instanceof Error ? cause : undefined}),
+      catch: (cause) => engineRuntimeErrors.MIGRATION_LOCK_HELD({lockFile, ...causeFrom(cause)}),
     }),
     () => run,
     (lock) => Effect.sync(() => lock.close()),

@@ -5,7 +5,7 @@ import type {Context} from '@conciv/frontend-plugin-api'
 import {makeMachineDriver} from './machine-driver.js'
 import {RecorderPanelMachine} from './panel-machine.js'
 import {Recorder} from './rpc.js'
-import {causeOverrides, recorderErrors} from './errors/errors.js'
+import {causeFrom, recorderErrors} from './errors/errors.js'
 
 const SaveRefusal = z.object({reason: z.enum(['empty', 'too-large', 'io-error'])})
 
@@ -168,19 +168,19 @@ export function recorderPanelCalls(options: {
       Effect.asVoid(
         Effect.tryPromise({
           try: () => recorder().presence({viewerId: options.viewerId, live}),
-          catch: (cause) => recorderErrors.PRESENCE_FAILED(causeOverrides(cause)),
+          catch: (cause) => recorderErrors.PRESENCE_FAILED(causeFrom(cause)),
         }),
       ),
     exportRecording: exportRecording({
-      save: save((cause) => recorderErrors.EXPORT_FAILED(causeOverrides(cause))),
+      save: save((cause) => recorderErrors.EXPORT_FAILED(causeFrom(cause))),
       readPiece: options.readPiece,
       saveFile: options.saveFile,
     }),
-    sendToAgent: save((cause) => recorderErrors.SEND_FAILED(causeOverrides(cause))).pipe(
+    sendToAgent: save((cause) => recorderErrors.SEND_FAILED(causeFrom(cause))).pipe(
       Effect.flatMap((saved) =>
         Effect.try({
           try: () => options.noteSaved(saved),
-          catch: (cause) => recorderErrors.SEND_FAILED(causeOverrides(cause)),
+          catch: (cause) => recorderErrors.SEND_FAILED(causeFrom(cause)),
         }),
       ),
     ),
@@ -189,7 +189,7 @@ export function recorderPanelCalls(options: {
         await options.reset()
         await options.refresh()
       },
-      catch: (cause) => recorderErrors.RESET_FAILED(causeOverrides(cause)),
+      catch: (cause) => recorderErrors.RESET_FAILED(causeFrom(cause)),
     }),
   }
 }

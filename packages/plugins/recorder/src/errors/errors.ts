@@ -61,8 +61,11 @@ export const recorderErrors = defineErrorCatalog('recorder', {
   RESET_FAILED: {message: 'A new recording could not be started'},
 })
 
-export function causeOverrides(cause: unknown): {cause: Error} | {internal: {thrown: string}} {
-  return cause instanceof Error ? {cause} : {internal: {thrown: String(cause)}}
+export function causeFrom(
+  thrown: unknown,
+  internal?: Record<string, unknown>,
+): {cause: Error; internal?: Record<string, unknown>} | {internal: Record<string, unknown>} {
+  return thrown instanceof Error ? {cause: thrown, internal} : {internal: {...internal, thrown}}
 }
 
 declare module 'evlog' {

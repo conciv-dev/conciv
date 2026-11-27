@@ -10,6 +10,7 @@ import type {WhiteboardDb} from './whiteboard-db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from './rows.js'
 import {validateSvg} from './svg-caps.js'
 import {WhiteboardDrain} from './drain.js'
+import {causeFrom} from './errors/cause.js'
 
 type ReplayStep<Result> = {elementId: string; write: () => Result}
 
@@ -242,7 +243,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
           try: async () => {
             if (db.canvasPending.has(row.id)) await db.canvasPending.delete(row.id).isPersisted.promise
           },
-          catch: (cause) => canvasErrors.REMOVE_FAILED({id: row.id, cause: cause instanceof Error ? cause : undefined}),
+          catch: (cause) => canvasErrors.REMOVE_FAILED({id: row.id, ...causeFrom(cause)}),
         }),
     },
     options,

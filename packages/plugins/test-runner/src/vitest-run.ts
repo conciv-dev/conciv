@@ -5,7 +5,7 @@ import {Path} from 'effect/Path'
 import {z} from 'zod'
 import {countStates, parseFailure, type TestCaseLike, type TestError, type TestRow} from './events.js'
 import {sendChildMessage, type ChildArgs} from './child-main.js'
-import {causeOverrides, testRunnerErrors} from './errors/errors.js'
+import {causeFrom, testRunnerErrors} from './errors/errors.js'
 
 type TestModuleLike = {
   moduleId: string
@@ -23,7 +23,7 @@ type VitestLike = {
 type TestCaseWithDiagnostic = TestCaseLike & {diagnostic?: () => {duration?: number} | undefined}
 
 function failureOverrides(cause: unknown) {
-  return {message: cause instanceof Error ? cause.message : String(cause), ...causeOverrides(cause)}
+  return {message: cause instanceof Error ? cause.message : String(cause), ...causeFrom(cause)}
 }
 
 function toState(state: string): 'pass' | 'fail' | 'skip' {

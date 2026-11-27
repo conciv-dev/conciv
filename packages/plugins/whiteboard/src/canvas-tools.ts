@@ -13,6 +13,7 @@ import {confirmed, toolEdge, type Confirm} from './refusal.js'
 import {draftToSvg, type DraftElement} from './draft-svg.js'
 import {renderDraftPng} from './preview.js'
 import {validateSvg} from './svg-caps.js'
+import {causeFrom} from './errors/cause.js'
 
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
@@ -204,7 +205,7 @@ export function registerCanvas(
             toolErrors.INVALID_SVG({
               reason: error instanceof Error ? error.message : String(error),
               ...(EvlogError.isEvlogError(error) && error.fix ? {fix: error.fix} : {}),
-              cause: error instanceof Error ? error : undefined,
+              ...causeFrom(error),
             }),
         }).pipe(
           Effect.andThen(

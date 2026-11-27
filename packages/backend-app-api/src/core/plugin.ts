@@ -17,7 +17,7 @@ import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcess
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
-import {pluginHostErrors} from '@conciv/errors'
+import {causeFrom, pluginHostErrors} from '@conciv/errors'
 import {EvlogError} from 'evlog'
 import type {Bundler, BundlerCode} from '@conciv/backend-plugin-api/effect/plugin'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Option, Queue, References, Scope, Semaphore} from 'effect'
@@ -169,7 +169,7 @@ export const layer = Layer.effect(
       )
       if (activation.failure || Exit.isSuccess(exit)) return {activation} as const
       const tagged = Cause.findErrorOption(exit.cause).pipe(
-        Option.filter(EvlogError.isEvlogError),
+        Option.filter((failure) => failure instanceof Error),
         Option.map(describeLoadFailure),
       )
       yield* Effect.logWarning(
@@ -413,7 +413,8 @@ function slotInfo(slot: Slot): Plugin.Info {
   }
 }
 
-function describeLoadFailure(error: EvlogError) {
+function describeLoadFailure(error: Error) {
+  if (!EvlogError.isEvlogError(error)) return `failed to load plugin: ${error.name}: ${error.message}`
   const failure = `failed to load plugin: ${error.code}: ${error.message}`
   return error.fix === undefined ? failure : `${failure} (${error.fix})`
 }
@@ -438,7 +439,7 @@ function runHook<Answer>(hook: BundlerHook, plugin: string, module: string, run:
           plugin,
           module,
           reason,
-          cause: failure instanceof Error ? failure : undefined,
+          ...causeFrom(failure),
         }),
       )
     }),

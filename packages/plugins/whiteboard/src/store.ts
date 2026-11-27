@@ -18,6 +18,7 @@ import {
   type ReadRow,
   type ReplyRow,
 } from './rows.js'
+import {causeFrom} from './errors/cause.js'
 
 type TableRows = {
   canvasElements: ElementRow
@@ -84,7 +85,7 @@ const decode = <Value>(schema: z.ZodType<Value>, key: string, value: unknown) =>
       storeErrors.UNREADABLE({
         key,
         reason: error instanceof Error ? error.message : String(error),
-        cause: error instanceof Error ? error : undefined,
+        ...causeFrom(error),
       }),
   })
 

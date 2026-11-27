@@ -5,7 +5,7 @@ import {z} from 'zod'
 import type {Browser, BrowserContext, Page} from 'playwright-core'
 import type {Keyframe} from './format.js'
 import type {RrwebEvent} from './rpc.js'
-import {causeOverrides, recorderErrors} from './errors/errors.js'
+import {causeFrom, recorderErrors} from './errors/errors.js'
 
 export type KeyframeRenderer = {
   readonly render: (events: RrwebEvent[], timestamps: number[]) => Effect.Effect<Keyframe[], EvlogError>
@@ -30,7 +30,7 @@ function readViewport(events: RrwebEvent[]): {width: number; height: number} {
 }
 
 function renderFailed(cause: unknown): EvlogError {
-  return recorderErrors.RENDER_FAILED(causeOverrides(cause))
+  return recorderErrors.RENDER_FAILED(causeFrom(cause))
 }
 
 function attemptRender<Value>(work: () => Promise<Value>) {
@@ -113,7 +113,7 @@ export const launchChromiumRenderer = Effect.gen(function* () {
   const browser = yield* Effect.acquireRelease(
     Effect.tryPromise({
       try: async () => (await import('playwright-core')).chromium.launch(),
-      catch: (cause) => recorderErrors.RENDERER_UNAVAILABLE(causeOverrides(cause)),
+      catch: (cause) => recorderErrors.RENDERER_UNAVAILABLE(causeFrom(cause)),
     }),
     (launched) => Effect.tryPromise(() => launched.close()).pipe(Effect.ignore),
   )

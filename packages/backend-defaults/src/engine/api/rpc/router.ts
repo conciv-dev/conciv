@@ -49,7 +49,7 @@ import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/p
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
 import type {SessionId, ChatCommand, ChatCommands} from '@conciv/types/chat-types'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
-import {engineErrors} from '@conciv/errors'
+import {causeFrom, engineErrors} from '@conciv/errors'
 
 function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeof contract.chat, EngineRpcContext> {
   return {
@@ -173,7 +173,7 @@ function registryCallError(error: unknown): unknown {
   if (error instanceof ORPCError || isCatalogError(engineErrors._prefix, error)) return error
   return engineErrors.HANDLER_ERROR({
     message: error instanceof Error ? error.message : String(error),
-    ...(error instanceof Error ? {cause: error} : {}),
+    ...causeFrom(error),
   })
 }
 

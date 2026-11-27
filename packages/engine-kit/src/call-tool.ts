@@ -3,7 +3,7 @@ import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/st
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
-import {testKitErrors} from '@conciv/errors'
+import {causeFrom, testKitErrors} from '@conciv/errors'
 
 const DEADLINE_MS = 60_000
 
@@ -130,7 +130,7 @@ export function toolClients(apiBase: string, token: string): ToolClients {
         : {name: 'execute_typescript', arguments: {typescriptCode: externalCallProgram(name, input)}}
       const raw = await open.client.callTool(call, undefined, {signal: deadline}).catch((error: unknown) => {
         if (!deadline.aborted) throw error
-        throw testKitErrors.TOOL_NO_REPLY({name, ms: DEADLINE_MS, cause: error instanceof Error ? error : undefined})
+        throw testKitErrors.TOOL_NO_REPLY({name, ms: DEADLINE_MS, ...causeFrom(error)})
       })
       return readReply(name, raw, direct ? directReply : executeReply)
     },

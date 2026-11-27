@@ -1,7 +1,7 @@
 import {Context, Effect} from 'effect'
 import type {EvlogError} from 'evlog'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
-import {tryItErrors} from './errors/errors.js'
+import {causeFrom, tryItErrors} from './errors/errors.js'
 
 export const TryItProbe = Context.Service<{readonly probe: Effect.Effect<string, EvlogError>}>(
   '@conciv/plugin-try-it/Probe',
@@ -17,7 +17,7 @@ function probePort(token: string, port: number) {
   const base = `http://127.0.0.1:${port}`
   return Effect.tryPromise({
     try: (signal) => fetch(authedProbeUrl(base, token), {method: 'POST', signal}),
-    catch: (cause) => tryItErrors.PROBE_FAILED({port, cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => tryItErrors.PROBE_FAILED({port, ...causeFrom(cause)}),
   }).pipe(
     Effect.filterOrFail(
       (response) => response.ok,

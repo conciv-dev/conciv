@@ -2,11 +2,12 @@ import {readFile, realpath} from 'node:fs/promises'
 import {resolve, sep} from 'node:path'
 import {Effect} from 'effect'
 import {sourceErrors} from './errors/source-errors.js'
+import {causeFrom} from './errors/cause.js'
 
 const SNIPPET_LIMIT = 2_048
 
 export const unreadable = (file: string) => (error: unknown) =>
-  sourceErrors.UNREADABLE({file, cause: error instanceof Error ? error : undefined})
+  sourceErrors.UNREADABLE({file, reason: error instanceof Error ? error.message : String(error), ...causeFrom(error)})
 
 const realPath = (path: string, file: string) => Effect.tryPromise({try: () => realpath(path), catch: unreadable(file)})
 

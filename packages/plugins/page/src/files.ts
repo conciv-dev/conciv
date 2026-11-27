@@ -8,7 +8,7 @@ import {z} from 'zod'
 import {CONCIV_STATE_DIR} from '@conciv/types/state-types'
 import * as Tool from '@conciv/protocol/schema/tool'
 import {MAX_FILE_BYTES, type File} from './rpc.js'
-import {pageErrors} from './errors/errors.js'
+import {causeFrom, pageErrors} from './errors/errors.js'
 
 const Coded = z.object({code: z.string()})
 
@@ -49,7 +49,7 @@ function captureName(name: string) {
 }
 
 function notSaved(cause: unknown) {
-  return pageErrors.FILES_NOT_SAVED({cause: cause instanceof Error ? cause : undefined})
+  return pageErrors.FILES_NOT_SAVED(causeFrom(cause))
 }
 
 function failure(error: EvlogError) {
