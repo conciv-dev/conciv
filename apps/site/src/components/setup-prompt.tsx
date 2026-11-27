@@ -116,10 +116,20 @@ function CopyPromptButton({text}: {text: string}) {
   )
 }
 
+const BREAKABLE_TOKEN = /(\S*[-/]\S*)/
+
 function PromptText({text}: {text: string}) {
   return (
-    <pre className="m-0 whitespace-pre-wrap border-0 bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-fd-foreground">
-      {text}
+    <pre className="m-0 overflow-x-auto whitespace-pre-wrap break-normal border-0 bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-fd-foreground">
+      {text.split(BREAKABLE_TOKEN).map((part, index) =>
+        index % 2 === 1 ? (
+          <span key={index} className="whitespace-nowrap">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
     </pre>
   )
 }
