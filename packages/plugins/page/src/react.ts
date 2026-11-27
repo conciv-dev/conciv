@@ -33,8 +33,7 @@ export function installReactBridge(): void {
   try {
     instrument({})
   } catch (error) {
-    // oxlint-disable-next-line no-console
-    console.warn('[conciv] react devtools hook unavailable', error)
+    throw new Error('the react devtools hook is unavailable', {cause: error})
   }
 }
 
