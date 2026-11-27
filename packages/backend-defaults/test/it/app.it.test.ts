@@ -1,4 +1,4 @@
-import {ConfigProvider, Effect} from 'effect'
+import {ConfigProvider, Effect, Logger} from 'effect'
 import {describe, expect, test} from 'vitest'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
@@ -21,6 +21,16 @@ describe('the saved model list', () => {
     await first.settled()
 
     const failing = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
+    const logged: unknown[] = []
+    await Effect.runPromise(
+      failing.refresh.pipe(Effect.provide(Logger.layer([Logger.make(({message}) => logged.push(message))]))),
+    )
+    expect(logged).toEqual([
+      [
+        '[core] the model list could not be refreshed',
+        {harness: adapter.id, error: new Error('the CLI is signed out')},
+      ],
+    ])
     await expect(resolveHarnessModels(failing.harness, {signal})).resolves.toEqual(listed)
     await failing.settled()
 
