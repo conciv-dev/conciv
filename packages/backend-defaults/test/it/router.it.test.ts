@@ -126,9 +126,9 @@ describe.concurrent('outside agents', () => {
     expect(await outside.logs.cleanup()).toEqual({result: 'success', deleted: 0})
     expect((await outside.logs.query({text: 'cleanup deleted'})).events).toContainEqual(
       expect.objectContaining({
-        level: 'debug',
         source: 'engine',
-        message: '[logs] cleanup deleted the logs older than the retention',
+        message: 'rpc logs.cleanup',
+        data: expect.stringContaining('[logs] cleanup deleted the logs older than the retention'),
       }),
     )
     expect(await outside.logs.setLevel({level: 'off', scope: 'all'})).toEqual({
