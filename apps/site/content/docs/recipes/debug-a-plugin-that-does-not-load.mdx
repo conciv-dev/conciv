@@ -61,13 +61,12 @@ card. Learn more in the [Tools and code mode documentation](/docs/tools-and-code
 
 ### The card or panel is missing
 
-The browser part loads from `plugin-experimental.cjs` in the plugin folder. The engine looks for exactly that name, and
-a source file next to it is not enough: build it, then reload the page. A code-mode call never shows your card, only a
-direct tool's call does. Learn more in the [Build the browser part
+The browser part loads from `plugin-experimental.cjs` in the plugin folder. The engine looks for exactly that name. A source file next to it is not enough. Build it, then reload the page. A
+code-mode call never shows your card. Only a direct tool's call does. Learn more in the [Build the browser part
 documentation](/docs/plugins/first-plugin#build-the-browser-part).
 
 <Accordions>
-  <Accordion title="Why does it say Duplicate plugin ID?">
+  <Accordion title="It says Duplicate plugin ID">
     Two plugins share one `id`, for example a copy of a folder plugin that is also installed from npm. The later one
     fails with `Duplicate plugin ID: <id>`. Give each plugin its own id, or remove one.
   </Accordion>
