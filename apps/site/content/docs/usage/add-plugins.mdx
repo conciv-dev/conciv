@@ -6,7 +6,7 @@ description: Add a plugin with one line in your config, pass it options, turn on
 A plugin adds tools for the agent and screens for the widget. You add one with the `plugins` option of your conciv
 config.
 
-## Basic
+## List your plugins
 
 List plugins in `plugins`:
 
@@ -120,7 +120,7 @@ Every plugin in a `conciv/plugins` folder at your project root loads with no con
   </Folder>
 </Files>
 
-The engine watches these files. Save a change and the plugin loads again, with no restart. Learn to write one in the
+The engine watches these files. Save a change and the plugin loads again with no restart. Learn to write one in the
 [first plugin guide](/docs/plugins/first-plugin).
 
 ## The plugins conciv ships
@@ -139,20 +139,20 @@ The first two are on in every widget. Add the others with the line in the third 
 | Try it      | The connect pane of the widget on conciv.dev.                                                                 | Not added in config             | None                                              |
 
 <Accordions type="single">
-<Accordion title="What do the recorder options do?">
+<Accordion title="The recorder options">
 
 - `masking` hides what you type: `none` (the default), `inputs` or `sensitive`.
 - `windowMinutes` is how much of the recent page it keeps, up to 60. The default is 10.
 - `console` adds the page's console output to the log. It is on by default.
 
 </Accordion>
-<Accordion title="Why can I not add the whiteboard or try-it?">
+<Accordion title="You cannot add the whiteboard or try-it">
 
-The whiteboard is not on npm yet. It runs only in the example apps inside the conciv repo, which load it from its
+The whiteboard is not on npm yet. It runs only in the example apps inside the conciv repo. They load it from its
 folder. Try-it is published, but conciv.dev composes it into its own widget. It is not a plugin you add in config.
 
 </Accordion>
-<Accordion title="Every way to name a plugin?">
+<Accordion title="Every way to name a plugin">
 
 - A string that is not a path is a package name, installed from npm.
 - A path that starts with `./` or `../` resolves from your project folder.
