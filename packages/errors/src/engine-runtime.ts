@@ -51,6 +51,24 @@ export const engineRuntimeErrors = defineErrorCatalog('engine-runtime', {
   HOME_UNREACHABLE: {
     message: ({home}: {home: string}) => `conciv: the home ${home} could not be opened`,
   },
+  MIGRATION_LOCK_HELD: {
+    status: 503,
+    message: ({lockFile}: {lockFile: string}) => `conciv: the migration lock ${lockFile} could not be taken`,
+    why: 'Another engine is migrating the same conciv state folder.',
+    fix: 'Wait for the other engine to finish starting, then start this one again.',
+  },
+  SUBSCRIBER_OVERFLOW: {
+    status: 503,
+    message: ({capacity}: {capacity: number}) => `the event subscriber fell ${capacity} events behind`,
+    why: 'The subscriber did not read its events as fast as they arrived, so the engine ended its stream.',
+    fix: 'Subscribe again.',
+  },
+  EVENT_ENCODING_FAILED: {
+    status: 500,
+    message: ({eventType}: {eventType: string}) => `the engine could not encode the ${eventType} event`,
+    why: 'The event does not match its public definition.',
+    fix: "Read the engine's logs for the event, and report it.",
+  },
 })
 
 declare module 'evlog' {

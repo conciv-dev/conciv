@@ -5,14 +5,10 @@ import {BundlerSource, EditorSource} from '@conciv/backend-app-api/core/plugin/h
 import * as Permission from '@conciv/backend-app-api/core/permission'
 import * as Rpc from '@conciv/backend-app-api/core/rpc'
 import * as Tool from '@conciv/protocol/schema/tool'
+import type {EvlogError} from 'evlog'
+import {toolErrors} from '@conciv/errors'
 
-const unavailableMessage = 'no dev server is attached to conciv'
-
-const BundlerUnavailable = Schema.TaggedStruct('ServerTools.BundlerUnavailable', {message: Schema.String})
-
-const BundlerFailed = Schema.TaggedStruct('ServerTools.BundlerFailed', {message: Schema.String, error: Schema.Defect()})
-
-type ServerFailure = typeof BundlerUnavailable.Type | typeof BundlerFailed.Type
+const isUnavailable = (failure: EvlogError) => failure.code === toolErrors.BUNDLER_UNAVAILABLE.code
 
 const Config = Schema.Struct({
   root: Schema.String,
@@ -84,45 +80,51 @@ const withBundler = <A>(
   bundler: Bundler.BundlerBridge | undefined,
   failure: string,
   read: (bundler: Bundler.BundlerBridge) => A | Promise<A>,
-): Effect.Effect<A, ServerFailure> => {
-  if (bundler === undefined) return Effect.fail(BundlerUnavailable.make({message: unavailableMessage}))
+): Effect.Effect<A, EvlogError> => {
+  if (bundler === undefined) return Effect.fail(toolErrors.BUNDLER_UNAVAILABLE())
   return Effect.tryPromise({
     try: async () => read(bundler),
-    catch: (error) => BundlerFailed.make({message: failure, error}),
+    catch: (error) =>
+      toolErrors.BUNDLER_FAILED({
+        action: failure,
+        cause: error instanceof Error ? error : undefined,
+      }),
   })
 }
 
-const toolAnswer = <A>(answer: Effect.Effect<A, ServerFailure>) =>
+const toolAnswer = <A>(answer: Effect.Effect<A, EvlogError>) =>
   answer.pipe(
     Effect.map((output) => ({output})),
-    Effect.catchTags({
-      'ServerTools.BundlerUnavailable': (failure) =>
-        Effect.fail(Tool.makeError({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})),
-      'ServerTools.BundlerFailed': (failure) =>
-        Effect.fail(Tool.makeError({message: failure.message, error: failure.error})),
-    }),
+    Effect.catch((failure) =>
+      Effect.fail(
+        isUnavailable(failure)
+          ? Tool.makeError({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})
+          : Tool.makeError({message: failure.message, error: failure.cause ?? failure}),
+      ),
+    ),
   )
 
-const bundlerMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const bundlerMessage = (failure: EvlogError) =>
+  failure.cause instanceof Error ? failure.cause.message : failure.message
 
-const readAnswer = <A, E>(answer: Effect.Effect<A, ServerFailure>, unavailable: (message: string) => E) =>
+const readAnswer = <A, E>(answer: Effect.Effect<A, EvlogError>, unavailable: (message: string) => E) =>
   answer.pipe(
-    Effect.catchTags({
-      'ServerTools.BundlerUnavailable': (failure) => Effect.fail(unavailable(failure.message)),
-      'ServerTools.BundlerFailed': (failure) => Effect.die(failure.error),
-    }),
+    Effect.catch((failure) =>
+      isUnavailable(failure) ? Effect.fail(unavailable(failure.message)) : Effect.die(failure.cause ?? failure),
+    ),
   )
 
 const methodAnswer = <A, Unavailable, Failed>(
-  answer: Effect.Effect<A, ServerFailure>,
+  answer: Effect.Effect<A, EvlogError>,
   unavailable: (message: string) => Unavailable,
   failed: (message: string, bundler: string) => Failed,
 ): Effect.Effect<A, Unavailable | Failed> =>
   answer.pipe(
-    Effect.catchTags({
-      'ServerTools.BundlerUnavailable': (failure) => Effect.fail(unavailable(failure.message)),
-      'ServerTools.BundlerFailed': (failure) => Effect.fail(failed(failure.message, bundlerMessage(failure.error))),
-    }),
+    Effect.catch((failure) =>
+      Effect.fail(
+        isUnavailable(failure) ? unavailable(failure.message) : failed(failure.message, bundlerMessage(failure)),
+      ),
+    ),
   )
 
 export const Plugin = {

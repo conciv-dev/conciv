@@ -1,36 +1,18 @@
 import {Bus, Event, EventManifest, Rpc} from '@conciv/backend-app-api'
 import {EventEnvelopeSchema} from '@conciv/protocol'
 import {Cause, Context, Effect, Layer, Queue, Schema, Scope, Stream} from 'effect'
+import type {EvlogError} from 'evlog'
+import {engineRuntimeErrors} from '@conciv/errors'
 import type {z} from 'zod'
 
 export const SubscriberCapacity = 4_096
-
-export const SubscriberOverflowError = Schema.TaggedStruct('EventFeed.SubscriberOverflow', {capacity: Schema.Int})
-export type SubscriberOverflowError = typeof SubscriberOverflowError.Type & globalThis.Error
-
-export const makeSubscriberOverflowError = (
-  fields: Omit<typeof SubscriberOverflowError.Type, '_tag'>,
-): SubscriberOverflowError =>
-  Object.assign(new globalThis.Error(), SubscriberOverflowError.make(fields), {name: 'EventFeed.SubscriberOverflow'})
-
-export const EncodingError = Schema.TaggedStruct('EventFeed.EncodingError', {
-  eventId: Event.Id,
-  eventType: Schema.String,
-  cause: Schema.Defect(),
-})
-export type EncodingError = typeof EncodingError.Type & globalThis.Error
-
-export const makeEncodingError = (fields: Omit<typeof EncodingError.Type, '_tag'>): EncodingError =>
-  Object.assign(new globalThis.Error(), EncodingError.make(fields), {name: 'EventFeed.EncodingError'})
-
-export type Error = SubscriberOverflowError | EncodingError
 
 export type ConcivEvent = z.output<typeof EventEnvelopeSchema>
 
 export interface Interface {
   readonly subscribe: (
     types?: ReadonlyArray<string>,
-  ) => Effect.Effect<Stream.Stream<ConcivEvent, Error>, never, Scope.Scope>
+  ) => Effect.Effect<Stream.Stream<ConcivEvent, EvlogError>, never, Scope.Scope>
 }
 
 export const Service = Context.Service<Interface>('@conciv/server/EventFeed')
@@ -53,9 +35,9 @@ export const make = Effect.fn('core.eventFeed.make')(function* (
 ) {
   const capacity = options?.capacity ?? SubscriberCapacity
   const render = options?.encode ?? encode
-  const subscribers = new Map<Queue.Queue<ConcivEvent, Error>, ReadonlySet<string> | undefined>()
+  const subscribers = new Map<Queue.Queue<ConcivEvent, EvlogError>, ReadonlySet<string> | undefined>()
 
-  const fail = (error: Error) =>
+  const fail = (error: EvlogError) =>
     Effect.sync(() => {
       const current = Array.from(subscribers.keys())
       subscribers.clear()
@@ -69,12 +51,17 @@ export const make = Effect.fn('core.eventFeed.make')(function* (
       if (types && !types.has(event.type)) continue
       encoded ??= yield* Effect.try({
         try: () => render(event),
-        catch: (cause) => makeEncodingError({eventId: event.id, eventType: event.type, cause}),
+        catch: (cause) =>
+          engineRuntimeErrors.EVENT_ENCODING_FAILED({
+            eventType: event.type,
+            cause: cause instanceof Error ? cause : undefined,
+            internal: {eventId: event.id},
+          }),
       }).pipe(
         Effect.catch((error) =>
           Effect.logError('Failed to encode public event', {
-            eventId: error.eventId,
-            eventType: error.eventType,
+            eventId: event.id,
+            eventType: event.type,
             cause: error.cause,
           }).pipe(Effect.andThen(fail(error)), Effect.as(undefined)),
         ),
@@ -82,7 +69,7 @@ export const make = Effect.fn('core.eventFeed.make')(function* (
       if (encoded === undefined) return
       if (Queue.offerUnsafe(subscriber, encoded)) continue
       subscribers.delete(subscriber)
-      Queue.failCauseUnsafe(subscriber, Cause.fail(makeSubscriberOverflowError({capacity})))
+      Queue.failCauseUnsafe(subscriber, Cause.fail(engineRuntimeErrors.SUBSCRIBER_OVERFLOW({capacity})))
     }
   })
 
@@ -92,7 +79,7 @@ export const make = Effect.fn('core.eventFeed.make')(function* (
   return Service.of({
     subscribe: (types) =>
       Effect.acquireRelease(
-        Queue.dropping<ConcivEvent, Error>(capacity).pipe(
+        Queue.dropping<ConcivEvent, EvlogError>(capacity).pipe(
           Effect.tap((queue) => Effect.sync(() => subscribers.set(queue, types?.length ? new Set(types) : undefined))),
         ),
         (queue) =>

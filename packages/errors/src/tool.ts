@@ -39,6 +39,18 @@ export const toolErrors = defineErrorCatalog('tool', {
     message: ({file}: {file: string}) => `conciv: could not write ${file}`,
     fix: 'Check that the project folder is writable.',
   },
+  BUNDLER_UNAVAILABLE: {
+    status: 503,
+    message: 'no dev server is attached to conciv',
+    why: 'The engine runs without a bundler bridge, so the server tools have nothing to ask.',
+    fix: 'Start the engine through the dev server, with the conciv bundler plugin.',
+  },
+  BUNDLER_FAILED: {
+    status: 502,
+    message: ({action}: {action: string}) => action,
+    why: 'The dev server failed while it answered.',
+    fix: "Read the dev server's output for its error.",
+  },
 })
 
 declare module 'evlog' {
