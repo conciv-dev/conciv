@@ -3,16 +3,21 @@ title: Add a panel
 description: Add a tab to the session's pane, next to the chat, and draw your plugin's own screen in it.
 ---
 
-A panel adds a tab to the session's pane, next to the chat. Use one when your plugin has something to show all the
-time: a list, a log, a live run. The test runner's Tests tab is a panel.
+The last section imports `@conciv/client`, which the tutorial did not install. The widget provides it at run time,
+and the install gives your editor its types.
 
-The browser part is written with Solid components and plain async functions.
+```package-install
+npm install -D @conciv/client
+```
 
-## Add the tab
+A panel adds a tab next to the chat, for something your plugin shows all the time: a list, a log, a live run. The
+browser part is written with Solid components and plain async functions.
+
+## Basic
 
 Add the panel in your plugin's browser part:
 
-```tsx twoslash title="plugin-experimental.tsx"
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
 // @jsx: preserve
 // @jsxImportSource: solid-js
 // ---cut---
@@ -22,19 +27,19 @@ export default Plugin.define({
   setup(ctx) {
     const shelf: PanelTab = {
       id: 'shelf',
-      title: 'Shelf',
-      pinned: true,
+      title: 'Shelf', // <- the tab's name, wherever the widget needs text
+      pinned: true, // <- always in the strip
       label: () => (
         <>
           <ctx.ui.Icon name="box" size="small" />
           Shelf
         </>
-      ),
+      ), // <- what the strip draws; without it, the title
     }
 
     ctx.add(Panel, {
       id: 'shelf',
-      region: 'pane',
+      region: 'pane', // <- required, and the only region today
       list: () => [shelf],
       render: (props) => <p>Plants in {props.session.directory}</p>,
     })
@@ -42,21 +47,22 @@ export default Plugin.define({
 })
 ```
 
-- `PanelTab` is one tab. Its title names it.
-- `label` is what the tab strip draws for it.
-- `pinned: true` marks a tab that is always in the strip. Return it from `list` every time.
-- `ctx.ui.Icon` draws an icon from the widget's set, so your tab looks like the widget's own.
-- `ctx.add(Panel, ...)` adds the panel. The region is always the session's pane.
-- `list` returns the tabs to show. It runs again when what it reads changes.
-- `render` draws a tab's content once. Your component updates itself from then on.
-- `props.session` is the session on screen. Read it where you use it: it changes when the user opens another
-  session, and the panel stays mounted.
+<Playground page="vite-react" script="plugins/panel-tab" caption="A plugin's tab next to the chat" />
+
+A few things to notice:
+
+- `title` is the tab's name. The strip draws `label` when you give one, and the title when you do not.
+- `list` returns the tabs to show. It runs again when what it reads changes, so return a pinned tab every time.
+- `render` draws a tab's content once, and your component updates itself from then on.
+- `props.session` is the session on screen. Read it where you use it, since it changes without a remount.
+
+Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 ## Show a tab only some of the time
 
 Return the tab from `list` only when it applies:
 
-```tsx twoslash title="plugin-experimental.tsx"
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
 // @jsx: preserve
 // @jsxImportSource: solid-js
 // ---cut---
@@ -69,21 +75,21 @@ export default Plugin.define({
     ctx.add(Panel, {
       id: 'report',
       region: 'pane',
-      list: (input) => (input.open.includes('report') ? [report] : []),
+      list: (input) => (input.open.includes('report') ? [report] : []), // <- open: your tabs the user has open
       render: () => <p>The last report</p>,
     })
   },
 })
 ```
 
-- `input.open` holds the ids of your tabs the user has open in this session.
-- A tab that is not pinned shows only while the user has it open. When they close it, it leaves `input.open`.
+A tab that is not pinned shows only while the user has it open. When they close it, it leaves `input.open`. Build it
+as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 ## Load data into the tab
 
-Read from your engine part inside `render`. Use the widget's query hooks, so the data shares the widget's cache:
+Read from your engine part inside `render`, with the widget's query hooks. The data then shares the widget's cache:
 
-```tsx twoslash title="plugin-experimental.tsx"
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
 // @jsx: preserve
 // @jsxImportSource: solid-js
 // @filename: rpc.ts
@@ -112,7 +118,7 @@ export default Plugin.define({
       list: () => [shelf],
       render: () => {
         const ferns = useQuery(() => ({
-          queryKey: ['plant-shelf', 'fern'],
+          queryKey: ['plant-shelf', 'fern'], // <- start with your plugin's id, so keys never clash
           queryFn: () => ctx.client.rpc(Shelf).count({plant: 'fern'}),
         }))
         return <p>{ferns.data ? `${ferns.data.count} ferns` : 'Counting'}</p>
@@ -122,11 +128,10 @@ export default Plugin.define({
 })
 ```
 
-- `useQuery` comes from `@conciv/client`, which the widget provides. Your plugin does not bundle its own copy.
-- `queryKey` names the data in the cache. Start it with your plugin's id, so it cannot clash with another plugin.
-- `queryFn` calls your engine part. See [Share an RPC method](/docs/plugins/guides/rpc).
+`queryFn` calls your engine part through its contract. See [Share an RPC method](/docs/plugins/guides/rpc). Build
+it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
-## Next
+## Next steps
 
-- [Add a slot or composer pill](/docs/plugins/guides/slot-pill): smaller places to put your plugin in the widget.
-- [Share an RPC method](/docs/plugins/guides/rpc): the methods your panel reads.
+- **[Add a slot or composer pill](/docs/plugins/guides/slot-pill)**: smaller places for your plugin in the widget.
+- **[Share an RPC method](/docs/plugins/guides/rpc)**: the methods your panel reads.
