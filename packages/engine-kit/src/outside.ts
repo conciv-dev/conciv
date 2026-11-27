@@ -42,8 +42,8 @@ export function outsideAgent(apiBase: string, token: string, agent: OutsideAgent
     describe: () => rpc.code.describe(undefined),
     discover: (toolNames) => replied(rpc.code.discover({...session, toolNames}).then(codeDiscoverReply)),
     call: (name, input) =>
-      Promise.try(() => externalCallProgram(name, input)).then((typescriptCode) =>
-        replied(rpc.code.execute({...session, typescriptCode}).then(codeExecuteReply)),
-      ),
+      Promise.resolve()
+        .then(() => externalCallProgram(name, input))
+        .then((typescriptCode) => replied(rpc.code.execute({...session, typescriptCode}).then(codeExecuteReply))),
   }
 }

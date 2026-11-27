@@ -66,7 +66,7 @@ function rootExists(root: string): Promise<boolean> {
 }
 
 async function probe(row: EngineRow, timeoutMs: number): Promise<Verdict> {
-  const origin = URL.parse(row.apiBase)?.origin
+  const origin = URL.canParse(row.apiBase) ? new URL(row.apiBase).origin : undefined
   if (origin === undefined || !processAlive(row.pid) || !(await rootExists(row.root))) return {row, kind: 'retire'}
   try {
     const response = await fetch(`${origin}/health`, {signal: AbortSignal.timeout(timeoutMs)})
