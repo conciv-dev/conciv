@@ -54,10 +54,15 @@ describe('engine spans', () => {
     }
   }
 
+  const CLIENT_CALL_STEPS = ['encode_input', 'send_request', 'decode_response']
   function stoppedRunSpans(spans: readonly Span[]): Span[] {
     const stops = spans.filter((span) => span.name === 'Engine.stop')
     expect(stops).toHaveLength(1)
-    return spans.filter((span) => span.engine === stops[0]?.engine)
+    const run = spans.filter((span) => span.engine === stops[0]?.engine)
+    const clientCalls = new Set(
+      run.filter((span) => CLIENT_CALL_STEPS.includes(span.name)).map((span) => span.parentSpanId),
+    )
+    return run.filter((span) => !clientCalls.has(span.spanId))
   }
 
   function parentNames(spans: readonly Span[], names: readonly string[]): Record<string, string | null> {
