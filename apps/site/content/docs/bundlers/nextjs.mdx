@@ -11,7 +11,7 @@ conciv runs in `next dev` through `withConciv` around your config and two instru
   <SetupPrompt framework="nextjs" />
 </Callout>
 
-## Basic
+## Add conciv to Next.js
 
 Install `@conciv/it` as a dev dependency:
 
@@ -65,12 +65,12 @@ server prints. Learn more in the [Logging in documentation](/docs/usage/logging-
 ## What works
 
 - The chat, the page tools and the plugins work as on Vite.
-- The [dev server tools](/docs/usage/dev-server) do not. They answer that no dev server is attached, and so do plugin
+- The [dev server tools](/docs/usage/dev-server) do not. They answer that no dev server is attached. So do plugin
   tools that read the dev server, such as the TanStack build errors.
 - `next build` and `next start` leave conciv out.
 
 <Accordions type="single">
-<Accordion id="existing" title="You already have an instrumentation file?">
+<Accordion id="existing" title="You already have an instrumentation file">
 
 init does not overwrite an instrumentation file that holds something else. It prints a card instead. In
 `instrumentation.ts`, call conciv's `register` from your own:
@@ -84,9 +84,9 @@ export async function register() {
 ```
 
 </Accordion>
-<Accordion id="stop" title="The engine keeps running after Ctrl+C?">
+<Accordion id="stop" title="The engine keeps running after Ctrl+C">
 
-Next.js gives conciv no hook to stop the engine, so it ends with the dev server's process. When `next dev` kills its
+Next.js gives conciv no hook to stop the engine. The engine ends with the dev server's process. When `next dev` kills its
 worker fast, the agent CLI of a live run can outlive it. A larger `NEXT_EXIT_TIMEOUT_MS` gives the worker time to
 exit on its own.
 
