@@ -4262,9 +4262,15 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
+      evlog:
+        specifier: 'catalog:'
+        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       execa:
         specifier: ^10.2.1
         version: 10.2.1
@@ -4302,9 +4308,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      effect:
-        specifier: 'catalog:'
-        version: 4.1.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
