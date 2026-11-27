@@ -68,7 +68,11 @@ const clientLoader = browserCollections.docs.createClientLoader({
       <DocsPage
         toc={toc}
         className="*:max-w-175"
-        tableOfContent={{footer: actions}}
+        tableOfContent={{
+          single: true,
+          footer: actions,
+          container: {className: toc.length === 0 ? emptyTocClass : undefined},
+        }}
         tableOfContentPopover={{footer: actions}}
       >
         <DocsTitle className="od-display text-5xl leading-tight font-extrabold">{frontmatter.title}</DocsTitle>
@@ -80,6 +84,8 @@ const clientLoader = browserCollections.docs.createClientLoader({
     )
   },
 })
+
+const emptyTocClass = '[&>#toc-title]:hidden [&>#toc-title+div]:hidden [&>div:last-child]:border-t-0'
 
 const sidebarClass = [
   'border-e',
