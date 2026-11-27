@@ -7,14 +7,14 @@ Package internal to @conciv/it that provides Solid terminal components on xterm.
 ## Interface
 
 - `exports['.']` (`package.json`): ./dist/ui-kit-terminal.js
-- `scripts` (`package.json`): build (`tsdown`), typecheck, publint, attw; no `test` script
-- `tsdown.config.ts`: entry src/ui-kit-terminal.tsx, with `unplugin-solid/rolldown`
+- `scripts` (`package.json`): build (`tsdown && vite build`), typecheck, publint, attw; no `test` script
+- `vite.config.ts`: the library build of src/ui-kit-terminal.tsx with `vite-plugin-solid`; `tsdown.config.ts` writes only its declarations
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - terminal model and components
 
 ## Invariants
 
-- `tsdown.config.ts`: its dependencies (@conciv/\*, @tanstack/pacer, @xterm/\*) and the solid-js peer are external (tsdown's default). The xterm CSS (`.css?inline`) is inlined as a string at build by `inlineImports()` (`@internal/build-plugins`)
+- `vite.config.ts`: its dependencies (@conciv/\*, @tanstack/pacer, @xterm/\*) and the solid-js peer are external (read from `package.json`; an import with a `?` query is bundled). The xterm CSS (`.css?inline`) is inlined as a string by Vite's `?inline` (`vite.config.ts`, the library build; `tsdown` writes only the declarations)
 - `peerDependencies` (`package.json`): solid-js
 
 ## Side Effects

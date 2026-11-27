@@ -95,9 +95,10 @@ Rules that hold the layout:
   through tsdown's `deps` (`alwaysBundle`, `neverBundle`, `onlyImport`), never a hand-written list. A library that
   bundles dependencies on purpose builds its JS bundled and its declarations in a second `dts: {dtsOnly: true}` config.
   A plugin's UnoCSS sheet (`virtual:uno.css?inline`) comes from `inlineSheet(import.meta.url)`
-  (`@internal/build-plugins`). A Vite-style inline import in a library (`?worker&inline`, `.css?inline`, an asset
-  `?inline`) goes through `inlineImports()` from the same package, so the dist holds the string, data URL or worker
-  itself: Next.js and other non-Vite hosts bundle these libraries too.
+  (`@internal/build-plugins`). The three kits that use Vite's inline imports (`?worker&inline`, `.css?inline`, the
+  `.woff2?inline` fonts) build their JS with Vite in their own `vite.config.ts` (ui-kit-chat, solid-diffs,
+  ui-kit-terminal; `tsdown` writes only their declarations, then `vite build`), so their dist holds the worker, CSS and
+  fonts itself: Next.js and other non-Vite hosts bundle these kits too.
 - Vite builds only app bundles, each from its own config next to the app code, run after `tsdown` in the `build`
   script: `@conciv/app` (`vite.config.ts`: the `mount` bundle and the widget bundle; `tsdown` writes `mount.d.ts`),
   `@internal/frontend-defaults` (the standalone shell), and the `./plugin-experimental` bundle `experimental()` builds

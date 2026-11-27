@@ -13,7 +13,7 @@ Source root of `@conciv/ui-kit-chat`. `ui-kit-chat.tsx` is the main entry (store
 
 ## Invariants
 
-- `tsdown.config.ts` builds exactly five public entries from here: `ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`; anything not re-exported from them is internal.
+- `vite.config.ts` builds exactly five public entries from here: `ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`; anything not re-exported from them is internal.
 
 ## Side Effects
 

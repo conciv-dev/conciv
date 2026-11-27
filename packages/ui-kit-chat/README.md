@@ -15,14 +15,14 @@ npm install -D @conciv/it
 ## Interface
 
 - `package.json:exports` - `.` (`dist/ui-kit-chat.js`), `./tools` (`dist/tools.js`), `./draft-storage` (`dist/draft-storage.js`), `./theme/tokens.css` (source CSS), `./theme/fonts`, `./theme/code-theme`.
-- `package.json:scripts` - `build` (`tsdown`), `typecheck`, `publint`, `attw`. No `test` script.
+- `package.json:scripts` - `build` (`tsdown && vite build`), `typecheck`, `publint`, `attw`. No `test` script.
 - `package.json:peerDependencies` - `solid-js` `^1.9.13`.
 - Subdirectory: [src](./src/README.md) - entries, store, behaviors, primitives, styled, tools, theme.
 
 ## Invariants
 
-- `tsdown.config.ts:entry` defines the five public JS entries (`ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`), built one file per module (`unbundle: true`). Its dependencies and the `solid-js` peer stay external (tsdown's default).
-- The highlight worker (`highlight-worker.ts?worker&inline`) and the `.woff2?inline` fonts are inlined at build by `inlineImports()` (`@internal/build-plugins`): the worker as its bundled source, the fonts as data URLs, both under `dist/_virtual`.
+- `vite.config.ts` `build.lib.entry` (and `tsdown.config.ts` `entry`, declarations only) define the five public entries (`ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`), built one file per module. Its dependencies and the `solid-js` peer stay external (read from `package.json`; an import with a `?` query is bundled).
+- The highlight worker (`highlight-worker.ts?worker&inline`) and the `.woff2?inline` fonts are inlined by Vite's own `?worker&inline` and `?inline` (`vite.config.ts`, the library build, one file per module; `tsdown` writes only the declarations). Modules from `node_modules` are written under `dist/_virtual`.
 - `uno.config.ts` scans `src` and `../ui-kit-system/src` (without tests, specs and stories) with `presetConciv`, so utility classes used in either package are generated here.
 - `CollapsibleCard` stays internal: `src/tools.tsx` does not export it and the `conciv/tool-card-shell` lint rule blocks imports of it from outside this package.
 

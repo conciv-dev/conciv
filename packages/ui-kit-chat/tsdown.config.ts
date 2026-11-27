@@ -1,6 +1,4 @@
 import {defineConfig} from 'tsdown'
-import solid from 'unplugin-solid/rolldown'
-import {inlineImports} from '@internal/build-plugins'
 
 export default defineConfig({
   entry: [
@@ -12,10 +10,8 @@ export default defineConfig({
   ],
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
-  dts: true,
-  sourcemap: true,
+  dts: {emitDtsOnly: true},
   unbundle: true,
   fixedExtension: false,
-  deps: {alwaysBundle: [/\?(?:worker&)?inline$/]},
-  plugins: [inlineImports(), solid()],
+  deps: {neverBundle: [/\?/]},
 })
