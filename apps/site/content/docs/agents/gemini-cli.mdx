@@ -3,10 +3,10 @@ title: Gemini CLI
 description: "Connect Gemini CLI to conciv, and what conciv runs when it is the session's agent."
 ---
 
-[Gemini CLI](https://github.com/google-gemini/gemini-cli) connects to conciv as an MCP server, and chats in the
-panel over the Agent Client Protocol (ACP).
+[Gemini CLI](https://github.com/google-gemini/gemini-cli) connects to conciv as an MCP server. In the panel it chats
+over the Agent Client Protocol (ACP).
 
-## Basic
+## Connect Gemini CLI
 
 Run this once, in any folder:
 
@@ -38,7 +38,12 @@ gemini --acp -m gemini-3-pro-preview   <- ACP mode, with the model you picked
 ```
 
 Every permission Gemini CLI asks for shows as a [Permission card](/docs/usage/approvals). The model menu lists four
-models: `gemini-3-pro-preview` (the default), `gemini-3-flash-preview`, `gemini-2.5-pro` and `gemini-2.5-flash`.
+models:
+
+- `gemini-3-pro-preview`, the default
+- `gemini-3-flash-preview`
+- `gemini-2.5-pro`
+- `gemini-2.5-flash`
 
 Gemini CLI keeps no history conciv can read, so its past sessions do not show in the session list.
 
@@ -48,11 +53,11 @@ Gemini CLI keeps no history conciv can read, so its past sessions do not show in
 npx @conciv/cli mcp disconnect gemini-cli
 ```
 
-This stops conciv answering Gemini CLI, and removes `conciv-hub` from its config.
+This stops conciv answering Gemini CLI. It removes `conciv-hub` from its config.
 
 <Accordions type="single">
-  <Accordion title="Can I pick a Gemini model that is not in the menu?">
-    No. The list is fixed in conciv today. Pick the closest one in the model menu.
+  <Accordion title="Pick a Gemini model that is not in the menu">
+    You cannot. The list is fixed in conciv today. Pick the closest one in the model menu.
   </Accordion>
 </Accordions>
 
