@@ -33,6 +33,7 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
 
 - Spawns `pnpm exec changeset ...`, `pnpm exec turbo run ...`, `pnpm install --lockfile-only` with inherited stdio through execa (`cli.ts`).
 - Publishes to npm: `changeset publish`, and `pnpm --filter <name> publish --access public --no-git-checks` (`firstPublish`).
+- `sync` checks every package to first-publish with `assertBootstrappable`, builds them all in one `turbo run build publint attw` with a `--filter` per package, and publishes nothing if that run fails; then it publishes and wires trusted publishing one package at a time, because `npm publish` and `npm trust` prompt (login, 2FA) and npm's 404 cache makes parallel first publishes flaky (`applySyncPlan`).
 - Configures trusted publishing with `npx --yes npm@^11.15.0 trust github <name> --repo conciv-dev/conciv --file release.yml --allow-publish` (`wireTrust`); runs `npm whoami` (`applySyncPlan`).
 - `fetch('https://registry.npmjs.org/<name>')` (`registryRecord`).
 - Git: `git diff --name-status --no-renames <base>...HEAD` (`guards.ts`); `git ls-files` and `tsc -p <tsconfig> --listFilesOnly` per package (`typecheck-coverage.ts`); `git ls-files` per plugin package (`workspace-imports.ts`); `git ls-files` (`test-budget.ts`); `git tag -l`, `git tag`, `git push origin refs/tags/...` (`sync.ts`); `pnpm exec changeset git-tag` (`cli.ts`); `git log -S` and `git archive | tar -x` (`swift-mirror.ts`).

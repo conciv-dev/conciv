@@ -7,6 +7,6 @@ export default withConciv(nextConfig, {
   plugins: [
     './node_modules/@conciv/plugin-test-runner',
     './node_modules/@conciv/plugin-tanstack',
-    './node_modules/@internal/plugin-whiteboard',
+    './node_modules/@conciv/plugin-whiteboard',
   ],
 })

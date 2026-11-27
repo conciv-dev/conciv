@@ -1,6 +1,6 @@
 {
   "name": "@conciv/it",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "Conceive it. Claude Code, living inside your running app. Plugin for vite, webpack, rspack, rollup, esbuild, nextjs.",
   "keywords": [
     "ai",
