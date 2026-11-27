@@ -9,5 +9,6 @@
       "@/*": ["./src/*"],
       "collections/*": ["./.source/*"]
     }
-  }
+  },
+  "exclude": ["${configDir}/src/playground/shell"]
 }
