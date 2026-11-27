@@ -156,7 +156,7 @@ To let an agent session in your own terminal find and drive your open conciv tab
 `conciv init` offers it, or run `npx @conciv/cli@latest mcp connect <agent>` with `claude`, `codex`,
 `gemini-cli` or `opencode`. It adds the `conciv-hub` MCP server (`conciv mcp serve --agent <agent>`,
 `packages/cli/src/hub.ts`) to that agent's config. `conciv mcp disconnect <agent>` removes it
-(`apps/site/content/docs/agents.mdx`).
+(`apps/site/content/docs/agents/index.mdx`).
 
 ## Config surface
 
@@ -220,5 +220,5 @@ conciv({widget: {modal: false}})
 - `apps/site/content/docs/bundlers/webpack.mdx`
 - `apps/site/content/docs/bundlers/rspack.mdx`
 - `apps/site/content/docs/bundlers/index.mdx`
-- `apps/site/content/docs/agents.mdx`
+- `apps/site/content/docs/agents/index.mdx`
 - `apps/site/content/docs/reference/configuration.mdx`

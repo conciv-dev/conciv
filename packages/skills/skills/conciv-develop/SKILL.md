@@ -144,18 +144,16 @@ Call it from a terminal in the project: `conciv plugin call deploy run --data '{
 plugin conciv ships uses it. `Plugin.define({id, effect})` runs `effect(ctx)` in a scope that closes
 when the plugin stops, reloads or is turned off: every tool, skill and RPC handler it registered goes
 with it, and so does a fiber started with `Effect.forkScoped`. The test runner, from
-`packages/plugins/test-runner/src/test-runner.ts:62-81`:
+`packages/plugins/test-runner/src/test-runner.ts:58-77`:
 
 ```ts
 export default Plugin.define<RunnerServices>({
   id: 'test-runner',
   effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
-    const config = testRunnerConfig.safeParse(ctx.options)
+    const config = TestRunnerConfigSchema.safeParse(ctx.options)
     if (!config.success) return yield* Effect.die(config.error)
     const adapter = getRunner(config.data.runner) ?? vitest
-    const manager = yield* adapter
-      .create(ctx.location.directory)
-      .pipe(Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, Effect.die))
+    const manager = yield* adapter.create(ctx.location.directory).pipe(Effect.orDie)
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
