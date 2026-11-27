@@ -4,9 +4,9 @@ description: 'How the agent calls tools: directly by name, or from a short progr
 ---
 
 A tool is one action the agent can take through conciv, such as reading the page or running the tests. Code mode is
-how the agent calls most of them: it writes a short TypeScript program that calls the tools, and conciv runs it.
+how the agent calls most of them. It writes a short TypeScript program that calls the tools, and conciv runs it.
 
-## Overview
+## Pick a mode per tool
 
 ```ts twoslash title="conciv/plugins/tickets/server.ts"
 import {z} from 'zod'
@@ -54,8 +54,8 @@ the code card. Learn more in the [Add a tool documentation](/docs/plugins/guides
 
 ## The catalog
 
-The agent's instructions list the code-mode tools it can call. When the list is too long, it shows a part of it. The
-agent then finds the rest with a `search(...)` function inside the program, and never guesses a name.
+The agent's instructions list the code-mode tools it can call. When the list is too long, they show part of it. The
+agent finds the rest with a `search(...)` function inside the program. It never guesses a name.
 
 ## Direct tools
 
