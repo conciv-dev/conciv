@@ -53,7 +53,7 @@ The `route` operation's `pathname`, `search` and `href` go through `redactedUrl`
 query and hash values and secret route params. The same answer reaches the model, outside agents through the hub,
 the terminal and the thread's tool card.
 
-The terminal runs the page tools as `conciv tools page <verb>`: the engine's `registry.call` runs the plugin's
+The terminal runs the page tools as `conciv tools page <verb>`: the engine's `registry.invoke` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
 

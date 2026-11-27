@@ -1,5 +1,5 @@
-import {eventIterator, oc, type Schema} from '@orpc/contract'
-import type {AsyncIteratorClass} from '@orpc/client'
+import {asyncIteratorObject, oc, type Schema} from '@orpc/contract'
+import {COMMON_ERROR_STATUS_MAP, type AsyncIteratorClass} from '@orpc/client'
 import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/types/chat-event-types'
 import {
@@ -21,6 +21,7 @@ import {
 import {UiAnswerValueSchema} from '@conciv/types/ui-types'
 import {TtyServerControlSchema} from '@conciv/types/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
+import {engineContractErrors, engineErrorEntries, errorStatuses} from './errors.js'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 import {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from './schema/browser-tab.js'
 import {Schema as EffectSchema} from 'effect'
@@ -42,7 +43,7 @@ interface ChatEventStream extends Schema<
   AsyncIteratorObject<ChatEvent, unknown, void>,
   AsyncIteratorClass<ChatEvent, unknown, void>
 > {}
-const ChatEventStreamSchema: ChatEventStream = eventIterator(StreamChunkSchema)
+const ChatEventStreamSchema: ChatEventStream = asyncIteratorObject(StreamChunkSchema)
 
 const SessionIdInput = z.object({sessionId: SessionId})
 
@@ -163,21 +164,15 @@ export const ChatHydrationSchema = z.object({
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
 
-const notFound = {NOT_FOUND: {message: 'session not found'}}
-const tabUnavailable = {UNAVAILABLE: {message: 'the tab is not open on this engine'}}
-const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
+export const ENGINE_ERROR_STATUS: Readonly<Record<string, number>> = {
+  ...COMMON_ERROR_STATUS_MAP,
+  ...errorStatuses(engineErrorEntries),
+}
+
 const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
 const HubOutcome = z
   .object({ok: z.literal(true), note: z.string().optional()})
   .or(z.object({ok: z.literal(false), message: z.string()}))
-const registryCallErrors = {
-  UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
-  INVALID_ARGS: {message: 'the tool rejected the arguments'},
-  HANDLER_ERROR: {message: 'the tool failed to run'},
-  APPROVAL_DENIED: {message: 'the call was not approved'},
-}
-
-export type RegistryCallErrorName = keyof typeof registryCallErrors
 
 export const ToolCommandSignatureSchema = z.object({
   name: z.string(),
@@ -265,25 +260,6 @@ export const CodeDescriptionsSchema = z.object({execute: z.string(), discover: z
 
 export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
 
-const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this engine'}}
-
-const pluginRpcFailed = {
-  PLUGIN_RPC: {
-    status: 400,
-    message: 'the plugin rpc call failed',
-    data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
-  },
-  PLUGIN_RPC_INTERNAL: {
-    status: 500,
-    message: 'the plugin rpc call failed inside the plugin',
-    data: z.object({
-      type: z.enum(['rpc.internal', 'rpc.invalid_output']),
-      message: z.string(),
-      data: z.unknown().optional(),
-    }),
-  },
-}
-
 const LocationPublicRefSchema = z.object({directory: z.string()})
 
 function locationResponse<Data extends z.ZodType>(data: Data) {
@@ -299,22 +275,6 @@ export const EventEnvelopeSchema = z.object({
   location: LocationPublicRefSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
-
-const pluginNotFound = {
-  PLUGIN_NOT_FOUND: {
-    status: 404,
-    message: 'no active plugin with a ./plugin-experimental bundle',
-    data: z.object({pluginId: z.string(), message: z.string()}),
-  },
-}
-
-const pluginChunkNotFound = {
-  PLUGIN_CHUNK_NOT_FOUND: {
-    status: 404,
-    message: "no such chunk in the plugin's current build",
-    data: z.object({pluginId: z.string(), file: z.string()}),
-  },
-}
 
 const PluginIdSchema = z.string().min(1).max(256)
 
@@ -425,17 +385,6 @@ const PtyOutputItemSchema = z.union([
   TtyServerControlSchema,
 ])
 const PTY_WRITE_MAX = 1024 * 1024
-const ptyNotFound = {
-  PTY_NOT_FOUND: {status: 404, message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
-}
-const slowConsumer = {
-  SLOW_CONSUMER: {
-    message: 'the reader fell too far behind the terminal output',
-    data: z.object({capacity: z.number()}),
-  },
-}
-const noTty = {NO_TTY: {message: "the session's harness has no terminal command"}}
-const ptyBusy = {BUSY: {message: 'the terminal CLI is busy'}}
 
 export const contract = {
   auth: {
@@ -445,7 +394,7 @@ export const contract = {
     exchange: oc.input(z.object({code: z.string().regex(LOGIN_CODE_PATTERN)})).output(ExchangeResultSchema),
     requestCode: oc.input(z.object({reissue: z.boolean().optional()})).output(z.object({expiresAt: z.number()})),
     issueCode: oc
-      .errors({FORBIDDEN: {message: 'only the engine token may issue a login code'}})
+      .errors(engineContractErrors('FORBIDDEN'))
       .output(z.object({code: z.string().regex(LOGIN_CODE_PATTERN), expiresAt: z.number()})),
   },
   sessions: {
@@ -453,60 +402,49 @@ export const contract = {
       .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
       .output(SessionPageSchema),
     search: oc.input(SessionSearchInput).output(SessionSearchPageSchema),
-    changes: oc.output(eventIterator(SessionsChangeSchema)),
+    changes: oc.output(asyncIteratorObject(SessionsChangeSchema)),
     get: oc
-      .errors({...notFound, ...approvalDenied})
+      .errors(engineContractErrors('NOT_FOUND', 'APPROVAL_DENIED'))
       .input(SessionIdInput)
       .output(SessionMetaSchema),
-    preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
+    preview: oc.errors(engineContractErrors('NOT_FOUND')).input(SessionPreviewInput).output(SessionPreviewSchema),
     create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
     resolve: oc
-      .errors(notFound)
+      .errors(engineContractErrors('NOT_FOUND'))
       .input(z.object({id: z.string().optional()}))
       .output(SessionIdInput),
-    open: oc.errors(notFound).input(NativeSessionRefSchema).output(SessionIdInput),
-    restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),
+    open: oc.errors(engineContractErrors('NOT_FOUND')).input(NativeSessionRefSchema).output(SessionIdInput),
+    restore: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(SessionIdInput),
     rename: oc
-      .errors({...notFound, ...approvalDenied})
+      .errors(engineContractErrors('NOT_FOUND', 'APPROVAL_DENIED'))
       .input(SessionIdInput.extend({title: z.string().min(1).max(120)}))
       .output(z.object({title: z.string()})),
-    delete: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
+    delete: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(Ok),
     model: oc
-      .errors({...notFound, ...approvalDenied, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
+      .errors(engineContractErrors('NOT_FOUND', 'APPROVAL_DENIED', 'UNKNOWN_MODEL'))
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
     effort: oc
-      .errors({
-        ...notFound,
-        ...approvalDenied,
-        UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'},
-      })
+      .errors(engineContractErrors('NOT_FOUND', 'APPROVAL_DENIED', 'UNSUPPORTED_EFFORT'))
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
-    compact: oc
-      .errors({...notFound, ...approvalDenied})
-      .input(SessionIdInput)
-      .output(Ok),
+    compact: oc.errors(engineContractErrors('NOT_FOUND', 'APPROVAL_DENIED')).input(SessionIdInput).output(Ok),
     switchHarness: oc
-      .errors({
-        ...notFound,
-        ...approvalDenied,
-        UNKNOWN_HARNESS: {message: 'that harness is not available'},
-        UNKNOWN_MODEL: {message: 'the target harness does not offer that model'},
-        SESSION_RUNNING: {message: 'the session has a run in progress'},
-      })
+      .errors(
+        engineContractErrors('NOT_FOUND', 'APPROVAL_DENIED', 'UNKNOWN_HARNESS', 'UNKNOWN_MODEL', 'SESSION_RUNNING'),
+      )
       .input(SessionIdInput.extend({harnessId: z.string().min(1), model: z.string().min(1).optional()}))
       .output(z.object({harnessId: z.string()})),
   },
   tabs: {
     open: oc
-      .errors({...notFound, ...tabUnavailable})
+      .errors(engineContractErrors('NOT_FOUND', 'UNAVAILABLE'))
       .input(BrowserTabOpen)
       .output(z.enum(['closed', 'replaced'])),
-    state: oc.errors(tabUnavailable).input(BrowserTabOpen).output(Ok),
+    state: oc.errors(engineContractErrors('UNAVAILABLE')).input(BrowserTabOpen).output(Ok),
     list: oc.input(SessionIdInput).output(BrowserTabList),
     sessions: oc.output(z.array(SessionId)),
-    changes: oc.output(eventIterator(BrowserTabsChange)),
+    changes: oc.output(asyncIteratorObject(BrowserTabsChange)),
   },
   jobs: {
     list: oc.input(JobListInput).output(JobList),
@@ -516,132 +454,132 @@ export const contract = {
     all: oc.input(SettingsInput).output(SettingsSnapshotSchema),
     set: oc.input(SettingsKeyInput.extend({value: z.unknown()})).output(SettingsSnapshotSchema),
     delete: oc.input(SettingsKeyInput).output(SettingsSnapshotSchema),
-    changes: oc.input(SettingsInput).output(eventIterator(SettingsSnapshotSchema)),
+    changes: oc.input(SettingsInput).output(asyncIteratorObject(SettingsSnapshotSchema)),
   },
   drafts: {
-    get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc.errors(approvalDenied).input(DraftRowSchema).output(Ok),
+    get: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(DraftRowSchema.nullable()),
+    set: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(DraftRowSchema).output(Ok),
   },
   markers: {
-    list: oc.errors(approvalDenied).input(SessionIdInput).output(z.array(MarkerRowSchema)),
+    list: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(z.array(MarkerRowSchema)),
   },
   chat: {
-    events: oc.errors(approvalDenied).input(SessionIdInput).output(ChatEventStreamSchema),
-    send: oc.errors(approvalDenied).input(ChatSendInput).output(ChatEventStreamSchema),
-    join: oc.errors(approvalDenied).input(ChatJoinInput).output(ChatEventStreamSchema),
+    events: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(ChatEventStreamSchema),
+    send: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(ChatSendInput).output(ChatEventStreamSchema),
+    join: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(ChatJoinInput).output(ChatEventStreamSchema),
     hydrate: oc
-      .errors(approvalDenied)
+      .errors(engineContractErrors('APPROVAL_DENIED'))
       .input(SessionIdInput.extend(ChatHistoryWindowSchema.shape))
       .output(ChatHydrationSchema),
     stop: oc
-      .errors(approvalDenied)
+      .errors(engineContractErrors('APPROVAL_DENIED'))
       .input(SessionIdInput.extend({runIds: z.array(z.string().min(1))}))
       .output(Ok),
     permissionDecision: oc
-      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending approval'}})
+      .errors(engineContractErrors('APPROVAL_DENIED', 'UNKNOWN_REQUEST'))
       .input(PermissionDecisionSchema)
       .output(Ok),
     uiReply: oc
-      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending ui question'}})
+      .errors(engineContractErrors('APPROVAL_DENIED', 'UNKNOWN_REQUEST'))
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
       .output(Ok),
   },
   registry: {
     catalog: oc.output(z.array(ToolCommandSignatureSchema)),
-    call: oc
-      .errors(registryCallErrors)
+    invoke: oc
+      .errors(engineContractErrors('UNKNOWN_TOOL', 'INVALID_ARGS', 'HANDLER_ERROR', 'APPROVAL_DENIED'))
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
   },
   code: {
-    describe: oc.errors({...noCodeMode, ...approvalDenied}).output(CodeDescriptionsSchema),
+    describe: oc.errors(engineContractErrors('NO_CODE_MODE', 'APPROVAL_DENIED')).output(CodeDescriptionsSchema),
     execute: oc
-      .errors({...noCodeMode, ...approvalDenied})
+      .errors(engineContractErrors('NO_CODE_MODE', 'APPROVAL_DENIED'))
       .input(CodeSessionInput.extend({typescriptCode: z.string()}))
       .output(CodeExecuteResultSchema),
     discover: oc
-      .errors({...noCodeMode, ...approvalDenied})
+      .errors(engineContractErrors('NO_CODE_MODE', 'APPROVAL_DENIED'))
       .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
       .output(CodeDiscoverResultSchema),
   },
   meta: {
-    models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
+    models: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
-    commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
+    commands: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.input(SessionIdInput).output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     project: oc.output(ProjectSchema),
-    hubAgents: oc.output(eventIterator(HubAgentsSchema)),
-    connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
-    disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+    hubAgents: oc.output(asyncIteratorObject(HubAgentsSchema)),
+    connectHub: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(HubHarnessInput).output(HubOutcome),
+    disconnectHub: oc.errors(engineContractErrors('APPROVAL_DENIED')).input(HubHarnessInput).output(HubOutcome),
   },
   skill: {
-    list: oc.errors(approvalDenied).output(locationResponse(z.array(SkillInfoSchema))),
+    list: oc.errors(engineContractErrors('APPROVAL_DENIED')).output(locationResponse(z.array(SkillInfoSchema))),
   },
   agent: {
-    list: oc.errors(approvalDenied).output(locationResponse(z.array(AgentInfoSchema))),
+    list: oc.errors(engineContractErrors('APPROVAL_DENIED')).output(locationResponse(z.array(AgentInfoSchema))),
   },
   fs: {
     find: oc
-      .errors(approvalDenied)
+      .errors(engineContractErrors('APPROVAL_DENIED'))
       .input(FileSystemFindInputSchema)
       .output(locationResponse(z.array(FileSystemEntrySchema))),
   },
   plugin: {
-    call: oc
-      .errors({...pluginRpcFailed, ...approvalDenied})
+    invoke: oc
+      .errors(engineContractErrors('PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL', 'APPROVAL_DENIED'))
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
-    list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
+    list: oc.errors(engineContractErrors('APPROVAL_DENIED')).output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
-      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
+      .errors(engineContractErrors('PLUGIN_NOT_FOUND', 'PLUGIN_CHUNK_NOT_FOUND', 'APPROVAL_DENIED'))
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
     experimentalChunk: oc
-      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
+      .errors(engineContractErrors('PLUGIN_NOT_FOUND', 'PLUGIN_CHUNK_NOT_FOUND', 'APPROVAL_DENIED'))
       .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
       .output(locationResponse(PluginExperimentalChunksSchema)),
   },
   experimental: {
     persistentPty: {
       create: oc
-        .errors({...noTty, ...approvalDenied})
+        .errors(engineContractErrors('NO_TTY', 'APPROVAL_DENIED'))
         .input(z.object({sessionId: SessionId, size: PtySizeSchema.optional(), model: z.string().min(1).optional()}))
         .output(PersistentPtyInfoSchema),
       remove: oc
-        .errors({...ptyNotFound, ...ptyBusy, ...approvalDenied})
+        .errors(engineContractErrors('PTY_NOT_FOUND', 'BUSY', 'APPROVAL_DENIED'))
         .input(PtyIdInput)
         .output(Ok),
       output: oc
-        .errors({...ptyNotFound, ...slowConsumer, ...approvalDenied})
+        .errors(engineContractErrors('PTY_NOT_FOUND', 'SLOW_CONSUMER', 'APPROVAL_DENIED'))
         .input(PtyIdInput.extend({cursor: PtyCursorSchema.optional()}))
-        .output(eventIterator(PtyOutputItemSchema)),
+        .output(asyncIteratorObject(PtyOutputItemSchema)),
       write: oc
-        .errors({...ptyNotFound, ...approvalDenied})
+        .errors(engineContractErrors('PTY_NOT_FOUND', 'APPROVAL_DENIED'))
         .input(PtyIdInput.extend({data: z.string().min(1).max(PTY_WRITE_MAX)}))
         .output(Ok),
       resize: oc
-        .errors({...ptyNotFound, ...approvalDenied})
+        .errors(engineContractErrors('PTY_NOT_FOUND', 'APPROVAL_DENIED'))
         .input(PtyIdInput.extend(PtySizeSchema.shape))
         .output(Ok),
       inject: oc
-        .errors({...ptyNotFound, ...approvalDenied})
+        .errors(engineContractErrors('PTY_NOT_FOUND', 'APPROVAL_DENIED'))
         .input(PtyIdInput.extend({text: z.string().min(1).max(4096)}))
         .output(Ok),
     },
   },
   logs: {
-    level: oc.output(eventIterator(LogLevels)),
+    level: oc.output(asyncIteratorObject(LogLevels)),
     setLevel: oc.input(SetLogLevelInput).output(LogLevels),
     write: oc.input(LogsWriteInput).output(Ok),
     query: oc.input(LogsQueryInput).output(LogsQueryOutput),
-    tail: oc.input(LogsTailInput).output(eventIterator(LogEvent)),
+    tail: oc.input(LogsTailInput).output(asyncIteratorObject(LogEvent)),
     cleanup: oc.output(LogsCleanupOutput),
   },
   event: {
     subscribe: oc
-      .errors(approvalDenied)
+      .errors(engineContractErrors('APPROVAL_DENIED'))
       .input(z.object({types: z.array(z.string().min(1)).optional()}).optional())
-      .output(eventIterator(EventEnvelopeSchema)),
+      .output(asyncIteratorObject(EventEnvelopeSchema)),
   },
 }

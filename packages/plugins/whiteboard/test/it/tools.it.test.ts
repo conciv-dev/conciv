@@ -13,7 +13,7 @@ describe.concurrent('the agent is told about the whiteboard', () => {
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await engine.reply(TestLLM.text('I can draw that on the whiteboard'))
     await engine.session.send('Sketch the login flow')
 
@@ -35,7 +35,7 @@ describe.concurrent('the agent works a comment thread on the board', () => {
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
 
     expect(
@@ -161,7 +161,7 @@ describe.concurrent('a source-linked comment follows its element as the code cha
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.write(
       'src/Cart.tsx',
@@ -309,7 +309,7 @@ describe.concurrent('in a git project a source-linked comment records the commit
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']}, {git: true})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']}, {git: true})
     const cart = [
       'export function Cart() {',
       '  return (',
@@ -359,7 +359,7 @@ describe.concurrent('a human comment on a source element gets its source details
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.write(
       'src/Cart.tsx',
@@ -409,7 +409,7 @@ describe.concurrent('a draft left when a turn ends is sent to be published', () 
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.rpc.call('whiteboard', 'elements.upsert', {
       room,
@@ -435,7 +435,7 @@ describe.concurrent('anchors never leak secrets or reach outside the project', (
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await engine.write(
       'src/Billing.tsx',
       ['export function Billing() {', '  return <div data-key="sk_live_abcdefgh1234">Pay now</div>', '}', ''].join(
@@ -499,7 +499,7 @@ describe.concurrent('with no canvas open, the canvas tools answer without waitin
     expect,
   }) => {
     const engine = await createEngine({
-      plugins: [['@internal/plugin-whiteboard', {drawDeadlineMs: 50, exportDeadlineMs: 50, commitDeadlineMs: 50}]],
+      plugins: [['@conciv/plugin-whiteboard', {drawDeadlineMs: 50, exportDeadlineMs: 50, commitDeadlineMs: 50}]],
     })
 
     expect(await engine.session.tool('whiteboard_canvas_preview').call({})).toEqual({
@@ -591,7 +591,7 @@ describe.concurrent('with no canvas open, the canvas tools answer without waitin
     })
 
     const withTab = await createEngine({
-      plugins: [['@internal/plugin-whiteboard', {drawDeadlineMs: 10_000, commitDeadlineMs: 50}]],
+      plugins: [['@conciv/plugin-whiteboard', {drawDeadlineMs: 10_000, commitDeadlineMs: 50}]],
     })
     const board = withTab.session.id
     const box = {type: 'rectangle', x: 0, y: 0, width: 80, height: 40}
@@ -620,7 +620,7 @@ describe.concurrent('with no canvas open, the canvas tools answer without waitin
 
 describe.concurrent('the board lives in the engine state', () => {
   test('comments and canvas elements are still there after the engine restarts', async ({createEngine, expect}) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.session.tool('whiteboard_comment_create').call({
       cid: 'kept-note',
@@ -653,7 +653,7 @@ describe.concurrent("a canvas tab keeps the board through the plugin's rpc", () 
     createEngine,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     const pin = {
       id: 'pin-1',

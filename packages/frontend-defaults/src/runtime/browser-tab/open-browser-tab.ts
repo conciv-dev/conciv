@@ -2,6 +2,7 @@ import {log} from 'evlog'
 import {Cause, Duration, Effect, Option, Schedule, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
 import type {ConcivClient} from '@conciv/client'
+import {createEffectClient} from '@orpc/effect'
 import {BrowserTab, type BrowserTabId} from '@conciv/protocol/schema/browser-tab'
 import {SECRET_KEY} from '@conciv/types/secret-key'
 
@@ -91,18 +92,14 @@ function sessionCreated(input: OpenBrowserTab, signal: AbortSignal) {
 }
 
 function held(input: OpenBrowserTab, signal: AbortSignal): Effect.Effect<void, unknown> {
-  const opened = Effect.tryPromise({
-    try: () =>
-      input.client.tabs.open(
-        {
-          sessionId: input.sessionId,
-          connectionId: input.browserTab.connectionId,
-          tab: readBrowserTab(input.browserTab.id, input.redact),
-        },
-        {signal},
-      ),
-    catch: (cause) => cause,
-  })
+  const opened = createEffectClient(input.client.tabs).open(
+    {
+      sessionId: input.sessionId,
+      connectionId: input.browserTab.connectionId,
+      tab: readBrowserTab(input.browserTab.id, input.redact),
+    },
+    {signal},
+  )
   return opened.pipe(
     Effect.asVoid,
     Effect.catchIf(
@@ -117,28 +114,26 @@ function held(input: OpenBrowserTab, signal: AbortSignal): Effect.Effect<void, u
 }
 
 function reported(input: OpenBrowserTab, signal: AbortSignal) {
-  return Effect.tryPromise({
-    try: () =>
-      input.client.tabs.state(
-        {
-          sessionId: input.sessionId,
-          connectionId: input.browserTab.connectionId,
-          tab: readBrowserTab(input.browserTab.id, input.redact),
-        },
-        {signal},
+  return createEffectClient(input.client.tabs)
+    .state(
+      {
+        sessionId: input.sessionId,
+        connectionId: input.browserTab.connectionId,
+        tab: readBrowserTab(input.browserTab.id, input.redact),
+      },
+      {signal},
+    )
+    .pipe(
+      Effect.retry({schedule: STATE_RETRY, while: (cause) => readCode(cause) === 'UNAVAILABLE'}),
+      Effect.catch((cause) =>
+        Effect.sync(
+          () =>
+            signal.aborted ||
+            log.warn({action: 'browser tab', message: 'reporting the browser tab failed', error: cause}),
+        ),
       ),
-    catch: (cause) => cause,
-  }).pipe(
-    Effect.retry({schedule: STATE_RETRY, while: (cause) => readCode(cause) === 'UNAVAILABLE'}),
-    Effect.catch((cause) =>
-      Effect.sync(
-        () =>
-          signal.aborted ||
-          log.warn({action: 'browser tab', message: 'reporting the browser tab failed', error: cause}),
-      ),
-    ),
-    Effect.asVoid,
-  )
+      Effect.asVoid,
+    )
 }
 
 export const openBrowserTab = Effect.fn('BrowserTab.open')(function* (input: OpenBrowserTab) {

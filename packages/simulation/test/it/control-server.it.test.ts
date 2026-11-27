@@ -10,7 +10,8 @@ import {
   type SemanticNode,
   type UiState,
 } from '@conciv/protocol/simulation'
-import {implement} from '@orpc/server'
+import {implement, ORPCError} from '@orpc/server'
+import {contractCode} from '@conciv/protocol'
 import {byRole, clickByRole, connectUi, typeInto} from '../../src/frontend.js'
 import * as SimulationControlServer from '../../src/control-server.js'
 import {connectDriver, text} from '../../src/driver.js'
@@ -119,17 +120,26 @@ describe('simulation handshake', () => {
     {
       name: 'rejects a client that expects the other role',
       given: expectingUi,
-      outcome: {type: 'refused', refusal: {code: 'ROLE_MISMATCH', data: {expected: 'ui', actual: 'backend'}}},
+      outcome: {
+        type: 'refused',
+        refusal: {code: 'simulation.ROLE_MISMATCH', message: 'Expected simulation endpoint role ui, received backend'},
+      },
     },
     {
       name: 'rejects unsupported protocol versions',
       given: {...params, offeredVersions: [2]},
-      outcome: {type: 'refused', refusal: {code: 'UNSUPPORTED_PROTOCOL', data: {offered: [2], supported: [1]}}},
+      outcome: {type: 'refused', refusal: {code: 'simulation.UNSUPPORTED_PROTOCOL', status: 400}},
     },
     {
       name: 'rejects a missing required capability',
       given: {...params, requiredCapabilities: ['llm.subscribe', 'llm.future']},
-      outcome: {type: 'refused', refusal: {code: 'MISSING_CAPABILITY', data: {missing: ['llm.future']}}},
+      outcome: {
+        type: 'refused',
+        refusal: {
+          code: 'simulation.MISSING_CAPABILITY',
+          message: 'Simulation endpoint is missing required capabilities: llm.future',
+        },
+      },
     },
     {
       name: 'ignores a missing optional capability',
@@ -163,7 +173,7 @@ describe('simulation ui protocol', () => {
     })
     expect(dispatchHandshake({...ui, role: 'backend'}, params)).toMatchObject({
       type: 'refused',
-      refusal: {code: 'ROLE_MISMATCH'},
+      refusal: {code: 'simulation.ROLE_MISMATCH'},
     })
   })
 })
@@ -181,15 +191,13 @@ describe('the driver on the engine ui endpoint', () => {
       throw new Error('the fake widget does not do that')
     }
     const router = os.router({
-      handshake: os.handshake.handler(({input, errors}) => {
+      handshake: os.handshake.handler(({input}) => {
         const outcome = dispatchHandshake(
           {role: 'ui', server: {name: 'fake-widget', version: 'test'}, capabilities},
           input,
         )
         if (outcome.type === 'accepted') return outcome.response
-        if (outcome.refusal.code === 'MISSING_CAPABILITY') throw errors.MISSING_CAPABILITY(outcome.refusal)
-        if (outcome.refusal.code === 'ROLE_MISMATCH') throw errors.ROLE_MISMATCH(outcome.refusal)
-        throw errors.UNSUPPORTED_PROTOCOL(outcome.refusal)
+        throw new ORPCError(contractCode(outcome.refusal), {message: outcome.refusal.message})
       }),
       ui: {
         state: os.ui.state.handler(shown),
@@ -250,7 +258,7 @@ describe('the driver on the engine ui endpoint', () => {
     await whileServed(endpoint, ['ui.state', 'ui.snapshot'], async () => {
       await expect(connectUi(endpoint)).rejects.toMatchObject({
         code: 'MISSING_CAPABILITY',
-        data: {missing: ['ui.click.semantic', 'ui.focus', 'ui.type', 'ui.press']},
+        message: 'Simulation endpoint is missing required capabilities: ui.click.semantic, ui.focus, ui.type, ui.press',
       })
     })
   })

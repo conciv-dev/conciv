@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-page",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "conciv's page plugin: the engine part (the connection to the page, its tools, skill and RPC contract) and the browser part the widget runs (DOM helpers, page operations, cards).",
   "keywords": [
     "conciv",

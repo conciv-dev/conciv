@@ -1,10 +1,12 @@
 import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
-import type {ContractRouterClient} from '@orpc/contract'
+import type {RouterContractClient} from '@orpc/contract'
+import {contractCode} from '@conciv/protocol'
 import {
   backendContract,
   ItemSchema,
   PROTOCOL_VERSION,
+  simulationErrors,
   type FinishReason,
   type Item,
   type LlmNotification,
@@ -48,7 +50,7 @@ export function hang(): Answer {
   return {kind: 'hang'}
 }
 
-export type DriveClient = ContractRouterClient<typeof backendContract>
+export type DriveClient = RouterContractClient<typeof backendContract>
 
 export type Handler = (request: ModelRequest) => Answer | Promise<Answer>
 
@@ -68,13 +70,13 @@ type DriverState = {
 }
 
 function ended(error: unknown): boolean {
-  return error instanceof ORPCError && error.code === 'INVOCATION_NOT_FOUND'
+  return error instanceof ORPCError && error.code === contractCode(simulationErrors.INVOCATION_NOT_FOUND)
 }
 
 function opened(websocket: WebSocket): Promise<void> {
   return new Promise((resolve, reject) => {
     websocket.addEventListener('open', () => resolve(), {once: true})
-    websocket.addEventListener('error', () => reject(new Error(`the driver could not connect to ${websocket.url}`)), {
+    websocket.addEventListener('error', () => reject(simulationErrors.DRIVER_UNREACHABLE({url: websocket.url})), {
       once: true,
     })
   })
@@ -114,7 +116,7 @@ async function listen(turns: AsyncIterable<LlmNotification>, client: DriveClient
 export async function connectDriver(url: string): Promise<Driver> {
   const websocket = new WebSocket(url)
   await opened(websocket)
-  const client: DriveClient = createORPCClient(new RPCLink({websocket}))
+  const client: DriveClient = createORPCClient(new RPCLink({connect: () => websocket}))
   const closing = new AbortController()
   const state: DriverState = {handler: undefined, waiting: [], answering: new Set(), failures: []}
   const turns = await client

@@ -60,7 +60,6 @@ type IndexProcedure<Input extends z.ZodType, Output> = Procedure<
   Record<never, never>,
   Input,
   Schema<Output, Output>,
-  Record<never, never>,
   Record<never, never>
 >
 type IndexedListing = {

@@ -1,6 +1,6 @@
 {
   "name": "tanstack-start-example",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "private": true,
   "type": "module",
   "imports": {
@@ -23,8 +23,8 @@
     "@conciv/plugin-recorder": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
+    "@conciv/plugin-whiteboard": "workspace:*",
     "@conciv/types": "workspace:*",
-    "@internal/plugin-whiteboard": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-form": "^1.33.5",

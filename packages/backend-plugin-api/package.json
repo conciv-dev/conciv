@@ -1,6 +1,6 @@
 {
   "name": "@conciv/backend-plugin-api",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "The conciv engine plugin API: Plugin.define for a plugin's engine part, the rpc contract helpers, the tool and context types a plugin author imports.",
   "keywords": [
     "conciv",

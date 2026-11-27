@@ -74,7 +74,7 @@ import {
 import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
 import {SessionInbox} from '../backend-defaults.js'
 import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plugin'
-import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
+import {makeCallContext, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {readModel} from '../db/read-model.js'
 import {openDb, type ConcivDb} from '../db/connection.js'
 import {sessions} from '@conciv/backend-app-api/core/session/sql'
@@ -123,7 +123,9 @@ import {
 import type {OpenInEditor} from './editor/open.js'
 import {writePrivateFile} from './lib/dev-endpoint.js'
 import type {EngineRuntime} from './lib/logging.js'
-import type {LogOptions} from '../util/observability/host-sink.js'
+import {ORPCInstrumentation} from '@orpc/opentelemetry'
+import type {DrainContext, RequestLogger} from 'evlog'
+import {logAtLevel, type LogOptions} from '../util/observability/host-sink.js'
 import * as LogLevel from '../util/observability/log-level.js'
 import * as LogStore from '../util/observability/log-store.js'
 import type {SimulationParts} from './lib/simulation.js'
@@ -369,9 +371,10 @@ function composeRoutes(
     trust: ConnectionTrust
     runtime: EngineRuntime
     tracer: Tracer | undefined
+    callContext: (logger: RequestLogger | undefined) => Promise<object>
   },
 ) {
-  const traceCall = deps.tracer === undefined ? undefined : rpcSpan(deps.tracer)
+  const drain = rpcEventDrain(deps.runtime)
   const app = new Hono<{Variables: CoreVars; Bindings: ServeBindings}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -402,19 +405,37 @@ function composeRoutes(
         upgrade: upgradeWebSocket,
         onError: (message) => deps.runtime.runFork(Effect.logError(message)),
         gate: (c) => rpcSocketGate(deps.trust, c.req.url),
-        traceCall,
+        callContext: deps.callContext,
+        drain,
       }),
     )
     .use(
       `${RPC_PREFIX}/*`,
-      rpcFetchMiddleware(rpc, {traceCall, engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url))}),
+      rpcFetchMiddleware(rpc, {
+        callContext: deps.callContext,
+        drain,
+        engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url)),
+      }),
     )
     .route('/api/mcp', mcpApp)
 }
 
-function rpcSpan(tracer: Tracer) {
-  return (path: readonly string[], call: () => Promise<unknown>): Promise<unknown> =>
-    inSpan(tracer, `Rpc.${path.join('.')}`, {'rpc.procedure': path.join('.')}, call, {root: true})
+const RpcEventSchema = z.object({rpc: z.object({method: z.string()})})
+
+function rpcEventDrain(runtime: EngineRuntime): (drained: DrainContext) => void {
+  return ({event}) => {
+    const {level, ...fields} = event
+    const method = RpcEventSchema.safeParse(event).data?.rpc.method ?? 'unknown'
+    runtime.runFork(logAtLevel(level, `rpc ${method}`).pipe(Effect.annotateLogs(fields)))
+  }
+}
+
+function instrumentRpc(tracer: Tracer | undefined): () => void {
+  if (tracer === undefined) return () => undefined
+  const instrumentation = new ORPCInstrumentation({propagation: false})
+  instrumentation.setTracerProvider({getTracer: () => tracer})
+  instrumentation.enable()
+  return () => instrumentation.disable()
 }
 
 function mcpSpan(tracer: Tracer): MiddlewareHandler {
@@ -984,8 +1005,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       trust,
       runtime: pluginHost,
       tracer,
+      callContext: makeCallContext(pluginHost),
     },
   )
+  const uninstrumentRpc = instrumentRpc(tracer)
 
   if (opts.widgetPageDir) app.route(WIDGET_PAGE_PATH, makeWidgetPageApp(opts.widgetPageDir))
 
@@ -1009,6 +1032,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           disposeStep('closeBrowsers', () => browsers.close()),
           disposeStep('disposePluginHost', () => pluginHost.dispose()),
           disposeStep('closeDatabase', closeDb),
+          disposeStep('uninstrumentRpc', uninstrumentRpc),
         ],
         'conciv: disposing the engine failed',
       ),

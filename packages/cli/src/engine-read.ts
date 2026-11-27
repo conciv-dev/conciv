@@ -2,7 +2,8 @@ import {checkEngines, type EngineRow} from '@conciv/home'
 import {z} from 'zod'
 import {ORPCError} from '@orpc/client'
 import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
-import type {Project, SessionMeta} from '@conciv/protocol'
+import {contractCode, engineErrors, type Project, type SessionMeta} from '@conciv/protocol'
+import {cliErrors} from './failure.js'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 import {SessionId} from '@conciv/types/chat-types'
 
@@ -68,12 +69,12 @@ export function liveEngines(home: string): Promise<Checked> {
 export async function runningEngines(home: string): Promise<Checked> {
   const checked = await liveEngines(home)
   if (checked.live.length > 0 || checked.unreachable.length > 0) return checked
-  throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
+  throw cliErrors.NO_ENGINE_RUNNING({home})
 }
 
 export function homeRead(home: string, reading: Promise<Checked>): Promise<Checked> {
   return reading.catch((error: unknown) => {
-    throw new Error(`cannot read the conciv home folder ${home}: ${errorText(error)}`, {cause: error})
+    throw cliErrors.HOME_UNREADABLE({home, reason: errorText(error), ...(error instanceof Error ? {cause: error} : {})})
   })
 }
 
@@ -159,7 +160,7 @@ async function sessionTab(
 
 function readMeta(rpc: EngineClient, sessionId: SessionId, options: Signal): Promise<SessionMeta | null> {
   return rpc.sessions.get({sessionId}, options).catch((error: unknown) => {
-    if (error instanceof ORPCError && error.code === 'NOT_FOUND') return null
+    if (error instanceof ORPCError && error.code === contractCode(engineErrors.NOT_FOUND)) return null
     throw error
   })
 }

@@ -6,7 +6,7 @@ Defines the oRPC `contract` router between the engine and its clients (auth, ses
 markers, chat, registry, code, meta, skill, agent, fs, plugin, experimental, event) and the zod row schemas
 those procedures use.
 
-- `contract.ts`: the router. `event.subscribe` is an eventIterator of
+- `contract.ts`: the router. `event.subscribe` is an asyncIteratorObject of
   `EventEnvelopeSchema`, the engine's one event stream; its envelope is not a typed union, the precise union is the
   SDK's type.
 - `rows.ts`: the session, draft and marker row schemas.
@@ -23,7 +23,7 @@ those procedures use.
 
 - `sessions.rename` requires `title` of 1-120 characters and declares `NOT_FOUND`; `sessions.model` declares `NOT_FOUND` and `UNKNOWN_MODEL`; `sessions.effort` takes a `ReasoningEffortSchema` value or null and declares `NOT_FOUND` and `UNSUPPORTED_EFFORT`; `sessions.switchHarness` takes a non-empty `harnessId` and an optional non-empty `model` and declares `NOT_FOUND`, `UNKNOWN_HARNESS`, `UNKNOWN_MODEL` and `SESSION_RUNNING`; `SessionMetaSchema` carries a nullable `effort` and `lastRunAt: number | null`, the start of the session's newest run (null until it has run) (`contract.ts`, `rows.ts`).
 - `chat.stop` requires each of `runIds` to be a non-empty string; `chat.permissionDecision` and `chat.uiReply` declare `UNKNOWN_REQUEST` (`contract.ts`).
-- `registry.call` requires a non-empty `name` and `input` as `record<string, unknown>`, and declares the `registryCallErrors` set (`contract.ts`).
+- `registry.invoke` requires a non-empty `name` and `input` as `record<string, unknown>`, and declares the `registryCallErrors` set (`contract.ts`).
 - `ToolCommandSignatureSchema.errors` defaults to `[]` (`contract.ts`).
 - `BrowserTabId` is `tab_` plus a 36-character UUID; a tab's `url` is at most 16 384 characters and its `title` at most 2 048 (`schema/browser-tab.ts`). `jobs.wait` takes 1-256 ids and `waitMs` 0-30 000; `jobs.list` at most 256 `toolCallIds` (`contract.ts:41-43`).
 - `StreamChunkSchema` checks only that a chunk is a non-null object, then casts it to `ChatEvent` (`contract.ts`).

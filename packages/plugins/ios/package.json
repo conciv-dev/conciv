@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-ios",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "The conciv iOS plugin: the engine part builds, runs, screenshots and reads the logs of a native iOS app on the simulator through xcodebuild, swiftc and simctl; the browser part is the WKWebView bridge the widget's native page speaks to the app.",
   "keywords": [
     "bridge",

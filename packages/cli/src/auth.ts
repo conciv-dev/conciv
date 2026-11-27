@@ -4,7 +4,7 @@ import {makeRpcClient} from '@conciv/client'
 import {readTrustedBrowsers, revokeBrowsers} from '@conciv/types/engine-trust'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {discoveredEngine, scopedOrigin} from './engine-origin.js'
-import {userFailure} from './failure.js'
+import {cliErrors} from './failure.js'
 import {engineAnswer} from './request.js'
 import {handler} from './router/handler.js'
 
@@ -23,9 +23,7 @@ type LinkOptions = {url: string; cwd: string}
 async function localEngine(cwd: string): Promise<NonNullable<Awaited<ReturnType<typeof discoveredEngine>>>> {
   const engine = await discoveredEngine(cwd)
   if (engine === undefined) {
-    throw userFailure('no conciv engine state found here or in any parent directory', {
-      hint: 'run this inside a project that has run the conciv dev server (it writes .conciv/server.json)',
-    })
+    throw cliErrors.NO_ENGINE_STATE()
   }
   return engine
 }
@@ -33,9 +31,7 @@ async function localEngine(cwd: string): Promise<NonNullable<Awaited<ReturnType<
 export async function runLink(options: LinkOptions): Promise<CliOutcome> {
   const engine = await localEngine(options.cwd)
   if (engine.token === undefined) {
-    throw userFailure('the conciv engine state holds no engine token', {
-      hint: 'restart the conciv dev server so it rewrites .conciv/server.json',
-    })
+    throw cliErrors.NO_ENGINE_TOKEN()
   }
   const {origin, token} = scopedOrigin(engine.port, engine.token)
   const issued = await engineAnswer(origin, makeRpcClient(origin, {token}).auth.issueCode())
@@ -53,9 +49,7 @@ export async function runRevoke(options: RevokeOptions): Promise<CliOutcome> {
     return {report: 'json', data: {revoked: [], trusted: await readTrustedBrowsers(engine.stateDir)}}
   const revoked = await revokeBrowsers(engine.stateDir, {id: options.id})
   if (revoked.length === 0) {
-    throw userFailure(`no trusted browser has the id "${options.id}"`, {
-      hint: 'run `conciv auth revoke` without an id to list the trusted browsers',
-    })
+    throw cliErrors.NO_TRUSTED_BROWSER({id: options.id})
   }
   return {report: 'json', data: {revoked, trusted: await readTrustedBrowsers(engine.stateDir)}}
 }

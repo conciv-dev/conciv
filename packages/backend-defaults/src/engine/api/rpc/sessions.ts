@@ -2,9 +2,8 @@ import {platform} from 'node:os'
 import {Effect} from 'effect'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
-import type {Router} from '@orpc/server'
-import type {contract, SessionHit, SessionMeta} from '@conciv/protocol'
-import type {RpcContext} from '@conciv/types/rpc-types'
+import type {ContractedRouter} from '@orpc/server'
+import {engineErrors, type contract, type SessionHit, type SessionMeta} from '@conciv/protocol'
 import {
   SessionId,
   type HarnessLoginStatus,
@@ -38,7 +37,7 @@ import {
 import type {EngineRuntime} from '../../lib/logging.js'
 import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
-import {os, type ChatContext, type RpcDeps} from './mount.js'
+import {os, type ChatContext, type EngineRpcContext, type RpcDeps} from './mount.js'
 import {inSpan} from '../../../ai.js'
 
 async function loadNativePage(
@@ -235,49 +234,57 @@ async function ensuredRow(chat: ChatContext, sessionId: SessionId): Promise<Sess
   return rowById(chat.db, sessionId)
 }
 
-export async function switchSessionModel(
+export function switchSessionModel(
   chat: ChatContext,
   sessionId: SessionId,
   model: string,
-): Promise<'switched' | 'missing' | 'unknown'> {
-  const row = await ensuredRow(chat, sessionId)
-  if (!row) return 'missing'
-  const models = await resolveHarnessModels(await chat.harnessFor(sessionId), {signal: chat.signal})
-  const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
-  if (!found) return 'unknown'
-  const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
-  const written = await Effect.runPromise(
-    chat.db
+): Effect.Effect<'switched' | 'missing' | 'unknown'> {
+  return Effect.gen(function* () {
+    const row = yield* Effect.promise(() => ensuredRow(chat, sessionId))
+    if (!row) return 'missing' as const
+    const models = yield* Effect.promise(async () =>
+      resolveHarnessModels(await chat.harnessFor(sessionId), {signal: chat.signal}),
+    )
+    const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
+    if (!found) return 'unknown' as const
+    const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
+    const written = yield* chat.db
       .update(sessions)
       .set({model, effort, updatedAt: Date.now()})
       .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameEffort(row.effort)))
-      .returning({id: sessions.id}),
-  )
-  return written.length > 0 ? 'switched' : switchSessionModel(chat, sessionId, model)
+      .returning({id: sessions.id})
+      .pipe(Effect.orDie)
+    if (written.length > 0) return 'switched' as const
+    return yield* switchSessionModel(chat, sessionId, model)
+  })
 }
 
-export async function switchSessionEffort(
+export function switchSessionEffort(
   chat: ChatContext,
   sessionId: SessionId,
   effort: ReasoningEffort | null,
-): Promise<'switched' | 'missing' | 'unsupported'> {
-  const row = await ensuredRow(chat, sessionId)
-  if (!row) return 'missing'
-  if (effort !== null) {
-    const harness = await chat.harnessFor(sessionId)
-    const models = await resolveHarnessModels(harness, {signal: chat.signal})
-    const modelId = row.model ?? (await harness.defaultModel?.()) ?? models[0]?.id
-    const current = models.find((model) => model.id === modelId)
-    if (!current?.efforts?.includes(effort)) return 'unsupported'
-  }
-  const written = await Effect.runPromise(
-    chat.db
+): Effect.Effect<'switched' | 'missing' | 'unsupported'> {
+  return Effect.gen(function* () {
+    const row = yield* Effect.promise(() => ensuredRow(chat, sessionId))
+    if (!row) return 'missing' as const
+    if (effort !== null) {
+      const supported = yield* Effect.promise(async () => {
+        const harness = await chat.harnessFor(sessionId)
+        const models = await resolveHarnessModels(harness, {signal: chat.signal})
+        const modelId = row.model ?? (await harness.defaultModel?.()) ?? models[0]?.id
+        return models.find((model) => model.id === modelId)?.efforts?.includes(effort) === true
+      })
+      if (!supported) return 'unsupported' as const
+    }
+    const written = yield* chat.db
       .update(sessions)
       .set({effort, updatedAt: Date.now()})
       .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameModel(row.model)))
-      .returning({id: sessions.id}),
-  )
-  return written.length > 0 ? 'switched' : switchSessionEffort(chat, sessionId, effort)
+      .returning({id: sessions.id})
+      .pipe(Effect.orDie)
+    if (written.length > 0) return 'switched' as const
+    return yield* switchSessionEffort(chat, sessionId, effort)
+  })
 }
 
 type SessionSearch = ReturnType<typeof createSessionSearch>
@@ -302,96 +309,111 @@ export function searchedSessionPage(
   return sessionPage(chat, input, input.term, (cursorPage) => search.pages(input.term, cursorPage, input.everywhere))
 }
 
-export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
+export function sessionsRouter(deps: RpcDeps): ContractedRouter<typeof contract.sessions, EngineRpcContext> {
   const chat = deps.chat
   const db = chat.db
   const scope = chat.rows
   const search = deps.search
   return {
-    list: os.sessions.list.handler(({input}) => listedSessionPage(chat, search, input)),
-    changes: os.sessions.changes.handler(({signal}) => search.changes(signal)),
-    search: os.sessions.search.handler(async ({input}) => {
-      const page = await searchedSessionPage(chat, search, input)
+    list: os.sessions.list.effect(function* ({input}) {
+      return yield* Effect.promise(() => listedSessionPage(chat, search, input))
+    }),
+    changes: os.sessions.changes.effect(function* ({signal}) {
+      return yield* Effect.sync(() => search.changes(signal))
+    }),
+    search: os.sessions.search.effect(function* ({input}) {
+      const page = yield* Effect.promise(() => searchedSessionPage(chat, search, input))
       return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: formatResume(chat, hit)}))}
     }),
-    get: os.sessions.get.handler(async ({input, errors}) => {
-      const meta = await rpcSessionMeta(chat, input.sessionId)
-      if (meta === null) throw errors.NOT_FOUND()
+    get: os.sessions.get.effect(function* ({input}) {
+      const meta = yield* Effect.promise(() => rpcSessionMeta(chat, input.sessionId))
+      if (meta === null) return yield* Effect.fail(engineErrors.NOT_FOUND())
       return meta
     }),
-    preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
+    preview: os.sessions.preview.effect(function* ({input, signal}) {
       const options = {limit: input.limit, before: input.before, signal}
-      const page =
+      const page = yield* Effect.promise(async () =>
         'sessionId' in input
-          ? await loadSavedPage(chat, await rowById(db, input.sessionId), options)
-          : await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, options)
+          ? loadSavedPage(chat, await rowById(db, input.sessionId), options)
+          : loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, options),
+      )
       if (page === null || (page.messages.length === 0 && page.earlier === null && input.before === null)) {
-        throw errors.NOT_FOUND()
+        return yield* Effect.fail(engineErrors.NOT_FOUND())
       }
       if ('cwd' in input && input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
-    create: os.sessions.create.handler(async () => {
-      const {sessionId} = await createChatSession(scope)
-      const session = await rpcSessionMeta(chat, sessionId)
-      if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
-      return {sessionId, session}
+    create: os.sessions.create.effect(function* () {
+      return yield* Effect.promise(async () => {
+        const {sessionId} = await createChatSession(scope)
+        const session = await rpcSessionMeta(chat, sessionId)
+        if (session === null) throw engineErrors.SESSION_VANISHED({sessionId})
+        return {sessionId, session}
+      })
     }),
-    resolve: os.sessions.resolve.handler(async ({input, errors}) => {
-      const resolved = await resolveRow(scope, input)
-      if (resolved === null) throw errors.NOT_FOUND()
+    resolve: os.sessions.resolve.effect(function* ({input}) {
+      const resolved = yield* Effect.promise(() => resolveRow(scope, input))
+      if (resolved === null) return yield* Effect.fail(engineErrors.NOT_FOUND())
       return resolved
     }),
-    open: os.sessions.open.handler(async ({input, errors}) => {
-      const opened = await openNativeRow(scope, input)
-      if (opened === null) throw errors.NOT_FOUND()
+    open: os.sessions.open.effect(function* ({input}) {
+      const opened = yield* Effect.promise(() => openNativeRow(scope, input))
+      if (opened === null) return yield* Effect.fail(engineErrors.NOT_FOUND())
       return opened
     }),
-    restore: os.sessions.restore.handler(async ({input}) => {
-      await restoreRow(db, input.sessionId)
+    restore: os.sessions.restore.effect(function* ({input}) {
+      yield* Effect.promise(() => restoreRow(db, input.sessionId))
       return {sessionId: input.sessionId}
     }),
-    rename: os.sessions.rename.handler(async ({input, errors}) => {
-      const outcome = await renameSession({db, search, pluginHost: deps.pluginHost}, input.sessionId, input.title)
-      if (outcome === 'missing') throw errors.NOT_FOUND()
+    rename: os.sessions.rename.effect(function* ({input}) {
+      const outcome = yield* Effect.promise(() =>
+        renameSession({db, search, pluginHost: deps.pluginHost}, input.sessionId, input.title),
+      )
+      if (outcome === 'missing') return yield* Effect.fail(engineErrors.NOT_FOUND())
       return outcome
     }),
-    delete: os.sessions.delete.handler(async ({input}) => {
-      await deleteSession({db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost}, input.sessionId)
+    delete: os.sessions.delete.effect(function* ({input}) {
+      yield* Effect.promise(() =>
+        deleteSession({db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost}, input.sessionId),
+      )
       return {ok: true as const}
     }),
-    model: os.sessions.model.handler(async ({input, errors}) => {
-      const outcome = await switchSessionModel(chat, input.sessionId, input.model)
-      if (outcome === 'missing') throw errors.NOT_FOUND()
-      if (outcome === 'unknown') throw errors.UNKNOWN_MODEL()
+    model: os.sessions.model.effect(function* ({input}) {
+      const outcome = yield* switchSessionModel(chat, input.sessionId, input.model)
+      if (outcome === 'missing') return yield* Effect.fail(engineErrors.NOT_FOUND())
+      if (outcome === 'unknown') return yield* Effect.fail(engineErrors.UNKNOWN_MODEL())
       return {model: input.model}
     }),
-    effort: os.sessions.effort.handler(async ({input, errors}) => {
-      const outcome = await switchSessionEffort(chat, input.sessionId, input.effort)
-      if (outcome === 'missing') throw errors.NOT_FOUND()
-      if (outcome === 'unsupported') throw errors.UNSUPPORTED_EFFORT()
+    effort: os.sessions.effort.effect(function* ({input}) {
+      const outcome = yield* switchSessionEffort(chat, input.sessionId, input.effort)
+      if (outcome === 'missing') return yield* Effect.fail(engineErrors.NOT_FOUND())
+      if (outcome === 'unsupported') return yield* Effect.fail(engineErrors.UNSUPPORTED_EFFORT())
       return {effort: input.effort}
     }),
-    switchHarness: os.sessions.switchHarness.handler(async ({input, errors}) => {
-      const row = await rowById(db, input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
+    switchHarness: os.sessions.switchHarness.effect(function* ({input}) {
+      const row = yield* Effect.promise(() => rowById(db, input.sessionId))
+      if (!row) return yield* Effect.fail(engineErrors.NOT_FOUND())
       const target = chat.harnesses.find((harness) => harness.id === input.harnessId)
-      if (!target) throw errors.UNKNOWN_HARNESS()
+      if (!target) return yield* Effect.fail(engineErrors.UNKNOWN_HARNESS())
       if (row.harnessKind === target.id) return {harnessId: target.id}
-      if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
+      if (yield* Effect.promise(() => chat.plane.live(input.sessionId)))
+        return yield* Effect.fail(engineErrors.SESSION_RUNNING())
       const model = input.model ?? null
       if (model !== null) {
-        const models = await resolveHarnessModels(target, {signal: chat.signal})
-        if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
+        const models = yield* Effect.promise(() => resolveHarnessModels(target, {signal: chat.signal}))
+        if (!models.some((listed) => listed.id === model && !listed.disabled))
+          return yield* Effect.fail(
+            engineErrors.UNKNOWN_MODEL({message: 'the target harness does not offer that model'}),
+          )
       }
-      if (chat.plane.driving(input.sessionId)) throw errors.SESSION_RUNNING()
-      await switchRowHarness(db, input.sessionId, target.id, model)
+      if (chat.plane.driving(input.sessionId)) return yield* Effect.fail(engineErrors.SESSION_RUNNING())
+      yield* Effect.promise(() => switchRowHarness(db, input.sessionId, target.id, model))
       return {harnessId: target.id}
     }),
-    compact: os.sessions.compact.handler(async ({input, errors}) => {
-      const row = await rowById(db, input.sessionId)
-      if (row === null || row.deletedAt !== null) throw errors.NOT_FOUND()
-      await deps.runtime.forSession(input.sessionId).run.compact()
+    compact: os.sessions.compact.effect(function* ({input}) {
+      const row = yield* Effect.promise(() => rowById(db, input.sessionId))
+      if (row === null || row.deletedAt !== null) return yield* Effect.fail(engineErrors.NOT_FOUND())
+      yield* Effect.promise(() => deps.runtime.forSession(input.sessionId).run.compact())
       return {ok: true as const}
     }),
   }

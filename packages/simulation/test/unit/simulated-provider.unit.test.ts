@@ -36,7 +36,10 @@ describe('simulated provider', () => {
         const late = yield* Effect.promise(() =>
           drive.client.llm.finish({id: opened.id}).catch((error: unknown) => error),
         )
-        expect(late).toMatchObject({code: 'INVOCATION_NOT_FOUND', data: {id: opened.id}})
+        expect(late).toMatchObject({
+          code: 'INVOCATION_NOT_FOUND',
+          message: `Simulated provider invocation not found or already finished: ${opened.id}`,
+        })
       }),
     ),
   )

@@ -41,7 +41,7 @@ export function streamInSpan<Value>(
   open: () => AsyncIterable<Value>,
 ): AsyncIterable<Value> {
   if (tracer === undefined) return open()
-  return tracer.startActiveSpan(name, {attributes}, (span) => spanned(span, new AsyncResource(name), open))
+  return tracer.startActiveSpan(name, {attributes, root: true}, (span) => spanned(span, new AsyncResource(name), open))
 }
 
 async function* spanned<Value>(

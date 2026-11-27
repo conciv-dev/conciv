@@ -3,6 +3,7 @@ import type {EngineClient} from '../connection/rpc-client.js'
 import {z} from 'zod'
 import type * as Rpc from '@conciv/protocol/schema/rpc'
 import type {ConcivEvent, RpcEvent} from './events.js'
+import {clientErrors} from '../connection/client-errors.js'
 
 export type RpcCallOptions = {readonly signal?: AbortSignal}
 
@@ -118,7 +119,7 @@ export function makeRpc(
       name: string,
       options?: RpcCallOptions,
     ): AsyncIterable<RpcEventPayload<Rpc.PortableDefinition>> => {
-      if (!Object.hasOwn(definition.events, name)) throw new Error(`Unknown RPC event: ${definition.id}.${name}`)
+      if (!Object.hasOwn(definition.events, name)) throw clientErrors.UNKNOWN_RPC_EVENT({id: definition.id, name})
       const type = eventType(definition, name)
       return {
         [Symbol.asyncIterator]() {
@@ -154,7 +155,7 @@ export function makeRpc(
           name,
           rpcMethod(server, definition.id, name, async (input, options) => {
             try {
-              return await raw.plugin.call({rpcId: definition.id, method: name, input}, {signal: options?.signal})
+              return await raw.plugin.invoke({rpcId: definition.id, method: name, input}, {signal: options?.signal})
             } catch (error) {
               const failure = RpcError.safeParse(error)
               if (!failure.success) throw error

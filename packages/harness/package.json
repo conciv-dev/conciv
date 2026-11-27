@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Harness adapters (claude, codex, + stubs) behind the @conciv/types HarnessAdapter contract.",
   "keywords": [
     "ai",

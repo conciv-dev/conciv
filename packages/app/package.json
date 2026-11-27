@@ -1,6 +1,6 @@
 {
   "name": "@conciv/app",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react, @conciv/preact and @conciv/solid wrapper components. The conciv widget bundle: mounts the conciv shell (@internal/frontend-defaults) into a Shadow DOM on the host page. Inlines the private shell and the built-in plugins' browser parts (page, terminal); externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",

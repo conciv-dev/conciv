@@ -1,6 +1,6 @@
 {
   "name": "@conciv/grab",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv element-grab contract: the grab data types (Grab/GrabPreview/DomPreview/ImagePreview/ElementSource) and the GrabActions picker shape shared by the widget and the page plugin.",
   "keywords": [
     "conciv",
