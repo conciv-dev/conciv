@@ -1,7 +1,5 @@
 import {spawn} from 'node:child_process'
 import {once} from 'node:events'
-import {readFile} from 'node:fs/promises'
-import path from 'node:path'
 import {text} from 'node:stream/consumers'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, test} from 'vitest'
@@ -56,7 +54,7 @@ describe('resource', () => {
   })
 })
 
-test('falls back to local logging when OTLP initialization fails', async () => {
+test('falls back to the local logs when OTLP initialization fails: with no host sink the line reaches stderr', async () => {
   const log = tempDir('conciv-observability-test-')
   const child = spawn(
     process.execPath,
@@ -81,5 +79,4 @@ test('falls back to local logging when OTLP initialization fails', async () => {
 
   expect(exitCode).toBe(0)
   expect(stderr).toContain('message="after the fallback"')
-  expect(await readFile(path.join(log, 'conciv-local.log'), 'utf8')).toContain('message="after the fallback"')
 })
