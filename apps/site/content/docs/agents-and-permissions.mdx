@@ -3,10 +3,10 @@ title: Agents and permissions
 description: 'What decides whether a tool call runs, asks you first, or is refused: agent profiles, rules and saved answers.'
 ---
 
-An agent profile is the engine's set of permission rules for the agent in a session. It is not the agent CLI: it is
+An agent profile is the engine's set of permission rules for the agent in a session. It is not the agent CLI. It is
 what the engine checks before a tool call runs. Each check ends in one of three effects: `allow`, `ask` or `deny`.
 
-## Overview
+## Set rules in your config
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -32,8 +32,8 @@ export default defineConfig({
 
 ## Agent profile
 
-The engine starts with one profile, `build`. It allows every action, and asks before it reads a `.env` file (but not
-`.env.example`). Plugins can change a profile, and your config rules are added to every profile. Learn more in the
+The engine starts with one profile, `build`. It allows every action. It asks before it reads a `.env` file, but not
+`.env.example`. Plugins can change a profile. The engine adds your config rules to every profile. Learn more in the
 [Ask for permission documentation](/docs/plugins/guides/permission).
 
 ## Rules
@@ -60,7 +60,7 @@ such as `{page_eval: 'allow'}`, skips the card.
 
 ## The ask card
 
-An `ask` shows a **Permission** card in the chat, and the call waits until you answer:
+An `ask` shows a **Permission** card in the chat. The call waits until you answer:
 
 - **Allow once** (⌘ Enter or Ctrl Enter) runs this one call.
 - **Allow always** runs it and saves the answer. It shows only when the tool offers a saved answer.
@@ -71,8 +71,8 @@ allowed always. Learn more in the [Approvals documentation](/docs/usage/approval
 
 ## Saved answers
 
-**Allow always** saves an `allow` rule for the call's action and resources. It is kept for this project, in the
-`permission` table of `.conciv/conciv.db`, and applies to every session. Saved answers come last, so a saved answer
+**Allow always** saves an `allow` rule for the call's action and resources. The engine keeps it for this project, in the
+`permission` table of `.conciv/conciv.db`. It applies to every session. Saved answers come last, so a saved answer
 beats an `ask` rule from your config. Only a `deny` rule beats it.
 
 <Callout type="warn" title="Ask on every call">
