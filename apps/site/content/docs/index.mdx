@@ -1,62 +1,35 @@
 ---
 title: What is conciv
-description: An AI dev agent inside your running app. It sees the page you are on and changes it for you.
+description: Your coding agent, inside the app you are running. It sees the page you are on and changes it for you.
 icon: Info
 ---
 
-conciv puts an AI dev agent inside the app you are already running. It reads the page you are on, drives it, edits
-your source and runs your tests. You stay in the app the whole time.
+**conciv puts your coding agent inside the app you are running.**
 
-## Install
+An agent in a terminal works on files it cannot see rendered. You describe the page to it, then copy errors and markup
+back and forth. conciv adds a panel to your app in development. The agent there reads the page you are on, drives it,
+and edits the source that renders it. With the test runner plugin, it runs your tests too. It uses the agent CLI
+you already have, on your own machine.
 
-Copy this prompt into your coding agent, such as Claude Code or Codex. Pick your framework first.
+Reach for conciv when:
 
-<SetupPrompt />
+- You want to point at something on the page and say "change this".
+- A bug only shows in the running app, with its real data and state.
+- You want the agent to check its own change in the browser before it says it is done.
+- You want the agent in your terminal to see and drive the tab you have open.
 
-The agent runs `conciv init`, starts your dev server and logs you in. A conciv button then shows in the corner of
-your app.
-
-Then ask your agent, in your terminal or in the conciv panel:
-
-<CopyPrompt text="Look at the page I have open in conciv. Change the main heading to say Hello from conciv. Edit the source file, then check that the page shows the new text." />
-
-<Callout>
-  conciv runs in dev builds only. The chat needs an agent CLI on your `PATH`, such as `claude`, and logged in.
-</Callout>
-
-## What you can do
+<Playground
+  page="vite-react"
+  script="intro/first-session"
+  caption="One session: a question about the page, a change, and the agent checking the result."
+/>
 
 <Cards>
   <Card
-    title="Chat"
-    href="/docs/usage/chat"
-    description="Talk to the agent about the page you are looking at. It reads the rendered page first."
+    title="Getting started"
+    href="/docs/getting-started"
+    description="Install conciv, log in, and ask your first question about the page."
   />
-  <Card
-    title="Page control"
-    href="/docs/usage/page-control"
-    description="The agent reads and drives your live page, then writes the change to your source."
-  />
-  <Card
-    title="Live tests"
-    href="/docs/usage/live-tests"
-    description="Ask it to run your tests and read the result in the thread."
-  />
-  <Card
-    title="Whiteboard"
-    href="/docs/usage/whiteboard"
-    description="A shared canvas over the page. You sketch, the agent draws back."
-  />
-  <Card
-    title="Approvals"
-    href="/docs/usage/approvals"
-    description="Risky actions ask you first, with Allow once or Deny."
-  />
+  <Card title="Use conciv" href="/docs/usage" description="Chat, page control, live tests and approvals, one by one." />
   <Card title="Plugins" href="/docs/plugins" description="Give the agent new tools and the widget new panels." />
 </Cards>
-
-## Next
-
-- [Quick start](/docs/getting-started): the same prompt, plus the manual steps.
-- [Connect your agents](/docs/agents): let the agent in your terminal drive your open tabs.
-- [How it works](/docs/engine-and-widget): what runs where, in one picture.
