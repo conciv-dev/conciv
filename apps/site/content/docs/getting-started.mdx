@@ -48,11 +48,9 @@ The prompt runs these steps for you. To do them by hand:
 
 ### Installation
 
-Run init in your app folder, the one with `package.json`:
+<InstallSteps />
 
-```package-install
-npx @conciv/cli@latest init
-```
+With pnpm, yarn or bun, run it with `pnpm dlx`, `yarn dlx` or `bunx` instead of `npx`.
 
 init asks what to set up and shows the plan. It writes nothing until you say yes. What init changes:
 
@@ -69,79 +67,6 @@ init asks what to set up and shows the plan. It writes nothing until you say yes
   init writes the two instrumentation files to the project root. Next.js reads them from the folder that holds your
   routes. If your routes live in `src/`, move both files there.
 </Callout>
-
-This is the config init writes. Your other plugins stay as they are:
-
-```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
-import {defineConfig} from 'vite'
-import react from '@vitejs/plugin-react'
-import conciv from '@conciv/it/plugin/vite' // [!code ++]
-
-export default defineConfig({
-  plugins: [
-    react(),
-    conciv(), // [!code ++]
-  ],
-})
-```
-
-```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
-import type {NextConfig} from 'next'
-import {withConciv} from '@conciv/it/plugin/nextjs' // [!code ++]
-
-const nextConfig: NextConfig = {}
-
-export default withConciv(nextConfig) // [!code ++]
-```
-
-```ts twoslash title="instrumentation.ts" tab="Next.js" tab-group="bundler"
-export {register} from '@conciv/it/plugin/nextjs' // [!code ++]
-```
-
-```ts twoslash title="instrumentation-client.ts" tab="Next.js" tab-group="bundler"
-import '@conciv/it/plugin/nextjs/widget' // [!code ++]
-```
-
-```js title="webpack.config.js" tab="webpack" tab-group="bundler"
-const HtmlWebpackPlugin = require('html-webpack-plugin')
-const conciv = require('@conciv/it/plugin/webpack') // [!code ++]
-
-module.exports = {
-  mode: 'development', // <- conciv runs only when the build is not for production
-  plugins: [
-    new HtmlWebpackPlugin(),
-    conciv.default(), // [!code ++]
-  ],
-}
-```
-
-```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
-const {rspack} = require('@rspack/core')
-const conciv = require('@conciv/it/plugin/rspack') // [!code ++]
-
-module.exports = {
-  mode: 'development', // <- conciv runs only when the build is not for production
-  plugins: [
-    new rspack.HtmlRspackPlugin(),
-    conciv.default(), // [!code ++]
-  ],
-}
-```
-
-```ts twoslash title="vite.config.ts" tab="TanStack Start" tab-group="bundler"
-import {defineConfig} from 'vite'
-import {tanstackStart} from '@tanstack/react-start/plugin/vite'
-import react from '@vitejs/plugin-react'
-import conciv from '@conciv/it/plugin/vite' // [!code ++]
-
-export default defineConfig({
-  plugins: [
-    tanstackStart(),
-    react(),
-    conciv(), // [!code ++]
-  ],
-})
-```
 
 Each bundler has its own page with the manual setup and its edge cases: [Vite](/docs/bundlers/vite),
 [Next.js](/docs/bundlers/nextjs), [webpack](/docs/bundlers/webpack), [Rspack](/docs/bundlers/rspack) and

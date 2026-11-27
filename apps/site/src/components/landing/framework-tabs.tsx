@@ -6,7 +6,7 @@ import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from '@/components/ui/select'
 import {CopyButton} from './copy-button'
-import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
+import {copySnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
 import {siteErrors} from '@conciv/errors'
 
@@ -86,39 +86,17 @@ function Root({snippets, children}: {snippets: FrameworkSnippet[]; children: Rea
 
 function List() {
   const {snippets} = useFrameworkTabs()
-  const [clipped, setClipped] = useState(false)
-  const observerRef = useRef<ResizeObserver | null>(null)
-
-  const attach = useCallback((el: HTMLDivElement | null) => {
-    observerRef.current?.disconnect()
-    observerRef.current = null
-    if (!el) return
-    const measure = () => setClipped(el.scrollWidth > el.clientWidth + 1)
-    observerRef.current = new ResizeObserver(measure)
-    observerRef.current.observe(el)
-    measure()
-  }, [])
-
   return (
     <>
       <FrameworkSelect />
-      <div className="relative mb-2.5 hidden w-fit max-w-full sm:block">
-        <TabsPrimitive.List
-          ref={attach}
-          aria-label="Frameworks"
-          className="flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
-        >
-          {snippets.map((snippet) => (
-            <Trigger key={snippet.id} snippet={snippet} />
-          ))}
-        </TabsPrimitive.List>
-        {clipped && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-[3px] right-[3px] w-8 rounded-r-[8px] bg-gradient-to-l from-card to-transparent"
-          />
-        )}
-      </div>
+      <TabsPrimitive.List
+        aria-label="Frameworks"
+        className="mb-2.5 hidden w-fit max-w-full flex-wrap gap-0.5 rounded-[10px] border bg-card p-[3px] sm:flex"
+      >
+        {snippets.map((snippet) => (
+          <Trigger key={snippet.id} snippet={snippet} />
+        ))}
+      </TabsPrimitive.List>
     </>
   )
 }
@@ -169,14 +147,11 @@ function FrameworkSelect() {
 
 function Trigger({snippet}: {snippet: FrameworkSnippet}) {
   const {active} = useFrameworkTabs()
-  const scrollIntoView = (event: React.MouseEvent<HTMLButtonElement>) =>
-    event.currentTarget.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'})
 
   return (
     <TabsPrimitive.Trigger
       value={snippet.id}
       disabled={snippet.soon}
-      onClick={scrollIntoView}
       className="group relative inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:text-foreground"
     >
       {active.id === snippet.id && (
@@ -250,7 +225,7 @@ function FileBar() {
 function Copy() {
   const {active} = useFrameworkTabs()
   return (
-    <CopyButton.Root text={cleanSnippet(active.code ?? '')}>
+    <CopyButton.Root text={copySnippet(active.code ?? '')}>
       <CopyButton.Trigger label="Copy config" />
       <CopyButton.Feedback />
     </CopyButton.Root>
@@ -351,7 +326,7 @@ function Code() {
         tabIndex={0}
         role="region"
         aria-label={`${active.file ?? active.label} config`}
-        className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className="od-snippet relative overflow-x-auto px-4 py-3.5 [&_.shiki-magic-move-container]:whitespace-pre-wrap! [&_.shiki-magic-move-container]:wrap-anywhere [&_.shiki-magic-move-item]:whitespace-pre-wrap! font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <ShikiMagicMovePrecompiled
           steps={MAGIC_MOVE_STEPS}

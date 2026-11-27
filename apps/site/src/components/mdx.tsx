@@ -23,6 +23,7 @@ import {ConfigOptions, TestRunnerOptions} from './config-options'
 import {CliCommands, HarnessTable} from './reference-tables'
 import {AgentPrompt, CopyPrompt, SetupPrompt} from './setup-prompt'
 import {No, Partly, Yes} from './comparison-status'
+import {InstallSteps} from './landing/install-steps'
 import type {MDXComponents} from 'mdx/types'
 
 function getMDXComponents(components?: MDXComponents) {
@@ -56,6 +57,7 @@ function getMDXComponents(components?: MDXComponents) {
     SetupPrompt,
     CopyPrompt,
     AgentPrompt,
+    InstallSteps,
     Yes,
     Partly,
     No,

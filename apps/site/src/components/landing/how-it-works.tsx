@@ -1,42 +1,8 @@
-import {useRef, type ReactNode} from 'react'
-import AnimatedContent from '@/components/AnimatedContent'
+import {useRef} from 'react'
 import VariableProximity from '@/components/VariableProximity'
 import {RobotFab} from './robot-fab'
 import {ConcivMark} from '@internal/brand-react'
-import {FrameworkTabs} from './framework-tabs'
-import {FRAMEWORK_SNIPPETS} from 'site-snippets'
-
-function Code({children}: {children: ReactNode}) {
-  return (
-    <pre className="overflow-x-auto rounded-[10px] border bg-card px-4 py-3 font-mono text-[12.5px] leading-[1.7]">
-      {children}
-    </pre>
-  )
-}
-
-function Step({number, title, body, children}: {number: string; title: string; body: string; children?: ReactNode}) {
-  return (
-    <AnimatedContent
-      distance={36}
-      duration={0.65}
-      ease="power3.out"
-      threshold={0.2}
-      className="grid grid-cols-1 gap-2 border-t py-[30px] last:border-b sm:grid-cols-[88px_1fr] sm:gap-6"
-    >
-      <div
-        aria-hidden
-        className="od-display text-[44px] font-extrabold leading-[0.9] tracking-[-0.04em] text-accent [-webkit-text-stroke:1.5px_var(--od-accent)] sm:text-[56px]"
-      >
-        {number}
-      </div>
-      <div className="min-w-0">
-        <h3 className="mb-1.5 text-[17px] font-semibold tracking-[-0.01em]">{title}</h3>
-        <p className="mb-3 max-w-[46ch] text-[13.5px] text-muted-foreground">{body}</p>
-        {children}
-      </div>
-    </AnimatedContent>
-  )
-}
+import {InstallStep, InstallSteps} from './install-steps'
 
 export function HowItWorks() {
   const railRef = useRef<HTMLDivElement>(null)
@@ -72,28 +38,14 @@ export function HowItWorks() {
           </p>
         </div>
         <div className="min-w-0">
-          <Step number="1" title="Install" body="One dev dependency. Nothing ships to production.">
-            <Code>
-              <span className="text-primary">$</span> npm i -D @conciv/it
-            </Code>
-          </Step>
-          <Step number="2" title="Add the plugin" body="Pick your build. Every entry is one import.">
-            <FrameworkTabs.Root snippets={FRAMEWORK_SNIPPETS}>
-              <FrameworkTabs.List />
-              <FrameworkTabs.Panel>
-                <FrameworkTabs.FileBar />
-                <FrameworkTabs.Code />
-                <FrameworkTabs.Note />
-              </FrameworkTabs.Panel>
-            </FrameworkTabs.Root>
-          </Step>
-          <Step
+          <InstallSteps />
+          <InstallStep
             number="3"
             title="Meet the robot"
             body="Start your dev server. The mascot appears in the corner when the engine is live. Click it and start talking to your app."
           >
             <RobotFab />
-          </Step>
+          </InstallStep>
         </div>
       </div>
     </section>

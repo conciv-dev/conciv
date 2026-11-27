@@ -1,8 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import Magnet from '@/components/Magnet'
 import {CopyButton} from './copy-button'
-
-const COMMAND = 'npm i -D @conciv/it'
+import {INIT_COMMAND as COMMAND} from './install-steps'
 
 export function InstallChip() {
   return (
