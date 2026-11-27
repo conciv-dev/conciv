@@ -6,8 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {sourceAnnotations} from './src/lib/source-annotations'
-import {brandAssetsAlias} from './brand-assets-alias'
+import {sourceAnnotations} from './src/lib/source-annotations.ts'
+import {brandAssetsAlias} from './brand-assets-alias.ts'
 
 const ONNX_RUNTIME_WASM_PREFIX = 'assets/ort-'
 
