@@ -94,7 +94,7 @@ function Page() {
       nav={{...base.nav, mode: 'top', children: <DocsHeaderNav variant={variant} />}}
       links={docsHeaderMenuLinks(variant)}
       githubUrl={repoUrl}
-      sidebar={{collapsible: false, components: {Separator: DocsSidebarSeparator}}}
+      sidebar={{collapsible: false, className: 'border-e', components: {Separator: DocsSidebarSeparator}}}
       tree={pageTree}
     >
       <Suspense>{clientLoader.useContent(path, {markdownUrl, path})}</Suspense>

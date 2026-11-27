@@ -12,7 +12,15 @@ function docsIcon(name: string | undefined) {
   if (icon === undefined) {
     throw new Error(`docs icon "${name}" is not in docsIcons in apps/site/src/lib/source.ts; add the lucide icon there`)
   }
-  return createElement(icon)
+  return createElement(
+    'span',
+    {
+      'data-docs-icon': '',
+      className:
+        'flex size-6 shrink-0 items-center justify-center rounded-md border bg-fd-background shadow-xs transition-colors [&_svg]:size-3.5! in-data-[active=true]:border-fd-primary/40 in-data-[active=true]:text-fd-primary',
+    },
+    createElement(icon),
+  )
 }
 export const source = loader({
   source: docs.toFumadocsSource(),
