@@ -193,6 +193,16 @@ export const engineErrorEntries = {
 
 export const engineErrors = defineErrorCatalog('engine', engineErrorEntries)
 
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    engine: typeof engineErrors
+  }
+}
+
+export function failureText(failure: unknown): string {
+  return failure instanceof Error ? `${failure.name}: ${failure.message}` : String(failure)
+}
+
 export type EngineErrorCode = keyof typeof engineErrorEntries
 
 const DeclaredDetailSchema = ErrorDetailSchema.optional()

@@ -11,6 +11,7 @@ import {
   codeDiscoverReply,
   codeExecuteReply,
   engineErrors,
+  failureText,
   safeStringify,
   toolValueReply,
   type CodeDescriptions,
@@ -35,7 +36,7 @@ import type {ChatPlane, CodeCapability, CodeRunner, CodeSandbox, CodeTool} from 
 import {createMCPServer} from '../../ai.js'
 import {CodeModeCatalog, CodeModeInstructions} from '../../backend-defaults.js'
 import {loopbackHostAllowlist} from '../lib/cors.js'
-import {callTrace, failureText} from './call-trace.js'
+import {callTrace} from './call-trace.js'
 import {
   EXECUTE_TOOL_NAME,
   ExecuteInputSchema,

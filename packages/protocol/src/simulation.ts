@@ -132,6 +132,12 @@ export const simulationErrorEntries = {
 
 export const simulationErrors = defineErrorCatalog('simulation', simulationErrorEntries)
 
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    simulation: typeof simulationErrors
+  }
+}
+
 const CapabilitySchema = z.string().min(1)
 
 export const EndpointRoleSchema = z.enum(['ui', 'backend'])

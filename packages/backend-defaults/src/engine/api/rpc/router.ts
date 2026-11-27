@@ -16,6 +16,7 @@ import {
   cappedText,
   contractError,
   engineErrors,
+  failureText,
   isCatalogError,
   pluginRpcError,
   PluginExperimentalBundleSchema,
@@ -44,7 +45,7 @@ import {
 } from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
-import {callTrace, failureText} from '../call-trace.js'
+import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'

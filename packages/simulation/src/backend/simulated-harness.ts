@@ -5,6 +5,7 @@ import {makeTextAdapter} from '@conciv/harness/adapters'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/types/harness-types'
+import {failureText} from '@conciv/protocol'
 import {simulationErrors, type FinishReason, type Item, type ModelRequest} from '@conciv/protocol/simulation'
 import type * as SimulatedProvider from './simulated-provider.js'
 
@@ -211,7 +212,7 @@ async function* encodedRun(
       if (ending !== -1) return
     }
   } catch (error) {
-    const message = ErrorMessageSchema.safeParse(error).data?.message ?? String(error)
+    const message = ErrorMessageSchema.safeParse(error).data?.message ?? failureText(error)
     yield {type: ChatEventType.RUN_ERROR, message, error: {message}}
   }
 }

@@ -45,3 +45,9 @@ export const clientErrors = defineErrorCatalog('client', {
     fix: "read the widget's logs for the failure",
   },
 })
+
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    client: typeof clientErrors
+  }
+}

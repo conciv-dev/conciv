@@ -140,6 +140,12 @@ export const cliErrors = defineErrorCatalog('cli', {
   },
 })
 
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    cli: typeof cliErrors
+  }
+}
+
 const RpcFieldsSchema = z.object({code: z.string(), type: z.string().optional(), data: z.unknown().optional()})
 
 const ThrownSchema = z.object({message: z.string(), stack: z.string().optional()})
