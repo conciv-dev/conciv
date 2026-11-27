@@ -19,6 +19,7 @@ import {rpcMethod, type RpcCallOptions, type RpcEventPayload} from '@conciv/clie
 import type * as Plugin from './plugin.js'
 import type {RpcDomain, RpcHandlers} from './rpc.js'
 import type {Info} from './tool.js'
+import type {BundlerHooks} from './bundler.js'
 import {Effect, FiberHandle, Schema, Stream} from 'effect'
 import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
@@ -339,6 +340,16 @@ export function fromPromise(plugin: Plugin.Plugin) {
           agent: {
             transform: transform(host.agent),
           },
+          bundler: {
+            transform: (callback) =>
+              register(
+                host.bundler.transform((editor) =>
+                  callback({
+                    add: (hooks) => editor.add(adaptBundler(Schema.decodeUnknownSync(PromiseBundlerPart)(hooks))),
+                  }),
+                ),
+              ),
+          },
           event: {
             subscribe: <Type extends Exclude<ConcivEvent['type'], 'server.connected'>>(
               options?: SubscribeOptions<Type>,
@@ -486,14 +497,22 @@ export function fromPromise(plugin: Plugin.Plugin) {
           (cleanup) => (typeof cleanup === 'function' ? Effect.promise(() => Promise.resolve(cleanup())) : Effect.void),
         )
       }),
-    ...(plugin.bundler === undefined ? {} : {bundler: adaptBundler(plugin.bundler)}),
   })
 }
 
 const hookCall = <Answer>(run: () => Answer | Promise<Answer>) =>
   Effect.tryPromise({try: () => Promise.resolve(run()), catch: (cause) => cause})
 
-const adaptBundler = ({transform, resolveId, load}: Plugin.Bundler) => ({
+const promiseHook = <Hook>() =>
+  Schema.optional(Schema.declare<Hook>((input): input is Hook => typeof input === 'function'))
+
+const PromiseBundlerPart = Schema.Struct({
+  transform: promiseHook<NonNullable<BundlerHooks['transform']>>(),
+  resolveId: promiseHook<NonNullable<BundlerHooks['resolveId']>>(),
+  load: promiseHook<NonNullable<BundlerHooks['load']>>(),
+})
+
+const adaptBundler = ({transform, resolveId, load}: BundlerHooks) => ({
   ...(transform === undefined ? {} : {transform: (code: string, id: string) => hookCall(() => transform(code, id))}),
   ...(resolveId === undefined
     ? {}

@@ -1,11 +1,12 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
 import type {
   BundlerCode,
+  BundlerHooks,
   Plugin as PluginDefinition,
   Services,
   TaggedError,
 } from '@conciv/backend-plugin-api/effect/plugin'
-import {Context, type Effect, type Exit, Schema} from 'effect'
+import {Context, type Effect, type Exit, Schema, type Stream} from 'effect'
 
 export interface Interface {
   readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
@@ -13,6 +14,7 @@ export interface Interface {
   readonly transform: (code: string, id: string) => Effect.Effect<TransformedCode | null, BundlerHookFailed>
   readonly resolveId: (id: string, importer: string | undefined) => Effect.Effect<string | null, BundlerHookFailed>
   readonly load: (id: string) => Effect.Effect<TransformedCode | null, BundlerHookFailed>
+  readonly bundlerChanges: Stream.Stream<void>
   readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
   readonly experimentalChunk: (
     id: Plugin.Id,
@@ -24,6 +26,12 @@ export interface Interface {
 }
 
 export type TransformedCode = Exclude<BundlerCode, string | null | undefined>
+
+export type BundlerRegistration = {readonly plugin: string; readonly hooks: BundlerHooks}
+
+export interface BundlerRegistry {
+  add(hooks: BundlerHooks, plugin: string): void
+}
 
 export const BundlerHookFailed = Schema.TaggedStruct('Plugin.BundlerHookFailed', {
   hook: Schema.Literals(['transform', 'resolveId', 'load']),
