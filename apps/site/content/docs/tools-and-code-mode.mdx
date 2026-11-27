@@ -3,4 +3,80 @@ title: Tools and code mode
 description: 'How the agent calls tools: directly by name, or from a short program in code mode.'
 ---
 
-This page is being written.
+A tool is one action the agent can take through conciv, such as reading the page or running the tests. Code mode is
+how the agent calls most of them: it writes a short TypeScript program that calls the tools, and conciv runs it.
+
+## Overview
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+export default Plugin.define({
+  id: 'tickets',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'ticket_read', // <- code mode: the agent calls it as external_ticket_read
+        description: 'Read a ticket by its id, such as OPS-42.',
+        input: z.object({id: z.string()}),
+        execute: async ({id}) => ({content: `${id} is open.`}),
+      })
+      tools.add({
+        name: 'ticket_close', // <- direct: the agent calls ticket_close by name
+        description: 'Close a ticket by its id.',
+        input: z.object({id: z.string()}),
+        options: {codemode: false}, // <- turns code mode off for this tool
+        execute: async ({id}) => ({content: `${id} is closed.`}),
+      })
+    })
+  },
+})
+```
+
+<Playground page="vite-react" script="plugins/tool-direct-vs-codemode" caption="The same plugin's two tools: one call inside the code card, one with a card of its own." />
+
+## Code mode
+
+Code mode is the default for every tool. The agent gets one tool, `execute_typescript`, and writes a program for it.
+The program can call several tools, wait for each result and work with the values. The agent reads only what the program
+returns, not every tool's whole output.
+
+## Tool names in code mode
+
+Inside a code-mode program, a tool is a function named `external_` plus the tool's name. A tool in a namespace joins
+the two names with `_`, so `read` in the `ticket` namespace is `external_ticket_read`. These are the names you see in
+the code card. Learn more in the [Add a tool documentation](/docs/plugins/guides/tool).
+
+## The catalog
+
+The agent's instructions list the code-mode tools it can call. When the list is too long, it shows a part of it. The
+agent then finds the rest with a `search(...)` function inside the program, and never guesses a name.
+
+## Direct tools
+
+A direct tool has `codemode: false`. The agent calls it by its name, one call at a time, as it calls its CLI's own
+tools. Pick direct when the user should see each call, or when your plugin draws a card for it.
+
+## The code card
+
+A code-mode run shows as one code card in the chat. The card holds the program, its console output, its result and
+any error. Every tool the program called ran inside it, so a plugin's own card never shows for a code-mode call.
+
+## A tool's own card
+
+A direct call gets a card of its own. Without a plugin card, it is a generic card with the input and the output. A
+plugin can draw its own card for its direct tools. Learn more in the [Build your first plugin
+documentation](/docs/plugins/first-plugin).
+
+<Callout type="info" title="Turn code mode off">
+  A deny rule for the `execute` action turns code mode off: every tool becomes direct. A deny rule for one tool's
+  action, on every resource, hides that tool. Learn more in the [Agents and permissions
+  documentation](/docs/agents-and-permissions#rules).
+</Callout>
+
+## Next steps
+
+- **[Add a tool](/docs/plugins/guides/tool):** write a tool, pick its mode and draw its card.
+- **[Agents and permissions](/docs/agents-and-permissions):** what makes a tool call ask you first.
+- **[Page control](/docs/usage/page-control):** the page tools the agent drives your app with.
