@@ -52,6 +52,7 @@ export type ConcivTimings = {
   engine?: Partial<EngineConnectionTimings>
   queryRetryDelayMs?: number
   picker?: {searchWaitMs?: number; previewWaitMs?: number}
+  logBatchMs?: number
 }
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}

@@ -1,4 +1,4 @@
-import {Context, Effect, Layer, Logger, LogLevel as Severity, Stream, SubscriptionRef} from 'effect'
+import {Context, Effect, Layer, Logger, LogLevel as Severity, References, Stream, SubscriptionRef} from 'effect'
 import type {LogLevel} from '@conciv/types/config-types'
 
 export type Levels = {readonly engine: LogLevel; readonly widget: LogLevel}
@@ -9,7 +9,7 @@ export interface Interface {
   readonly get: Effect.Effect<Levels>
   readonly set: (level: LogLevel, scope: LevelScope) => Effect.Effect<void>
   readonly changes: Stream.Stream<Levels>
-  readonly enabled: (severity: Severity.LogLevel) => boolean
+  readonly enabled: (severity: Severity.LogLevel, side: 'engine' | 'widget') => boolean
 }
 
 export const Service = Context.Service<Interface>('@conciv/LogLevel')
@@ -37,8 +37,8 @@ export function layer(initial: Levels) {
         get: SubscriptionRef.get(ref),
         set: (level, scope) => SubscriptionRef.update(ref, (levels) => apply(levels, level, scope)),
         changes: SubscriptionRef.changes(ref),
-        enabled: (severity) =>
-          Severity.isGreaterThanOrEqualTo(severity, minimums[SubscriptionRef.getUnsafe(ref).engine]),
+        enabled: (severity, side) =>
+          Severity.isGreaterThanOrEqualTo(severity, minimums[SubscriptionRef.getUnsafe(ref)[side]]),
       })
     }),
   )
@@ -48,6 +48,7 @@ export type Enabled = Interface['enabled']
 
 export function gate<Message, Output>(enabled: Enabled, logger: Logger.Logger<Message, Output>) {
   return Logger.make<Message, void>((options) => {
-    if (enabled(options.logLevel)) logger.log(options)
+    const source = options.fiber.getRef(References.CurrentLogAnnotations)['source']
+    if (enabled(options.logLevel, source === 'client' ? 'widget' : 'engine')) logger.log(options)
   })
 }

@@ -4,7 +4,9 @@ import type {LogLevel} from '@conciv/types/config-types'
 import type {EngineConnection} from '../connection/engine-connection.js'
 import type {EngineClient} from '../connection/rpc-client.js'
 
-const BATCH = {size: 25, intervalMs: 2000}
+const BATCH_SIZE = 25
+
+const BATCH_INTERVAL_MS = 2000
 
 function readEvents(batch: readonly DrainContext[]) {
   return batch.map(({event}) => {
@@ -27,13 +29,23 @@ function applyLevel(level: LogLevel, drain: (context: DrainContext) => void): vo
 
 function followLevels(rpc: EngineClient, drain: (context: DrainContext) => void, signal: AbortSignal): Promise<void> {
   return rpc.logs.level(undefined, {signal}).then(async (levels) => {
-    for await (const current of levels) applyLevel(current.widget, drain)
+    for await (const current of levels) {
+      applyLevel(current.widget, drain)
+      log.debug({action: 'widget log level', message: 'the widget log level is in force', level: current.widget})
+    }
   })
 }
 
-export function startWidgetLog(rpc: EngineClient, connection: EngineConnection | undefined, signal: AbortSignal): void {
+export type WidgetLogOptions = {readonly batchIntervalMs?: number | undefined}
+
+export function startWidgetLog(
+  rpc: EngineClient,
+  connection: EngineConnection | undefined,
+  signal: AbortSignal,
+  options: WidgetLogOptions = {},
+): void {
   const drain = createDrainPipeline<DrainContext>({
-    batch: BATCH,
+    batch: {size: BATCH_SIZE, intervalMs: options.batchIntervalMs ?? BATCH_INTERVAL_MS},
     retry: {maxAttempts: 1},
     maxBufferSize: 200,
     onDropped: () => {},

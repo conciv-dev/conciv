@@ -716,8 +716,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     queryLogs: (input) =>
       pluginHost.runPromise(
         Effect.gen(function* () {
-          const {engine} = yield* LogLevel.Service.use((levels) => levels.get)
-          if (engine === 'off') return {level: engine, events: []}
+          const {engine, widget} = yield* LogLevel.Service.use((levels) => levels.get)
+          if (engine === 'off' && widget === 'off') return {level: engine, events: []}
           return {level: engine, events: yield* LogStore.Service.use((store) => store.query(input))}
         }),
       ),

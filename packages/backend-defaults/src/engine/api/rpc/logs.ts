@@ -38,8 +38,8 @@ export function logsRouter(deps: RpcDeps): Router<typeof contract.logs, RpcConte
     query: os.logs.query.handler(({input, signal}) =>
       host.runPromise(
         Effect.gen(function* () {
-          const {engine} = yield* LogLevel.Service.use((levels) => levels.get)
-          if (engine === 'off') return {level: engine, events: []}
+          const {engine, widget} = yield* LogLevel.Service.use((levels) => levels.get)
+          if (engine === 'off' && widget === 'off') return {level: engine, events: []}
           const events = yield* LogStore.Service.use((store) => store.query(input))
           return {level: engine, events: [...events]}
         }),
