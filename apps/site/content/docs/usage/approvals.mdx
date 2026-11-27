@@ -3,22 +3,29 @@ title: Approvals
 description: Allow or deny a risky action when its Permission card shows in the chat.
 ---
 
-When the agent wants to do something risky, a **Permission** card shows in the chat. The action waits until you
-answer. For example, this prompt makes the agent ask before code runs in your page:
+A Permission card is how the agent asks you before a risky action. The action waits until you answer.
 
-```text
+## Basic
+
+This prompt makes the agent ask before code runs in your page:
+
+```text title="Prompt"
 Run some JavaScript in the page to count the buttons on it.
 ```
 
-The card names the action and what it acts on, such as the code it would run.
+The card names the action and what it acts on, such as the code it would run. Answer it:
 
-## Answer the card
-
-- **Allow once** (⌘ Enter or Ctrl Enter) runs it this one time.
+- **Allow once** (Cmd Enter or Ctrl Enter) runs it this one time.
 - **Deny** (Escape) refuses it.
 - **Allow always** allows this action in this project from now on. It shows only when the action can be remembered.
 
 The keys work while the card has focus. The card waits as long as you need. Stop the turn, and the card goes with it.
+
+<Playground
+  page="vite-react"
+  script="approvals/allow-once"
+  caption="The agent asks before it runs code in the page, and you allow it once."
+/>
 
 ## Know what asks
 
@@ -26,36 +33,43 @@ Two things can ask you: your agent CLI, and some of conciv's own tools.
 
 Your agent CLI decides for itself what it asks about:
 
-- **Claude Code** runs in its `auto` mode and asks when it judges a step risky. conciv adds rules so these commands
-  always ask:
-  - a `git push` that forces or deletes
-  - `git reset --hard`, `git clean`, `git branch -D` and `git gc --prune`
-  - a recursive `rm`, `chmod` or `chown`
-  - `sudo`
-- **Codex** never asks. It runs in its `workspace-write` sandbox, which limits what it can touch.
+- **Claude Code** runs in its `auto` mode and asks when it judges a step risky. conciv adds rules so a few commands
+  always ask: a forced or deleting git push, a hard git reset, git clean, a recursive rm, and sudo.
+- **Codex** never asks. Its `workspace-write` sandbox limits what it can touch.
 - **Gemini CLI** asks by its own rules. Each ask shows as a card.
-- **OpenCode** asks in its own way. Those asks do not show as cards in conciv yet.
+- **opencode** asks in its own way. Those asks do not show as cards in conciv yet.
 - **Pi** has no chat in conciv yet.
 
-An ask from your agent CLI can be allowed once or denied, never allowed always.
+An ask from your agent CLI can be allowed once or denied, never allowed always. Learn more on each
+[agent's page](/docs/agents).
 
 conciv's own tools that ask, on every CLI:
 
-- running JavaScript in your page. This one always asks: it has no **Allow always**.
+- running JavaScript in your page. This one asks every time: it has no **Allow always**.
 - restarting the dev server
-- with the whiteboard: deleting an element, clearing the canvas, resolving a comment and deleting a comment
 - with the iOS plugin: building the app, and running it in the simulator
+- with the whiteboard, in the example apps: deleting an element, clearing the canvas, and resolving or deleting a
+  comment
 
-A plugin's tools exist only when you load that plugin. See [Plugins conciv ships](/docs/usage/add-plugins).
+A plugin's tools exist only when you load that plugin. Learn more in the [Add plugins
+documentation](/docs/usage/add-plugins).
+
+## Forget a saved answer
+
+An **Allow always** answer is saved for the project, in its `.conciv/conciv.db`. conciv has no button or command to
+list or clear saved answers yet.
+
+<Callout type="warn" title="Allow always is hard to undo">
+  Until a way to clear saved answers lands, click **Allow always** only for an action you will never want to check
+  again.
+</Callout>
 
 ## Let outside agents in
 
-An agent CLI in your own terminal can drive your open tabs once you connect it (see [Connect your
-agents](/docs/agents)). By default it can use any open session with no card.
+An agent CLI in your own terminal can drive your open tabs once you [connect it](/docs/agents). By default it can
+use any open tab with no card. To make it ask first, set `hubAccess` to `'project'`:
 
-To make it ask first, set `hubAccess` to `'project'`:
-
-```ts twoslash title="vite.config.ts"
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
 import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
 
@@ -68,32 +82,59 @@ export default defineConfig({
 })
 ```
 
-Now the first call from an outside agent shows a Permission card in the tab:
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
 
-- **Allow once** lets that one call in.
-- **Allow always** lets that agent in for this project from now on.
+const nextConfig: NextConfig = {}
 
-The call waits until you answer, or until the agent gives up.
+export default withConciv(nextConfig, {
+  hubAccess: 'project', // [!code ++]
+})
+```
 
-## Details
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      hubAccess: 'project', // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      hubAccess: 'project', // [!code ++]
+    }),
+  ],
+}
+```
+
+Now the first call from an outside agent shows a Permission card in the tab. **Allow once** lets that one call in.
+**Allow always** lets that agent in for this project from now on.
 
 <Accordions type="single">
-  <Accordion title="An outside agent cannot answer for you">
-    An agent connected from your terminal can never answer a Permission card. It cannot connect or disconnect agents
+  <Accordion title="Can an outside agent answer a card for me?">
+    No. An agent connected from your terminal can never answer a Permission card. It cannot connect or disconnect agents
     either. You do that in the tab.
   </Accordion>
-  <Accordion title="A card that disappears">
+  <Accordion title="A card disappeared before I answered?">
     An ask from your agent CLI lives only as long as its turn. When you stop the turn, or the CLI gives up on the call,
     the card goes.
   </Accordion>
-  <Accordion title="The action names">
-    The card names the action by its tool, such as `page_eval` for running JavaScript in the page and `server_restart`
-    for a restart.
-  </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Page control](/docs/usage/page-control): what the agent does in your page.
-- [Harnesses](/docs/harnesses): each agent CLI and its own rules.
-- [Configuration](/docs/reference/configuration): `hubAccess` and the permission rules.
+- **[Agents and permissions](/docs/agents-and-permissions):** the rules behind each card.
+- **[Page control](/docs/usage/page-control):** what the agent does in your page.
+- **[Configuration](/docs/reference/configuration):** `hubAccess` and the permission rules.
