@@ -4856,6 +4856,9 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../client
+      '@conciv/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

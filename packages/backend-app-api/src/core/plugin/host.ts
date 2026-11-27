@@ -147,14 +147,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
           ),
         ),
       assert: (input) =>
-        permission.assert(input).pipe(
-          Effect.catchTags({
-            'Permission.BlockedError': (error) => Effect.fail(Tool.makeError({message: error.message, error})),
-            'Permission.CorrectedError': (error) => Effect.fail(Tool.makeError({message: error.feedback, error})),
-            'Session.NotFoundError': (error) =>
-              Effect.fail(Tool.makeError({message: `Session not found: ${error.sessionId}`, error})),
-          }),
-        ),
+        permission.assert(input).pipe(Effect.mapError((error) => Tool.makeError({message: error.message, error}))),
     },
     plugin: {
       list: () => response(plugin.list()),

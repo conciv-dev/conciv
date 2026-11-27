@@ -10,7 +10,7 @@ import {
   type ReasoningEffort,
   type SessionRecord,
 } from '@conciv/types/chat-types'
-import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/backend-app-api'
+import {Agent, type Bus, type KV, Session} from '@conciv/backend-app-api'
 import type * as Job from '@conciv/backend-app-api/core/job'
 import {sessionErrors} from '@conciv/errors'
 import {SessionInbox, SessionSynthetic} from '../../backend-defaults.js'
@@ -121,7 +121,7 @@ const createdModel = Effect.fn('core.sessions.chooseCreatedModel')(function* (
   const model = given(input.model)
   if (model === undefined) return null
   const choice = yield* modelChoice(chat.defaultHarness, model, chat.signal)
-  if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+  if (choice === null) return yield* Effect.fail(sessionErrors.NOT_FOUND({sessionId, internal: {sessionId}}))
   return choice
 })
 
@@ -151,7 +151,8 @@ export function provideSessions(started: () => SessionKeyDeps) {
   const found = Effect.fn('core.sessions.find')(function* (sessionId: SessionId) {
     yield* Effect.annotateCurrentSpan({sessionId})
     const row = yield* Effect.promise(() => rowById(started().chat.db, sessionId))
-    if (row === null || row.deletedAt !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+    if (row === null || row.deletedAt !== null)
+      return yield* Effect.fail(sessionErrors.NOT_FOUND({sessionId, internal: {sessionId}}))
     return row
   })
   const get = Effect.fn('core.sessions.get')(function* (sessionId: SessionId) {
@@ -189,14 +190,17 @@ export function provideSessions(started: () => SessionKeyDeps) {
           const supplied = input.id
           const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
           if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
-          if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
+          if (recorded !== null)
+            return yield* Effect.fail(
+              sessionErrors.NOT_FOUND({sessionId: recorded.id, internal: {sessionId: recorded.id}}),
+            )
           const sessionId = supplied ?? SessionId.create(ids)
           yield* Effect.annotateCurrentSpan({sessionId})
           const choice = yield* createdModel(chat, input, sessionId)
           yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
           yield* Effect.promise(() => describeCreated({db: chat.db, search, pluginHost}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
-            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+            return yield* Effect.fail(sessionErrors.NOT_FOUND({sessionId, internal: {sessionId}}))
           }
           return yield* get(sessionId)
         }),
@@ -236,7 +240,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
           }).pipe(Effect.orDie)
           const choice = yield* modelChoice(harness, input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
-            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+            return yield* Effect.fail(
+              sessionErrors.NOT_FOUND({sessionId: input.sessionId, internal: {sessionId: input.sessionId}}),
+            )
           }
         }),
         rename: (input) =>
@@ -249,7 +255,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
             }),
             Effect.flatMap((outcome) =>
               outcome === 'missing'
-                ? Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+                ? Effect.fail(
+                    sessionErrors.NOT_FOUND({sessionId: input.sessionId, internal: {sessionId: input.sessionId}}),
+                  )
                 : Effect.void,
             ),
           ),

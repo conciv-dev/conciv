@@ -19,7 +19,7 @@ import type {
   ServerSessions,
   HarnessModel,
 } from '@conciv/types/harness-types'
-import {assertToolName, toolError} from '@conciv/types/tool-call-types'
+import {assertToolName} from '@conciv/types/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {harnessRegistry, type HarnessRegistry, onPath, transcriptPathWithin} from '@conciv/harness'
 import {EngineId} from './lib/engine-id.js'
@@ -58,19 +58,7 @@ import {
 } from '../backend-defaults.js'
 import {eq} from 'drizzle-orm'
 import {differenceBy, memoize} from 'es-toolkit'
-import {
-  Cause,
-  Config,
-  type ConfigProvider,
-  Effect,
-  Exit,
-  Fiber,
-  FiberMap,
-  type Layer,
-  Option,
-  Schema,
-  Scope,
-} from 'effect'
+import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, type Layer, Option, Scope} from 'effect'
 import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
 import {SessionInbox} from '../backend-defaults.js'
 import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plugin'
@@ -107,7 +95,7 @@ import {GROUP_EXIT_TIMEOUT_MS} from '@conciv/harness/local-sandbox'
 import {inSpan, loadIsolateDriver, type Tracer} from '../ai.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
-import {engineRuntimeErrors} from '@conciv/errors'
+import {aiErrors, engineRuntimeErrors} from '@conciv/errors'
 import {
   connectToken,
   engineMcpUrl,
@@ -142,7 +130,7 @@ export function outsideRunCapabilities(capabilities: readonly CodeCapability[]):
       ...capability,
       errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
       execute: () => {
-        throw toolError('NO_TAB', {message: NO_TAB_MESSAGE})
+        throw aiErrors.TOOL_FAILED({message: `NO_TAB: ${NO_TAB_MESSAGE}`})
       },
     }
   })
@@ -1102,10 +1090,12 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig, r
 
 const UNNAMED_CLIENT = 'unnamed'
 
-const isDeclined = Schema.is(Permission.DeclinedError)
-
 function refusedByUser(cause: Cause.Cause<unknown>): boolean {
-  return Cause.hasInterrupts(cause) || Option.isSome(Cause.findErrorOption(cause)) || isDeclined(Cause.squash(cause))
+  return (
+    Cause.hasInterrupts(cause) ||
+    Option.isSome(Cause.findErrorOption(cause)) ||
+    Permission.isDeclined(Cause.squash(cause))
+  )
 }
 
 function readOutsideRefusal(exit: Exit.Exit<void, unknown>, client: string | null): string | null {

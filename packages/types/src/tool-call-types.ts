@@ -11,16 +11,6 @@ export type ToolRequest = {
   signal?: AbortSignal
 }
 
-export type ToolError = Error & {readonly isToolError: true; code: string; data?: unknown}
-
-export function toolError(code: string, options: {message?: string; data?: unknown} = {}): ToolError {
-  return Object.assign(new Error(options.message ?? code), {isToolError: true as const, code, data: options.data})
-}
-
-export function isToolError(value: unknown): value is ToolError {
-  return value instanceof Error && Reflect.get(value, 'isToolError') === true
-}
-
 export const TOOL_NAME_RULE = /^[a-z][a-z0-9_]*$/
 
 const ToolNameSchema = z.string().regex(TOOL_NAME_RULE)

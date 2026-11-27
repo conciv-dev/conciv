@@ -19,6 +19,12 @@ export const aiErrors = defineErrorCatalog('ai', {
     why: 'A value code mode would pass to this tool looks like a key or a token.',
     fix: 'Call the tool directly instead of from code mode.',
   },
+  SECRET_REFUSED: {
+    status: 400,
+    message: `code mode refused to run a value that ${SECRET_REFUSAL}`,
+    why: 'A value the code would pass to a tool looks like a key or a token.',
+    fix: 'Call the tool directly instead of from code mode.',
+  },
   SCHEMA_INVALID: {
     status: 400,
     message: ({failure, reason}: {failure: string; reason: string}) => `${failure}: ${reason}`,

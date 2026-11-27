@@ -1,6 +1,10 @@
 import {defineErrorCatalog} from 'evlog'
 
 export const instructionsErrors = defineErrorCatalog('instructions', {
+  INITIALIZATION_BLOCKED: {
+    message: ({keys}: {keys: string}) => `Instruction initialization blocked by unavailable sources: ${keys}`,
+    why: 'An instruction source could not be read before the first turn of the session.',
+  },
   DUPLICATE_KEY: {
     status: 409,
     message: ({key}: {key: string}) => `Duplicate instruction key: ${key}`,

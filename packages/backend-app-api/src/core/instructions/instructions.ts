@@ -3,6 +3,7 @@ import * as Instruction from '@conciv/protocol/schema/instruction'
 import {Data, Effect, Option, Schema} from 'effect'
 import {canonicalJson} from '../util/canonical-json.js'
 import {instructionsErrors} from '@conciv/errors'
+import type {EvlogError} from 'evlog'
 
 export const Key = Instruction.Key
 export type Key = Instruction.Key
@@ -54,20 +55,6 @@ export interface Admission {
   readonly delta: Delta
   readonly blobs: Readonly<Record<string, Schema.Json>>
 }
-
-export const InitializationBlocked = Schema.TaggedStruct('Instructions.InitializationBlocked', {
-  keys: Schema.Array(Key),
-})
-export type InitializationBlocked = typeof InitializationBlocked.Type & globalThis.Error
-
-export const makeInitializationBlocked = (
-  fields: Omit<typeof InitializationBlocked.Type, '_tag'>,
-): InitializationBlocked =>
-  Object.assign(
-    new globalThis.Error(`Instruction initialization blocked by unavailable sources: ${fields.keys.join(', ')}`),
-    InitializationBlocked.make(fields),
-    {name: 'Instructions.InitializationBlocked'},
-  )
 
 export const empty: List = []
 
@@ -126,9 +113,10 @@ export function read(value: List): Effect.Effect<ReadResult> {
   )
 }
 
-export function diff(observed: ReadResult, previous?: Values): Effect.Effect<Admission, InitializationBlocked> {
+export function diff(observed: ReadResult, previous?: Values): Effect.Effect<Admission, EvlogError> {
   const blocked = previous ? [] : observed.flatMap((entry) => (isUnavailable(entry.value) ? [entry.key] : []))
-  if (blocked.length > 0) return Effect.fail(makeInitializationBlocked({keys: blocked}))
+  if (blocked.length > 0)
+    return Effect.fail(instructionsErrors.INITIALIZATION_BLOCKED({keys: blocked.join(', '), internal: {keys: blocked}}))
   const delta: Record<string, Hash | Instruction.Removed> = {}
   const blobs: Record<string, Schema.Json> = {}
   for (const entry of observed) {

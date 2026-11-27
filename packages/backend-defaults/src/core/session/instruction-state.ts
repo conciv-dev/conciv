@@ -7,6 +7,7 @@ import * as SessionEvent from '@conciv/protocol/schema/session-event'
 import * as Session from '@conciv/protocol/schema/session'
 import {InstructionBlobTable, InstructionStateTable} from './sql.js'
 import {sessionErrors} from '@conciv/errors'
+import type {EvlogError} from 'evlog'
 
 type DatabaseService = Database.Interface['db']
 
@@ -21,7 +22,7 @@ export const observe = Effect.fn('InstructionState.observe')(function* (
   db: DatabaseService,
   instructions: Instructions.List,
   sessionId: Session.Id,
-): Effect.fn.Return<Observation, Instructions.InitializationBlocked> {
+): Effect.fn.Return<Observation, EvlogError> {
   const [observed, stored] = yield* Effect.all([Instructions.read(instructions), find(db, sessionId)], {
     concurrency: 'unbounded',
   })

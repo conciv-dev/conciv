@@ -3,10 +3,9 @@ import type {Maker} from '@conciv/protocol/schema/identifier'
 import {ORPCError, withEventMeta, type ContractedRouter} from '@orpc/server'
 import type {EvlogError} from 'evlog'
 import {asc, eq, sql} from 'drizzle-orm'
-import {isToolError} from '@conciv/types/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '../../../db/schema.js'
-import {Cause, Effect, Exit, Option, Result, Schema, Stream, Queue} from 'effect'
+import {Cause, Effect, Exit, Option, Result, Stream, Queue} from 'effect'
 import type {TtySession} from '../../pty/pty-sessions.js'
 import {Agent, Event, Location, Permission, Plugin, Rpc, Skill, Tool} from '@conciv/backend-app-api'
 import {FileSystem} from '../../../backend-defaults.js'
@@ -171,26 +170,22 @@ export function ptyOutput<Failure>(
 type SessionContext = RpcContext & {session: SessionScope}
 
 function registryCallError(error: unknown): unknown {
-  if (isToolError(error) || error instanceof ORPCError || isCatalogError(engineErrors._prefix, error)) return error
+  if (error instanceof ORPCError || isCatalogError(engineErrors._prefix, error)) return error
   return engineErrors.HANDLER_ERROR({
     message: error instanceof Error ? error.message : String(error),
     ...(error instanceof Error ? {cause: error} : {}),
   })
 }
 
-const isDeclined = Schema.is(Permission.DeclinedError)
-const isBlocked = Schema.is(Permission.BlockedError)
-const isCorrected = Schema.is(Permission.CorrectedError)
-
 function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
-  if (Result.isSuccess(defect) && isDeclined(defect.success)) {
+  if (Result.isSuccess(defect) && Permission.isDeclined(defect.success)) {
     return engineErrors.APPROVAL_DENIED({message: approvalDenied(name).message})
   }
   const failure = Cause.findErrorOption(cause)
   if (Option.isNone(failure)) return registryCallError(Cause.squash(cause))
   const refused = failure.value.error
-  if (isBlocked(refused) || isCorrected(refused)) return engineErrors.APPROVAL_DENIED({message: failure.value.message})
+  if (Permission.isRefused(refused)) return engineErrors.APPROVAL_DENIED({message: failure.value.message})
   return registryCallError(failure.value)
 }
 

@@ -16,6 +16,7 @@ import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView, type TestRunnerRuntime} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'
 import {TestsPanel} from './tests-panel.js'
+import {testRunnerErrors} from './errors/errors.js'
 import {
   countLabel,
   counts,
@@ -254,6 +255,7 @@ function LiveRunCard(props: Actions & {runtime: TestRunnerRuntime; client: () =>
               The test runner is unavailable
             </p>
             <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{view().reason}</p>
+            <p class="text-chat-xs text-chat-text-2">{testRunnerErrors.RUNNER_UNAVAILABLE.fix}</p>
           </div>
         )}
       </Match>

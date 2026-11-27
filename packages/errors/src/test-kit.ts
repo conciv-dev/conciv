@@ -124,6 +124,20 @@ export const testKitErrors = defineErrorCatalog('test-kit', {
     message: ({id}: {id: string}) => `the build of the plugin ${id} has no chunk manifest`,
     fix: 'Rebuild the plugin with the conciv plugin build.',
   },
+  FAKE_SESSION_ID_REFUSED: {
+    status: 500,
+    message: ({id}: {id: string}) => `the fake engine made a session id the schema refuses: ${id}`,
+  },
+  FAKE_OUTSIDE_WITHOUT_SESSION: {
+    status: 400,
+    message: 'an outside call needs the session it runs in',
+    fix: 'Pass the session: engine.outside({session}).',
+  },
+  FAKE_NO_REPLY_LEFT: {
+    status: 500,
+    message: 'the fake engine has no reply left',
+    fix: 'Script one with engine.reply(...).',
+  },
 })
 
 declare module 'evlog' {

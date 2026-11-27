@@ -4,22 +4,12 @@ import type {ConcivDb} from '../../db/connection.js'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types/harness-types'
 import {approvalRequestedEvent, approvalSettledEvent, type ChatEvent} from '@conciv/types/chat-event-types'
 import {SessionId, type PermissionRule} from '@conciv/types/chat-types'
-import {
-  Agent,
-  Bus,
-  Database,
-  Instructions,
-  KV,
-  Permission,
-  Plugin,
-  SessionErrors,
-  SessionSchema,
-  Tool,
-} from '@conciv/backend-app-api'
+import {Agent, Bus, Database, Instructions, KV, Permission, Plugin, SessionSchema, Tool} from '@conciv/backend-app-api'
 import {CodeModeCatalog, CodeModeInstructions, InstructionState, SkillInstructions} from '../../backend-defaults.js'
 import {Effect, Layer, Option, Ref, Schema} from 'effect'
 import * as Identifier from '@conciv/protocol/schema/identifier'
-import {permissionErrors} from '@conciv/errors'
+import {instructionsErrors, permissionErrors} from '@conciv/errors'
+import {EvlogError} from 'evlog'
 import {once} from 'es-toolkit'
 import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 import {loadInstructionEntries} from './instruction-entries.js'
@@ -49,8 +39,6 @@ const isAsked = Schema.is(Permission.Event.Asked.data)
 const isReplied = Schema.is(Permission.Event.Replied.data)
 
 const decodeRequestId = Schema.decodeUnknownOption(Permission.Id)
-
-const isDeclined = Schema.is(Permission.DeclinedError)
 
 const NO_PLUGIN_TOOLS: PermissionRule[] = [
   {action: '*', resource: '*', effect: 'deny'},
@@ -146,7 +134,9 @@ export const pluginInstructions = Effect.fn('core.instructions.load')(function* 
     )
     .pipe(
       Effect.catch((error) =>
-        error._tag === 'Instructions.InitializationBlocked' ? Effect.fail(error) : Effect.die(error),
+        EvlogError.isEvlogError(error) && error.code === instructionsErrors.INITIALIZATION_BLOCKED.code
+          ? Effect.fail(error)
+          : Effect.die(error),
       ),
     )
   const commit = db.transaction(() =>
@@ -270,7 +260,7 @@ export const askForHarness = Effect.fn('core.permissions.askForHarness')(functio
     Effect.as<HarnessPermissionVerdict>({allowed: true}),
     Effect.catch((error) => Effect.succeed(refused(error.message || `Permission denied: ${asked}`))),
     Effect.catchDefect((defect) =>
-      isDeclined(defect) ? Effect.succeed(refused(`The user rejected ${asked}.`)) : Effect.die(defect),
+      Permission.isDeclined(defect) ? Effect.succeed(refused(`The user rejected ${asked}.`)) : Effect.die(defect),
     ),
   )
   return yield* settlingAsks(sessionId, assert, publish)
@@ -302,7 +292,7 @@ export const answerPermission = Effect.fn('core.permissions.answer')(function* (
 export const assertOutsideAgent = Effect.fn('core.permissions.assertOutsideAgent')(function* (
   sessionId: SessionId,
   client: string,
-): Effect.fn.Return<void, Permission.Error | SessionErrors.NotFoundError, Permission.Interface> {
+): Effect.fn.Return<void, EvlogError, Permission.Interface> {
   yield* Effect.annotateCurrentSpan({sessionId, client})
   const permission = yield* Permission.Service
   yield* permission.assert({

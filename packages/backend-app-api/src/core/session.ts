@@ -10,7 +10,6 @@ import type {
   SessionListInput,
 } from '@conciv/backend-plugin-api'
 import type {EvlogError} from 'evlog'
-import type {NotFoundError} from './session/not-found.js'
 import type * as SessionInbox from '@conciv/protocol/schema/session-inbox'
 import type {SessionId as ProtocolSessionId} from '@conciv/protocol/schema/session-id'
 import type * as SessionMessage from '@conciv/protocol/schema/session-message'
@@ -43,20 +42,17 @@ export interface Interface {
     },
     EvlogError
   >
-  readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, NotFoundError | EvlogError>
-  readonly get: (sessionId: SessionId) => Effect.Effect<SessionInfo, NotFoundError>
-  readonly remove: (sessionId: SessionId) => Effect.Effect<void, NotFoundError>
-  readonly switchAgent: (input: {
-    sessionId: SessionId
-    agent: string
-  }) => Effect.Effect<void, NotFoundError | EvlogError>
-  readonly switchModel: (input: {sessionId: SessionId; model: Model.Ref}) => Effect.Effect<void, NotFoundError>
-  readonly rename: (input: {sessionId: SessionId; title: string}) => Effect.Effect<void, NotFoundError>
-  readonly setMetadata: (input: {sessionId: SessionId; metadata: Metadata}) => Effect.Effect<void, NotFoundError>
-  readonly setPermissions: (input: {sessionId: SessionId; permissions: Ruleset}) => Effect.Effect<void, NotFoundError>
-  readonly compact: (input: CompactInput) => Effect.Effect<SessionInboxCompaction, NotFoundError>
-  readonly synthetic: (input: SyntheticInput) => Effect.Effect<SessionInbox.Synthetic, NotFoundError | EvlogError>
-  readonly wait: (id: SessionId) => Effect.Effect<void, NotFoundError>
+  readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, EvlogError>
+  readonly get: (sessionId: SessionId) => Effect.Effect<SessionInfo, EvlogError>
+  readonly remove: (sessionId: SessionId) => Effect.Effect<void, EvlogError>
+  readonly switchAgent: (input: {sessionId: SessionId; agent: string}) => Effect.Effect<void, EvlogError>
+  readonly switchModel: (input: {sessionId: SessionId; model: Model.Ref}) => Effect.Effect<void, EvlogError>
+  readonly rename: (input: {sessionId: SessionId; title: string}) => Effect.Effect<void, EvlogError>
+  readonly setMetadata: (input: {sessionId: SessionId; metadata: Metadata}) => Effect.Effect<void, EvlogError>
+  readonly setPermissions: (input: {sessionId: SessionId; permissions: Ruleset}) => Effect.Effect<void, EvlogError>
+  readonly compact: (input: CompactInput) => Effect.Effect<SessionInboxCompaction, EvlogError>
+  readonly synthetic: (input: SyntheticInput) => Effect.Effect<SessionInbox.Synthetic, EvlogError>
+  readonly wait: (id: SessionId) => Effect.Effect<void, EvlogError>
   readonly interrupt: (sessionId: SessionId, options?: {readonly resume?: boolean}) => Effect.Effect<boolean>
 }
 

@@ -190,7 +190,7 @@ describe.concurrent('session.synthetic', () => {
     ])
   })
 
-  test('admission: a retry gets the first admission, another session reusing the id is refused with the conflict, and a deleted session refuses with NotFoundError and its waiting notice is gone', async ({
+  test('admission: a retry gets the first admission, another session reusing the id is refused with the conflict, and a deleted session refuses with session.NOT_FOUND and its waiting notice is gone', async ({
     createEngine,
     expect,
   }) => {
@@ -228,7 +228,7 @@ describe.concurrent('session.synthetic', () => {
 
     await notice.call({sessionId: doomed.id, id: 'msg_waiting_notice', text: 'Waiting', resume: false})
     await engine.session.tool('session_remove').call({sessionId: doomed.id})
-    expect(await notice.call({sessionId: doomed.id, text: 'Too late'})).toEqual({refused: 'Session.NotFoundError'})
+    expect(await notice.call({sessionId: doomed.id, text: 'Too late'})).toEqual({refused: 'session.NOT_FOUND'})
     expect(await notice.call({id: 'msg_waiting_notice', text: 'Reused', resume: false})).toMatchObject({
       id: 'msg_waiting_notice',
       type: 'synthetic',

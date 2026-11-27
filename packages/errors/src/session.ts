@@ -1,6 +1,18 @@
 import {defineErrorCatalog} from 'evlog'
 
 export const sessionErrors = defineErrorCatalog('session', {
+  NOT_FOUND: {
+    status: 404,
+    message: ({sessionId}: {sessionId: string}) => `Session not found: ${sessionId}`,
+    why: 'No session with that id exists, or it was deleted.',
+    fix: 'List the sessions and use an id from that list.',
+  },
+  DELETED: {
+    status: 410,
+    message: ({sessionId}: {sessionId: string}) => `session "${sessionId}" does not exist`,
+    why: 'The session was deleted, so it takes no more messages.',
+    fix: 'Start a new session, or restore the deleted one.',
+  },
   INVALID_LIST_CURSOR: {
     status: 400,
     message: 'Invalid cursor',

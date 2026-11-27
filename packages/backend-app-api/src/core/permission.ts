@@ -1,5 +1,5 @@
-import {Context, Deferred, Effect, Layer, Schema} from 'effect'
-import type {EvlogError} from 'evlog'
+import {Context, Deferred, Effect, Layer} from 'effect'
+import {EvlogError} from 'evlog'
 import * as Permission from '@conciv/protocol/schema/permission'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import type * as Session from '@conciv/protocol/schema/session'
@@ -7,10 +7,9 @@ import type * as Tool from '@conciv/protocol/schema/tool'
 import * as Bus from './bus.js'
 import * as Location from './location.js'
 import * as Agent from './agent.js'
-import * as SessionErrors from './session/not-found.js'
 import * as Wildcard from './util/wildcard.js'
 import * as PermissionSaved from './permission/saved.js'
-import {permissionErrors} from '@conciv/errors'
+import {permissionErrors, sessionErrors} from '@conciv/errors'
 import * as PluginHooks from './plugin/hooks.js'
 
 const PermissionEffect = Permission.Effect
@@ -70,38 +69,28 @@ export const Unattended = Context.Reference<Permission.Ruleset | undefined>('@co
   defaultValue: () => undefined,
 })
 
-export const DeclinedError = Schema.TaggedStruct('Permission.DeclinedError', {})
-export type DeclinedError = typeof DeclinedError.Type & globalThis.Error
-
-export const makeDeclinedError = (): DeclinedError =>
-  Object.assign(new globalThis.Error(), DeclinedError.make({}), {name: 'Permission.DeclinedError'})
-
-export const CorrectedError = Schema.TaggedStruct('Permission.CorrectedError', {
-  feedback: Schema.String,
-})
-export type CorrectedError = typeof CorrectedError.Type & globalThis.Error
-
-export const makeCorrectedError = (fields: Omit<typeof CorrectedError.Type, '_tag'>): CorrectedError =>
-  Object.assign(new globalThis.Error(fields.feedback), CorrectedError.make(fields), {
-    name: 'Permission.CorrectedError',
+function blocked(input: AssertInput, rules: Permission.Ruleset, reason: string | undefined): EvlogError {
+  return permissionErrors.BLOCKED({
+    permission: input.action,
+    ...(reason === undefined ? {} : {message: reason}),
+    internal: {rules, permission: input.action, resources: input.resources},
   })
+}
 
-export const BlockedError = Schema.TaggedStruct('Permission.BlockedError', {
-  rules: Permission.Ruleset,
-  permission: Schema.String,
-  resources: Schema.Array(Schema.String),
-  reason: Schema.String.pipe(Schema.optional),
-})
-export type BlockedError = typeof BlockedError.Type & globalThis.Error
+export function isDeclined(value: unknown): value is EvlogError {
+  return EvlogError.isEvlogError(value) && value.code === permissionErrors.DECLINED.code
+}
 
-export const makeBlockedError = (fields: Omit<typeof BlockedError.Type, '_tag'>): BlockedError =>
-  Object.assign(
-    new globalThis.Error(fields.reason ?? `Permission denied: ${fields.permission}`),
-    BlockedError.make(fields),
-    {name: 'Permission.BlockedError'},
+export function isRefused(value: unknown): value is EvlogError {
+  return (
+    EvlogError.isEvlogError(value) &&
+    (value.code === permissionErrors.BLOCKED.code || value.code === permissionErrors.CORRECTED.code)
   )
+}
 
-export type Error = BlockedError | CorrectedError
+function rejection(message: string | undefined): EvlogError {
+  return message ? permissionErrors.CORRECTED({feedback: message}) : permissionErrors.DECLINED()
+}
 
 export function evaluate(action: string, resource: string, ...rulesets: Permission.Ruleset[]): Permission.Rule {
   return (
@@ -121,10 +110,10 @@ export function merge(...rulesets: Permission.Ruleset[]): Permission.Ruleset {
 
 export interface Interface {
   readonly close: Effect.Effect<void>
-  readonly ask: (input: AssertInput) => Effect.Effect<AskResult, SessionErrors.NotFoundError>
-  readonly assert: (input: AssertInput) => Effect.Effect<void, Error | SessionErrors.NotFoundError>
-  readonly assertNotDenied: (input: AssertInput) => Effect.Effect<void, BlockedError | SessionErrors.NotFoundError>
-  readonly allows: (input: AssertInput) => Effect.Effect<boolean, SessionErrors.NotFoundError>
+  readonly ask: (input: AssertInput) => Effect.Effect<AskResult, EvlogError>
+  readonly assert: (input: AssertInput) => Effect.Effect<void, EvlogError>
+  readonly assertNotDenied: (input: AssertInput) => Effect.Effect<void, EvlogError>
+  readonly allows: (input: AssertInput) => Effect.Effect<boolean, EvlogError>
   readonly reply: (input: ReplyInput) => Effect.Effect<void, EvlogError>
   readonly get: (id: Id) => Effect.Effect<Request | undefined>
   readonly forSession: (sessionId: Session.Id) => Effect.Effect<ReadonlyArray<Request>>
@@ -137,7 +126,7 @@ interface Pending {
   readonly request: Request
   readonly agent?: Agent.Id
   readonly fallback?: 'ask'
-  readonly deferred: Deferred.Deferred<void, DeclinedError | CorrectedError>
+  readonly deferred: Deferred.Deferred<void, EvlogError>
 }
 
 export const layer = Layer.effect(
@@ -162,7 +151,7 @@ export const layer = Layer.effect(
             requestId: item.request.id,
             reply: 'reject',
           })
-          .pipe(Effect.ensuring(Deferred.fail(item.deferred, makeDeclinedError()))),
+          .pipe(Effect.ensuring(Deferred.fail(item.deferred, permissionErrors.DECLINED()))),
       )
       pending.clear()
     }).pipe(Effect.uninterruptible)
@@ -178,7 +167,10 @@ export const layer = Layer.effect(
 
     const configured = Effect.fnUntraced(function* (input: AssertInput) {
       const session = yield* sessions.get(input.sessionId)
-      if (!session) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+      if (!session)
+        return yield* Effect.fail(
+          sessionErrors.NOT_FOUND({sessionId: input.sessionId, internal: {sessionId: input.sessionId}}),
+        )
       const agent = yield* agents.resolve(input.agent ?? session.agent)
       if (!agent) return merge(missingAgentPermissions, session.permissions ?? [])
       return merge(agent.permissions, fallbackRules(input, agent.permissions), session.permissions ?? [])
@@ -249,10 +241,10 @@ export const layer = Layer.effect(
     const create = (request: Request, input: Pick<AssertInput, 'agent' | 'fallback'>) =>
       Effect.uninterruptible(
         Effect.gen(function* () {
-          const deferred = yield* Deferred.make<void, DeclinedError | CorrectedError>()
+          const deferred = yield* Deferred.make<void, EvlogError>()
           const item: Pending = {request, agent: input.agent, fallback: input.fallback, deferred}
           if (closed) {
-            yield* Deferred.fail(deferred, makeDeclinedError())
+            yield* Deferred.fail(deferred, permissionErrors.DECLINED())
             return item
           }
           if (pending.has(request.id))
@@ -275,24 +267,17 @@ export const layer = Layer.effect(
 
     const assert = Effect.fn('Permission.assert')((input: AssertInput) =>
       Effect.gen(function* () {
-        if (closed) return yield* Effect.die(makeDeclinedError())
+        if (closed) return yield* Effect.die(permissionErrors.DECLINED())
         const result = yield* evaluateInput(input)
         return yield* Effect.uninterruptibleMask((restore) =>
           Effect.gen(function* () {
             if (result.effect === 'deny') {
-              return yield* Effect.fail(
-                makeBlockedError({
-                  rules: relevant(input, result.rules),
-                  permission: input.action,
-                  resources: input.resources,
-                  reason: result.message,
-                }),
-              )
+              return yield* Effect.fail(blocked(input, relevant(input, result.rules), result.message))
             }
             if (result.effect === 'allow') return
             const item = yield* create(request(input, result.message), input)
             return yield* restore(Deferred.await(item.deferred)).pipe(
-              Effect.catchTag('Permission.DeclinedError', (error) => Effect.die(error)),
+              Effect.catchIf((error) => error.code === permissionErrors.DECLINED.code, Effect.die),
               Effect.ensuring(
                 Effect.sync(() => {
                   pending.delete(item.request.id)
@@ -308,14 +293,7 @@ export const layer = Layer.effect(
       yield* Effect.annotateCurrentSpan({sessionId: input.sessionId})
       const result = yield* evaluateInput(input)
       if (result.effect !== 'deny') return
-      return yield* Effect.fail(
-        makeBlockedError({
-          rules: relevant(input, result.rules),
-          permission: input.action,
-          resources: input.resources,
-          reason: result.message,
-        }),
-      )
+      return yield* Effect.fail(blocked(input, relevant(input, result.rules), result.message))
     })
 
     const allows = Effect.fn('Permission.allows')(function* (input: AssertInput) {
@@ -336,10 +314,7 @@ export const layer = Layer.effect(
           })
 
           if (input.reply === 'reject') {
-            yield* Deferred.fail(
-              existing.deferred,
-              input.message ? makeCorrectedError({feedback: input.message}) : makeDeclinedError(),
-            )
+            yield* Deferred.fail(existing.deferred, rejection(input.message))
             pending.delete(input.requestId)
             for (const [id, item] of pending) {
               if (item.request.sessionId !== existing.request.sessionId) continue
@@ -348,10 +323,7 @@ export const layer = Layer.effect(
                 requestId: item.request.id,
                 reply: 'reject',
               })
-              yield* Deferred.fail(
-                item.deferred,
-                input.message ? makeCorrectedError({feedback: input.message}) : makeDeclinedError(),
-              )
+              yield* Deferred.fail(item.deferred, rejection(input.message))
               pending.delete(id)
             }
             return
@@ -370,7 +342,10 @@ export const layer = Layer.effect(
 
           for (const [id, item] of pending) {
             const result = yield* evaluateInput({...item.request, agent: item.agent, fallback: item.fallback}).pipe(
-              Effect.catchTag('Session.NotFoundError', () => Effect.undefined),
+              Effect.catchIf(
+                (error) => error.code === sessionErrors.NOT_FOUND.code,
+                () => Effect.undefined,
+              ),
             )
             if (result?.effect !== 'allow') continue
             yield* bus.publish(Permission.Event.Replied, {

@@ -7,7 +7,6 @@ import {
   Effect,
   Exit,
   Option,
-  Predicate,
   RcMap,
   Request,
   RequestResolver,
@@ -46,6 +45,8 @@ import {
 } from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
 import {pageErrors} from './errors/errors.js'
+import {sessionErrors} from '@conciv/errors'
+import {isCatalogError} from '@conciv/protocol'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/backend-plugin-api/effect'
 
@@ -162,7 +163,9 @@ function timedOut(action: Work, timeoutMs: number) {
   return Tool.toolError({message, metadata: {code: 'timeout', message}})
 }
 
-const SessionNotFound = Predicate.isTagged('Session.NotFoundError')
+function sessionNotFound(error: unknown): boolean {
+  return isCatalogError(sessionErrors._prefix, error) && error.code === sessionErrors.NOT_FOUND.code
+}
 
 function queueJobNotice(jobID: string, result: PageQueueResult) {
   return {
@@ -224,7 +227,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
           onSome: () => Effect.void,
         }),
       ),
-      Effect.catchIf(SessionNotFound, () => Effect.void),
+      Effect.catchIf(sessionNotFound, () => Effect.void),
       Effect.catchCause((cause) => Effect.logWarning(`Page permission sync for ${sessionId} failed`, cause)),
     )
 
@@ -445,7 +448,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
             const result = yield* Deferred.await(started.done)
             yield* ctx.session
               .synthetic({id: notificationID, sessionID: sessionId, ...queueJobNotice(id, result)})
-              .pipe(Effect.catchIf(SessionNotFound, () => Effect.void))
+              .pipe(Effect.catchIf(sessionNotFound, () => Effect.void))
             yield* ctx.job.completeBackground(notificationID)
           }).pipe(
             Effect.catchCause((cause) =>

@@ -1,4 +1,5 @@
 import {defineErrorCatalog} from 'evlog'
+import {PAGE_QUEUE_STOPPED_MESSAGE} from '../page-types.js'
 
 export const pageErrors = defineErrorCatalog('page', {
   TAB_GONE_BEFORE_DISPATCH: {
@@ -25,6 +26,14 @@ export const pageErrors = defineErrorCatalog('page', {
   },
   OPERATION_FAILED: {
     message: 'The page operation failed',
+  },
+  QUEUE_STOPPED: {
+    message: PAGE_QUEUE_STOPPED_MESSAGE,
+    why: 'The user stopped the queue before this action ran.',
+  },
+  EFFECT_UNKNOWN: {
+    message: 'No effect is registered under that name',
+    fix: 'Call the effect tool with action list to see the registered effects.',
   },
   INVALID_ARGS: {
     status: 400,

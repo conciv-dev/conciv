@@ -1,11 +1,5 @@
 import {access, readFile} from 'node:fs/promises'
-import {
-  ChatEventType,
-  SESSION_DELETED_CODE,
-  sessionRunEvent,
-  type ChatEvent,
-  type RunLifecycle,
-} from '@conciv/types/chat-event-types'
+import {ChatEventType, sessionRunEvent, type ChatEvent, type RunLifecycle} from '@conciv/types/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/types/usage-types'
 import {
   PromptPresentationSchema,
@@ -32,7 +26,8 @@ import type {PluginHooks} from '@conciv/backend-app-api'
 import type {UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
-import {aiErrors} from '@conciv/errors'
+import {aiErrors, sessionErrors} from '@conciv/errors'
+import type {EvlogError} from 'evlog'
 
 export type SessionRow = {
   model: string | null
@@ -283,12 +278,8 @@ export async function sessionDeleted(sessions: SessionPort, sessionId: SessionId
   return row !== null && row.deletedAt !== null
 }
 
-function missingSession(sessionId: SessionId): string {
-  return `session "${sessionId}" does not exist`
-}
-
-export function deletedSessionError(sessionId: SessionId): Error {
-  return Object.assign(new Error(missingSession(sessionId)), {code: SESSION_DELETED_CODE})
+export function deletedSessionError(sessionId: SessionId): EvlogError {
+  return sessionErrors.DELETED({sessionId, internal: {sessionId}})
 }
 
 async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, runtime: EngineRuntime): Promise<void> {

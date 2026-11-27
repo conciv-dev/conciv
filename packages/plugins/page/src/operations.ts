@@ -16,7 +16,6 @@ import type {
   PageCaptureBundle,
   ToolCaptureMode,
 } from './element-capture-types.js'
-import {toolError, isToolError} from '@conciv/types/tool-call-types'
 import {
   addRef,
   buildSnapshot,
@@ -167,8 +166,10 @@ async function acting(call: Call, input: Locator, value: () => unknown, beat: Be
   )
 }
 
-function queueStoppedError(): Error {
-  return toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
+function queueStoppedError(): EvlogError {
+  return pageErrors.QUEUE_STOPPED({
+    internal: {raised: {code: PAGE_QUEUE_STOPPED, message: PAGE_QUEUE_STOPPED_MESSAGE}},
+  })
 }
 
 function stoppedBefore(call: Call, queued: Queued): void {
@@ -289,9 +290,8 @@ function requireEffect(effects: readonly PageEffect[], name: string | undefined,
   const effect = effects.find((candidate) => candidate.name === name)
   if (effect) return effect
   const registered = effects.map((candidate) => candidate.name).join(', ')
-  throw toolError('UNKNOWN_EFFECT', {
-    message: `no effect named "${name}"; registered: ${registered === '' ? 'none' : registered}`,
-  })
+  const message = `no effect named "${name}"; registered: ${registered === '' ? 'none' : registered}`
+  throw pageErrors.EFFECT_UNKNOWN({message, internal: {raised: {code: 'UNKNOWN_EFFECT', message}}})
 }
 
 function driveEffect(effect: PageEffect, action: string): void {
@@ -820,21 +820,9 @@ function isSchemaRejection(error: unknown): error is Error {
 export function toPageFailure(error: unknown): EvlogError {
   if (EvlogError.isEvlogError(error)) return error
   if (isSchemaRejection(error)) return pageErrors.INVALID_ARGS({message: error.message, cause: error})
-  if (!isToolError(error))
-    return pageErrors.OPERATION_FAILED({
-      message: error instanceof Error ? error.message : String(error),
-      cause: error instanceof Error ? error : undefined,
-    })
   return pageErrors.OPERATION_FAILED({
-    message: error.message,
-    cause: error,
-    internal: {
-      raised: {
-        code: error.code,
-        message: error.message,
-        ...(isJsonSerializable(error.data) ? {data: error.data} : {}),
-      },
-    },
+    message: error instanceof Error ? error.message : String(error),
+    cause: error instanceof Error ? error : undefined,
   })
 }
 

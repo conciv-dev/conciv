@@ -85,16 +85,12 @@ function toolContext(request: ToolRequest, agent: Agent.Id, ids: Maker): Tool.Co
   }
 }
 
-const isDeclined = Schema.is(Permission.DeclinedError)
-const isBlocked = Schema.is(Permission.BlockedError)
-const isCorrected = Schema.is(Permission.CorrectedError)
 const isToolError = Schema.is(Tool.Error)
 
 type SessionError = {type: string; message: string}
 
 function toSessionError(error: unknown): SessionError {
-  if (error instanceof Error && isBlocked(error)) return {type: 'permission.rejected', message: error.message}
-  if (isCorrected(error)) return {type: 'permission.rejected', message: error.feedback}
+  if (Permission.isRefused(error)) return {type: 'permission.rejected', message: error.message}
   if (isToolError(error)) {
     if (error.error === undefined) return {type: 'tool.execution', message: error.message}
     const unwrapped = toSessionError(error.error)
@@ -105,9 +101,9 @@ function toSessionError(error: unknown): SessionError {
 
 function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
-  if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
+  if (Result.isSuccess(defect)) return Permission.isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)
-  if (Option.isSome(failure) && isDeclined(failure.value.error)) return approvalDenied(name)
+  if (Option.isSome(failure) && Permission.isDeclined(failure.value.error)) return approvalDenied(name)
   if (Option.isSome(failure)) {
     const {type, message} = toSessionError(failure.value)
     return aiErrors.TOOL_FAILED({message, internal: {type}})

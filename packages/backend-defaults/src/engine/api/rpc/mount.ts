@@ -2,9 +2,8 @@ import type {Tracer} from '../../../ai.js'
 import type * as Identifier from '@conciv/protocol/schema/identifier'
 import '@orpc/effect/extensions/effect'
 import {middlewareGen, type EffectWrapOptions, type WithEffectContext} from '@orpc/effect'
-import {implement, ORPCError, type Implementer} from '@orpc/server'
-import {answerCatalogErrors, contract} from '@conciv/protocol'
-import {isToolError} from '@conciv/types/tool-call-types'
+import {implement, type ORPCError, type Implementer} from '@orpc/server'
+import {answerCatalogErrors, contract, isCatalogError} from '@conciv/protocol'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/types/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
@@ -51,7 +50,7 @@ import type {PersistentPtys} from '../../pty/persistent-ptys.js'
 import type {EngineRuntime} from '../../lib/logging.js'
 import type * as LogLevel from '../../../util/observability/log-level.js'
 import type * as LogStore from '../../../util/observability/log-store.js'
-import {engineErrors} from '@conciv/errors'
+import {engineErrors, sessionErrors, tabErrors} from '@conciv/errors'
 
 export type EngineServices =
   | Tool.Interface
@@ -119,18 +118,12 @@ export type RpcDeps = {
 
 export const os: Implementer<typeof contract, EngineRpcContext> = implement(contract).$context<EngineRpcContext>()
 
-const TaggedFailureSchema = z.object({
-  _tag: z.enum(['Session.NotFoundError', 'Tab.UnavailableError']),
-  message: z.string().optional(),
-})
-
 function catalogFailure(failure: unknown): unknown {
-  if (isToolError(failure))
-    return new ORPCError(failure.code, {message: failure.message, data: failure.data, cause: failure})
-  const tagged = TaggedFailureSchema.safeParse(failure)
-  if (!tagged.success) return failure
-  if (tagged.data._tag === 'Session.NotFoundError') return engineErrors.NOT_FOUND()
-  return engineErrors.UNAVAILABLE({message: tagged.data.message})
+  if (isCatalogError(sessionErrors._prefix, failure) && failure.code === sessionErrors.NOT_FOUND.code)
+    return engineErrors.NOT_FOUND({cause: failure})
+  if (isCatalogError(tabErrors._prefix, failure))
+    return engineErrors.UNAVAILABLE({message: failure.message, cause: failure})
+  return failure
 }
 
 function recordEngineError(options: EffectWrapOptions) {

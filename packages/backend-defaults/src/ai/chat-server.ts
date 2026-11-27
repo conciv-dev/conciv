@@ -48,6 +48,7 @@ import type {ChatTool} from '@conciv/types/chat-tool-types'
 import {askingToolProvisioner, type AskPermission} from './image-tool-results.js'
 import {childCards, withoutHiddenCalls} from './child-cards.js'
 import {codeModeTools, readSecretRefusal, stoppedWith, tracedDriver} from './code-mode.js'
+import {aiErrors} from '@conciv/errors'
 import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
@@ -987,7 +988,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         run: async (code, emit, signal) => {
           const result: unknown = await execute({typescriptCode: code}, {emitCustomEvent: emit, abortSignal: signal})
           const refusal = readSecretRefusal(result)
-          if (refusal !== null) throw new Error(refusal)
+          if (refusal !== null) throw aiErrors.SECRET_REFUSED({message: refusal})
           return result
         },
         discover: buildDiscovery(coded.discover),
