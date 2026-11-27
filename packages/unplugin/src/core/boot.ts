@@ -10,12 +10,6 @@ export type Builtins = {
   widgetPageDir?: string
 }
 
-const TRUTHY = ['1', 'true']
-
-export function readSimulationSwitch(): boolean {
-  return TRUTHY.includes(process.env.CONCIV_SIMULATE?.toLowerCase() ?? '')
-}
-
 function writeEngineLine(entry: LogEntry): void {
   const line = readEngineLine(entry)
   if (line === undefined) return
@@ -39,7 +33,6 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
         devEndpointDir: options.devEndpointDir,
         homeDir: options.homeDir,
         log: {emit: writeEngineLine},
-        simulation: readSimulationSwitch(),
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
       })
     })

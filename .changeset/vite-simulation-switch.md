@@ -1,5 +1,7 @@
 ---
 '@conciv/unplugin': patch
+'@conciv/backend': patch
+'@conciv/backend-defaults': patch
 ---
 
-A Vite dev server started with `CONCIV_SIMULATE` now runs its engine in simulation, as webpack, Rspack and Next.js already did: both engine starts read the switch from one place.
+The engine reads `CONCIV_SIMULATE` from its own config and decides whether it simulates, so a Vite dev server started with it now simulates as webpack, Rspack and Next.js do. `start` from `@conciv/backend` no longer takes a `simulation` option.

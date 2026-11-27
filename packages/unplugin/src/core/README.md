@@ -12,7 +12,7 @@ The plugin internals: booting the engine process (`boot.ts`), the Vite hook (`vi
 - `nextjs.ts:register` loads `boot` from its own dist file with `import(/* webpackIgnore: true */ url)`, so Turbopack and webpack keep the engine out of the instrumentation bundle even when `@conciv/it` is workspace-linked.
 - `vite-bridge.ts:makeViteBridge` throws a `NOT_FOUND` oRPC error naming the file when no module in the graph matches.
 - `boot.ts:makeEngineBooter` - the engine boots once; later calls return the same promise.
-- `boot.ts:readSimulationSwitch` - the one reading of `CONCIV_SIMULATE` (`1` or `true`); both engine starts, `makeEngineBooter` (webpack, Rspack, Next.js) and `vite.ts`, pass it to `start` as `simulation`, and the simulation then reads `CONCIV_DRIVE` itself.
+- No bundler path reads `CONCIV_SIMULATE` or `CONCIV_DRIVE`: the engine reads both from its own config (the process env), so a dev server started with them simulates on Vite, webpack, Rspack and Next.js alike.
 - `nextjs.ts:register` - returns early in production or unless `NEXT_RUNTIME === 'nodejs'`.
 - `nextjs.ts:register` - known limit: conciv never stops the engine that `register()` boots, since neither Next.js instrumentation nor the `withConciv` config wrapper offers a close hook; the engine ends with the process.
 - `nextjs.ts:withConciv` - with `enabled: false` returns the config with only `env` and `serverExternalPackages`; existing `process.env` keys are not overwritten. With `widget: false` it sets no `NEXT_PUBLIC_CONCIV_PORT`, so `nextjs-widget.ts` mounts nothing; `CONCIV_OPTIONS` still reaches `register()` and the engine boots.

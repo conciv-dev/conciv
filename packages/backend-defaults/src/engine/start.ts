@@ -264,7 +264,8 @@ export async function createBackend(opts: BackendOptions): Promise<Engine> {
   const configProvider = opts.configProvider ?? defaultConfigProvider()
   const cfg = resolveConfig(opts.options, opts.root, configProvider)
   const registry = harnessRegistry(configProvider)
-  if (!opts.harness && !opts.simulation) requireHarness(registry, cfg.harness)
+  const simulation = cfg.simulate ? opts.simulation : undefined
+  if (!opts.harness && !simulation) requireHarness(registry, cfg.harness)
   const paths = statePaths(cfg.stateRoot)
   await createConcivStateDir(paths.dir)
 
@@ -291,7 +292,7 @@ export async function createBackend(opts: BackendOptions): Promise<Engine> {
     {'conciv.engine.id': engineId, 'conciv.harness.id': cfg.harness},
     () =>
       startEngine({
-        opts,
+        opts: {...opts, simulation},
         cfg,
         configProvider,
         registry,

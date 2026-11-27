@@ -11,7 +11,7 @@ import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} 
 import {makeOpenInEditor} from './open-editor.js'
 import {makeViteBridge} from './vite-bridge.js'
 import {createShutdownTracker, install as installShutdownDeadline} from './shutdown-deadline.js'
-import {readSimulationSwitch, type Builtins} from './boot.js'
+import type {Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
 
 const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/', 'node_modules']
@@ -197,7 +197,6 @@ async function bootEngine(
     devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
     log: {emit: (entry) => writeEngineLog(server, entry)},
-    simulation: readSimulationSwitch(),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
