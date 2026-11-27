@@ -5,6 +5,7 @@ import {captureFile} from '../interrupt.js'
 import type {ManualCard} from '../ledger.js'
 import type {InitStep, SpawnBin} from '../pipeline.js'
 import {hasDependency, readManifest, type PackageJson} from './manifest.js'
+import {cliErrors} from '../../failure.js'
 
 const itName = '@conciv/it'
 
@@ -38,10 +39,11 @@ export function addWithNypm(spawn: SpawnBin): AddDep {
   return async (name, opts) => {
     const packageManager = await detectPackageManagerName(opts.cwd)
     const planned = await addDevDependency(name, {cwd: opts.cwd, packageManager, dry: true})
-    if (planned.exec === undefined) throw new Error(`nypm planned no command to add ${name}`)
+    if (planned.exec === undefined) throw cliErrors.NO_INSTALL_COMMAND({name})
     const [command, args] = await resolveInstallCommand(spawn, opts.cwd, planned.exec)
     const outcome = await spawn(command, args, opts.cwd, () => {}, {signal: opts.signal})
-    if (outcome.code !== 0) throw new Error(`\`${[command, ...args].join(' ')}\` failed.\n${outcome.output}`)
+    if (outcome.code !== 0)
+      throw cliErrors.INSTALL_FAILED({command: [command, ...args].join(' '), output: outcome.output})
   }
 }
 

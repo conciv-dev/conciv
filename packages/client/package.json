@@ -1,6 +1,6 @@
 {
   "name": "@conciv/client",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv client data layer: typed oRPC access, TanStack Query option factories, and the useChat connection bridge. Zero UI.",
   "keywords": [
     "client",
@@ -45,10 +45,11 @@
     "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@orpc/standard-server-peer": "catalog:",
+    "@orpc/effect": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/scheduled": "catalog:",
+    "@standard-server/peer": "catalog:",
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "@tanstack/pacer": "catalog:",

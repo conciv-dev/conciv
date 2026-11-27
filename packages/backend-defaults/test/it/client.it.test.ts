@@ -60,7 +60,36 @@ describe('the SDK client keeps its event stream open over the engine socket', ()
 
     watchedReading.abort()
     expect(watched.connection.status()).toBe('connecting')
+
+    const browserConnection = makeBrowserEngineConnection(engine.address.apiBase)
+    const trustSeen: string[] = []
+    const revoked = new Promise<void>((resolve) => {
+      browserConnection.trust.subscribe((status) => {
+        trustSeen.push(status)
+        if (status === 'revoked') resolve()
+      })
+    })
+    expect(await browserConnection.trust.requestTrustWithCode(await engine.loginCode())).toEqual({
+      token: expect.any(String),
+    })
+    const browser = Conciv.make(
+      makeEngineRpcClient(() => browserConnection),
+      {server},
+    )
+    const browserReading = new AbortController()
+    const browserStream = browser.event.subscribe({types: ['permission.asked'], signal: browserReading.signal})
+    const browserEvents = browserStream[Symbol.asyncIterator]()
+    expect((await browserEvents.next()).value).toMatchObject({type: 'server.connected'})
+    await engine.revokeBrowsers()
+    await revoked
+    expect(await browserConnection.trust.requestTrustWithCode(await engine.loginCode())).toEqual({
+      token: expect.any(String),
+    })
+    expect(trustSeen.filter((status) => status === 'revoked')).toEqual(['revoked'])
+
+    browserReading.abort()
     steadyConnection.dispose()
     watchedConnection.dispose()
+    browserConnection.dispose()
   })
 })

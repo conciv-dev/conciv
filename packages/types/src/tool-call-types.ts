@@ -30,5 +30,3 @@ export function assertToolName(name: string): void {
     `tool "${name}": a tool name is a lowercase snake_case identifier matching ${TOOL_NAME_RULE.source}, so the code-mode isolate can bind it as a JavaScript function name; write page_click, never a dotted name`,
   )
 }
-
-export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>

@@ -1,5 +1,15 @@
 # @internal/plugin-whiteboard
 
+## 0.0.24
+
+### Patch Changes
+
+- [#1199](https://github.com/conciv-dev/conciv/pull/1199) [`2e0400f`](https://github.com/conciv-dev/conciv/commit/2e0400f9f1758e8b580183747de56165098ca633) Thanks [@omridevk](https://github.com/omridevk)! - The whiteboard plugin is published as `@conciv/plugin-whiteboard`: install it and name it in `plugins`, as the other first-party plugins. Its exports' `types` conditions point at the declarations in `dist`.
+- Updated dependencies []:
+  - @conciv/backend-plugin-api@0.0.24
+  - @conciv/frontend-plugin-api@0.0.24
+  - @conciv/protocol@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

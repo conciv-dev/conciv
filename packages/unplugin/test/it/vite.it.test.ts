@@ -71,9 +71,9 @@ describe.concurrent('the vite dev server', () => {
     started.push(agent)
     expect(adapterFiles(project)).toHaveLength(3)
     const stored = (text: string) => browser.rpc.logs.query({text, source: 'engine', limit: 10})
-    expect((await stored('watcher started')).events).toContainEqual(
-      expect.objectContaining({level: 'info', message: 'watcher started'}),
-    )
+    await expect
+      .poll(async () => (await stored('watcher started')).events)
+      .toContainEqual(expect.objectContaining({level: 'info', message: 'watcher started'}))
     expect((await stored('the engine started')).events).toContainEqual(
       expect.objectContaining({level: 'info', message: 'conciv: the engine started'}),
     )
@@ -88,12 +88,19 @@ describe.concurrent('the vite dev server', () => {
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test('a second dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
+  test("a second dev server whose engine port is taken still boots, with its engine on another port, a dev server started with CONCIV_SIMULATE runs its engine in simulation, and that first server's plugin bundler part transforms a served module after the source stamp and serves a virtual module", async ({
+    project,
     viteDev,
     browser: openBrowser,
     expect,
   }) => {
-    const first = await viteDev({}, {CONCIV_SIMULATE: '1'})
+    const plugin = (name: string) => join(import.meta.dirname, '..', 'fixtures', 'plugins', name)
+    const root = realpathSync(project('app'))
+    writeFileSync(join(root, 'src', 'virtual.js'), "export {virtualGreeting} from 'virtual:stamper'\n")
+    const first = await viteDev(
+      {plugins: [plugin('plain'), plugin('stamper')]},
+      {env: {CONCIV_SIMULATE: '1'}, root, vite: {oxc: {jsx: {runtime: 'classic'}}, server: {host: '127.0.0.1'}}},
+    )
     const second = await viteDev({port: first.port})
 
     expect(second.port).not.toBe(first.port)
@@ -114,6 +121,13 @@ describe.concurrent('the vite dev server', () => {
       type: ChatEventType.RUN_ERROR,
       message: expect.stringContaining('the simulation has no driver'),
     })
+
+    const served = async (path: string) => (await fetch(new URL(path, first.url))).text()
+    const app = await served('/src/app.jsx')
+    expect(app).toContain('data-tsd-source')
+    expect(app).toContain('export const stamperSawSource = true')
+    expect(await served('/src/virtual.js')).toContain('/@id/__x00__virtual:stamper')
+    expect(await served('/@id/__x00__virtual:stamper')).toContain("virtualGreeting = 'from the stamper'")
   })
   test.for([
     {name: 'a plain folder', folder: 'widget'},

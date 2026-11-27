@@ -1,6 +1,5 @@
 import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {Effect, FileSystem, Layer} from 'effect'
-import type {SqliteClient} from '@effect/sql-sqlite-node'
 import {chmod} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {Database} from '@conciv/backend-app-api'
@@ -8,11 +7,8 @@ import {sqliteLayer, supportsForeignKeyToggle, supportsTuningPragmas} from './sq
 
 const makeDatabase = makeWithDefaults()
 
-const databaseLayer = Layer.effect(
-  Database.Service,
-  Effect.gen(function* () {
-    const db = yield* makeDatabase
-
+function tuned(db: Database.Interface['db']): Effect.Effect<Database.Interface> {
+  return Effect.gen(function* () {
     if (supportsTuningPragmas) {
       yield* db.run('PRAGMA journal_mode = WAL')
       yield* db.run('PRAGMA synchronous = NORMAL')
@@ -20,10 +16,11 @@ const databaseLayer = Layer.effect(
       yield* db.run('PRAGMA cache_size = -64000')
     }
     if (supportsForeignKeyToggle) yield* db.run('PRAGMA foreign_keys = ON')
-
     return {db}
-  }).pipe(Effect.orDie),
-)
+  }).pipe(Effect.orDie)
+}
+
+const databaseLayer = Layer.effect(Database.Service, Effect.flatMap(Effect.orDie(makeDatabase), tuned))
 
 export function layer(options: Database.Options = {path: ':memory:'}) {
   return Layer.unwrap(
@@ -52,12 +49,10 @@ async function restrictToOwner(filename: string) {
   )
 }
 
-export const layerFromClient: Layer.Layer<Database.Interface, never, SqliteClient.SqliteClient> = databaseLayer
-
 export function configured(options?: Database.Options) {
   return layer(options)
 }
 
-export function configuredClient(client: Layer.Layer<SqliteClient.SqliteClient>) {
-  return layerFromClient.pipe(Layer.provide(client))
+export function configuredClient(db: Database.Interface['db']): Layer.Layer<Database.Interface> {
+  return Layer.effect(Database.Service, tuned(db))
 }

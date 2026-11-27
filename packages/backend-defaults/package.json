@@ -1,6 +1,6 @@
 {
   "name": "@conciv/backend-defaults",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine with no plugin in it: its HTTP, rpc, MCP and login surface, and the chat plane (turns through TanStack AI's chat(), hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores).",
   "keywords": [
     "ai",
@@ -75,6 +75,7 @@
     "@opentelemetry/api-logs": "catalog:",
     "@opentelemetry/context-async-hooks": "catalog:",
     "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/instrumentation": "catalog:",
     "@opentelemetry/resources": "catalog:",
     "@opentelemetry/sdk-logs": "catalog:",
     "@opentelemetry/sdk-metrics": "catalog:",
@@ -82,6 +83,8 @@
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
+    "@orpc/effect": "catalog:",
+    "@orpc/opentelemetry": "catalog:",
     "@orpc/server": "catalog:",
     "@silvia-odwyer/photon-node": "catalog:",
     "@tanstack/ai": "catalog:",

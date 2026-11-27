@@ -15,7 +15,7 @@ export function useHubConnections() {
   const rpc = useRpc()
   const appData = useAppData()
   const notices = useNotices()
-  const agents = useQuery(() => appData.utils.meta.hubAgents.experimental_liveOptions())
+  const agents = useQuery(() => appData.utils.meta.hubAgents.liveOptions())
   const installs = (): HubInstall[] => (agents.isSuccess ? agents.data.installs : [])
   const connections = (): HubConnection[] => (agents.isSuccess ? agents.data.connections : [])
   const connectKey = appData.utils.meta.connectHub.mutationKey()

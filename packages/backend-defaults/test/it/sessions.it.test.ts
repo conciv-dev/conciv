@@ -17,11 +17,11 @@ describe('sessions', () => {
     const client = connect(engine)
     const now = Date.now()
     fakeTimers({toFake: ['Date'], now: now + 1_000})
-    const oldest = await client.sessions.create({})
+    const oldest = await client.sessions.create()
     vi.setSystemTime(now + 2_000)
-    const middle = await client.sessions.create({})
+    const middle = await client.sessions.create()
     vi.setSystemTime(now + 3_000)
-    const newest = await client.sessions.create({})
+    const newest = await client.sessions.create()
     const first = await client.sessions.list({limit: 2})
     const second = await client.sessions.list({limit: 2, cursor: first.next})
 
@@ -36,7 +36,7 @@ describe('sessions', () => {
     expect,
   }) => {
     const client = connect(await createEngine())
-    const {sessionId} = await client.sessions.create({})
+    const {sessionId} = await client.sessions.create()
     const events = (await client.event.subscribe({types: ['session.renamed']}))[Symbol.asyncIterator]()
     await events.next()
     await client.sessions.rename({sessionId, title: '  Plan  the\u0007 trip\n'})
@@ -59,7 +59,7 @@ describe('sessions', () => {
     expect,
   }) => {
     const client = connect(await createEngine())
-    const {sessionId} = await client.sessions.create({})
+    const {sessionId} = await client.sessions.create()
     await client.sessions.delete({sessionId})
     const afterDelete = await client.sessions.list({})
     const turn = await client.chat.send({
@@ -85,8 +85,8 @@ describe('sessions', () => {
   }) => {
     const engine = await createEngine()
     const first = connect(engine)
-    const empty = await first.sessions.create({})
-    const drafted = await first.sessions.create({})
+    const empty = await first.sessions.create()
+    const drafted = await first.sessions.create()
     await first.drafts.set({
       sessionId: drafted.sessionId,
       text: 'Plan the trip',

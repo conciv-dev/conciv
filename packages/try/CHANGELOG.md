@@ -1,5 +1,14 @@
 # @conciv/try
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/backend@0.0.24
+  - @conciv/harness@0.0.24
+  - @conciv/types@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

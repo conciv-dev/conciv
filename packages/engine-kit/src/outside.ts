@@ -6,7 +6,7 @@ import {externalCallProgram} from './call-tool.js'
 
 const TERMINAL_CLIENT = 'terminal'
 
-const AnsweredErrorSchema = z.object({defined: z.boolean(), code: z.string(), status: z.number(), message: z.string()})
+const AnsweredErrorSchema = z.object({defined: z.boolean(), code: z.string(), message: z.string()})
 
 export type OutsideAgent = {client?: string; tab?: string}
 

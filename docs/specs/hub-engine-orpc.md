@@ -1,5 +1,7 @@
 # Hub to engine over oRPC: typed calls, no text parsing
 
+> 2026-11-27: historical. The code moved to oRPC 2; see `docs/superpowers/plans/2026-11-27-orpc-2-upgrade.md`.
+
 Status: approved (Omri, 2026-11-11). Owner: web-c0. Lands in PR #829 (page action queue), on top of `feat/page-action-queue`.
 
 ## Goal

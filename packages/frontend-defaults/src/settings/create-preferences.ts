@@ -27,7 +27,7 @@ function createSettingsLayers(options: SettingsLayersOptions) {
   const follow = (scope: SettingsScope) =>
     useQuery(
       () => ({
-        ...options.data.utils.settings.changes.experimental_liveOptions({
+        ...options.data.utils.settings.changes.liveOptions({
           input: {scope, namespace: options.namespace},
         }),
         enabled: options.connected(),

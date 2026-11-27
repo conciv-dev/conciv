@@ -100,6 +100,8 @@ const RecordedEngineSchema = z.object({port: z.number().int(), token: z.string()
 
 type RecordedEngine = z.infer<typeof RecordedEngineSchema>
 
+type ViteDevSetup = {env?: NodeJS.ProcessEnv; root?: string; vite?: Record<string, unknown>}
+
 async function stopDevServer(server: DevServer): Promise<void> {
   if (server.exitCode !== null || server.signalCode !== null) return
   const exited = once(server, 'exit')
@@ -144,7 +146,7 @@ async function loadNextConfigPort(options: ConcivConfig): Promise<number> {
 
 type UnpluginFixtures = {
   editor: {next: () => Promise<string>}
-  viteDev: (options: ConcivConfig, env?: NodeJS.ProcessEnv) => Promise<RecordedEngine>
+  viteDev: (options: ConcivConfig, setup?: ViteDevSetup) => Promise<RecordedEngine & {url: string}>
   started: number[]
   browser: (url: string, token: string) => BrowserRpcClient
   hang: (deadline: number) => Hung
@@ -191,15 +193,16 @@ export const test = base.extend<UnpluginFixtures>({
     const servers: DevServer[] = []
     const viteBin = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js')
     const pluginEntry = pathToFileURL(join(import.meta.dirname, '..', '..', 'dist', 'vite.js')).href
-    await use(async (options, env = {}) => {
+    await use(async (options, {env = {}, root: given, vite = {}} = {}) => {
       const root = tempDir('vite-dev-')
-      const project = join(root, 'project')
+      const project = given ?? join(root, 'project')
       const home = join(root, 'home')
       const bin = join(root, 'bin')
-      for (const folder of [project, home, bin]) mkdirSync(folder)
+      for (const folder of [project, home, bin]) mkdirSync(folder, {recursive: true})
+      const config = JSON.stringify({...options, homeDir: home})
       writeFileSync(
         join(project, 'vite.config.mjs'),
-        `import conciv from ${JSON.stringify(pluginEntry)}\nexport default {plugins: [conciv(${JSON.stringify({...options, homeDir: home})})]}\n`,
+        `import conciv from ${JSON.stringify(pluginEntry)}\nexport default {...${JSON.stringify(vite)}, plugins: [conciv(${config})]}\n`,
       )
       const server = spawn(process.execPath, [viteBin], {
         cwd: project,
@@ -207,8 +210,11 @@ export const test = base.extend<UnpluginFixtures>({
         stdio: ['ignore', 'pipe', 'inherit'],
       })
       servers.push(server)
-      await readyLine(createInterface({input: server.stdout})[Symbol.asyncIterator]())
-      return RecordedEngineSchema.parse(JSON.parse(readFileSync(join(concivStateDir(project), 'server.json'), 'utf8')))
+      const ready = await readyLine(createInterface({input: server.stdout})[Symbol.asyncIterator]())
+      const engine = RecordedEngineSchema.parse(
+        JSON.parse(readFileSync(join(concivStateDir(project), 'server.json'), 'utf8')),
+      )
+      return {...engine, url: z.url().parse(/https?:\/\/\S+/.exec(ready)?.[0])}
     })
     await Promise.all(servers.map(stopDevServer))
   },
@@ -351,9 +357,10 @@ export async function readLine(lines: AsyncIterator<string>, expected: string): 
   while (next.done !== true && next.value !== expected) next = await lines.next()
 }
 
-export async function readyLine(lines: AsyncIterator<string>): Promise<void> {
+export async function readyLine(lines: AsyncIterator<string>): Promise<string> {
   let next = await lines.next()
   while (next.done !== true && !stripVTControlCharacters(next.value).includes('Local:')) next = await lines.next()
+  return next.done === true ? '' : stripVTControlCharacters(next.value)
 }
 
 export async function agentStarted(events: AsyncIterator<ChatEvent>): Promise<void> {
