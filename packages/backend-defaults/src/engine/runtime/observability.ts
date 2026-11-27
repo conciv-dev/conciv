@@ -6,6 +6,7 @@ import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, ty
 import corePackage from '../../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'
 import {layer as hostLogs, type LogOptions} from '../lib/logging.js'
+import {initLoggerLayer, loggerLayer} from 'evlog/effect'
 
 const OtlpExporterConfig = Config.all({
   endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
@@ -49,8 +50,11 @@ export type ObservabilityInput = {
   log?: LogOptions
 }
 
+const RPC_EVENTS = {silent: true, redact: false, env: {service: 'conciv'}, _suppressDrainWarning: true}
+
 function observabilityLayer(input: ObservabilityInput): Layer.Layer<Global.Interface> {
-  return hostLogs(input.log).pipe(
+  return Layer.mergeAll(loggerLayer(), initLoggerLayer(RPC_EVENTS)).pipe(
+    Layer.provideMerge(hostLogs(input.log)),
     Layer.provideMerge(provideObservability(input.configProvider, input.engineId)),
     Layer.provideMerge(machineRoots(input.home, input.fallbackRoots)),
   )

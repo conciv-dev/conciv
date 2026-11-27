@@ -29,6 +29,10 @@ const levels = {
 
 const levelNames: Partial<Record<Severity, LogLevel>> = invert(levels)
 
+export function logAtLevel(level: LogLevel, message: string): Effect.Effect<void> {
+  return Effect.logWithLevel(levels[level])(message)
+}
+
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

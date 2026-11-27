@@ -121,7 +121,9 @@ import {
 } from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
 import {writePrivateFile} from './lib/dev-endpoint.js'
-import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
+import {logAtLevel, logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
+import {ORPCInstrumentation} from '@orpc/opentelemetry'
+import type {DrainContext, RequestLogger} from 'evlog'
 import type {SimulationParts} from './lib/simulation.js'
 
 type ServeBindings = Parameters<ServeFetch>[1]
@@ -365,10 +367,10 @@ function composeRoutes(
     trust: ConnectionTrust
     log: Log
     tracer: Tracer | undefined
-    callContext: () => Promise<object>
+    callContext: (logger: RequestLogger | undefined) => Promise<object>
   },
 ) {
-  const traceCall = deps.tracer === undefined ? undefined : rpcSpan(deps.tracer)
+  const drain = rpcEventDrain(deps.log)
   const app = new Hono<{Variables: CoreVars; Bindings: ServeBindings}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -399,24 +401,37 @@ function composeRoutes(
         upgrade: upgradeWebSocket,
         onError: (message) => deps.log(Effect.logError(message)),
         gate: (c) => rpcSocketGate(deps.trust, c.req.url),
-        traceCall,
         callContext: deps.callContext,
+        drain,
       }),
     )
     .use(
       `${RPC_PREFIX}/*`,
       rpcFetchMiddleware(rpc, {
-        traceCall,
         callContext: deps.callContext,
+        drain,
         engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url)),
       }),
     )
     .route('/api/mcp', mcpApp)
 }
 
-function rpcSpan(tracer: Tracer) {
-  return (path: readonly string[], call: () => Promise<unknown>): Promise<unknown> =>
-    inSpan(tracer, `Rpc.${path.join('.')}`, {'rpc.procedure': path.join('.')}, call, {root: true})
+const RpcEventSchema = z.object({rpc: z.object({method: z.string()})})
+
+function rpcEventDrain(log: Log): (drained: DrainContext) => void {
+  return ({event}) => {
+    const {level, ...fields} = event
+    const method = RpcEventSchema.safeParse(event).data?.rpc.method ?? 'unknown'
+    log(logAtLevel(level, `rpc ${method}`).pipe(Effect.annotateLogs(fields)))
+  }
+}
+
+function instrumentRpc(tracer: Tracer | undefined): () => void {
+  if (tracer === undefined) return () => undefined
+  const instrumentation = new ORPCInstrumentation({propagation: false})
+  instrumentation.setTracerProvider({getTracer: () => tracer})
+  instrumentation.enable()
+  return () => instrumentation.disable()
 }
 
 function mcpSpan(tracer: Tracer): MiddlewareHandler {
@@ -939,6 +954,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       callContext: makeCallContext(pluginHost),
     },
   )
+  const uninstrumentRpc = instrumentRpc(tracer)
 
   if (opts.widgetPageDir) app.route(WIDGET_PAGE_PATH, makeWidgetPageApp(opts.widgetPageDir))
 
@@ -962,6 +978,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           disposeStep('closeBrowsers', () => browsers.close()),
           disposeStep('disposePluginHost', () => pluginHost.dispose()),
           disposeStep('closeDatabase', closeDb),
+          disposeStep('uninstrumentRpc', uninstrumentRpc),
         ],
         'conciv: disposing the engine failed',
       ),

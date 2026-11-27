@@ -22,7 +22,9 @@ import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {ProjectDeps} from '../../lib/project.js'
-import {Effect, type ManagedRuntime} from 'effect'
+import {Context, Effect, type ManagedRuntime} from 'effect'
+import type {AuditableLogger, RequestLogger} from 'evlog'
+import {EvlogLogger} from 'evlog/effect'
 import type * as Tab from '@conciv/backend-app-api/core/tab'
 import type * as Job from '@conciv/backend-app-api/core/job'
 import type {
@@ -149,8 +151,18 @@ function wrapEngineEffect<A>(effect: Effect.Effect<A, unknown>, options: EffectW
   return effect.pipe(Effect.mapError((failure) => engineError(options, failure)))
 }
 
-export function makeCallContext(host: PluginHost): () => Promise<WithEffectContext<EngineServices>> {
-  return async () => ({'effect/context': await host.context(), 'effect/wrap': wrapEngineEffect})
+function isAuditable(logger: RequestLogger): logger is AuditableLogger {
+  return typeof Reflect.get(logger, 'audit') === 'function'
+}
+
+export function makeCallContext(
+  host: PluginHost,
+): (logger: RequestLogger | undefined) => Promise<WithEffectContext<EngineServices>> {
+  return async (logger) => {
+    const services = await host.context()
+    const call = logger !== undefined && isAuditable(logger) ? Context.add(services, EvlogLogger, logger) : services
+    return {'effect/context': call, 'effect/wrap': wrapEngineEffect}
+  }
 }
 
 function headerSessionId(context: RpcContext): Effect.Effect<SessionId | null, ORPCError<'BAD_REQUEST', unknown>> {
