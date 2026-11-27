@@ -18,8 +18,14 @@ commands and flags is at the [end of the page](#all-commands).
   @conciv/cli` instead.
 </Callout>
 
-`tools`, `plugin`, `auth` and `mcp connect`, `disconnect` and `list` print one JSON document:
-`{"ok":true,"data":...}` or `{"ok":false,"error":...}`. Pipe it to `jq` in a script.
+These commands print one JSON document, `{"ok":true,"data":...}` or `{"ok":false,"error":...}`:
+
+- `tools`
+- `plugin`
+- `auth`
+- `mcp connect`, `mcp disconnect` and `mcp list`
+
+Pipe it to `jq` in a script.
 
 ## init
 
@@ -29,8 +35,10 @@ Sets a project up: installs `@conciv/it`, wires your bundler config, and connect
 npx @conciv/cli@latest init
 ```
 
-`--yes` accepts every detected default, with no prompts. `--dry-run` prints the plan and touches nothing. `--force`
-runs even with uncommitted git changes. `--json` prints one JSON result and never prompts, so pair it with `--yes`:
+- `--yes` accepts every detected default, with no prompts.
+- `--dry-run` prints the plan and touches nothing.
+- `--force` runs even with uncommitted git changes.
+- `--json` prints one JSON result and never prompts. Pair it with `--yes`:
 
 ```bash title="Terminal"
 npx @conciv/cli@latest init --yes --json
@@ -41,18 +49,23 @@ Learn more in the [Getting started documentation](/docs/getting-started).
 ## tools
 
 Reads and drives the live page through your running dev server. The commands under `tools` come from the engine's own
-tool list, so a plugin's tools show up as soon as the engine loads it.
+tool list. A plugin's tools show up as soon as the engine loads it.
 
 ```bash title="Terminal"
 npx @conciv/cli tools page click --name SubmitButton
 ```
 
-`page` is the tool group and `click` is the tool. A tool that targets an element takes `--selector` (CSS), `--ref`
-(from the last snapshot) or `--name` (a React component). `--tab` with a session id acts on that one tab, on whichever
-dev server holds it.
+`page` is the tool group. `click` is the tool. A tool that targets an element takes one of:
 
-`tools --help` lists every tool the running engine serves. `tools tabs` lists the open conciv tabs of every running dev
-server on this machine:
+- `--selector`: a CSS selector
+- `--ref`: a ref from the last snapshot
+- `--name`: a React component name
+
+`--tab` with a session id acts on that one tab, on whichever dev server holds it.
+
+`tools --help` lists every tool the running engine serves.
+
+`tools tabs` lists the open conciv tabs of every running dev server on this machine:
 
 ```bash title="Terminal"
 npx @conciv/cli tools tabs
@@ -68,7 +81,7 @@ Calls a method a plugin registered on the running engine, and prints its output.
 npx @conciv/cli plugin call server open --data '{"file":"src/routes/index.tsx","line":12}'
 ```
 
-`server` is the plugin's RPC id and `open` is the method. `--data`, or `-d`, sends the method's input as JSON. Learn
+`server` is the plugin's RPC id. `open` is the method. `--data`, or `-d`, sends the method's input as JSON. Learn
 more in the [Dev server documentation](/docs/usage/dev-server).
 
 ## auth link
@@ -124,8 +137,8 @@ npx @conciv/cli mcp list
 
 ## mcp serve
 
-Serves conciv to an outside agent over MCP on stdio, not JSON. `mcp connect` writes this command into the agent's config,
-so you rarely run it yourself.
+Serves conciv to an outside agent over MCP on stdio, not JSON. `mcp connect` writes this command into the agent's config.
+You rarely run it yourself.
 
 ```bash title="Terminal"
 npx @conciv/cli mcp serve --agent claude
@@ -141,16 +154,22 @@ npx @conciv/cli --version
 
 ## All commands
 
-This list is generated from the CLI's own command tree. A flag listed under a command applies to the commands below it
+conciv generates this list from the CLI's own command tree. A flag listed under a command applies to the commands below it
 too.
 
 <CliCommands />
 
 <Accordions>
-  <Accordion title="How does tools find my dev server?">
-    It reads `CONCIV_PORT` first. Then it looks for `.conciv/server.json` in this folder or a parent. Then it takes the
-    most recently started engine on this machine, and last it tries 5173. With no engine running, `tools` prints the "No
-    conciv dev server" error, and so does its `--help`.
+  <Accordion title="How tools finds your dev server">
+    It tries these in order:
+
+    1. `CONCIV_PORT`.
+    2. `.conciv/server.json` in this folder or a parent.
+    3. The most recently started engine on this machine.
+    4. Port 5173.
+
+    With no engine running, `tools` prints the "No conciv dev server" error. So does its `--help`.
+
   </Accordion>
 </Accordions>
 
