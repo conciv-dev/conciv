@@ -6,7 +6,7 @@ description: Pick the agent CLI that answers in the chat, and see what each one 
 A harness is the agent CLI that answers in the chat. conciv runs it on your machine, in your project folder, with your
 own login, models and settings.
 
-## Overview
+## Pick a harness
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -66,7 +66,7 @@ show as permission cards.
 
 ## OpenCode
 
-OpenCode chats in the panel. It can ask for permission, but its asks do not reach conciv yet, so no card shows.
+OpenCode chats in the panel. It can ask for permission, but its asks do not reach conciv yet. No card shows.
 
 ## Pi
 
@@ -75,7 +75,7 @@ installed or not yet supported".
 
 ## What each one can do
 
-This table is generated from conciv's harness registry.
+conciv generates this table from its harness registry.
 
 <HarnessTable />
 
@@ -83,7 +83,7 @@ This table is generated from conciv's harness registry.
 the conversation instead.
 
 <Accordions>
-  <Accordion title="Why did the engine stop on an unknown harness?">
+  <Accordion title="The engine stops on an unknown harness">
     A `harness` value conciv does not know stops the engine with `conciv: unknown harness "<id>"`. The message lists the
     known ids. Learn more in the [Troubleshooting documentation](/docs/reference/troubleshooting#unknown-harness).
   </Accordion>
