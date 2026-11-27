@@ -135,14 +135,13 @@ The first two are on in every widget. Add the others with the line in the third 
 | Recorder    | Records the page, replays it and exports a video. See [Live recorder](/docs/usage/live-recorder).             | `'@conciv/plugin-recorder'`     | `masking`, `windowMinutes`, `console`             |
 | TanStack    | Build errors, routes and server function calls of a TanStack app. See [TanStack](/docs/usage/tanstack).       | `'@conciv/plugin-tanstack'`     | `bundlerWaitMs`                                   |
 | iOS         | Builds, runs, screenshots and reads the logs of your iOS app in the simulator. See [iOS](/docs/bundlers/ios). | `['@conciv/plugin-ios', {...}]` | `projectRoot` and `bundleId` (required), and more |
-| Whiteboard  | A shared canvas over the app. See [Whiteboard](/docs/usage/whiteboard).                                       | Example apps only               | None                                              |
+| Whiteboard  | A shared canvas over the app. See [Whiteboard](/docs/usage/whiteboard).                                       | `'@conciv/plugin-whiteboard'`   | None                                              |
 | Try it      | The connect pane of the widget on conciv.dev.                                                                 | Not added in config             | None                                              |
 
 <Accordions type="single">
-<Accordion title="You cannot add the whiteboard or try-it">
+<Accordion title="You cannot add try-it">
 
-The whiteboard is not on npm yet. It runs only in the example apps inside the conciv repo. They load it from its
-folder. Try-it is published, but conciv.dev composes it into its own widget. It is not a plugin you add in config.
+Try-it is published, but conciv.dev composes it into its own widget. It is not a plugin you add in config.
 
 </Accordion>
 <Accordion title="Every way to name a plugin">

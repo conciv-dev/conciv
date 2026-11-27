@@ -6,10 +6,62 @@ description: Sketch on a canvas over your app, and have the agent build it or dr
 The whiteboard is an [Excalidraw](https://excalidraw.com) canvas over your app that you and the agent draw on
 together.
 
-<Callout type="warn" title="Example apps only">
-  The whiteboard plugin is not on npm yet. Today it runs only in the example apps inside the conciv repo, which load it
-  from its folder. Learn more in [Examples](/docs/examples).
-</Callout>
+## Add the whiteboard
+
+Add the plugin to the `plugins` option of your conciv config:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-whiteboard'], // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  plugins: ['@conciv/plugin-whiteboard'], // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-whiteboard'], // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-whiteboard'], // [!code ++]
+    }),
+  ],
+}
+```
+
+Restart your dev server. The engine installs the plugin from npm into its own cache, so it does not go in your
+`package.json`.
 
 ## Sketch a layout
 
