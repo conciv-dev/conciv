@@ -118,7 +118,7 @@ function CopyPromptButton({text}: {text: string}) {
 
 function PromptText({text}: {text: string}) {
   return (
-    <pre className="m-0 max-h-80 overflow-auto whitespace-pre-wrap border-0 bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-fd-foreground">
+    <pre className="m-0 whitespace-pre-wrap border-0 bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-fd-foreground">
       {text}
     </pre>
   )
