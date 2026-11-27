@@ -1,20 +1,19 @@
 import {z} from 'zod'
 import {generateMessageId, outsideCallMessageId, type OutsideCallMetadataSchema} from '@conciv/types/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
-import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/types/chat-types'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/types/chat-types'
 import {safeStringify} from '@conciv/protocol'
 import {Effect} from 'effect'
 import type {Maker} from '@conciv/protocol/schema/identifier'
 import {CallId} from '@conciv/protocol/schema/tool'
-import type {Log} from '../lib/logging.js'
+import type {EngineRuntime} from '../lib/logging.js'
 
 const HubOriginSchema = z.object({
   origin: z.enum(['hub']).optional().catch(undefined),
   client: z.string().max(64).optional().catch(undefined),
-  namedTab: z.enum(['1']).optional().catch(undefined),
 })
 
-type HubOrigin = {client: string | null; namedTab: boolean}
+type HubOrigin = {client: string | null}
 
 type CallMarker = z.infer<typeof OutsideCallMetadataSchema> | null
 
@@ -24,7 +23,7 @@ type MirrorSink = {
   publish: (chunk: ChatEvent) => void
   record: (chunks: readonly ChatEvent[]) => Promise<void>
   driving: () => boolean
-  log: Log
+  runtime: EngineRuntime
 }
 
 export function callTrace(header: (name: string) => string | null, ids: Maker) {
@@ -66,11 +65,11 @@ function mirrorRun(run: CallRun, saved: boolean, sink: MirrorSink) {
   const recorded: ChatEvent[] = []
   const order = {published: Promise.resolve(), deferred: false}
   const save = (): Promise<void> =>
-    sink
-      .record([...recorded])
-      .catch((error: unknown) =>
-        sink.log(Effect.logError('[hub] saving an outside call to the chat failed', {threadId: run.threadId, error})),
+    sink.record([...recorded]).catch((error: unknown) => {
+      sink.runtime.runFork(
+        Effect.logError('[hub] saving an outside call to the chat failed', {threadId: run.threadId, error}),
       )
+    })
   const send = (chunks: readonly ChatEvent[]): void => chunks.forEach((chunk) => sink.publish(chunk))
   const savedThenSent = async (chunks: readonly ChatEvent[]): Promise<void> => {
     if (sink.driving()) order.deferred = true
@@ -98,10 +97,9 @@ export function hubOrigin(header: (name: string) => string | null): HubOrigin | 
   const parsed = HubOriginSchema.parse({
     origin: header(CONCIV_ORIGIN_HEADER) ?? undefined,
     client: header(CONCIV_CLIENT_HEADER) ?? undefined,
-    namedTab: header(CONCIV_NAMED_TAB_HEADER) ?? undefined,
   })
   if (parsed.origin === undefined) return null
-  return {client: parsed.client ?? null, namedTab: parsed.namedTab !== undefined}
+  return {client: parsed.client ?? null}
 }
 
 function marked(chunk: ChatEvent, marker: CallMarker): ChatEvent {

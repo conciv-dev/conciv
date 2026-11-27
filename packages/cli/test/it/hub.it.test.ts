@@ -1,12 +1,14 @@
 import {describe, expect} from 'vitest'
+import {z} from 'zod'
 import {makeRpcClient} from '@conciv/client'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/home'
 import {test} from '../utils/hub-test.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs, discovers and runs a tool with no tab, then starts work on a tab and hears it finished on its next reply, once', async ({
+  test('an outside agent lists the open tabs, discovers and runs a tool with no tab, then starts work on a tab and hears it finished on its next reply, once, and a task-capable agent gets a working task that completes once the work is done', async ({
     createEngine,
     hub,
+    taskHub,
   }) => {
     const BROWSER_TAB = 'tab_00000000-0000-4000-8000-000000000001'
     const SHELF_URL = 'http://localhost:5173/shelf'
@@ -75,6 +77,26 @@ describe('the hub', () => {
     expect(again.content).toEqual([
       {type: 'text', text: expect.stringContaining('Print a label for a plant on the shelf')},
     ])
+
+    const taskAgent = taskHub(engine.home)
+    const started = await taskAgent.request('tools/call', {
+      name: 'execute_typescript',
+      arguments: {typescriptCode: "return await external_shelf_water({plant: 'ivy'})", tab: sessionId},
+    })
+    expect(started).toMatchObject({resultType: 'task', status: 'working', content: []})
+    const {taskId} = z.object({taskId: z.string().startsWith('tsk_')}).parse(started)
+    await expect(taskAgent.request('tasks/get', {taskId})).resolves.toMatchObject({taskId, status: 'working'})
+    await expect(engine.rpc.call('plant-shelf', 'watered', {plant: 'ivy'})).resolves.toEqual({plant: 'ivy', told: 1})
+    await expect(taskAgent.request('tasks/get', {taskId})).resolves.toMatchObject({
+      taskId,
+      status: 'completed',
+      result: {
+        content: expect.arrayContaining([
+          {type: 'text', text: JSON.stringify({result: {plant: 'ivy', watering: true}, logs: []})},
+          {type: 'text', text: 'ivy is watered'},
+        ]),
+      },
+    })
 
     widgetGone.abort()
     await expect(open).rejects.toThrow()

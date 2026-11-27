@@ -6,7 +6,7 @@ export const test = base.extend<{
   driver: CodeDriver
 }>({
   driver: async ({task: _task}, use) => {
-    const driver = loadIsolateDriver(() => undefined)
+    const driver = loadIsolateDriver({runFork: () => undefined})
     if (driver === null) throw new Error('the QuickJS driver did not start')
     await use(driver)
     await driver.dispose()

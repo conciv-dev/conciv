@@ -16,7 +16,7 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 - Invariant: with options, a session `context` hook adds the iOS rules (the native overlay, the served app, the
   build loop, no filesystem-wide searches) to the system prompt of every model request; without options it adds
   nothing.
-- Invariant: `concivUrl` is the engine api base with no page path (an optional `/t/<token>` prefix is allowed); a
+- Invariant: `concivUrl` is the engine api base with no path; a
   trailing `/widget` is stripped because the Swift SDK appends `/widget` itself. Without it the app gets the url of
   the engine's own server.
 - Side effect: `ios_build` and `ios_run` start child processes and write the `build/<module>.app` bundle in swiftc
@@ -94,8 +94,8 @@ on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop docu
 `SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
 picks up). The value is the engine's own apiBase with no `/widget` suffix: the SDK appends
 the `/widget` route itself, so passing a URL that already ends in `/widget` would load
-`/widget/widget`. It carries the `/t/<token>` prefix when the engine minted an access
-token. Set `concivUrl` in this plugin's options to override it, again as the API base
+`/widget/widget`. It carries no token: the SDK takes the token (and pid) from the pairing file when
+that file's `apiBase` has the same origin. Set `concivUrl` in this plugin's options to override it, again as the API base
 without `/widget`.
 
 ## Pairing file and discovery
@@ -105,9 +105,12 @@ On startup a dev engine that serves the native page writes
 and removes it on shutdown. The simulator shares the host filesystem, so the Swift
 SDK reads that file to discover the engine deterministically, validates it with
 `GET <apiBase>/health`, and falls back to probing a short candidate port list on
-`127.0.0.1` (the pinned `4599` first). `apiBase` already carries `/t/<token>` when the
-engine is token-scoped, so the WebView loads `<apiBase>/widget` token-scoped with no
-extra work. The origin pin stays `scheme://host:port`.
+`127.0.0.1` (the pinned `4599` first). `apiBase` is the bare engine origin and `token`
+the engine token. The engine serves `/widget` without a token and reads the token only
+as the `?conciv_auth_token=<token>` query on each URL, so the WebView loads
+`<apiBase>/widget?conciv_auth_token=<token>` and the native page hands that token to its
+engine connection, as the web widget hands its token to `createConciv`. The origin pin
+stays `scheme://host:port`.
 
 The port probe runs whenever the pairing file does not yield a live engine: the file is
 missing or unreadable, its JSON is malformed, or its `apiBase` fails the health check.
@@ -122,13 +125,13 @@ the global path. Set `CONCIV_URL` to pin the engine explicitly.
 
 ## Auth and re-pair
 
-Pure loopback on the simulator needs no auth. Once the connection leaves the machine
-a token is required, and the engine scopes the whole app under `/t/<token>` (path
-prefix, not a header). The token persists for the engine process lifetime and is
-regenerated on restart, so a cached token that no longer resolves returns `401`/`404`
-on the token-scoped base. The SDK treats that as a stale token and surfaces a visible
-re-pair prompt; tapping it re-reads the pairing file and re-attaches. There is no
-silent token refresh, and the token never appears in any log line.
+Every engine url but `/health`, the `auth.*` procedures and the `/widget` page needs the
+engine token as the `?conciv_auth_token=` query (no header, no path prefix). A page with
+no token (a probed base, or `CONCIV_URL` with no pairing file for its origin) opens untrusted and asks the
+user to log in. A `401`/`404` on the page load means the base no longer serves this
+engine's page; the SDK surfaces a visible re-pair prompt, and tapping it re-reads the
+pairing file and re-attaches. There is no silent token refresh, and the token never appears
+in any log line.
 
 Same-engine port drift self-heals without relaunch: when the current base stops
 responding, the SDK re-discovers and, if the pairing-file `pid` is unchanged (the same

@@ -393,19 +393,19 @@ The gallery is the mascot as a consumer meets it: every import here is a publish
 (\`@conciv/mascot\` and \`@conciv/mascot/effects/<name>\`), never package source, so what the controls drive is
 exactly what an app gets from npm.
 
-**Playground** — the assembled robot over \`createMascot\`. \`state\` picks the resting expression, \`working\`
+**Playground**: the assembled robot over \`createMascot\`. \`state\` picks the resting expression, \`working\`
 runs the activity overlay, \`follow\` arms pointer tracking per channel, \`bob\`/\`throb\`/\`blink\` isolate the
 three overlay pieces, \`effect\` swaps which of the sixteen effects is mounted (switching drains the outgoing one
 and starts the incoming one), \`curve\` picks the path travelling digits ride out of the antenna tip, and
-\`stageSizePx\` resizes the stage — the emitter is scale-relative, so the whole effect grows with the robot.
+\`stageSizePx\` resizes the stage; the emitter is scale-relative, so the whole effect grows with the robot.
 
-**Compound** — the same robot from \`@conciv/mascot/solid\`: \`<Mascot>\` renders its own three layers, and the
+**Compound**: the same robot from \`@conciv/mascot/solid\`: \`<Mascot>\` renders its own three layers, and the
 \`<Mascot.Effect>\` child mounts an effect subpath in place of the default binary.
 
-**Index** — the map of the package: the parts a host renders, all sixteen effect subpaths, and the three
+**Index**: the map of the package: the parts a host renders, all sixteen effect subpaths, and the three
 entries (core, Solid, React). Each per-effect story under **mascot/Effects** is the deep dive for one of them.
 
-**Reduced motion** — under \`prefers-reduced-motion: reduce\` poses are set instantly, follow never arms and no
+**Reduced motion**: under \`prefers-reduced-motion: reduce\` poses are set instantly, follow never arms and no
 effect starts, so the robot here renders still. That is the core's behavior, not the story's: flip the setting in
 the DevTools **Rendering** panel and reload to see it.
 `

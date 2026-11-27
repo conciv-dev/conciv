@@ -37,7 +37,7 @@ machine (`claude`, `codex`, `gemini`, `opencode`, `pi`).
 ### It shows the plan, then asks "Run this plan?"
 
 The plan lists each step and the files it would edit. A step that is already done shows as `already wired`, and a step
-init cannot do for you shows as `manual — prints instructions`.
+init cannot do for you shows as `manual, prints instructions`.
 
 </Step>
 <Step>
@@ -63,10 +63,10 @@ Ctrl-C while it runs puts your config back as it was.
 
 init stops before it writes anything when:
 
-- there is no `package.json` in the folder: `no package.json here — run init from your app directory`
-- the git tree has uncommitted changes and you did not pass `--force`: `uncommitted changes — commit first or pass --force`
+- there is no `package.json` in the folder: `no package.json here: run init from your app directory`
+- the git tree has uncommitted changes and you did not pass `--force`: `uncommitted changes: commit first or pass --force`
 - there is no terminal to ask in and you passed neither `--yes` nor `--dry-run`:
-  `Non-interactive terminal — re-run with --yes or --dry-run`
+  `Non-interactive terminal: re-run with --yes or --dry-run`
 
 When it is done it prints the next steps: start your app with your package manager's `dev` script, and ask your agent to
 run `conciv tools --help`.

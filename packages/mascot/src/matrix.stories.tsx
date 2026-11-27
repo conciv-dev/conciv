@@ -99,7 +99,7 @@ function MascotPlayground(props: StageProps): JSX.Element {
 
 const COMPONENT_DOCS = `
 \`matrixEffect\` mounts six monospace glyphs (\`0179 42\`) that drip down out of the antenna tip in a falling
-column, each staggered 0.32s behind the last on a 1.9s cycle, fading in then mostly out as they fall — a nod to
+column, each staggered 0.32s behind the last on a 1.9s cycle, fading in then mostly out as they fall, a nod to
 the "digital rain" look. Toggle **working** on to see it mount; it stays anchored to the antenna tip as the
 robot leans. Ported verbatim from the \`MatrixDrip\` story prototype: same glyph set, color (\`#4ade80\`), and
 timing, scaled by the antenna factor so it renders identically at 44px.

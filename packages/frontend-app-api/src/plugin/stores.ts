@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   batch,
   createMemo,
@@ -69,7 +70,13 @@ export function persistedHandle<T extends object>(
   const [loadState, setLoadState] = createSignal(createStoreLoadState<T>(input.init !== undefined))
   const settled = input.init && Promise.withResolvers<void>()
 
-  void settled?.promise.catch(() => undefined)
+  void settled?.promise.catch((error: unknown) =>
+    log.debug({
+      action: 'plugin storage',
+      message: 'a store did not load; its load state and waiters have the error',
+      error,
+    }),
+  )
 
   const apply = (write: StoreWrite<T>) => {
     if (write.kind === 'set') return input.set(reconcile(write.value))
@@ -89,7 +96,7 @@ export function persistedHandle<T extends object>(
     setLoadState(next.state)
     next.effects.forEach((effect) => {
       if (effect.type === 'reject') {
-        if (effect.log) console.error('[plugin storage] Load failed', effect.cause)
+        if (effect.log) log.error({action: 'plugin storage', message: 'Load failed', error: effect.cause})
 
         return settled?.reject(effect.cause)
       }
@@ -98,7 +105,10 @@ export function persistedHandle<T extends object>(
 
       const applied = effect.writes.map((write) => Promise.try(() => apply(write)))
       applied.forEach(
-        (write) => void write.catch((cause: unknown) => console.error('[plugin storage] Queued write failed', cause)),
+        (write) =>
+          void write.catch((cause: unknown) =>
+            log.error({action: 'plugin storage', message: 'Queued write failed', error: cause}),
+          ),
       )
       void Promise.all(applied).then(
         () => settled?.resolve(),
@@ -158,7 +168,7 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>, loa
         effect.writes.forEach(
           (write) =>
             void Promise.try(() => forward(effect.handle, write)).catch((cause: unknown) =>
-              console.error('[plugin storage] Queued write failed', cause),
+              log.error({action: 'plugin storage', message: 'Queued write failed', error: cause}),
             ),
         )
       }),
@@ -190,7 +200,9 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>, loa
 
   const loaded = opened.promise.then((inner) => whenLoaded(inner, loads))
 
-  void loaded.catch(() => undefined)
+  void loaded.catch((error: unknown) =>
+    log.debug({action: 'plugin storage', message: 'a store did not open; its waiters have the error', error}),
+  )
   loads.set(handle, loaded)
 
   return handle

@@ -274,7 +274,7 @@ describe.concurrent('session.synthetic', () => {
     },
   )
 
-  test('a browser tab opens, a second joins, focus moves, the first reopens, the second closes, the engine restarts and cancels a running job with the restart notice, and a deleted session takes its tabs', async ({
+  test('a browser tab opens, a second joins, focus moves, the first reopens, the second closes, the engine restarts and cancels a running job with the restart notice, a deleted session takes its tabs, and a tab opened while its session is deleted is closed or refused', async ({
     createEngine,
     expect,
   }) => {
@@ -378,6 +378,19 @@ describe.concurrent('session.synthetic', () => {
     await widget.sessions.delete({sessionId})
     await expect(afterRestart).resolves.toBe('closed')
     await expect(widget.tabs.list({sessionId})).resolves.toEqual({tabs: [], focusedTabId: null})
+    await expect(widget.tabs.sessions()).resolves.toEqual([])
+
+    const racing = await widget.sessions.create()
+    const [racedOpen, racedDelete] = await Promise.allSettled([
+      widget.tabs.open({sessionId: racing.sessionId, connectionId: 'widget-5', tab: openTab(SECOND_TAB, true)}),
+      widget.sessions.delete({sessionId: racing.sessionId}),
+    ])
+    expect(racedDelete).toEqual({status: 'fulfilled', value: {ok: true}})
+    expect(racedOpen).toBeOneOf([
+      {status: 'fulfilled', value: 'closed'},
+      {status: 'rejected', reason: expect.objectContaining({code: 'NOT_FOUND'})},
+    ])
+    await expect(widget.tabs.list({sessionId: racing.sessionId})).resolves.toEqual({tabs: [], focusedTabId: null})
     await expect(widget.tabs.sessions()).resolves.toEqual([])
 
     const elsewhere = await widget.sessions.open({

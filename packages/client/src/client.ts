@@ -20,6 +20,7 @@ export * from './connection/browser-transport.js'
 export * from './connection/rpc-client.js'
 export * from './chat/chat-connection.js'
 export * from './connection/reachability.js'
+export {startWidgetLog} from './log/widget-log.js'
 export {
   QueryClient,
   QueryClientProvider,

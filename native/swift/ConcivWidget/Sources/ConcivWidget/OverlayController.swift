@@ -92,7 +92,7 @@ final class OverlayController: NSObject {
     self.hostWindow = hostWindow
     self.endpoint = endpoint
     self.launcher = launcher
-    self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
+    self.pageUrl = OverlayController.makePageURL(for: endpoint, launcher: launcher)
 
     let configuration = WKWebViewConfiguration()
     configuration.allowsInlineMediaPlayback = true
@@ -139,18 +139,18 @@ final class OverlayController: NSObject {
 
   // The launcher choice reaches the served page as a query param: the native page's
   // entry reads ?launcher=mascot and renders the web ShellFab mascot instead of
-  // deferring to the native FAB. Native mode loads the page with no query.
-  private static func makePageURL(for apiBase: URL, launcher: ConcivLauncher) -> URL {
-    let base = ConcivDiscovery.pageURL(for: apiBase)
+  // deferring to the native FAB. Native mode adds no launcher query.
+  private static func makePageURL(for endpoint: ConcivEndpoint, launcher: ConcivLauncher) -> URL {
+    let base = ConcivDiscovery.pageURL(for: endpoint)
     guard launcher == .mascot else { return base }
     guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return base }
-    components.queryItems = [URLQueryItem(name: "launcher", value: "mascot")]
+    components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "launcher", value: "mascot")]
     return components.url ?? base
   }
 
   // Same-core port drift (06 D8): the core moved to a new base, so re-point the document
-  // plane at it. Recompute the page URL and re-pin the bridge origin to the new base (the
-  // base carries the /t/<token> prefix when token-scoped), then reload so the document is
+  // plane at it. Recompute the page URL (with the endpoint's token query) and re-pin the
+  // bridge origin to the new base, then reload so the document is
   // served from, and its bridge messages are accepted at, the live origin. Restage the
   // stored handshake at the new base before the load so the reload's bridge.ready resend
   // carries the live base, not the dead one; the fresh hello then re-confirms it. A
@@ -158,15 +158,15 @@ final class OverlayController: NSObject {
   func rebind(to endpoint: ConcivEndpoint) {
     stopRecoveryLoop()
     self.endpoint = endpoint
-    self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
+    self.pageUrl = OverlayController.makePageURL(for: endpoint, launcher: launcher)
     bridge.rebind(to: endpoint.apiBase)
     bridge.restageHandshake(apiBase: endpoint.apiBase.absoluteString, token: endpoint.token)
     hideRepairPrompt()
     webView.load(URLRequest(url: pageUrl))
   }
 
-  // The handshake apiBase is the full base (origin plus any /t/<token> prefix), which
-  // equals the served page's own bound base so no spurious rebind fires.
+  // The handshake apiBase is the bare engine origin, which equals the served page's own
+  // origin so no spurious rebind fires.
   private func sendHandshake() {
     bridge.sendHandshake(apiBase: endpoint.apiBase.absoluteString, token: endpoint.token)
   }

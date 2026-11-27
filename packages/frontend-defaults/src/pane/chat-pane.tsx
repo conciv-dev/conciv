@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   createEffect,
   createMemo,
@@ -357,7 +358,7 @@ function DraftRestore(props: {
     }, controller.signal)
     props.onRestore(restoring)
     restoring.catch((error: unknown) => {
-      console.error('[conciv] could not restore the draft', error)
+      log.error({action: 'drafts', message: 'could not restore the draft', error})
     })
   })
   return <></>

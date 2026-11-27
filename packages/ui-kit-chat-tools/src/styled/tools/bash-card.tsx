@@ -3,7 +3,17 @@ import Terminal from 'lucide-solid/icons/terminal'
 import type {ToolCardProps} from '@conciv/types/tool-view-types'
 import type {ToolCardEntry} from '@conciv/ui-kit-chat/tools'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
-import {cardPhase, CodeBlock, ErrorBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {
+  cardPhase,
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  ErrorBlock,
+  ToolCard,
+} from '@conciv/ui-kit-chat/tools'
 
 const ANSI_INTRODUCER = '['
 
@@ -31,7 +41,12 @@ function StoppedBody(): JSX.Element {
     <div class="flex flex-col gap-2">
       <Show when={bash.command()}>
         {(command) => (
-          <CodeBlock size="xs" label="Command" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />
+          <CodeBlock size="xs" label="Command" text={command()}>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+            <CodeBlockContent file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />
+          </CodeBlock>
         )}
       </Show>
       <ErrorBlock message={bash.stoppedReason()} outcome={bash.outcome()} />
@@ -55,11 +70,18 @@ function Body(): JSX.Element {
         {(value) => (
           <CodeBlock
             size="xs"
-            title={bash.command() || (bash.isError() ? 'Error' : 'Output')}
             tone={bash.isError() ? 'error' : 'normal'}
             label={bash.isError() ? 'Error output' : 'Output'}
-            file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
-          />
+            text={value()}
+          >
+            <CodeBlockHeader>
+              <CodeBlockTitle>{bash.command() || (bash.isError() ? 'Error' : 'Output')}</CodeBlockTitle>
+              <CodeBlockActions>
+                <CodeBlockCopyButton />
+              </CodeBlockActions>
+            </CodeBlockHeader>
+            <CodeBlockContent file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}} />
+          </CodeBlock>
         )}
       </Show>
     </Show>

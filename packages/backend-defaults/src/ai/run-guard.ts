@@ -2,6 +2,8 @@ import {setTimeout as delay} from 'node:timers/promises'
 import {EventType} from '@tanstack/ai'
 import type {TextAdapter} from '@conciv/harness/adapters'
 import type {ChatEvent} from '@conciv/types/chat-event-types'
+import {Effect} from 'effect'
+import type {EngineRuntime} from '../engine/lib/logging.js'
 
 export type RunGuard = {
   ended: AbortSignal
@@ -12,7 +14,7 @@ export type RunGuard = {
   onNotStarted: () => void
   onSilence: () => void
   stop: () => void
-  log: (message: string) => void
+  runtime: EngineRuntime
 }
 
 type Watch = {phase: 'starting' | 'silent' | 'speaking'; disarm: () => void}
@@ -52,7 +54,7 @@ async function closed(iterator: AsyncIterator<ChatEvent>, guard: RunGuard): Prom
   const closing = Promise.resolve(iterator.return?.()).then(
     () => true,
     (error: unknown) => {
-      guard.log(`[ai] closing the adapter stream failed: ${String(error)}`)
+      guard.runtime.runFork(Effect.logError('[ai] closing the adapter stream failed', {error}))
       return true
     },
   )
@@ -60,7 +62,10 @@ async function closed(iterator: AsyncIterator<ChatEvent>, guard: RunGuard): Prom
   const late = delay(guard.closeMs, false, {ref: false, signal: settled.signal}).catch(() => true)
   try {
     const closedInTime = await Promise.race([closing, late])
-    if (!closedInTime) guard.log(`[ai] the adapter stream did not close within ${guard.closeMs}ms`)
+    if (!closedInTime)
+      guard.runtime.runFork(
+        Effect.logWarning('[ai] the adapter stream did not close in time', {closeMs: guard.closeMs}),
+      )
   } finally {
     settled.abort()
   }

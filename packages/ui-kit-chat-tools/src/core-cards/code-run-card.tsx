@@ -5,6 +5,11 @@ import type {ToolCardEntry} from '@conciv/ui-kit-chat/tools'
 import {
   clip,
   CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
   ErrorBlock,
   parseInput,
   parseResultPayload,
@@ -64,7 +69,18 @@ const SECTION_LABEL =
   'text-[length:var(--chat-text-micro)] text-chat-microlabel leading-none tracking-[0.13em] uppercase [font-family:var(--chat-mono)]'
 
 function ConsoleLogs(props: {logs: string[]}): JSX.Element {
-  return <CodeBlock title="console" file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
+  const text = () => props.logs.join('\n')
+  return (
+    <CodeBlock label="console" text={text()}>
+      <CodeBlockHeader>
+        <CodeBlockTitle>console</CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton />
+        </CodeBlockActions>
+      </CodeBlockHeader>
+      <CodeBlockContent file={{name: 'console.txt', lang: 'ansi', contents: text()}} />
+    </CodeBlock>
+  )
 }
 
 function RunResult(props: {output: ExecuteResult | null}): JSX.Element {
@@ -119,11 +135,18 @@ function EmbeddedOutput(props: {
             {(value) => (
               <CodeBlock
                 size="xs"
-                title={props.failed ? 'Error' : 'Output'}
                 tone={props.failed ? 'error' : 'normal'}
                 label={props.failed ? 'Error output' : 'Output'}
-                file={{name: 'output.log', lang: 'ansi', contents: value()}}
-              />
+                text={value()}
+              >
+                <CodeBlockHeader>
+                  <CodeBlockTitle>{props.failed ? 'Error' : 'Output'}</CodeBlockTitle>
+                  <CodeBlockActions>
+                    <CodeBlockCopyButton />
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+                <CodeBlockContent file={{name: 'output.log', lang: 'ansi', contents: value()}} />
+              </CodeBlock>
             )}
           </Show>
           <RunResult output={props.output} />
@@ -143,7 +166,12 @@ function FullOutput(props: {
 }): JSX.Element {
   return (
     <div class="flex flex-col gap-2 min-w-0">
-      <CodeBlock size="xs" file={{name: 'run.ts', lang: 'ts', contents: props.code}} />
+      <CodeBlock size="xs" label="run.ts" text={props.code}>
+        <CodeBlockActions>
+          <CodeBlockCopyButton />
+        </CodeBlockActions>
+        <CodeBlockContent file={{name: 'run.ts', lang: 'ts', contents: props.code}} />
+      </CodeBlock>
       <Show when={readLogs(props.output).length > 0}>
         <ConsoleLogs logs={readLogs(props.output)} />
       </Show>

@@ -99,7 +99,7 @@ function MascotPlayground(props: StageProps): JSX.Element {
 
 const COMPONENT_DOCS = `
 \`pixelBubblesEffect\` mounts six small pixel squares (alternating accent \`#e0218a\` and ink \`#2f3142\`, sizes
-3px/5px) that float up and drift apart from the antenna tip — even-lane squares drift right, odd-lane left —
+3px/5px) that float up and drift apart from the antenna tip (even-lane squares drift right, odd-lane left),
 staggered 0.35s apart on a 2.1s cycle, fading in then out. Toggle **working** on to see it mount; it stays
 anchored to the antenna tip as the robot leans. Ported verbatim from the \`PixelBubbles\` story prototype: same
 geometry, colors, and timing, scaled by the antenna factor so it renders identically at 44px.

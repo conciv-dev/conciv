@@ -174,9 +174,7 @@ const listedModels = Effect.fn('core.models.list')(function* (harness: HarnessAd
   yield* Effect.annotateCurrentSpan({harness: harness.id})
   const context = yield* Effect.context<never>()
   const entry = yield* Effect.promise(() =>
-    buildHarnessMenuEntry(harness, signal, (logged) => {
-      Effect.runForkWith(context)(logged)
-    }),
+    buildHarnessMenuEntry(harness, signal, {runFork: Effect.runForkWith(context)}),
   )
   const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
   return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}

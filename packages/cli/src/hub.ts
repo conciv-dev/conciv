@@ -1,5 +1,6 @@
 import {once} from 'node:events'
 import {z} from 'zod'
+import {log} from 'evlog'
 import {differenceBy, partition} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
@@ -599,5 +600,5 @@ function failed(text: string): Reply {
 }
 
 function logHub(message: string, error: unknown): void {
-  process.stderr.write(`conciv mcp: ${message}: ${errorText(error)}\n`)
+  log.error({action: 'conciv mcp', message, error: errorText(error)})
 }

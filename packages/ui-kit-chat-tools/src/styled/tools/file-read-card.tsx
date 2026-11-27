@@ -3,7 +3,18 @@ import FileText from 'lucide-solid/icons/file-text'
 import type {ToolCardProps} from '@conciv/types/tool-view-types'
 import type {ToolCardEntry} from '@conciv/ui-kit-chat/tools'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
-import {Chip, CodeBlock, countLabel, QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {
+  Chip,
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  countLabel,
+  QUIET_TEXT_CLASS,
+  ToolCard,
+} from '@conciv/ui-kit-chat/tools'
 
 function Icon(): JSX.Element {
   return <FileText size={14} aria-hidden="true" />
@@ -20,12 +31,15 @@ function Body(): JSX.Element {
   return (
     <>
       {view.contents() ? (
-        <CodeBlock
-          size="sm"
-          chrome="file"
-          maxHeight="log"
-          file={{name: view.path() || 'file', contents: view.contents()}}
-        />
+        <CodeBlock size="sm" maxHeight="log" label={view.path() || 'file'} text={view.contents()}>
+          <CodeBlockHeader>
+            <CodeBlockTitle>{view.path() || 'file'}</CodeBlockTitle>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+          </CodeBlockHeader>
+          <CodeBlockContent lineNumbers file={{name: view.path() || 'file', contents: view.contents()}} />
+        </CodeBlock>
       ) : view.path() ? (
         <Chip kind="pill" value={`${view.path()}${view.range() ?? ''}`} />
       ) : (

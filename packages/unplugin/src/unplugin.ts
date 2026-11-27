@@ -1,18 +1,16 @@
+import {log} from 'evlog'
 import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplugin'
 import type {Engine} from '@conciv/backend/start'
-import type {ConcivConfig} from '@conciv/types/config-types'
+import type {ConcivConfig, LogLevel} from '@conciv/types/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
 import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER, chooseEnginePort} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {concivStateDir} from '@conciv/types/state-types'
 import {isEnginePort} from './core/widget-start.js'
-
-function widgetStarterPath(): string {
-  return fileURLToPath(new URL('../dist/core/widget-start.js', import.meta.url))
-}
+import {widgetStarterPath} from './core/widget-module.js'
+import {startHostLog} from './core/host-log.js'
 
 const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
 
@@ -23,23 +21,28 @@ function createStateDirNow(stateDir: string): void {
   try {
     writeFileSync(ignoreFile, STATE_GITIGNORE, {flag: 'wx'})
   } catch (error) {
-    console.error('conciv: could not write', ignoreFile, error)
+    log.error({action: 'unplugin', message: 'could not write the state folder ignore file', path: ignoreFile, error})
   }
 }
 
-function writeWidgetClient(root: string, client: {askedPort: number; port: number}): string | undefined {
-  const {askedPort, port} = client
+function writeWidgetClient(
+  root: string,
+  client: {askedPort: number; port: number; logLevel: LogLevel},
+): string | undefined {
+  const {askedPort, port, logLevel} = client
   if (!isEnginePort(port)) {
-    console.error(
-      `conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}, so the page gets no widget`,
-    )
+    log.error({
+      action: 'unplugin',
+      message: 'the engine port must be an integer from 1 to 65535, so the page gets no widget',
+      port: String(port),
+    })
     return undefined
   }
   const stateDir = concivStateDir(root)
   const path = join(stateDir, `widget-client.${String(askedPort)}.gen.js`)
   const source = [
     `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
-    `startConcivWidget(${String(port)})`,
+    `startConcivWidget(${String(port)}, ${JSON.stringify(logLevel)})`,
     '',
   ].join('\n')
   try {
@@ -47,7 +50,11 @@ function writeWidgetClient(root: string, client: {askedPort: number; port: numbe
     writeFileSync(path, source, 'utf8')
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)
-    console.error(`conciv: could not write the widget client ${path}, so the page gets no widget: ${cause}`)
+    log.error({
+      action: 'unplugin',
+      message: `could not write the widget client, so the page gets no widget: ${cause}`,
+      path,
+    })
     return undefined
   }
   return path
@@ -93,6 +100,7 @@ function reportStartFailure(error: unknown): never {
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
+    const logLevel = startHostLog(options.logLevel)
     const askedPort = options.port ?? CONCIV_DEFAULT_PORT
     const state: {slot: EngineSlot} = {slot: {stage: 'idle'}}
     const startEngine = async (onPort: (port: number) => void): Promise<Engine> => {
@@ -120,7 +128,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
           (engine) => engine.stop(),
           () => undefined,
         )
-        .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+        .catch((error: unknown) => log.error({action: 'unplugin', message: 'stopping the engine failed', error}))
         .then(() => {
           state.slot = {stage: 'idle'}
         })
@@ -130,10 +138,13 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     const serveWidgetInDevelopment = (compiler: BundlerCompiler) => {
       if (options.enabled === false || (compiler.options.mode ?? 'production') === 'production') return
       const client =
-        options.widget === false ? undefined : writeWidgetClient(compiler.context, {askedPort, port: askedPort})
+        options.widget === false
+          ? undefined
+          : writeWidgetClient(compiler.context, {askedPort, port: askedPort, logLevel})
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
         await startEngine((port) => {
-          if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port}) !== undefined) return
+          if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port, logLevel}) !== undefined)
+            return
           throw new Error(`conciv: could not rewrite the widget client for port ${String(port)}`)
         })
       })
@@ -151,7 +162,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     return {
       name: 'conciv',
 
-      vite: makeViteHook(options, builtins) as UnpluginOptions['vite'],
+      vite: makeViteHook(options, builtins, logLevel) as UnpluginOptions['vite'],
       webpack: serveWidgetInDevelopment,
       rspack: serveWidgetInDevelopment,
       rollup: {},

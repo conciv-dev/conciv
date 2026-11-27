@@ -9,14 +9,16 @@ import {pastSessions} from '../fixtures/past-sessions.js'
 import {addSession, browserTabsOnceCounted, renameFromElsewhere, titleSentSession} from '../utils/engine-client.js'
 import {forgetQuickHeight, mountShell, shellEngine} from '../utils/mount-shell.js'
 import {harness, MODEL, textMessage} from '../utils/sample-data.js'
+import {sessionBadgePlugin} from '../utils/sample-plugins.js'
 
 describe('find and switch sessions', () => {
-  test('the user searches the sessions, switches to one and starts a new one, and the open widget is a browser tab that moves with the session', async () => {
+  test('the user searches the sessions, switches to one and starts a new one, the open widget is a browser tab that moves with the session, and a header a plugin draws without a framework follows the session', async () => {
     const user = userEvent.setup({delay: null})
     const engine = shellEngine()
     const alpha = await addSession(engine, 'Alpha')
     const beta = await addSession(engine, 'Beta')
-    await mountShell({engine})
+    await mountShell({engine, plugins: [sessionBadgePlugin]})
+    expect(await screen.findByText(`On session ${beta}`)).toBeVisible()
 
     const shown = await browserTabsOnceCounted(engine, beta, 1)
     expect(shown.tabs.map((tab) => tab.title)).toEqual([document.title])
@@ -46,6 +48,8 @@ describe('find and switch sessions', () => {
     await user.click(await screen.findByRole('option', {name: /^Alpha, Edited/}))
     expect(await screen.findByText('Switched to Alpha')).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Alpha, session options'})).toBeVisible()
+    expect(await screen.findByText(`On session ${alpha}`)).toBeVisible()
+    await expect.element(page.getByText(`On session ${beta}`)).not.toBeInTheDocument()
     const moved = await browserTabsOnceCounted(engine, alpha, 1)
     expect(moved.tabs.map((tab) => tab.id)).toEqual(shown.tabs.map((tab) => tab.id))
     await expect(browserTabsOnceCounted(engine, beta, 0)).resolves.toEqual({tabs: [], focusedTabId: null})

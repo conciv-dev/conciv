@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {z} from 'zod'
 import type {SettingsSnapshot} from '@conciv/protocol'
 import type {EnableState} from './installed'
@@ -8,7 +9,7 @@ export function readEnableState(snapshot: SettingsSnapshot): readonly EnableStat
   return Object.entries(snapshot.value).flatMap(([id, enabled]) => {
     const row = EnableRowSchema.safeParse({id, enabled})
     if (row.success) return [row.data]
-    console.error(`[plugins] dropped the stored enable state of ${id}`, row.error)
+    log.error({action: 'plugins', message: 'dropped the stored enable state', plugin: id, error: row.error})
     return []
   })
 }

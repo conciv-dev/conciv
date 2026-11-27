@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   type Accessor,
   createContext,
@@ -284,7 +285,9 @@ function init(container: () => HTMLElement | undefined, stack: () => HTMLElement
 }
 
 function isolate(fn: () => void) {
-  void Promise.try(fn).catch((cause: unknown) => console.error('[dialog]', cause))
+  void Promise.try(fn).catch((cause: unknown) =>
+    log.error({action: 'dialog', message: 'a dialog step failed', error: cause}),
+  )
 }
 
 function captureFocus(root: Node): FocusReturn | undefined {

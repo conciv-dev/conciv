@@ -5,6 +5,8 @@ import {inSpan, type ChatStores, type Tracer} from './ai.js'
 import {anchorKey, TRANSCRIPT_NAMESPACE} from './db/run-schema.js'
 import type {HarnessSessionId, SessionId} from '@conciv/types/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import {Effect} from 'effect'
+import type {EngineRuntime} from './engine/lib/logging.js'
 
 const MCP_PREFIX = /^mcp__.+?__/
 
@@ -96,7 +98,7 @@ export type TranscriptSource = {
   stores: ChatStores
   toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
   native: (sessionId: SessionId) => Promise<{nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null>
-  log: (message: string) => void
+  runtime: EngineRuntime
   tracer: Tracer | undefined
 }
 
@@ -122,7 +124,9 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
         () => history.messages(native.cwd, native.nativeId),
       )
     } catch (error) {
-      source.log(`[chat] reading the transcript of ${native.nativeId} failed: ${String(error)}`)
+      source.runtime.runFork(
+        Effect.logError('[chat] reading the transcript of a native session failed', {nativeId: native.nativeId, error}),
+      )
       return null
     }
   }

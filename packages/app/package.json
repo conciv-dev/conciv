@@ -1,7 +1,7 @@
 {
   "name": "@conciv/app",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react, @conciv/preact and @conciv/solid wrapper components. The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page. Inlines the private conciv app and the page plugin's built-ins list (@conciv/plugin-page/builtins); externalizes shared Solid/Ark/@conciv packages.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react, @conciv/preact and @conciv/solid wrapper components. The conciv widget bundle: mounts the conciv shell (@internal/frontend-defaults) into a Shadow DOM on the host page. Inlines the private shell and the built-in plugins' browser parts (page, terminal); externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",
     "chat",
@@ -60,6 +60,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {

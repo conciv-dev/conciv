@@ -137,7 +137,7 @@ describe('a webpack development watch build', () => {
     })
 
     const client = join(concivStateDir(realpathSync(root)), `widget-client.${asked}.gen.js`)
-    const builtPort = Number(/startConcivWidget\((\d+)\)/.exec(readFileSync(client, 'utf8'))?.[1])
+    const builtPort = Number(/startConcivWidget\((\d+), "off"\)/.exec(readFileSync(client, 'utf8'))?.[1])
     expect(builtPort).not.toBe(asked)
     expect((await fetch(`http://127.0.0.1:${builtPort}/health`)).status).toBe(200)
 

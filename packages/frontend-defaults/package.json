@@ -51,6 +51,7 @@
     "dom-accessibility-api": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "fuzzysort": "catalog:",
     "lucide-solid": "catalog:",
     "postcss-selector-parser": "catalog:",

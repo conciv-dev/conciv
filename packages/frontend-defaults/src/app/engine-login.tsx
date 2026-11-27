@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createMemo, from, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
@@ -64,7 +65,7 @@ export function engineLocked(status: TrustStatus): boolean {
 
 async function exchangeMagicLink(trust: EngineTrust, code: string): Promise<boolean> {
   const exchanged = await trust.requestTrustWithCode(code).catch((error: unknown) => {
-    console.error('[conciv] the magic link code exchange failed', error)
+    log.error({action: 'login', message: 'the magic link code exchange failed', error})
     return null
   })
   if (exchanged === null) return false
@@ -97,7 +98,7 @@ export function EngineLoginDialog(props: {trust: EngineTrust; onClose: () => voi
         if (reissue) setView('notice', 'newCode')
       })
       .catch((error: unknown) => {
-        console.error('[conciv] could not ask the dev server for a login code', error)
+        log.error({action: 'login', message: 'could not ask the dev server for a login code', error})
         setView('notice', 'requestFailed')
       })
   }
@@ -112,7 +113,7 @@ export function EngineLoginDialog(props: {trust: EngineTrust; onClose: () => voi
         clear()
       })
       .catch((error: unknown) => {
-        console.error('[conciv] the code exchange failed', error)
+        log.error({action: 'login', message: 'the code exchange failed', error})
         setView('notice', 'failed')
         clear()
       })

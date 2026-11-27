@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {useSearch} from '@tanstack/solid-router'
@@ -43,8 +44,10 @@ type WidgetCommand = {
   run: (input?: string) => void
 }
 
-function guardedRun(owner: string, run: () => unknown): void {
-  void Promise.try(run).catch((cause: unknown) => console.error(owner, cause))
+function guardedRun(plugin: string, run: () => unknown): void {
+  void Promise.try(run).catch((cause: unknown) =>
+    log.error({action: 'plugin', message: 'a composer trigger failed', plugin, error: cause}),
+  )
 }
 
 function builtinCommands(props: PaneCommandProps): WidgetCommand[] {
@@ -60,7 +63,7 @@ function pluginCommand(item: Item<Command>): WidgetCommand[] {
       description: item.value.description,
       arguments: slash.arguments,
       after: slash.after,
-      run: (input) => guardedRun(`[plugin] ${item.plugin}`, () => item.value.run(input)),
+      run: (input) => guardedRun(item.plugin, () => item.value.run(input)),
     },
   ]
 }
@@ -196,7 +199,8 @@ function settledEntries<Value>(
   toEntries: (value: Value) => RichTextFieldTriggerItem[],
 ): RichTextFieldTriggerItem[] {
   if (result.status === 'fulfilled') return toEntries(result.value)
-  if (!isCancelledError(result.reason)) console.error(`[conciv] the @ list could not read ${catalog}`, result.reason)
+  if (!isCancelledError(result.reason))
+    log.error({action: 'composer', message: 'the @ list could not read a catalog', catalog, error: result.reason})
   return []
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "@conciv/try",
   "version": "0.0.22",
-  "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv core powered by your own agent.",
+  "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv engine powered by your own agent.",
   "keywords": [
     "ai-agent",
     "cli",
@@ -44,7 +44,8 @@
     "@conciv/harness": "workspace:^",
     "@conciv/types": "workspace:^",
     "citty": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "evlog": "catalog:"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",

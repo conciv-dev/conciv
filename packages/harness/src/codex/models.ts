@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
@@ -87,7 +88,7 @@ const parseToml = (path: string, text: string): unknown => {
   try {
     return parse(text)
   } catch (error) {
-    console.warn(`conciv: ignoring unparsable ${path}`, error)
+    log.warn({action: 'codex models', message: 'ignoring an unparsable config', path, error})
     return {}
   }
 }

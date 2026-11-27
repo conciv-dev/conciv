@@ -39,6 +39,13 @@ function startHighlightWorker(): void {
       () => import('@shikijs/langs-precompiled/css'),
       () => import('@shikijs/langs-precompiled/html'),
       () => import('@shikijs/langs-precompiled/markdown'),
+      () => import('@shikijs/langs-precompiled/scss'),
+      () => import('@shikijs/langs-precompiled/yaml'),
+      () => import('@shikijs/langs-precompiled/diff'),
+      () => import('@shikijs/langs-precompiled/sql'),
+      () => import('@shikijs/langs-precompiled/python'),
+      () => import('@shikijs/langs-precompiled/go'),
+      () => import('@shikijs/langs-precompiled/rust'),
     ],
     engine: createJavaScriptRawEngine(),
   })

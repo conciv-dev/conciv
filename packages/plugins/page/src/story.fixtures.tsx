@@ -11,6 +11,18 @@ const TRACE_FRAME_CLASS = 'p-4 w-[28rem] [background:var(--chat-panel)] [font-fa
 
 export const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
+export const SESSION_STAGE_CLASS = 'p-4 w-[40rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
+
+export const SESSION_STAGE_ROOT_CLASS = 'flex w-full'
+
+export const SESSION_STAGE_PANEL_CLASS = 'min-w-0'
+
+export const SESSION_STAGE_RESIZE_TRIGGER_CLASS =
+  'flex items-center justify-center w-4 shrink-0 cursor-col-resize [background:transparent] [border:none] p-0 rounded-chat-sm focus-visible:[outline:0.125rem_solid_var(--chat-accent)]'
+
+export const SESSION_STAGE_RESIZE_INDICATOR_CLASS =
+  'w-1 h-8 rounded-[var(--chat-radius-pill)] [background:var(--chat-line)]'
+
 function pageCard(name: string) {
   return {render: pageToolCards.find((entry) => entry.tools.includes(name))?.card}
 }

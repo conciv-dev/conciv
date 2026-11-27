@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
-import {CodeBlock} from '../../tools/styled/code-block.js'
+import {CodeBlock, CodeBlockContent} from '../../tools/styled/code-block.js'
 import {TraceOutputBlock} from './output-block.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/trace/OutputBlock'}
@@ -56,7 +56,9 @@ export const DeniedSingleLine: Story = {
   render: () =>
     frame(
       <TraceOutputBlock tone="error" text={DENIED}>
-        <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'log', contents: DENIED}} />
+        <CodeBlock size="xs" maxHeight="none" label="output.log" text={DENIED}>
+          <CodeBlockContent file={{name: 'output.log', lang: 'log', contents: DENIED}} />
+        </CodeBlock>
       </TraceOutputBlock>,
     ),
   play: async ({canvasElement}) => {

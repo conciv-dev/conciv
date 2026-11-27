@@ -108,7 +108,9 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       try {
         await deps.sessions.recordActivity(threadId, firstUserTitle(messages), at)
       } catch (error) {
-        deps.log(`[conciv] recording the activity of session ${threadId} failed: ${String(error)}`)
+        deps.runtime.runFork(
+          Effect.logError('[conciv] recording the activity of a session failed', {sessionId: threadId, error}),
+        )
       }
     },
   })
@@ -118,7 +120,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     harnessFor: deps.harnessFor,
     stores,
     toolNames: deps.toolNames,
-    log: deps.log,
+    runtime: deps.runtime,
     tracer: deps.tracer,
     native: async (sessionId) => {
       const row = await deps.sessions.row(sessionId)
@@ -134,7 +136,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     codeModeResult: cappedValue,
     startTimeoutMs: deps.firstStartTimeoutMs ?? FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
-    log: deps.log,
+    runtime: deps.runtime,
     driver: deps.driver,
     askPermission: (threadId, ask, signal) => deps.askPermission(SessionId.parse(threadId), ask, signal),
     tracer: deps.tracer,
@@ -196,7 +198,9 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     server
       .drive({threadId: sessionId, runId, kind: 'chat', delivered: deliveredIds(delivered)}, [])
       .catch((error: unknown) =>
-        deps.log(`[chat] the run ${runId} that delivers the session inbox failed: ${String(error)}`),
+        deps.runtime.runFork(
+          Effect.logError('[chat] the run that delivers the session inbox failed', {sessionId, runId, error}),
+        ),
       )
   }
 
@@ -294,15 +298,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         timestamp: Date.now(),
       }))
       const active = await stores.runs.findActiveRun(sessionId).catch((error: unknown) => {
-        deps.log(`[chat] reading the active run for a new subscriber failed: ${String(error)}`)
+        deps.runtime.runFork(Effect.logError('[chat] reading the active run for a new subscriber failed', {error}))
         return null
       })
       return active === null ? asks : [...asks, sessionRunEvent.create({runId: active.runId})]
     },
     wake: (sessionId) =>
-      wake(sessionId).catch((error: unknown) =>
-        deps.log(`[chat] waking session ${sessionId} for its inbox failed: ${String(error)}`),
-      ),
+      wake(sessionId).catch((error: unknown) => {
+        deps.runtime.runFork(Effect.logError('[chat] waking a session for its inbox failed', {sessionId, error}))
+      }),
     codeRunner: (sessionId, publish, origin, given) =>
       inSpan(deps.tracer, 'ChatPlane.codeRunner', {'conciv.session.id': sessionId}, () =>
         buildCodeRunner(sessionId, publish, origin, given),

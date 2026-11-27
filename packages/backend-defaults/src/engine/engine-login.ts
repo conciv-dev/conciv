@@ -19,7 +19,8 @@ import {
 import {WIDGET_PAGE_PATH} from './api/widget-page.js'
 import {os} from './api/rpc/mount.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
-import type {Log} from './lib/logging.js'
+import type {EngineRuntime} from './lib/logging.js'
+import type {LogWriter} from '../util/observability/host-sink.js'
 
 export const AUTH_PROCEDURE_PATHS: readonly string[] = [
   '/rpc/auth/trust',
@@ -92,7 +93,7 @@ export function loginBanner(code: string, expiresAt: number, requester: BrowserR
   ])
 }
 
-export function makeCodeStore(deps: {now: () => number; log: Log}): CodeStore {
+export function makeCodeStore(deps: {now: () => number; runtime: EngineRuntime; announce?: LogWriter}): CodeStore {
   const state: CodeState = {code: null, expiresAt: 0, failures: 0}
   const live = (): string | null => (state.code !== null && deps.now() < state.expiresAt ? state.code : null)
   const discard = (): void => {
@@ -111,9 +112,14 @@ export function makeCodeStore(deps: {now: () => number; log: Log}): CodeStore {
     request: (requester, reissue) => {
       if (!reissue && live() !== null) return {expiresAt: state.expiresAt}
       const issued = issue()
-      deps.log(
-        Effect.logInfo(loginBanner(issued.code, issued.expiresAt, requester)).pipe(
-          Effect.annotateLogs({code: issued.code, expiresAt: issued.expiresAt, requester}),
+      deps.announce?.({
+        level: 'info',
+        message: loginBanner(issued.code, issued.expiresAt, requester),
+        attributes: {code: issued.code, expiresAt: issued.expiresAt, requester},
+      })
+      deps.runtime.runFork(
+        Effect.logInfo('[core] a browser asked for a login code').pipe(
+          Effect.annotateLogs({expiresAt: issued.expiresAt, requester}),
         ),
       )
       return {expiresAt: issued.expiresAt}
@@ -168,19 +174,19 @@ export type TrustedBrowsers = {
 
 const TRUST_FILE_POLL_MS = 250
 
-async function trustedHashes(stateDir: string, log: Log): Promise<Set<string>> {
+async function trustedHashes(stateDir: string, runtime: EngineRuntime): Promise<Set<string>> {
   try {
     return new Set((await readTrustedBrowsers(stateDir)).map((entry) => entry.hash))
   } catch (error) {
-    log(Effect.logError('[core] the trusted browsers file could not be read', {stateDir, error}))
+    runtime.runFork(Effect.logError('[core] the trusted browsers file could not be read', {stateDir, error}))
     return new Set()
   }
 }
 
-export async function watchTrustedBrowsers(stateDir: string, log: Log): Promise<TrustedBrowsers> {
+export async function watchTrustedBrowsers(stateDir: string, runtime: EngineRuntime): Promise<TrustedBrowsers> {
   await createConcivStateDir(stateDir)
   const sockets = new Map<EngineSocket, string>()
-  const trusted = {hashes: await trustedHashes(stateDir, log), turns: Promise.resolve()}
+  const trusted = {hashes: await trustedHashes(stateDir, runtime), turns: Promise.resolve()}
   const inTurn = <T>(run: () => Promise<T>): Promise<T> => {
     const turn = trusted.turns.then(run)
     trusted.turns = turn.then(
@@ -190,7 +196,7 @@ export async function watchTrustedBrowsers(stateDir: string, log: Log): Promise<
     return turn
   }
   const reread = async (): Promise<void> => {
-    trusted.hashes = await trustedHashes(stateDir, log)
+    trusted.hashes = await trustedHashes(stateDir, runtime)
   }
   const closeRevoked = (): void => {
     void inTurn(reread).then(() => {

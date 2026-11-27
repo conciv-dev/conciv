@@ -78,6 +78,7 @@
     "@tanstack/solid-virtual": "catalog:",
     "class-variance-authority": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "lucide-solid": "catalog:",
     "mermaid": "catalog:",
     "shiki": "catalog:",

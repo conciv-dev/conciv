@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {z} from 'zod'
 import {differenceBy, intersectionBy, isEqual, keyBy, union, uniqBy} from 'es-toolkit'
 import {untrack} from 'solid-js'
@@ -108,7 +109,7 @@ function parseLocalDraft(raw: string | null): LocalDraft | null {
   if (raw === null) return null
   const parsed = LocalDraftSchema.safeParse(JSON.parse(raw))
   if (parsed.success) return parsed.data
-  console.error('[conciv] the local draft is not a draft, read as absent', parsed.error)
+  log.error({action: 'drafts', message: 'the local draft is not a draft, read as absent', error: parsed.error})
   return null
 }
 
@@ -141,7 +142,7 @@ function readLocalDraft(drafts: DraftStore, sessionId: string): Promise<LocalDra
     .getItem(sessionId)
     .then(parseLocalDraft)
     .catch((error: unknown) => {
-      console.error('[conciv] could not read the local draft', error)
+      log.error({action: 'drafts', message: 'could not read the local draft', sessionId, error})
       return null
     })
 }
@@ -151,7 +152,7 @@ async function readLocalFile(drafts: DraftStore, attachment: LocalAttachment): P
   if (!blob) return []
   const url = await drafts.resolveBlobUrl(blob)
   if (!url) {
-    console.error(`[conciv] the local draft has no bytes for ${attachment.name}`)
+    log.error({action: 'drafts', message: 'the local draft has no bytes for an attachment', name: attachment.name})
     return []
   }
   const bytes = await fetch(url).then((response) => response.blob())
@@ -170,7 +171,12 @@ async function readLocalFile(drafts: DraftStore, attachment: LocalAttachment): P
 
 function readLocalFiles(drafts: DraftStore, attachment: LocalAttachment): Promise<AttachmentState[]> {
   return readLocalFile(drafts, attachment).catch((error: unknown) => {
-    console.error(`[conciv] could not read ${attachment.name} from the local draft`, error)
+    log.error({
+      action: 'drafts',
+      message: 'could not read an attachment from the local draft',
+      name: attachment.name,
+      error,
+    })
     return []
   })
 }
@@ -279,7 +285,7 @@ function makeLocalDraftWriter(
     })
     void keep(() =>
       writeDocument().catch((error: unknown) => {
-        console.error('[conciv] could not keep the draft stamp in the local draft', error)
+        log.error({action: 'drafts', message: 'could not keep the draft stamp in the local draft', sessionId, error})
       }),
     )
     void saving.then((saved) => {
@@ -523,7 +529,8 @@ type ReadRow = (appData: AppData, sessionId: string) => Promise<DraftRow | null>
 
 const readRowOrNone: ReadRow = (appData, sessionId) =>
   appData.readDraft(sessionId).catch((error: unknown) => {
-    if (!isCancelledError(error)) console.error('[conciv] could not read the saved draft', error)
+    if (!isCancelledError(error))
+      log.error({action: 'drafts', message: 'could not read the saved draft', sessionId, error})
     return null
   })
 
@@ -553,7 +560,7 @@ function keepLocally(drafts: DraftStore, sessionId: string, draft: LocalDraft): 
   return drafts.setDocument(sessionId, draft).then(
     () => true,
     (error: unknown) => {
-      console.error('[conciv] could not keep the returned text in the local draft', error)
+      log.error({action: 'drafts', message: 'could not keep the returned text in the local draft', sessionId, error})
       return false
     },
   )
@@ -674,11 +681,20 @@ export function settleKeptSave(appData: AppData, keep: DraftWriteChain, sessionI
 
 export async function keepDraftImage(drafts: DraftStore, file: File): Promise<BlobReference | undefined> {
   if (file.size > MAX_INLINE_BYTES) {
-    console.warn(`[conciv] ${file.name} is over ${MAX_INLINE_BYTES} bytes, so the local draft keeps no copy of it`)
+    log.warn({
+      action: 'drafts',
+      message: `the file is over ${MAX_INLINE_BYTES} bytes, so the local draft keeps no copy of it`,
+      name: file.name,
+    })
     return undefined
   }
   return drafts.putBlob(file).catch((error: unknown) => {
-    console.error('[conciv] could not keep the attached image in the local draft store', error)
+    log.error({
+      action: 'drafts',
+      message: 'could not keep the attached image in the local draft store',
+      name: file.name,
+      error,
+    })
     return undefined
   })
 }
@@ -714,7 +730,12 @@ async function readStoredMoved(appData: AppData, sessionId: string, stored: Loca
       ? null
       : await appData.readDraft(sessionId).catch((error: unknown) => {
           if (!isCancelledError(error))
-            console.error('[conciv] could not read the saved images of the deleted session draft', error)
+            log.error({
+              action: 'drafts',
+              message: 'could not read the saved images of the deleted session draft',
+              sessionId,
+              error,
+            })
           return null
         })
   const encoded = sendableAttachments(stored, files, await encodeAttachments(files), row)
@@ -733,7 +754,12 @@ export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, s
   if (drafts)
     await keep(() =>
       drafts.removeItem(sessionId).catch((error: unknown) => {
-        console.error('[conciv] could not remove the local draft of the deleted session', error)
+        log.error({
+          action: 'drafts',
+          message: 'could not remove the local draft of the deleted session',
+          sessionId,
+          error,
+        })
       }),
     )
   void appData.saveDraft({
@@ -796,7 +822,9 @@ export function makeDraftWriteChain(): DraftWriteChain {
   let written: Promise<unknown> = Promise.resolve()
   return (step) => {
     const queued = written.then(step)
-    written = queued.catch((error: unknown) => console.error('[conciv] a local draft step failed', error))
+    written = queued.catch((error: unknown) =>
+      log.error({action: 'drafts', message: 'a local draft step failed', error}),
+    )
     return queued
   }
 }
@@ -809,7 +837,7 @@ export function draftCacheSink(
   onFailure: () => void,
 ): DraftSink {
   const logKeepFailure = (error: unknown) => {
-    console.error('[conciv] could not keep the queued message as a draft', error)
+    log.error({action: 'drafts', message: 'could not keep the queued message as a draft', sessionId, error})
     onFailure()
   }
   const settleLater = async (kept: KeptSave): Promise<void> => {
@@ -905,7 +933,12 @@ export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessio
       (row) => ({row}),
       (error: unknown) => {
         if (!signal.aborted && !isCancelledError(error))
-          console.error('[conciv] could not read the saved draft, the local draft stays', error)
+          log.error({
+            action: 'drafts',
+            message: 'could not read the saved draft, the local draft stays',
+            sessionId,
+            error,
+          })
         return undefined
       },
     )

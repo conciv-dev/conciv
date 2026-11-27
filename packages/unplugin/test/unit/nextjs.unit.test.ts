@@ -67,7 +67,11 @@ describe('withConciv', () => {
       nextConfig: {},
       options: {},
       expected: (port: number) => ({
-        env: {NEXT_PUBLIC_CONCIV_PORT: String(port), CONCIV_OPTIONS: `{"port":${port}}`},
+        env: {
+          NEXT_PUBLIC_CONCIV_PORT: String(port),
+          NEXT_PUBLIC_CONCIV_LOG_LEVEL: 'off',
+          CONCIV_OPTIONS: `{"port":${port}}`,
+        },
         serverExternalPackages: [
           '@conciv/it',
           '@conciv/unplugin',
@@ -91,6 +95,7 @@ describe('withConciv', () => {
         env: {
           API_URL: 'https://api.example.test',
           NEXT_PUBLIC_CONCIV_PORT: String(port),
+          NEXT_PUBLIC_CONCIV_LOG_LEVEL: 'off',
           CONCIV_OPTIONS: `{"port":${port}}`,
         },
         serverExternalPackages: [

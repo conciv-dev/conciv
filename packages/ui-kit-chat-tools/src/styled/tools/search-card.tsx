@@ -14,6 +14,11 @@ import {
 } from './search-matches.js'
 import {
   CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
   countLabel,
   DANGER_TEXT_CLASS,
   ErrorBlock,
@@ -97,11 +102,18 @@ function EmbeddedResults(props: {text: string; failed: boolean}): JSX.Element {
       fallback={
         <CodeBlock
           size="xs"
-          title={props.failed ? 'Error' : 'Output'}
           tone={props.failed ? 'error' : 'normal'}
           label={props.failed ? 'Error output' : 'Output'}
-          file={{name: 'results.txt', lang: 'text', contents: props.text}}
-        />
+          text={props.text}
+        >
+          <CodeBlockHeader>
+            <CodeBlockTitle>{props.failed ? 'Error' : 'Output'}</CodeBlockTitle>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+          </CodeBlockHeader>
+          <CodeBlockContent file={{name: 'results.txt', lang: 'text', contents: props.text}} />
+        </CodeBlock>
       }
     >
       <TraceOutputBlock
@@ -136,11 +148,12 @@ function Body(): JSX.Element {
           <Show
             when={embedded()}
             fallback={
-              <CodeBlock
-                size="xs"
-                maxHeight="result"
-                file={{name: 'results.txt', lang: 'text', contents: search.text()}}
-              />
+              <CodeBlock size="xs" maxHeight="result" label="results.txt" text={search.text()}>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+                <CodeBlockContent file={{name: 'results.txt', lang: 'text', contents: search.text()}} />
+              </CodeBlock>
             }
           >
             <EmbeddedResults text={search.text()} failed={search.status() === 'error'} />

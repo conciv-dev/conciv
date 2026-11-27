@@ -13,7 +13,7 @@ Single entry `preact.ts`: a Preact component that renders an anchor `<div>` and 
 ## Side Effects
 
 - `handle.mount(host)` mounts the widget into the rendered div (`preact.ts`).
-- Logs `console.error('conciv widget failed to mount', error)` when the mount promise rejects.
+- Logs a failed mount at error level through evlog (`action: 'widget'`), shown when the `logLevel` prop turns logs on (off by default).
 
 ## Verification
 

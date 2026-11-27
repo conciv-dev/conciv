@@ -57,6 +57,7 @@
     "@tanstack/solid-query": "catalog:",
     "defu": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },

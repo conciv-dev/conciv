@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {z} from 'zod'
 import {difference} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
@@ -144,7 +145,8 @@ export function makeAppData(
       queryClient.setQueryData(queryKey, row)
     },
     onError: (error, input) => {
-      if (!refusedByEngine(error)) console.error('[conciv] could not save the draft', error)
+      if (!refusedByEngine(error))
+        log.error({action: 'drafts', message: 'could not save the draft', sessionId: input.sessionId, error})
       forgetDraftSaves(input.sessionId, ['error'])
     },
     onSuccess: (answer, input) => {
@@ -205,20 +207,25 @@ export function makeAppData(
     rpc.sessions.get({sessionId}).then(
       (meta) => meta.hidden,
       (error: unknown) => {
-        console.error(`[conciv] could not check session ${sessionId}, so its local draft stays`, error)
+        log.error({
+          action: 'drafts',
+          message: 'could not check the session, so its local draft stays',
+          sessionId,
+          error,
+        })
         return false
       },
     )
   const forgetGoneDraft = async (sessionId: string): Promise<void> => {
     if (!drafts || !(await sessionGone(sessionId))) return
     await drafts.removeItem(sessionId).catch((error: unknown) => {
-      console.error('[conciv] could not remove the local draft of a gone session', error)
+      log.error({action: 'drafts', message: 'could not remove the local draft of a gone session', sessionId, error})
     })
   }
   const forgetGoneDrafts = async (shown: readonly string[]): Promise<void> => {
     if (!drafts) return
     const kept = await drafts.keys().catch((error: unknown) => {
-      console.error('[conciv] could not list the local drafts', error)
+      log.error({action: 'drafts', message: 'could not list the local drafts', error})
       return []
     })
     await difference(kept, shown).reduce(
@@ -232,7 +239,7 @@ export function makeAppData(
     dropLeavingCopies()
     if (!drafts) return
     await drafts.clear().catch((error: unknown) => {
-      console.error('[conciv] could not empty the local draft store', error)
+      log.error({action: 'drafts', message: 'could not empty the local draft store', error})
     })
   }
   const forgetDeletedSession = (sessionId: string): void => {

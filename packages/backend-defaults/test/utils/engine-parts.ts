@@ -35,7 +35,7 @@ export const test: TestAPI<EnginePartFixtures> = base.extend<EnginePartFixtures>
     const opened: SettingsStorage[] = []
     const ids = makeMaker()
     await use((storages) => {
-      const storage = createSettingsStorage(storages, () => {}, ids)
+      const storage = createSettingsStorage(storages, {runFork: () => undefined}, ids)
       opened.push(storage)
       return storage
     })

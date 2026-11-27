@@ -26,6 +26,7 @@ import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './session
 import {relayEvents} from './relay-events.js'
 import {tabsRouter} from './tabs.js'
 import {jobsRouter} from './jobs.js'
+import {logsRouter} from './logs.js'
 import {readProject} from '../../lib/project.js'
 import {
   admitOutsideCall,
@@ -240,7 +241,7 @@ function hubTraced<Value, Failure, Services>(
       publish: scope.stream.publish,
       record: scope.run.record,
       driving: () => deps.code.driving(scope.id),
-      log: deps.code.log,
+      runtime: deps.code.runtime,
     })
     const finish = (text: string, failed: boolean) =>
       Effect.promise(() => {
@@ -385,6 +386,7 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
     sessions: sessionsRouter(deps),
     tabs: tabsRouter(),
     jobs: jobsRouter(),
+    logs: logsRouter(),
     chat: chatRouter(deps, sessionOs),
     settings: {
       all: os.settings.all.effect(function* ({input}) {
@@ -557,14 +559,14 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
       models: os.meta.models.effect(function* ({input}) {
         return yield* Effect.promise(async (signal) => {
           const harness = await chat.harnessFor(input.sessionId)
-          const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.log)
+          const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.runtime)
           return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
         })
       }),
       harnesses: os.meta.harnesses.effect(function* () {
         return yield* Effect.promise(async (signal) => ({
           harnesses: await Promise.all(
-            chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.log)),
+            chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.runtime)),
           ),
           defaultHarness: chat.defaultHarness.id,
         }))

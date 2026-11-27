@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
-import {mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
@@ -11,12 +11,22 @@ import {optimizeDeps, resolveConfig, type InlineConfig} from 'vite'
 import {describe} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@internal/vitest-config/temp-dir'
+import {ChatEventType} from '@conciv/types/chat-event-types'
 import {concivStateDir} from '@conciv/types/state-types'
 import {makeViteHook} from '../../src/core/vite.js'
-import {adapterFiles, agentStarted, childEnv, fakeClaude, readyLine, running, test} from '../utils/unplugin-test.js'
+import {
+  adapterFiles,
+  agentStarted,
+  childEnv,
+  fakeClaude,
+  readyLine,
+  runEnded,
+  running,
+  test,
+} from '../utils/unplugin-test.js'
 
 describe.concurrent('the vite dev server', () => {
-  test("stops the engine on Ctrl+C mid-run: no adapter file stays in the project, no agent CLI outlives it, and the engine's logs go to the log file in its home, none to the terminal", async ({
+  test("stops the engine on Ctrl+C mid-run: no adapter file stays in the project, no agent CLI outlives it, and with logLevel info the engine's logs are stored in its database, none printed to the terminal", async ({
     started,
     browser: openBrowser,
     expect,
@@ -33,11 +43,11 @@ describe.concurrent('the vite dev server', () => {
     fakeClaude(bin, pidFile)
     writeFileSync(
       join(project, 'vite.config.mjs'),
-      `import conciv from ${JSON.stringify(pluginEntry)}\nexport default {plugins: [conciv({homeDir: ${JSON.stringify(home)}})]}\n`,
+      `import conciv from ${JSON.stringify(pluginEntry)}\nexport default {plugins: [conciv({homeDir: ${JSON.stringify(home)}, logLevel: 'info'})]}\n`,
     )
     const server = spawn(process.execPath, [viteBin], {
       cwd: project,
-      env: {...childEnv(bin, home), CONCIV_DISABLE_FILEWATCHER: 'false', CONCIV_PRINT_LOGS: ''},
+      env: {...childEnv(bin, home), CONCIV_DISABLE_FILEWATCHER: 'false'},
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     if (server.pid !== undefined) started.push(server.pid)
@@ -60,6 +70,13 @@ describe.concurrent('the vite dev server', () => {
     const agent = Number(readFileSync(pidFile, 'utf8'))
     started.push(agent)
     expect(adapterFiles(project)).toHaveLength(3)
+    const stored = (text: string) => browser.rpc.logs.query({text, source: 'engine', limit: 10})
+    expect((await stored('watcher started')).events).toContainEqual(
+      expect.objectContaining({level: 'info', message: 'watcher started'}),
+    )
+    expect((await stored('the engine started')).events).toContainEqual(
+      expect.objectContaining({level: 'info', message: 'conciv: the engine started'}),
+    )
 
     server.kill('SIGINT')
     await exited
@@ -68,24 +85,35 @@ describe.concurrent('the vite dev server', () => {
     expect(running(agent)).toBe(false)
     const printed = [await printedErrors]
     for await (const line of lines) printed.push(line)
-    const logged = readdirSync(join(home, 'log'))
-      .map((file) => readFileSync(join(home, 'log', file), 'utf8'))
-      .join('\n')
-    expect(logged).toMatch(/^timestamp=\S+ level=INFO run=\S+ message="watcher started"/m)
-    expect(logged).toMatch(/^timestamp=\S+ level=INFO run=\S+ message="conciv: the engine started"/m)
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test('a second dev server whose engine port is taken still boots, with its engine on another port', async ({
+  test('a second dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
     viteDev,
+    browser: openBrowser,
     expect,
   }) => {
-    const first = await viteDev({})
+    const first = await viteDev({}, {CONCIV_SIMULATE: '1'})
     const second = await viteDev({port: first.port})
 
     expect(second.port).not.toBe(first.port)
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
+
+    const browser = openBrowser(`http://127.0.0.1:${first.port}`, first.token)
+    const {sessionId} = await browser.rpc.sessions.create()
+    const runId = randomUUID()
+    const events = await browser.rpc.chat.send({
+      sessionId,
+      runId,
+      messages: [{id: `${runId}-user`, role: 'user', content: 'Hi'}],
+    })
+    const ended = await runEnded(events[Symbol.asyncIterator]())
+
+    expect(ended).toMatchObject({
+      type: ChatEventType.RUN_ERROR,
+      message: expect.stringContaining('the simulation has no driver'),
+    })
   })
   test.for([
     {name: 'a plain folder', folder: 'widget'},

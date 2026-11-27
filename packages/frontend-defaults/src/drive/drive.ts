@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {z} from 'zod'
 import type {Plugin} from '@conciv/frontend-plugin-api'
 import {WidgetDrive, WidgetRequestSchema, type WidgetOutcome, type WidgetRequest} from '@conciv/protocol/simulation'
@@ -50,12 +51,12 @@ const drive: Plugin.Setup = (ctx) => {
       if (!call.success) continue
       const outcome = await answer(dom, call.data.request)
       await result({requestId: call.data.requestId, outcome}).catch((error: unknown) =>
-        console.warn('[conciv] drive could not answer the engine', error),
+        log.warn({action: 'drive', message: 'drive could not answer the engine', error}),
       )
     }
   }
   serve().catch((error: unknown) => {
-    if (!ctx.signal.aborted) console.error('[conciv] drive stopped answering the engine', error)
+    if (!ctx.signal.aborted) log.error({action: 'drive', message: 'drive stopped answering the engine', error})
   })
 }
 
