@@ -69,6 +69,16 @@ export type ChatSession = Omit<Chat, 'stop' | 'error'> & {
   decide: (approvalId: string, reply: PermissionReply) => Promise<void>
 }
 
+type RunEndWaiter = {runIds: readonly string[]; resolve: () => void}
+
+async function* endingWith<Chunk>(source: AsyncIterable<Chunk>, ended: () => void): AsyncGenerator<Chunk> {
+  try {
+    yield* source
+  } finally {
+    ended()
+  }
+}
+
 function buildAsk({approvalId, toolCallId, toolName, input, permission}: ApprovalAsk): ApprovalAsk {
   const ask = {approvalId, toolCallId, toolName, input}
   return permission === undefined ? ask : {...ask, permission}
@@ -226,11 +236,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       throw failure
     }
   }
-  const runEnds = new Set<() => void>()
-  const runEnded = (): void => {
-    const waiting = [...runEnds]
-    runEnds.clear()
-    waiting.forEach((resolve) => resolve())
+  const runEnds = new Set<RunEndWaiter>()
+  const runEnded = (runId?: string): void => {
+    const waiting = [...runEnds].filter((waiter) => runId === undefined || waiter.runIds.includes(runId))
+    waiting.forEach((waiter) => runEnds.delete(waiter))
+    waiting.forEach((waiter) => waiter.resolve())
   }
   const connected = options.connect({
     onLifecycle: (lifecycle) => {
@@ -238,7 +248,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
       if (isRunPhaseTerminal(lifecycle.phase) && cardStillRunning(chat.messages()))
         void refresh().catch((error: unknown) => options.onError?.(asError(error)))
-      if (isRunPhaseTerminal(lifecycle.phase)) runEnded()
+      if (isRunPhaseTerminal(lifecycle.phase)) runEnded(lifecycle.runId)
     },
     onHydrated: (hydration) => {
       receive(newerRun(run().source, hydration))
@@ -264,10 +274,14 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       }),
   })
   const hydrate = connected.hydrate
+  const joinRun = connected.joinRun
   const connection: ChatSessionConnection = {
     ...connected,
     send: (messages, data, abortSignal, runContext) =>
-      connected.send(messages, data, abortSignal, runContext).finally(runEnded),
+      connected.send(messages, data, abortSignal, runContext).finally(() => runEnded(runContext.runId)),
+    ...(joinRun === undefined
+      ? {}
+      : {joinRun: (runId, abortSignal) => endingWith(joinRun(runId, abortSignal), () => runEnded(runId))}),
     refresh: (before) => whileHydrating(() => connected.refresh(before)),
     ...(hydrate === undefined
       ? {}
@@ -358,7 +372,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const stopRun = async (): Promise<void> => {
     const runIds = seenRunIds()
     setRunSource(stoppingRun)
-    const ended = chat.isLoading() ? new Promise<void>((resolve) => runEnds.add(resolve)) : Promise.resolve()
+    const ended = chat.isLoading() ? new Promise<void>((resolve) => runEnds.add({runIds, resolve})) : Promise.resolve()
     try {
       await options.stop(runIds)
     } catch (error) {
@@ -368,8 +382,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       setRunSource(stoppedRun)
     }
     await ended
+    const stoppedRunId = chat.runId()
     const shown = shownIds()
-    const window = await latestWindow().finally(() => chat.stop())
+    const window = await latestWindow().finally(() => {
+      if (chat.runId() === stoppedRunId) chat.stop()
+    })
     showWindow(window, shown)
   }
   const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
