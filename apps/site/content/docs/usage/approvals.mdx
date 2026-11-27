@@ -33,8 +33,18 @@ Two things can ask you: your agent CLI, and some of conciv's own tools.
 
 Your agent CLI decides for itself what it asks about:
 
-- **Claude Code** runs in its `auto` mode. It asks when it judges a step risky. conciv adds rules so a few commands
-  always ask: a forced or deleting git push, a hard git reset, git clean, a recursive rm, and sudo.
+- **Claude Code** runs in its `auto` mode. It asks when it judges a step risky. conciv adds rules so these commands
+  always ask:
+
+  - `git push` that forces (`--force`, `-f`) or deletes a remote branch (`--delete`, `-d`, a `:branch` refspec)
+  - `git reset --hard`
+  - `git clean`
+  - `git branch -D`
+  - `git gc --prune`
+  - a recursive `rm` (`-r`, `-R`, `-fr`, `-fR`)
+  - a recursive `chmod -R` or `chown -R`
+  - anything run with `sudo`
+
 - **Codex** never asks. Its `workspace-write` sandbox limits what it can touch.
 - **Gemini CLI** asks by its own rules. Each ask shows as a card.
 - **opencode** asks in its own way. Those asks do not show as cards in conciv yet.
