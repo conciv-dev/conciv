@@ -66,5 +66,8 @@
   },
   "peerDependencies": {
     "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

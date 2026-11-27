@@ -122,6 +122,6 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=26.0.0"
+    "node": ">=22.16.0"
   }
 }

@@ -67,5 +67,8 @@
     "@internal/vite-config": "workspace:*",
     "typescript": "catalog:",
     "vite": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

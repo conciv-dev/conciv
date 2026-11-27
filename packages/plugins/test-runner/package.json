@@ -94,5 +94,8 @@
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "solid-js": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }
