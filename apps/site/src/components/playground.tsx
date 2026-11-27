@@ -1,6 +1,5 @@
-import {useCallback, useId, useRef, useState, type CSSProperties} from 'react'
+import {useCallback, useRef, useState, type CSSProperties} from 'react'
 import {Play} from 'lucide-react'
-import {useMediaQuery} from '@/lib/use-media-query'
 import {cn} from '@/lib/utils'
 import {
   isPlaygroundPage,
@@ -15,7 +14,7 @@ import {Button} from './ui/button'
 import {PlaygroundBar} from './playground-bar'
 import {PanelStill} from './playground-still'
 
-const CHANNEL = 'conciv-playground'
+const FRAME_HEIGHT = 750
 
 const BAR_HEIGHT = 40
 
@@ -71,51 +70,32 @@ function Still(props: {
   )
 }
 
-export function Playground(props: {
-  page: string
-  script: string
-  height?: number
-  caption?: string
-  autoplay?: boolean
-  look?: 'frame' | 'poster'
-}) {
+export function Playground(props: {page: string; script: string; caption?: string; look?: 'frame' | 'poster'}) {
   const {page, script} = readPlayground(props.page, props.script)
-  const instance = useId()
-  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
-  const wide = useMediaQuery('(min-width: 48rem)')
   const [chosen, setChosen] = useState<'play' | 'stop' | undefined>(undefined)
   const [run, setRun] = useState(0)
   const [paused, setPaused] = useState(false)
   const [progress, setProgress] = useState<PlaygroundProgress | undefined>(undefined)
   const frame = useRef<HTMLIFrameElement | null>(null)
-  const live = chosen === 'play' || (chosen === undefined && props.autoplay === true && wide && !reducedMotion)
-  const claim = useCallback(
-    (element: HTMLIFrameElement | null) => {
-      if (element === null) return
-      frame.current = element
-      const listening = new AbortController()
-      const channel = new BroadcastChannel(CHANNEL)
-      channel.addEventListener('message', (event: MessageEvent<unknown>) => {
-        if (typeof event.data === 'string' && event.data !== instance) setChosen('stop')
-      })
-      channel.postMessage(instance)
-      window.addEventListener(
-        'message',
-        (event: MessageEvent<unknown>) => {
-          if (event.source !== element.contentWindow || event.origin !== location.origin) return
-          const report = PlaygroundReport.safeParse(event.data)
-          if (report.success) setProgress(report.data.progress)
-        },
-        {signal: listening.signal},
-      )
-      return () => {
-        channel.close()
-        listening.abort()
-        frame.current = null
-      }
-    },
-    [instance],
-  )
+  const live = chosen === 'play'
+  const claim = useCallback((element: HTMLIFrameElement | null) => {
+    if (element === null) return
+    frame.current = element
+    const listening = new AbortController()
+    window.addEventListener(
+      'message',
+      (event: MessageEvent<unknown>) => {
+        if (event.source !== element.contentWindow || event.origin !== location.origin) return
+        const report = PlaygroundReport.safeParse(event.data)
+        if (report.success) setProgress(report.data.progress)
+      },
+      {signal: listening.signal},
+    )
+    return () => {
+      listening.abort()
+      frame.current = null
+    }
+  }, [])
   const command = (name: 'hold' | 'resume'): void => {
     frame.current?.contentWindow?.postMessage(playgroundCommand(name), location.origin)
     setPaused(name === 'hold')
@@ -128,10 +108,9 @@ export function Playground(props: {
     reset()
     setRun((current) => current + 1)
   }
-  const height = props.height ?? 750
   const title = playgroundScripts[script].title
   return (
-    <figure className="@container not-prose my-6 flex flex-col gap-2 xl:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]">
+    <figure className="@container not-prose my-6 flex flex-col gap-2 xl:docs-breakout">
       <div className="overflow-hidden rounded-xl border bg-fd-card">
         <PlaygroundBar
           title={title}
@@ -159,13 +138,13 @@ export function Playground(props: {
             src={`/playground/${page}/${script}`}
             loading="lazy"
             className="block w-full border-0"
-            style={{height: height - BAR_HEIGHT}}
+            style={{height: FRAME_HEIGHT - BAR_HEIGHT}}
           />
         ) : (
           <Still
             script={script}
             title={title}
-            height={height - BAR_HEIGHT}
+            height={FRAME_HEIGHT - BAR_HEIGHT}
             poster={props.look === 'poster'}
             onPlay={() => {
               reset()
