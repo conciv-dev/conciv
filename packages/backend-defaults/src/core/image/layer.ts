@@ -1,5 +1,6 @@
 import {Effect, Layer} from 'effect'
 import {Image, State} from '@conciv/backend-app-api'
+import {imageErrors} from '@conciv/backend-app-api/core/image/errors'
 
 export const layer = Layer.effect(
   Image.Service,
@@ -24,7 +25,7 @@ export const layer = Layer.effect(
     const loadAdapter = yield* Effect.cached(
       Effect.tryPromise({
         try: () => import('./photon.js'),
-        catch: () => Image.makeResizerUnavailableError(),
+        catch: (cause) => imageErrors.RESIZER_UNAVAILABLE({cause: cause instanceof Error ? cause : undefined}),
       }).pipe(Effect.flatMap((adapter) => adapter.make)),
     )
     const normalize = Effect.fn('Image.normalize')(function* (

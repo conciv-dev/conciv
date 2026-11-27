@@ -202,7 +202,7 @@ describe.concurrent('session.synthetic', () => {
     const id = 'msg_original_completion'
     const input = {id, text: 'Original completion', description: 'Job', resume: false}
     const retry = {id, text: 'Ignore this', metadata: {source: 'retry'}, resume: false}
-    const conflict = {refused: 'Session.SyntheticConflictError', conflict: {sessionID: other.id, inputID: id}}
+    const conflict = {refused: 'app-api.session.SYNTHETIC_CONFLICT', conflict: {sessionID: other.id, inputID: id}}
 
     const [synthetic, concurrent] = await Promise.all([notice.call(input), notice.call(input)])
     expect(synthetic).toEqual({

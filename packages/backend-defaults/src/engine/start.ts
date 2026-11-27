@@ -40,6 +40,7 @@ import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserRequester} from '@conciv/types/engine-trust'
 import {mkdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
+import {engineErrors} from './lib/errors.js'
 
 const serverStateSchema = z.object({port: z.number().int().min(1).max(65535)})
 
@@ -151,12 +152,11 @@ type FetchHandler = ServeFetch
 
 const PERSISTED_PORT_ATTEMPTS = 4
 const PERSISTED_PORT_RETRY_MS = 300
-const accessTokenMessage = 'conciv: accessToken must be a UUID pairing token'
-const AccessTokenSchema = z.uuid(accessTokenMessage).optional()
+const AccessTokenSchema = z.uuid().optional()
 
 function assertAccessToken(accessToken: string | undefined): void {
   const parsed = AccessTokenSchema.safeParse(accessToken)
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? accessTokenMessage)
+  if (!parsed.success) throw engineErrors.ACCESS_TOKEN_INVALID()
 }
 
 async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Served | undefined> {

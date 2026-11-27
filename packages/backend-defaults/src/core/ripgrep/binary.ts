@@ -7,6 +7,7 @@ import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
 import * as Global from '@conciv/backend-app-api/util/global'
 import {which} from '../util/which.js'
+import {ripgrepErrors} from './errors.js'
 
 const VERSION = '15.1.0'
 
@@ -59,14 +60,15 @@ export const Service = Context.Service<Interface>('@conciv/RipgrepBinary')
 const readPlatform = (key: string): PlatformConfig | undefined =>
   Object.entries(PLATFORM).find(([name]) => name === key)?.[1]
 
-const failure = (cause: unknown) => (cause instanceof Error ? cause : new Error(String(cause)))
+const failure = (cause: unknown): Error =>
+  cause instanceof Error
+    ? cause
+    : ripgrepErrors.FAILED({message: 'ripgrep could not be installed', internal: {thrown: String(cause)}})
 
 export function verify(bytes: Uint8Array, filename: string, expected: string) {
   const actual = createHash('sha256').update(bytes).digest('hex')
   if (actual === expected) return Effect.void
-  return Effect.fail(
-    new Error(`ripgrep download ${filename} failed SHA-256 verification: expected ${expected}, got ${actual}`),
-  )
+  return Effect.fail(ripgrepErrors.CHECKSUM_MISMATCH({filename, expected, actual}))
 }
 
 export const layer = Layer.effect(
@@ -104,9 +106,12 @@ export const layer = Layer.effect(
         : run('tar', ['-xzf', archive, '-C', directory], directory)
       if (result.code !== 0)
         return yield* Effect.fail(
-          new Error(
-            result.stderr.trim() || result.stdout.trim() || `ripgrep extraction failed with code ${result.code}`,
-          ),
+          ripgrepErrors.EXTRACTION_FAILED({
+            exitCode: result.code,
+            ...(result.stderr.trim() || result.stdout.trim()
+              ? {message: result.stderr.trim() || result.stdout.trim()}
+              : {}),
+          }),
         )
 
       const extracted = path.join(
@@ -114,8 +119,7 @@ export const layer = Layer.effect(
         `ripgrep-${VERSION}-${config.platform}`,
         process.platform === 'win32' ? 'rg.exe' : 'rg',
       )
-      if (!(yield* fs.isFile(extracted)))
-        return yield* Effect.fail(new Error(`ripgrep archive did not contain executable: ${extracted}`))
+      if (!(yield* fs.isFile(extracted))) return yield* Effect.fail(ripgrepErrors.EXECUTABLE_MISSING({extracted}))
 
       yield* fs.copyFile(extracted, target)
       if (process.platform !== 'win32') yield* fs.chmod(target, 0o755)
@@ -132,7 +136,7 @@ export const layer = Layer.effect(
 
           const platformKey = `${process.arch}-${process.platform}`
           const config = readPlatform(platformKey)
-          if (!config) return yield* Effect.fail(new Error(`unsupported platform for ripgrep: ${platformKey}`))
+          if (!config) return yield* Effect.fail(ripgrepErrors.PLATFORM_UNSUPPORTED({platformKey}))
 
           const filename = `ripgrep-${VERSION}-${config.platform}.${config.extension}`
           const url = `https://github.com/BurntSushi/ripgrep/releases/download/${VERSION}/${filename}`
@@ -144,7 +148,7 @@ export const layer = Layer.effect(
             http.execute,
             Effect.flatMap((response) => response.arrayBuffer),
           )
-          if (bytes.byteLength === 0) return yield* Effect.fail(new Error(`failed to download ripgrep from ${url}`))
+          if (bytes.byteLength === 0) return yield* Effect.fail(ripgrepErrors.DOWNLOAD_EMPTY({url}))
           yield* verify(new Uint8Array(bytes), filename, config.sha256)
 
           yield* fs.writeFile(archive, new Uint8Array(bytes))

@@ -19,6 +19,7 @@ import {
 import {CodeModeCatalog, CodeModeInstructions, InstructionState, SkillInstructions} from '../../backend-defaults.js'
 import {Effect, Layer, Option, Ref, Schema} from 'effect'
 import * as Identifier from '@conciv/protocol/schema/identifier'
+import {permissionErrors} from '@conciv/backend-app-api/core/permission/errors'
 import {once} from 'es-toolkit'
 import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 import {loadInstructionEntries} from './instruction-entries.js'
@@ -203,7 +204,7 @@ export const followPermissionCards = Effect.fn('core.permissions.followCards')(f
     Effect.try({try: () => cardWork(cards, event.type, event.data), catch: (error) => error}).pipe(
       Effect.catch((error) =>
         Effect.logError('[core] the permission card could not be updated').pipe(
-          Effect.annotateLogs({event: event.type, error: String(error)}),
+          Effect.annotateLogs({event: event.type, error: error instanceof Error ? error.message : String(error)}),
         ),
       ),
     ),
@@ -290,7 +291,11 @@ export const answerPermission = Effect.fn('core.permissions.answer')(function* (
   if (owner !== sessionId) return 'foreign'
   return yield* permission.reply({requestId: id.value, reply}).pipe(
     Effect.map((): PermissionOutcome => 'replied'),
-    Effect.catchTag('Permission.NotFoundError', () => Effect.succeed<PermissionOutcome>('gone')),
+    Effect.catch((error) =>
+      error.code === permissionErrors.REQUEST_NOT_FOUND.code
+        ? Effect.succeed<PermissionOutcome>('gone')
+        : Effect.die(error),
+    ),
   )
 })
 

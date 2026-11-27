@@ -32,6 +32,7 @@ import type {PluginHooks} from '@conciv/backend-app-api'
 import type {UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
+import {aiErrors} from './ai/errors.js'
 
 export type SessionRow = {
   model: string | null
@@ -185,11 +186,11 @@ const DATA_URI = /^data:([^;,]+);base64,(.*)$/s
 function attachmentPart(file: PromptFile): ContentPart {
   const [, mimeType, value] = DATA_URI.exec(file.uri) ?? []
   if (mimeType === undefined || value === undefined)
-    throw new Error(`Unsupported attachment URI: ${file.uri.slice(0, 64)}`)
+    throw aiErrors.ATTACHMENT_URI_UNSUPPORTED({uri: file.uri.slice(0, 64)})
   const part: ContentPart = mimeType.startsWith('image/')
     ? {type: 'image', source: {type: 'data', mimeType, value}}
     : {type: 'document', source: {type: 'data', mimeType, value}}
-  if (!ChatContentPartSchema.safeParse(part).success) throw new Error(`Invalid attachment data: ${mimeType}`)
+  if (!ChatContentPartSchema.safeParse(part).success) throw aiErrors.ATTACHMENT_INVALID({mimeType})
   return part
 }
 
@@ -299,7 +300,7 @@ async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, run
         Effect.logError('[chat] checking the harness login failed, the turn runs', {harness: harness.id, error}),
       ),
   })
-  if (!login.loggedIn) throw new Error(login.message)
+  if (!login.loggedIn) throw aiErrors.HARNESS_LOGGED_OUT({message: login.message})
 }
 
 export function turnHooks(
@@ -384,7 +385,7 @@ export function turnHooks(
         expand: async (messages) => {
           const lastUser = messages.findLast((message) => message.role === 'user')
           if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
-            throw new Error('the message is empty')
+            throw aiErrors.MESSAGE_EMPTY()
           }
           return messages
         },

@@ -21,6 +21,7 @@ import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types
 import {inSpan, type SpanAttributes, type Tracer} from './spans.js'
 import {Effect} from 'effect'
 import type {EngineRuntime} from '../engine/lib/logging.js'
+import {aiErrors} from './errors.js'
 
 export type AskPermission = (
   threadId: string,
@@ -176,7 +177,7 @@ async function provisionToolServer(
   })
   await once(server.listen(0, '127.0.0.1'), 'listening')
   const address = server.address()
-  if (!isRecord(address) || typeof address.port !== 'number') throw new Error('the tool bridge has no port')
+  if (!isRecord(address) || typeof address.port !== 'number') throw aiErrors.TOOL_SERVER_NO_PORT()
   return {
     name: 'tanstack',
     url: `http://${hostForSandbox(provider)}:${address.port}/mcp`,

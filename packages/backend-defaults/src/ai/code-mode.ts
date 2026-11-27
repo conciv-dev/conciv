@@ -27,6 +27,7 @@ import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/types/cha
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
 import type {EngineRuntime} from '../engine/lib/logging.js'
 import {isApprovalDenied} from './approval-denied.js'
+import {aiErrors, SECRET_REFUSAL} from './errors.js'
 import {inSpan, type Tracer} from './spans.js'
 
 const QUICKJS_MEMORY_LIMIT_MB = 256
@@ -141,8 +142,6 @@ function endingCalls(tool: ChatTool): ChatTool {
   }
 }
 
-const SECRET_REFUSAL = 'looks like a secret, so code mode refuses to run it'
-
 const FailedRunSchema = z.object({success: z.literal(false), error: z.object({message: z.string()})})
 
 export function readSecretRefusal(result: unknown): string | null {
@@ -230,7 +229,7 @@ function runChildCall(
     try {
       const parameter = secrets.get(`${CODE_MODE_EXTERNAL_PREFIX}${tool.name}`)
       if (parameter !== undefined) {
-        throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
+        throw aiErrors.SECRET_PARAMETER({tool: tool.name, parameter})
       }
       const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
       const output: unknown = await execute(
@@ -263,7 +262,11 @@ function validated(schema: SchemaInput | undefined, value: unknown, failure: str
   try {
     return parseWithStandardSchema(schema, value)
   } catch (error) {
-    throw new Error(`${failure}: ${error instanceof Error ? error.message : 'Validation failed'}`, {cause: error})
+    throw aiErrors.SCHEMA_INVALID({
+      failure,
+      reason: error instanceof Error ? error.message : 'Validation failed',
+      cause: error instanceof Error ? error : undefined,
+    })
   }
 }
 
@@ -336,7 +339,7 @@ export function codeModeTools(
           ...config,
           tools: serverTools.map((each) => childCall(each, secrets, run, tracer, ids)),
         })
-        if (!execute) throw new Error('the code mode tool has no execute')
+        if (!execute) throw aiErrors.CODE_MODE_UNAVAILABLE()
         const result = ExecuteResultSchema.parse(await execute(ProgramInputSchema.parse(args), context))
         const notes = uniq(run.flatMap((parts) => parts.text)).map((content) => ({type: 'text' as const, content}))
         const files = [...notes, ...run.flatMap((parts) => parts.files)]

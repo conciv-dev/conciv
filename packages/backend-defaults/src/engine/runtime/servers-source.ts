@@ -6,6 +6,7 @@ import {PluginHost} from '@conciv/backend-app-api'
 import {Context, Effect, Latch, Layer, Ref, Schedule, Semaphore, Stream} from 'effect'
 import {differenceBy, isEqual, memoize, uniqBy} from 'es-toolkit'
 import {homeDbReads} from '../lib/home-db-watch.js'
+import {engineErrors} from '../lib/errors.js'
 
 const SERVER_HEALTH_POLL_MS = 10_000
 
@@ -47,7 +48,10 @@ type HomeReach = {ok: true; home: PreparedHome} | {ok: false; error: Error}
 function reachHome(home: string): Promise<HomeReach> {
   return prepareHome(home).then(
     (prepared): HomeReach => ({ok: true, home: prepared}),
-    (error: unknown): HomeReach => ({ok: false, error: error instanceof Error ? error : new Error(String(error))}),
+    (error: unknown): HomeReach => ({
+      ok: false,
+      error: error instanceof Error ? error : engineErrors.HOME_UNREACHABLE({home, internal: {thrown: String(error)}}),
+    }),
   )
 }
 

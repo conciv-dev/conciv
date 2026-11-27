@@ -1,11 +1,10 @@
 import type * as Bundler from '@conciv/protocol/schema/bundler'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
-import {makeToolFailure} from '@conciv/backend-app-api/ai/effect'
 import {Effect, Schema} from 'effect'
 import {BundlerSource, EditorSource} from '@conciv/backend-app-api/core/plugin/host'
 import * as Permission from '@conciv/backend-app-api/core/permission'
 import * as Rpc from '@conciv/backend-app-api/core/rpc'
-import type * as Tool from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 
 const unavailableMessage = 'no dev server is attached to conciv'
 
@@ -98,9 +97,9 @@ const toolAnswer = <A>(answer: Effect.Effect<A, ServerFailure>) =>
     Effect.map((output) => ({output})),
     Effect.catchTags({
       'ServerTools.BundlerUnavailable': (failure) =>
-        Effect.fail(makeToolFailure({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})),
+        Effect.fail(Tool.makeError({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})),
       'ServerTools.BundlerFailed': (failure) =>
-        Effect.fail(makeToolFailure({message: failure.message, error: failure.error})),
+        Effect.fail(Tool.makeError({message: failure.message, error: failure.error})),
     }),
   )
 

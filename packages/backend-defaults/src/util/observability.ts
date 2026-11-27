@@ -9,6 +9,7 @@ import * as LogLevel from './observability/log-level.js'
 import * as Logging from './observability/logging.js'
 import * as Otlp from './observability/otlp.js'
 import {makeRunId} from './observability/shared.js'
+import {observabilityErrors} from './observability/errors.js'
 
 export const Options = Schema.Struct({
   endpoint: Schema.optional(Schema.String),
@@ -38,7 +39,7 @@ const everyLevel = Layer.succeed(References.MinimumLogLevel, 'All')
 
 function defaultRetention(): Retention {
   const parsed = parseRetention('7d')
-  if (Result.isFailure(parsed)) throw new Error(parsed.failure)
+  if (Result.isFailure(parsed)) throw observabilityErrors.LOG_RETENTION_INVALID({reason: parsed.failure})
   return parsed.success
 }
 

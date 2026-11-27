@@ -1,10 +1,12 @@
 import {Context, Effect, Fiber, Layer, Schema, Stream} from 'effect'
+import {EvlogError} from 'evlog'
 import {ChildProcess} from 'effect/process'
 import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import {NonNegativeInt, PositiveInt, RelativePath} from '@conciv/protocol/schema/schema'
 import {Entry, Match} from '../schema/filesystem.js'
 import {collectStream, waitForAbort} from '../util/process.js'
 import * as RipgrepBinary from './ripgrep/binary.js'
+import {ripgrepErrors} from './ripgrep/errors.js'
 
 const ERROR_BYTES = 8 * 1024
 const MAX_SUBMATCHES = 100
@@ -31,28 +33,6 @@ const decodeJsonRecord = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema
 const isMatchRecord = Schema.is(RawRecord)
 
 type RawMatchData = (typeof RawMatch.Type)['data']
-
-export const Error = Schema.TaggedStruct('Ripgrep.Error', {
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-})
-export type Error = typeof Error.Type & globalThis.Error
-
-export const makeError = (fields: Omit<typeof Error.Type, '_tag'>): Error =>
-  Object.assign(new globalThis.Error(fields.message), Error.make(fields), {name: 'Ripgrep.Error'})
-
-export const InvalidPatternError = Schema.TaggedStruct('Ripgrep.InvalidPatternError', {
-  pattern: Schema.String,
-  message: Schema.String,
-})
-export type InvalidPatternError = typeof InvalidPatternError.Type & globalThis.Error
-
-const makeInvalidPatternError = (fields: Omit<typeof InvalidPatternError.Type, '_tag'>): InvalidPatternError =>
-  Object.assign(new globalThis.Error(fields.message), InvalidPatternError.make(fields), {
-    name: 'Ripgrep.InvalidPatternError',
-  })
-
-const isRipgrepError = Schema.is(Schema.Union([Error, InvalidPatternError]))
 
 interface FindInput {
   readonly cwd: string
@@ -86,14 +66,15 @@ interface GrepInput {
 }
 
 export interface Interface {
-  readonly find: (input: FindInput) => Effect.Effect<readonly Entry[], Error>
-  readonly glob: (input: GlobInput) => Effect.Effect<readonly Entry[], Error>
-  readonly grep: (input: GrepInput) => Effect.Effect<readonly Match[], Error | InvalidPatternError>
+  readonly find: (input: FindInput) => Effect.Effect<readonly Entry[], EvlogError>
+  readonly glob: (input: GlobInput) => Effect.Effect<readonly Entry[], EvlogError>
+  readonly grep: (input: GrepInput) => Effect.Effect<readonly Match[], EvlogError>
 }
 
 export const Service = Context.Service<Interface>('@conciv/Ripgrep')
 
-const failure = (message: string, cause?: unknown) => makeError({message, cause})
+const failure = (message: string, cause?: unknown) =>
+  ripgrepErrors.FAILED({message, cause: cause instanceof Error ? cause : undefined})
 
 const normalizePath = (value: string) =>
   value
@@ -103,8 +84,6 @@ const normalizePath = (value: string) =>
 
 const isInvalidPattern = (stderr: string) =>
   stderr.includes('regex parse error') || stderr.includes('error parsing regex')
-
-const toInvalidPatternFailure = (cause: InvalidPatternError) => Effect.fail(failure(cause.message, cause))
 
 export const layer = Layer.effect(
   Service,
@@ -117,7 +96,7 @@ export const layer = Layer.effect(
       readonly args: string[]
       readonly limit: number
       readonly signal?: AbortSignal
-      readonly parse: (line: string) => Effect.Effect<A | undefined, Error>
+      readonly parse: (line: string) => Effect.Effect<A | undefined, EvlogError>
       readonly pattern?: string
       readonly onItem?: (item: A) => Effect.Effect<void>
     }) => {
@@ -149,7 +128,9 @@ export const layer = Layer.effect(
           const code = yield* handle.exitCode
           const stderr = yield* Fiber.join(stderrFiber)
           if (input.pattern && code === 2 && isInvalidPattern(stderr)) {
-            return yield* Effect.fail(makeInvalidPatternError({pattern: input.pattern, message: stderr.trim()}))
+            return yield* Effect.fail(
+              ripgrepErrors.INVALID_PATTERN({details: stderr.trim(), internal: {pattern: input.pattern}}),
+            )
           }
           if (code !== 0 && code !== 1 && code !== 2) {
             return yield* Effect.fail(failure(stderr.trim() || `ripgrep failed with code ${code}`))
@@ -159,7 +140,9 @@ export const layer = Layer.effect(
       )
       const abortable = input.signal ? program.pipe(Effect.raceFirst(waitForAbort(input.signal))) : program
       return abortable.pipe(
-        Effect.mapError((cause) => (isRipgrepError(cause) ? cause : failure('ripgrep execution failed', cause))),
+        Effect.mapError((cause) =>
+          EvlogError.isEvlogError(cause) ? cause : failure('ripgrep execution failed', cause),
+        ),
       )
     }
 
@@ -189,7 +172,6 @@ export const layer = Layer.effect(
               }),
             ),
           ),
-          Effect.catchTag('Ripgrep.InvalidPatternError', toInvalidPatternFailure),
         ),
       find: (input) =>
         run<Entry>({
@@ -216,7 +198,7 @@ export const layer = Layer.effect(
             )
           },
           onItem: input.onEntry,
-        }).pipe(Effect.catchTag('Ripgrep.InvalidPatternError', toInvalidPatternFailure)),
+        }),
       grep: (input) =>
         run<RawMatchData>({
           ...input,

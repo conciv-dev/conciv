@@ -6,6 +6,7 @@ import type {ChatStores} from './chat-server.js'
 import {chatMessages, chatMetadata, chatRuns} from '../db/run-schema.js'
 import {sessions} from '@conciv/backend-app-api/core/session/sql'
 import type {ConcivDb} from '../db/connection.js'
+import {aiErrors} from './errors.js'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 
@@ -192,7 +193,7 @@ export function drizzleChatStores(db: ConcivDb, opts: StoreOptions): ChatStores 
             .onConflictDoNothing({target: chatRuns.runId}),
         )
         const stored = await get(runId)
-        if (stored === null) throw new Error(`run ${runId} was not stored`)
+        if (stored === null) throw aiErrors.RUN_NOT_STORED({runId})
         return stored
       },
       update: async (runId, patch) => {

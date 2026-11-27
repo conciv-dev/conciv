@@ -53,7 +53,6 @@ import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type T
 import {guardedAdapter} from './run-guard.js'
 import {GROUP_EXIT_TIMEOUT_MS, localSandbox} from '@conciv/harness/local-sandbox'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
-import {formatLoggedError} from './logged-error.js'
 import {Effect} from 'effect'
 import type {EngineRuntime} from '../engine/lib/logging.js'
 import {cloneDeepWith, isPlainObject, takeWhile} from 'es-toolkit'
@@ -587,7 +586,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     debug: () => undefined,
     info: () => undefined,
     warn: (message) => config.runtime.runFork(Effect.logWarning(`[ai] ${message}`)),
-    error: (message, meta) => config.runtime.runFork(Effect.logError(formatLoggedError(message, meta?.error))),
+    error: (message, meta) => config.runtime.runFork(Effect.logError(`[ai] ${message}`, {cause: meta?.error})),
   })
   const sandbox = defineSandbox({
     id: 'conciv',

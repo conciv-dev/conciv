@@ -3,7 +3,7 @@ import {Effect} from 'effect'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
 import * as SessionMessage from '@conciv/protocol/schema/session-message'
 import type {Maker} from '@conciv/protocol/schema/identifier'
-import {makeSyntheticConflictError, type NotFoundError} from '@conciv/backend-app-api/core/session/error'
+import {sessionErrors, type NotFoundError} from '@conciv/backend-app-api/core/session/errors'
 import * as SessionInbox from './inbox.js'
 
 export type Store = {readonly get: (sessionID: SessionId) => EffectType.Effect<unknown, NotFoundError>}
@@ -41,8 +41,8 @@ export const make = (
         },
       })
       .pipe(
-        Effect.catchTag('SessionInbox.LifecycleConflict', () =>
-          Effect.fail(makeSyntheticConflictError({sessionID, inputID: id})),
+        Effect.catchIf(SessionInbox.isLifecycleConflict, () =>
+          Effect.fail(sessionErrors.SYNTHETIC_CONFLICT({inputId: id, internal: {sessionID, inputID: id}})),
         ),
       )
     if (input.resume !== false) yield* wake(sessionID)

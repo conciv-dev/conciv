@@ -1,6 +1,6 @@
 import type {ManagedRuntime} from 'effect'
 import * as Identifier from '@conciv/protocol/schema/identifier'
-import {Effect, Layer, Schema} from 'effect'
+import {Effect, Layer} from 'effect'
 import {clamp} from 'es-toolkit'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {
@@ -39,10 +39,6 @@ type Compaction = Effect.Success<ReturnType<Session.Interface['compact']>>
 const DEFAULT_PAGE_SIZE = 30
 const MAX_PAGE_SIZE = 100
 
-const HarnessReadError = Schema.TaggedStruct('ConcivCore.HarnessReadError', {
-  sessionId: Schema.String,
-  cause: Schema.Defect(),
-})
 const given = <Value>(value: Value | null | undefined): Value | undefined => value ?? undefined
 
 const NO_USAGE = {
@@ -117,7 +113,7 @@ const createdModel = Effect.fn('core.sessions.chooseCreatedModel')(function* (
   yield* Effect.annotateCurrentSpan({sessionId})
   const agent = given(input.agent) ?? Agent.defaultId
   if (agent !== Agent.defaultId) {
-    return yield* Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)}))
+    return yield* Effect.fail(SessionErrors.sessionErrors.AGENT_NOT_FOUND({agent, internal: {sessionId}}))
   }
   const model = given(input.model)
   if (model === undefined) return null
@@ -142,7 +138,8 @@ async function describeCreated(
 const readCursor = (cursor: string) =>
   Effect.try({
     try: () => HarnessListCursorSchema.parse(JSON.parse(cursor)),
-    catch: () => SessionErrors.makeInvalidListCursorError(),
+    catch: (cause) =>
+      SessionErrors.sessionErrors.INVALID_LIST_CURSOR({cause: cause instanceof Error ? cause : undefined}),
   })
 
 const metadataSchema = SessionRecordSchema.shape.metadata.unwrap().unwrap()
@@ -216,9 +213,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
               input.agent === Agent.defaultId
                 ? Effect.void
                 : Effect.fail(
-                    SessionErrors.makeAgentNotFoundError({
-                      sessionId: input.sessionId,
-                      agent: Agent.Id.make(input.agent),
+                    SessionErrors.sessionErrors.AGENT_NOT_FOUND({
+                      agent: input.agent,
+                      internal: {sessionId: input.sessionId},
                     }),
                   ),
             ),
@@ -229,7 +226,11 @@ export function provideSessions(started: () => SessionKeyDeps) {
           yield* found(input.sessionId)
           const harness = yield* Effect.tryPromise({
             try: () => chat.harnessFor(input.sessionId),
-            catch: (cause) => HarnessReadError.make({sessionId: input.sessionId, cause}),
+            catch: (cause) =>
+              SessionErrors.sessionErrors.HARNESS_READ_FAILED({
+                sessionId: input.sessionId,
+                cause: cause instanceof Error ? cause : undefined,
+              }),
           }).pipe(Effect.orDie)
           const choice = yield* modelChoice(harness, input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {

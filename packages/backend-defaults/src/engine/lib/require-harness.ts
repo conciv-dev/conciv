@@ -1,4 +1,5 @@
 import type {HarnessAdapter, HarnessRegistry} from '@conciv/harness'
+import {engineErrors} from './errors.js'
 
 export function requireHarness(registry: HarnessRegistry, id: string): HarnessAdapter {
   const found = registry.get(id)
@@ -7,5 +8,5 @@ export function requireHarness(registry: HarnessRegistry, id: string): HarnessAd
     .list()
     .map((adapter) => adapter.id)
     .join(', ')
-  throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
+  throw engineErrors.HARNESS_UNKNOWN({id, known})
 }

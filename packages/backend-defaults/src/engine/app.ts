@@ -107,6 +107,7 @@ import {GROUP_EXIT_TIMEOUT_MS} from '@conciv/harness/local-sandbox'
 import {inSpan, loadIsolateDriver, type Tracer} from '../ai.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
+import {engineErrors} from './lib/errors.js'
 import {
   connectToken,
   engineMcpUrl,
@@ -342,7 +343,7 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
       assertToolName(name)
       const existing = owners.get(name)
       if (existing !== undefined) {
-        throw new Error(`capability name "${name}" is declared by both ${existing} and ${source}`)
+        throw engineErrors.CAPABILITY_NAME_TAKEN({name, existing, source})
       }
       owners.set(name, source)
     }
@@ -570,7 +571,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     )
   }
   const endListings = async (): Promise<void> => {
-    engineLife.abort(new Error('conciv: the engine stopped'))
+    engineLife.abort(engineErrors.ENGINE_STOPPED())
     await Promise.all(listings.map(endListing))
   }
   const staleness = async (): Promise<EngineStaleness> => opts.staleness?.() ?? engineStaleness()
@@ -1062,14 +1063,15 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig, r
   const {sessionId, harnessSessionId} = cfg
   if (harnessSessionId !== undefined) {
     await ensureAgentRow(rows, harnessSessionId).catch((error: unknown) => {
-      throw new Error(`conciv: the configured harness session "${harnessSessionId}" could not be ensured`, {
-        cause: error,
+      throw engineErrors.HARNESS_SESSION_NOT_ENSURED({
+        harnessSessionId,
+        cause: error instanceof Error ? error : undefined,
       })
     })
   }
   if (sessionId !== undefined) {
     await ensureRow(rows, sessionId).catch((error: unknown) => {
-      throw new Error(`conciv: the configured conciv session "${sessionId}" could not be ensured`, {cause: error})
+      throw engineErrors.SESSION_NOT_ENSURED({sessionId, cause: error instanceof Error ? error : undefined})
     })
   }
 }
