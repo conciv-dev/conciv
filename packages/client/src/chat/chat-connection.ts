@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {rpcStream, type ConnectConnectionAdapter, type SubscribeConnectionAdapter} from '../chat.js'
 import {type ModelMessage, type ChatMessage} from '@conciv/types/chat-message-types'
 import {
@@ -189,7 +190,10 @@ async function pumpInto<T>(
   scope: AbortSignal,
 ): Promise<void> {
   for await (const value of source) {
-    if (scope.aborted) return
+    if (scope.aborted) {
+      log.debug({action: 'wip-stop', message: '[wip-stop] pump dropped a chunk after abort', chunk: value})
+      return
+    }
     controller.enqueue(value)
   }
 }
@@ -321,6 +325,8 @@ function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
 
 async function* noticing(source: AsyncIterable<ChatEvent>, options: ChatConnectionOptions): AsyncGenerator<ChatEvent> {
   for await (const chunk of source) {
+    if (chunk.type === ChatEventType.TOOL_CALL_RESULT || runLifecycleEvent.parse(chunk) !== null)
+      log.debug({action: 'wip-stop', message: `[wip-stop] received ${chunk.type}`, chunk, at: performance.now()})
     notice(chunk, options)
     yield chunk
   }
