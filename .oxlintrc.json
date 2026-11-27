@@ -59,6 +59,7 @@
       {
         "allow": [
           "__conciv",
+          "_prefix",
           "__CONCIV_API_BASE__",
           "__CONCIV_RENDER_TEST_CARD__",
           "__REACT_GRAB_DISABLED__",
