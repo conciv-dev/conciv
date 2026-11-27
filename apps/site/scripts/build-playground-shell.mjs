@@ -20,7 +20,7 @@ const SCANNED = [
   'plugins/terminal/src',
 ]
   .map((source) => join(packagesDir, source))
-  .concat(join(siteDir, 'src/playground/shell'))
+  .concat(join(siteDir, 'playground-shell'))
   .flatMap((source) => [`${source}/**/*.{ts,tsx}`, `!${source}/**/*.{test,spec,stories}.*`])
 
 await build({
@@ -37,7 +37,7 @@ await build({
     cssCodeSplit: false,
     rollupOptions: {output: {minify: true}},
     lib: {
-      entry: join(siteDir, 'src/playground/shell/start-playground.ts'),
+      entry: join(siteDir, 'playground-shell/start-playground.ts'),
       formats: ['es'],
       fileName: () => 'start-playground.js',
     },

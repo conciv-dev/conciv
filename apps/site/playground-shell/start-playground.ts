@@ -14,10 +14,10 @@ import {
   type Platform,
 } from '@internal/frontend-defaults'
 import shell from '@internal/frontend-defaults/package.json' with {type: 'json'}
-import {createDemoEngine, type DemoBundle, type DemoRpc} from '../engine/demo-engine'
-import {playgroundScripts} from '../playground-scripts'
-import type {PlaygroundPluginId, PlaygroundScript} from '../script'
-import type {StartPlayground} from '../shell-api'
+import {createDemoEngine, type DemoBundle, type DemoRpc} from '../src/playground/engine/demo-engine'
+import {playgroundScripts} from '../src/playground/playground-scripts'
+import type {PlaygroundPluginId, PlaygroundScript} from '../src/playground/script'
+import type {StartPlayground} from '../src/playground/shell-api'
 import {projectVersion, shelf} from './demo-plugins'
 import {createPageRpc, createTestRunnerRpc, testRunnerBundle} from './served-plugins'
 

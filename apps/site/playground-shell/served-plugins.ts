@@ -2,7 +2,7 @@ import type {z} from 'zod'
 import {TestRunner} from '@conciv/plugin-test-runner/rpc'
 import testRunnerCode from '@conciv/plugin-test-runner/plugin-experimental?raw'
 import {Definition as Page} from '@conciv/plugin-page/rpc'
-import type {DemoBundle, DemoRpc} from '../engine/demo-engine'
+import type {DemoBundle, DemoRpc} from '../src/playground/engine/demo-engine'
 
 type RunResult = z.input<(typeof TestRunner)['methods']['run']['output']>
 

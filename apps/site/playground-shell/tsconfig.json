@@ -1,10 +1,9 @@
 {
   "extends": "@internal/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "rootDir": "../../../../..",
+    "rootDir": "../../..",
     "types": ["vite/client"],
     "resolveJsonModule": true,
     "incremental": false
-  },
-  "include": ["./**/*"]
+  }
 }

@@ -896,7 +896,7 @@
   ],
   "entry": [
     "apps/site/content/docs/**/*.ts",
-    "apps/site/src/playground/shell/start-playground.ts",
+    "apps/site/playground-shell/start-playground.ts",
     "packages/backend-app-api/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/app/src/global-entry.ts",
