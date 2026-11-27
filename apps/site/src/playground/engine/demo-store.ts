@@ -1,4 +1,5 @@
-import {EventPublisher, ORPCError} from '@orpc/server'
+import {ORPCError} from '@orpc/server'
+import {channel} from './demo-channel'
 import type {DraftRow, SessionMeta, SettingsSnapshot} from '@conciv/protocol'
 import type {BrowserTab} from '@conciv/protocol/schema/browser-tab'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
@@ -23,11 +24,11 @@ export function createSessions(sessionTitle: string) {
   const sessions = new Map<string, SessionMeta>()
   const history = new Map<string, ChatMessage[]>()
   const drafts = new Map<string, DraftRow>()
-  const changes = new EventPublisher<{version: {version: number}}>()
+  const changes = channel<{version: number}>()
   const version = {current: 0}
   const touch = (): void => {
     version.current += 1
-    changes.publish('version', {version: version.current})
+    changes.push({version: version.current})
   }
   const create = (): {sessionId: SessionId; session: SessionMeta} => {
     const session: SessionMeta = {
@@ -76,7 +77,7 @@ export function createSessions(sessionTitle: string) {
     }),
     changes: async function* (_input, call) {
       yield {version: version.current}
-      yield* changes.subscribe('version', {signal: call.signal})
+      yield* changes.read(call.signal)
     },
     get: ({sessionId}) => found(sessionId),
     preview: () => ({messages: [], earlier: null}),
@@ -116,7 +117,7 @@ export function createSessions(sessionTitle: string) {
 
 export function createSettings(): EngineHandlers['settings'] {
   const snapshots = new Map<string, SettingsSnapshot>()
-  const changes = new EventPublisher<{changed: {key: string; snapshot: SettingsSnapshot}}>()
+  const changes = channel<{key: string; snapshot: SettingsSnapshot}>()
   const settingsKey = (input: {scope: string; namespace: string}): string => `${input.scope}:${input.namespace}`
   const read = (input: {scope: string; namespace: string}): SettingsSnapshot => {
     const known = snapshots.get(settingsKey(input)) ?? {generation: 'playground', version: 0, value: {}}
@@ -126,7 +127,7 @@ export function createSettings(): EngineHandlers['settings'] {
   const write = (input: {scope: string; namespace: string}, value: Record<string, unknown>): SettingsSnapshot => {
     const snapshot = {generation: 'playground', version: read(input).version + 1, value}
     snapshots.set(settingsKey(input), snapshot)
-    changes.publish('changed', {key: settingsKey(input), snapshot})
+    changes.push({key: settingsKey(input), snapshot})
     return snapshot
   }
   return {
@@ -138,8 +139,7 @@ export function createSettings(): EngineHandlers['settings'] {
     },
     changes: async function* (input, call) {
       yield read(input)
-      for await (const change of changes.subscribe('changed', {signal: call.signal}))
-        if (change.key === settingsKey(input)) yield change.snapshot
+      for await (const change of changes.read(call.signal)) if (change.key === settingsKey(input)) yield change.snapshot
     },
   }
 }
@@ -148,12 +148,12 @@ type OpenTab = {readonly sessionId: string; readonly connectionId: string; reado
 
 export function createTabs(exists: (sessionId: string) => boolean, publish: Publish): EngineHandlers['tabs'] {
   const open = new Map<string, OpenTab>()
-  const changes = new EventPublisher<{version: {version: number}}>()
+  const changes = channel<{version: number}>()
   const version = {current: 0}
   const changed = (type: string, data: Record<string, unknown>): void => {
     publish(type, data)
     version.current += 1
-    changes.publish('version', {version: version.current})
+    changes.push({version: version.current})
   }
   const list = (sessionId: string) => {
     const tabs = [...open.values()].filter((entry) => entry.sessionId === sessionId).map((entry) => entry.tab)
@@ -189,7 +189,7 @@ export function createTabs(exists: (sessionId: string) => boolean, publish: Publ
     sessions: () => [...new Set([...open.values()].map((entry) => SessionId.parse(entry.sessionId)))],
     changes: async function* (_request, call) {
       yield {version: version.current}
-      yield* changes.subscribe('version', {signal: call.signal})
+      yield* changes.read(call.signal)
     },
   }
 }

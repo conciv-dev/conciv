@@ -1,5 +1,5 @@
-import {call, implement, isProcedure, ORPCError, type AnyRouter} from '@orpc/server'
-import {isContractProcedure, type AnyContractRouter, type ContractProcedure} from '@orpc/contract'
+import {call, implement, ORPCError, Procedure, type AnyRouter} from '@orpc/server'
+import {ProcedureContract, reconcileORPCError, type RouterContract} from '@orpc/contract'
 import type {InferSchemaInput, InferSchemaOutput} from '@orpc/contract'
 import type {ClientLink} from '@orpc/client'
 import type {contract} from '@conciv/protocol'
@@ -10,12 +10,12 @@ type Call = {readonly signal: AbortSignal | undefined}
 type Promisable<Value> = Value | Promise<Value>
 
 type Handler<Procedure> =
-  Procedure extends ContractProcedure<infer Input, infer Output, infer _Errors, infer _Meta>
+  Procedure extends ProcedureContract<infer Input, infer Output, infer _Errors>
     ? (input: InferSchemaOutput<Input>, call: Call) => Promisable<InferSchemaInput<Output>>
     : never
 
 type Handlers<Router> = {
-  [Key in keyof Router]?: Router[Key] extends ContractProcedure<infer _Input, infer _Output, infer _Errors, infer _Meta>
+  [Key in keyof Router]?: Router[Key] extends ProcedureContract<infer _Input, infer _Output, infer _Errors>
     ? Handler<Router[Key]>
     : Handlers<Router[Key]>
 }
@@ -33,32 +33,19 @@ function lookup(node: unknown, path: readonly string[]): unknown {
 
 function refuse(name: string, declared: readonly string[]): never {
   const code = REFUSALS.find((refusal) => declared.includes(refusal))
-  if (code !== undefined) throw new ORPCError(code, {defined: true, message: `the playground has no ${name}`})
+  if (code !== undefined) throw new ORPCError(code, {message: `the playground has no ${name}`})
   throw new ORPCError('NOT_IMPLEMENTED', {message: `the playground engine does not answer ${name}`})
 }
 
-function rethrow(error: unknown, declared: readonly string[]): never {
-  if (!(error instanceof ORPCError) || !declared.includes(error.code)) throw error
-  throw new ORPCError(error.code, {defined: true, status: error.status, message: error.message, data: error.data})
-}
-
-export function buildRouter(
-  node: AnyContractRouter,
-  handlers: EngineHandlers,
-  path: readonly string[] = [],
-): AnyRouter {
-  if (isContractProcedure(node)) {
+export function buildRouter(node: RouterContract, handlers: EngineHandlers, path: readonly string[] = []): AnyRouter {
+  if (node instanceof ProcedureContract) {
     const name = path.join('.')
     const declared = Object.keys(node['~orpc'].errorMap)
     return implement(node).handler(async ({input, signal}) => {
       const handler = lookup(handlers, path)
       if (typeof handler !== 'function') return refuse(name, declared)
-      try {
-        const answer: unknown = await handler(input, {signal})
-        return answer
-      } catch (error) {
-        return rethrow(error, declared)
-      }
+      const answer: unknown = await handler(input, {signal})
+      return answer
     })
   }
   return Object.fromEntries(
@@ -70,8 +57,13 @@ export function demoConnection(router: AnyRouter, version: string): EngineConnec
   const link: ClientLink<RpcClientContext> = {
     call: async (path, input, options) => {
       const procedure = lookup(router, path)
-      if (!isProcedure(procedure)) throw new ORPCError('NOT_FOUND', {message: `no procedure at ${path.join('.')}`})
-      return call(procedure, input, {signal: options.signal})
+      if (!(procedure instanceof Procedure))
+        throw new ORPCError('NOT_FOUND', {message: `no procedure at ${path.join('.')}`})
+      try {
+        return await call(procedure, input, {signal: options.signal})
+      } catch (error) {
+        throw error instanceof ORPCError ? await reconcileORPCError(procedure['~orpc'].errorMap, error) : error
+      }
     },
   }
   return {

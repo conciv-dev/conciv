@@ -1,4 +1,4 @@
-import {EventPublisher, ORPCError} from '@orpc/server'
+import {ORPCError} from '@orpc/server'
 import {
   approvalRequestedEvent,
   approvalSettledEvent,
@@ -12,6 +12,7 @@ import type {ChatMessage, ChatPart} from '@conciv/types/chat-message-types'
 import type {PermissionReply} from '@conciv/types/chat-types'
 import type {Ask, PageEdit, Reply, ToolReply, Turn} from '../script'
 import type {Drive} from './demo-drive'
+import {channel, type Channel} from './demo-channel'
 import type {Publish} from './demo-events'
 import {aborted, type Pace} from './demo-time'
 
@@ -20,7 +21,7 @@ type Run = {
   readonly sessionId: string
   readonly startedAt: number
   readonly events: ChatEvent[]
-  readonly changed: EventPublisher<{changed: undefined}>
+  readonly waiting: Set<() => void>
   readonly stopped: AbortController
   done: boolean
 }
@@ -69,39 +70,40 @@ const UNSCRIPTED: Turn = {
   ],
 }
 
+function wake(run: Run): void {
+  const waiting = [...run.waiting]
+  run.waiting.clear()
+  waiting.forEach((resolve) => resolve())
+}
+
+function changed(run: Run, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    run.waiting.add(resolve)
+    signal?.addEventListener('abort', () => resolve(), {once: true})
+  })
+}
+
 function record(run: Run, event: ChatEvent): void {
   run.events.push(event)
-  run.changed.publish('changed', undefined)
+  wake(run)
 }
 
 async function* follow(run: Run, signal: AbortSignal | undefined): AsyncGenerator<ChatEvent> {
-  const changes = run.changed.subscribe('changed', {signal})
   let index = 0
-  try {
-    for (;;) {
-      const event = run.events[index]
-      if (event !== undefined) {
-        index += 1
-        yield event
-        continue
-      }
-      if (run.done || signal?.aborted === true) return
-      await changes.next()
+  for (;;) {
+    const event = run.events[index]
+    if (event !== undefined) {
+      index += 1
+      yield event
+      continue
     }
-  } finally {
-    await changes.return(undefined)
+    if (run.done || signal?.aborted === true) return
+    await changed(run, signal)
   }
 }
 
-function ended(run: Run): Promise<void> {
-  if (run.done) return Promise.resolve()
-  return new Promise((resolve) => {
-    const stop = run.changed.subscribe('changed', () => {
-      if (!run.done) return
-      stop()
-      resolve()
-    })
-  })
+async function ended(run: Run): Promise<void> {
+  while (!run.done) await changed(run, undefined)
 }
 
 function stamp(): Record<string, unknown> {
@@ -112,10 +114,10 @@ export function createChat(deps: ChatDeps) {
   const runs = new Map<string, Run>()
   const lastRuns = new Map<string, RunLifecycle>()
   const pending: Pending[] = []
-  const pushes = new Map<string, EventPublisher<{event: ChatEvent}>>()
+  const pushes = new Map<string, Channel<ChatEvent>>()
   const queue: Queued[] = []
-  const push = (sessionId: string): EventPublisher<{event: ChatEvent}> => {
-    const found = pushes.get(sessionId) ?? new EventPublisher<{event: ChatEvent}>()
+  const push = (sessionId: string): Channel<ChatEvent> => {
+    const found = pushes.get(sessionId) ?? channel<ChatEvent>()
     pushes.set(sessionId, found)
     return found
   }
@@ -143,7 +145,7 @@ export function createChat(deps: ChatDeps) {
       phase === 'aborted' ? {...message, metadata: {tanstack: {stopReason: 'aborted'}}} : message,
     )
     run.done = true
-    run.changed.publish('changed', undefined)
+    wake(run)
     deps.setRunning(run.sessionId, false)
   }
   const askUser = (sink: Sink, toolCallId: string, input: unknown, ask: Ask): Promise<PermissionReply> => {
@@ -161,8 +163,7 @@ export function createChat(deps: ChatDeps) {
       always,
       settle: settled.resolve,
     })
-    push(run.sessionId).publish(
-      'event',
+    push(run.sessionId).push(
       approvalRequestedEvent.create({approvalId, toolCallId, title: ask.title, input, permission: {always}}),
     )
     void deps.pace
@@ -172,7 +173,7 @@ export function createChat(deps: ChatDeps) {
     const drop = (): void => {
       const index = pending.findIndex((card) => card.approvalId === approvalId)
       if (index >= 0) pending.splice(index, 1)
-      push(run.sessionId).publish('event', approvalSettledEvent.create({approvalId}))
+      push(run.sessionId).push(approvalSettledEvent.create({approvalId}))
     }
     return Promise.race([settled.promise, aborted(run.stopped.signal).then((): PermissionReply => 'reject')]).finally(
       drop,
@@ -328,7 +329,7 @@ export function createChat(deps: ChatDeps) {
       sessionId,
       startedAt: Date.now(),
       events: [],
-      changed: new EventPublisher<{changed: undefined}>(),
+      waiting: new Set(),
       stopped: new AbortController(),
       done: false,
     }
@@ -336,7 +337,7 @@ export function createChat(deps: ChatDeps) {
     void playTurn(run, queued?.turn ?? UNSCRIPTED)
       .finally(() => queued?.finished())
       .catch((error: unknown) => console.error('[playground] the scripted turn failed', error))
-    push(sessionId).publish('event', sessionRunEvent.create({runId}))
+    push(sessionId).push(sessionRunEvent.create({runId}))
     return run
   }
   const active = (sessionId: string): Run | undefined =>
@@ -352,7 +353,7 @@ export function createChat(deps: ChatDeps) {
       const running = active(sessionId)
       if (running !== undefined) await ended(running)
     },
-    events: (sessionId: string, signal: AbortSignal | undefined) => push(sessionId).subscribe('event', {signal}),
+    events: (sessionId: string, signal: AbortSignal | undefined) => push(sessionId).read(signal),
     send: (sessionId: string, runId: string, prompt: string, signal: AbortSignal | undefined) =>
       follow(start(sessionId, runId, prompt), signal),
     join: (runId: string, signal: AbortSignal | undefined) => follow(runs.get(runId) ?? emptyRun(runId), signal),
@@ -399,7 +400,7 @@ function emptyRun(runId: string): Run {
     sessionId: '',
     startedAt: 0,
     events: [],
-    changed: new EventPublisher<{changed: undefined}>(),
+    waiting: new Set(),
     stopped: new AbortController(),
     done: true,
   }

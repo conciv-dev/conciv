@@ -80,7 +80,7 @@ function lastUserMessage(messages: readonly unknown[]): Sent | undefined {
 }
 
 function rpcFailed(message: string): never {
-  throw new ORPCError('PLUGIN_RPC', {status: 400, message, data: {type: 'rpc.internal', message}})
+  throw new ORPCError('PLUGIN_RPC', {message, data: {type: 'rpc.internal', message}})
 }
 
 function pluginNotFound(pluginId: string): never {
@@ -184,7 +184,7 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
     agent: {list: () => ({location, data: []})},
     fs: {find: () => ({location, data: []})},
     plugin: {
-      call: ({rpcId, method, input}) => {
+      invoke: ({rpcId, method, input}) => {
         if (rpcId === WidgetDrive.id && method === 'result') return drive.answer(input)
         const handler = options.rpc.find((known) => known.id === rpcId)?.methods[method]
         if (handler === undefined) return rpcFailed(`the playground does not answer ${rpcId}.${method}`)
