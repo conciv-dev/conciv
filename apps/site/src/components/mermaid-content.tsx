@@ -1,6 +1,5 @@
-import {useId} from 'react'
+import {useId, useSyncExternalStore} from 'react'
 import {useSuspenseQuery} from '@tanstack/react-query'
-import {useTheme} from 'next-themes'
 
 const KEPT = {staleTime: Infinity, gcTime: Infinity, structuralSharing: false} as const
 
@@ -25,15 +24,14 @@ function rgb(color: Rgb): string {
   return `rgb(${color.join(', ')})`
 }
 
-function nextFrame(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+function watchTheme(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange)
+  observer.observe(document.documentElement, {attributeFilter: ['class']})
+  return () => observer.disconnect()
 }
 
-async function themeApplied(theme: string | undefined): Promise<void> {
-  for (let frame = 0; frame < 30; frame += 1) {
-    if (theme === undefined || document.documentElement.classList.contains(theme)) return
-    await nextFrame()
-  }
+function readTheme(): 'dark' | 'light' {
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
 function readConfig() {
@@ -86,7 +84,7 @@ function readConfig() {
 
 export function MermaidContent({chart}: {chart: string}) {
   const id = useId()
-  const {resolvedTheme} = useTheme()
+  const theme = useSyncExternalStore(watchTheme, readTheme)
   const {
     data: {default: mermaid},
   } = useSuspenseQuery({queryKey: ['mermaid'], queryFn: () => import('mermaid'), ...KEPT})
@@ -96,9 +94,8 @@ export function MermaidContent({chart}: {chart: string}) {
   const {
     data: {svg, bindFunctions},
   } = useSuspenseQuery({
-    queryKey: ['mermaid-render', chart, resolvedTheme],
+    queryKey: ['mermaid-render', chart, theme],
     queryFn: async () => {
-      await themeApplied(resolvedTheme)
       await document.fonts.load(`${SKETCH.size}px "${SKETCH.font}"`)
       return mermaid.render(id, `%%{init: ${JSON.stringify(readConfig())}}%%\n${chart.replaceAll('\\n', '\n')}`)
     },
@@ -107,7 +104,7 @@ export function MermaidContent({chart}: {chart: string}) {
 
   return (
     <div
-      className="not-prose my-6 overflow-x-auto [&>svg]:mx-auto [&>svg]:block xl:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]"
+      className="not-prose my-6 overflow-x-auto [&>svg]:mx-auto [&>svg]:block xl:docs-breakout"
       ref={(container) => {
         if (container) bindFunctions?.(container)
       }}
