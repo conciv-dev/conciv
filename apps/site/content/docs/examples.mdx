@@ -1,57 +1,83 @@
 ---
 title: Examples
-description: Runnable apps wired with conciv.
+description: Run one of the example apps from the conciv repo, to try conciv before you add it to your own.
 ---
 
-The repo ships two runnable hosts. Clone it, install, then run one.
-
-```bash
-pnpm install
-```
+The conciv repo has two example apps with conciv already set up. Run one to try every feature, the plugins included,
+on a real app.
 
 <Cards>
   <Card
     title="TanStack Start"
     href="https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start"
     icon={<img src="/icons/tanstack.svg" alt="" className="size-4" />}
-    description="The Vite integration, with four plugins and a project plugin."
+    description="Vite, with the test runner, TanStack, recorder and whiteboard plugins, and a project plugin."
   />
   <Card
     title="Next.js"
     href="https://github.com/conciv-dev/conciv/tree/main/apps/examples/nextjs-app"
     icon={<img src="/icons/nextjs.svg" alt="" className="size-4" />}
-    description="The withConciv integration, with three plugins."
+    description="Next.js, with the test runner, TanStack and whiteboard plugins."
   />
 </Cards>
 
-### TanStack Start
+## 1. Get the repo
 
 ```bash
-pnpm --filter tanstack-start-example dev
+git clone https://github.com/conciv-dev/conciv.git
+cd conciv
+pnpm install
 ```
 
-Its `vite.config.ts` loads the test-runner, TanStack, recorder and whiteboard plugins by their workspace folders (your own app lists
-them by package name, see [Plugins](/docs/plugins#add-a-plugin-in-the-conciv-options)), and sets the
-quick terminal hotkey to `Alt+k`. Its `conciv/plugins/deploy` folder is a project plugin, loaded with no config entry
-(see [Plugins](/docs/plugins)).
+The repo pins its pnpm version, and needs Node 26 or newer.
 
-### Next.js
+## 2. Start an example
+
+Start the TanStack Start example:
 
 ```bash
-pnpm --filter nextjs-app dev
+pnpm turbo run dev --filter=tanstack-start-example
 ```
 
-Its `next.config.ts` adds the test-runner, TanStack and whiteboard plugins (the whiteboard is private and not on
-npm). In your own app you list the published ones by package name:
+Or the Next.js example:
 
-```ts title="next.config.ts"
-export default withConciv(nextConfig, {
-  plugins: ['@conciv/plugin-test-runner', '@conciv/plugin-tanstack'],
-})
+```bash
+pnpm turbo run dev --filter=nextjs-app
 ```
 
-The example app itself points at its workspace copies with `./node_modules/...` paths, so it runs the plugins built
-in this repo instead of the published ones. A plugin of your own is listed the same way, as a `./` path to its folder.
+The first run builds the conciv packages the example uses, then starts its dev server. It prints the address to open.
 
-Open the printed URL and click the conciv button. The first time, log in with the code the dev server prints (see
-[Logging in](/docs/usage/logging-in)).
+## 3. Open it and log in
+
+Open the printed address and click the conciv button. The first time, type the code the dev server prints in its
+terminal. See [Logging in](/docs/usage/logging-in).
+
+Then ask the agent something about the page:
+
+```text
+What is on this page, and which file renders it?
+```
+
+## What each example shows
+
+- **TanStack Start** sets the quick terminal hotkey to `Alt+k`. Its `conciv/plugins/deploy` folder is a project
+  plugin, which conciv loads with no config entry.
+- **Next.js** wraps its config with `withConciv`, the Next.js setup from [Quick start](/docs/quick-start/nextjs).
+
+## Details
+
+<Accordions type="single">
+  <Accordion title="The examples load plugins from the repo">
+    The examples point at the plugins built in the repo, by folder path. Your own app lists the published plugins by
+    package name instead. See [Live tests](/docs/usage/live-tests) for an example.
+  </Accordion>
+  <Accordion title="The whiteboard is only here">
+    The whiteboard plugin is not on npm yet, so these examples are the one place to try it. See
+    [Whiteboard](/docs/usage/whiteboard).
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Quick start](/docs/quick-start): add conciv to your own app.
+- [Use conciv](/docs/usage): what to ask the agent, feature by feature.
