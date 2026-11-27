@@ -2,6 +2,7 @@ import {createContext, useContext} from 'solid-js'
 import type {MascotPartProps, MascotService} from '../core/mascot.js'
 import type {CurveStyle} from '../core/path.js'
 import type {MascotPartName} from '../core/slot-contract.js'
+import {mascotErrors} from '../core/errors.js'
 
 export type {MascotPartName}
 
@@ -22,6 +23,6 @@ export const MascotProvider = MascotContext.Provider
 
 export function useMascotContext(): MascotContextValue {
   const context = useContext(MascotContext)
-  if (context === undefined) throw new Error('a mascot part can only render inside <Mascot />')
+  if (context === undefined) throw mascotErrors.OUTSIDE_MASCOT()
   return context
 }

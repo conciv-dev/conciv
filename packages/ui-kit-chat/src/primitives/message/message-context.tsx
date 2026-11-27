@@ -2,6 +2,7 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 import type {ChatPart} from '@conciv/types/chat-message-types'
 import type {Turn} from '../../store/grouping.js'
 import type {createTurnParts} from '../../store/turn-parts.js'
+import {chatKitErrors} from '../../errors/errors.js'
 
 export type MessageContextValue = {
   key: string
@@ -18,7 +19,8 @@ export const MessageProvider = MessageContext.Provider
 
 export function useMessage(): MessageContextValue {
   const context = useContext(MessageContext)
-  if (!context) throw new Error('Message.* must be used within a Thread.Messages / Message.Root context')
+  if (!context)
+    throw chatKitErrors.OUTSIDE_PROVIDER({part: 'Message.*', provider: 'a Thread.Messages / Message.Root context'})
   return context
 }
 
@@ -30,6 +32,6 @@ export const PartProvider = PartContext.Provider
 
 export function usePart(): PartContextValue {
   const context = useContext(PartContext)
-  if (!context) throw new Error('MessagePart.* must be used within a Message.Parts context')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'MessagePart.*', provider: 'a Message.Parts context'})
   return context
 }

@@ -1,4 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
+import {chatKitErrors} from '../../errors/errors.js'
 
 export type ThreadScroller = {
   atEnd: Accessor<boolean>
@@ -21,7 +22,7 @@ export const ViewportProvider = ViewportContext.Provider
 
 export function useThreadViewport(): ViewportContextValue {
   const context = useContext(ViewportContext)
-  if (!context) throw new Error('Thread.ScrollToBottom must be used within a Thread.Root')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'Thread.ScrollToBottom', provider: 'a Thread.Root'})
   return context
 }
 

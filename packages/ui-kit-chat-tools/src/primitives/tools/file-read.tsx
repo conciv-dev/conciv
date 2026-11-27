@@ -3,6 +3,7 @@ import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import {parseInput, resultText, stripReadLineNumbers} from '@conciv/ui-kit-chat/tools'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
+import {chatToolsErrors} from './errors.js'
 const ReadInput = z.object({
   file_path: z.string().optional(),
   file: z.string().optional(),
@@ -40,7 +41,7 @@ const FileReadContext = createContext<FileReadContextValue>()
 
 export function useFileRead(): FileReadContextValue {
   const context = useContext(FileReadContext)
-  if (!context) throw new Error('FileRead sub-components must be used within FileRead.Root')
+  if (!context) throw chatToolsErrors.OUTSIDE_ROOT({tool: 'FileRead'})
   return context
 }
 

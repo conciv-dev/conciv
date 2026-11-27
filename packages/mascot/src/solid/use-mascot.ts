@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {followChannels, type MascotConfig, type MascotFollow} from '../core/config.js'
 import {createMascot, type MascotPartProps} from '../core/mascot.js'
 import {robotSkin} from '../core/skin.js'
-import {partAlreadyProvided} from '../core/slot-contract.js'
+import {mascotErrors} from '../core/errors.js'
 import type {FollowSource, MascotContextValue, MascotPartName} from './mascot-context.js'
 import type {MascotProps} from './mascot-props.js'
 
@@ -48,7 +48,7 @@ export function createMascotHost(props: MascotProps): MascotHost {
   }
 
   const claimPart = (part: MascotPartName, source?: FollowSource) => {
-    if (untrack(() => slots[part])) throw partAlreadyProvided(part)
+    if (untrack(() => slots[part])) throw mascotErrors.PART_ALREADY_PROVIDED({part})
     sources[part] = source
     setSlots(part, true)
     onCleanup(() => {

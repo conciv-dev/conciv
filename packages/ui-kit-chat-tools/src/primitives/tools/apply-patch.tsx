@@ -10,6 +10,7 @@ import {
   type ApplyPatchBlock,
   type ApplyPatchInfo,
 } from './apply-patch-text.js'
+import {chatToolsErrors} from './errors.js'
 
 type ApplyPatchContextValue = {
   name: Accessor<string>
@@ -23,7 +24,7 @@ const ApplyPatchContext = createContext<ApplyPatchContextValue>()
 
 export function useApplyPatch(): ApplyPatchContextValue {
   const context = useContext(ApplyPatchContext)
-  if (!context) throw new Error('ApplyPatch sub-components must be used within ApplyPatch.Root')
+  if (!context) throw chatToolsErrors.OUTSIDE_ROOT({tool: 'ApplyPatch'})
   return context
 }
 

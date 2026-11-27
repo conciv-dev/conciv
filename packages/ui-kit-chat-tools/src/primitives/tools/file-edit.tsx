@@ -3,6 +3,7 @@ import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import {parseInput} from '@conciv/ui-kit-chat/tools'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
+import {chatToolsErrors} from './errors.js'
 const EditInput = z.object({
   file_path: z.string().optional(),
   old_string: z.string().optional(),
@@ -45,7 +46,7 @@ const FileEditContext = createContext<FileEditContextValue>()
 
 export function useFileEdit(): FileEditContextValue {
   const context = useContext(FileEditContext)
-  if (!context) throw new Error('FileEdit sub-components must be used within FileEdit.Root')
+  if (!context) throw chatToolsErrors.OUTSIDE_ROOT({tool: 'FileEdit'})
   return context
 }
 

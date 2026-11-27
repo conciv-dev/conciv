@@ -1,5 +1,6 @@
 import type {SendContent} from '@conciv/types/chat-message-types'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/types/chat-types'
+import {chatKitErrors} from '../../errors/errors.js'
 
 type ContentParts = Exclude<SendContent['content'], string>
 
@@ -90,13 +91,15 @@ export async function fileToDataSource(file: File): Promise<{type: 'data'; value
     const reader = new FileReader()
     reader.addEventListener('load', () => {
       if (typeof reader.result === 'string') resolve(reader.result)
-      else reject(new Error(`Could not read ${file.name}`))
+      else reject(chatKitErrors.FILE_NOT_READ({name: file.name}))
     })
-    reader.addEventListener('error', () => reject(reader.error ?? new Error(`Could not read ${file.name}`)))
+    reader.addEventListener('error', () =>
+      reject(chatKitErrors.FILE_NOT_READ({name: file.name, cause: reader.error ?? undefined})),
+    )
     reader.readAsDataURL(file)
   })
   const separator = dataUrl.indexOf(',')
-  if (separator < 0) throw new Error(`Could not read ${file.name}`)
+  if (separator < 0) throw chatKitErrors.FILE_NOT_READ({name: file.name})
   return {type: 'data', value: dataUrl.slice(separator + 1), mimeType}
 }
 
@@ -156,7 +159,7 @@ export function createSimpleImageAttachmentAdapter(): AttachmentAdapter {
     remove: async () => {},
     send: async (attachment) => {
       const error = imageFileError(attachment.file, fileMimeType(attachment.file))
-      if (error) throw new Error(error)
+      if (error) throw chatKitErrors.FILE_REFUSED({message: error})
       return {
         ...attachment,
         status: {type: 'complete'},
@@ -197,7 +200,7 @@ export function createTextAttachmentAdapter(): AttachmentAdapter {
     remove: async () => {},
     send: async (attachment) => {
       const error = textFileError(attachment.file)
-      if (error) throw new Error(error)
+      if (error) throw chatKitErrors.FILE_REFUSED({message: error})
       return {
         ...attachment,
         status: {type: 'complete'},
@@ -211,7 +214,7 @@ export function composeAttachmentAdapters(adapters: readonly AttachmentAdapter[]
   const owners = new Map<string, AttachmentAdapter>()
   const adapterFor = (file: Pick<File, 'name' | 'type'>): AttachmentAdapter => {
     const match = adapters.find((adapter) => fileMatchesAccept(file, adapter.accept))
-    if (!match) throw new Error(`No attachment adapter accepts ${file.name}`)
+    if (!match) throw chatKitErrors.NO_ADAPTER({name: file.name})
     return match
   }
   const track = (adapter: AttachmentAdapter, pending: PendingAttachment): PendingAttachment => {

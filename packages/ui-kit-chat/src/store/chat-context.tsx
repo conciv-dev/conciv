@@ -4,6 +4,7 @@ import {keyArray} from '@solid-primitives/keyed'
 import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
 import {chatBusy, type ChatBusySource} from '@conciv/types/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
+import {chatKitErrors} from '../errors/errors.js'
 
 export type ViewState = {
   draft: string
@@ -79,7 +80,7 @@ function sameTurnItems(previous: readonly TurnItem[], next: readonly TurnItem[])
 
 export function useChatContext(): ChatContextValue {
   const context = useContext(ChatContext)
-  if (!context) throw new Error('useChatContext must be used within a <ChatProvider>')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'useChatContext', provider: 'a <ChatProvider>'})
   return context
 }
 
