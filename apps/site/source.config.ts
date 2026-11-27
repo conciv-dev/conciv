@@ -26,7 +26,10 @@ export default defineConfig({
       ...rehypeCodeDefaultOptions,
       transformers: [
         ...(rehypeCodeDefaultOptions.transformers ?? []),
-        transformerTwoslash({twoslashOptions: {compilerOptions: {types: ['node']}}}),
+        transformerTwoslash({
+          twoslashOptions: {compilerOptions: {types: ['node']}},
+          rendererRich: {processHoverDocs: (text) => text.split(/\n\s*\n/, 1)[0] ?? text},
+        }),
       ],
     },
   },

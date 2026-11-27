@@ -286,8 +286,14 @@ html > body[data-scroll-locked] {
 }
 
 .fd-twoslash-popover {
-  max-width: min(34rem, calc(100vw - 1.5rem));
+  max-width: min(420px, calc(100vw - 1.5rem));
+  max-height: min(24rem, var(--available-height, 24rem));
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 0;
+}
+.fd-twoslash-popover > .twoslash-popup-docs-tags {
+  display: none;
 }
 .fd-twoslash-popover > .twoslash {
   padding: 0.5rem 0.75rem;

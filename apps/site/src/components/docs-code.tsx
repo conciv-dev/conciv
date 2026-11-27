@@ -85,7 +85,7 @@ export function CodeBlockTab(props: ComponentProps<typeof FumadocsCodeBlockTab>)
 export function PopupContent(props: ComponentProps<typeof TwoslashPopupContent>) {
   return (
     <CodeChromeContext value={popupChrome}>
-      <TwoslashPopupContent {...props} />
+      <TwoslashPopupContent align="start" {...props} />
     </CodeChromeContext>
   )
 }
