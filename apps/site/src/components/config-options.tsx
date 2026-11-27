@@ -40,13 +40,20 @@ function writeType(schema: Schema): string {
   return 'JSON'
 }
 
-function readOption(schema: Schema): TypeNode {
+function readDefault(name: string, schema: Schema, text: string): string | undefined {
+  const written = DEFAULT_PATTERN.exec(text)?.[1]
+  if (typeof schema === 'boolean' || schema.default === undefined) return written
+  if (written === undefined)
+    throw new Error(`the config option ${name} has a default but no "Default: X." in its description`)
+  return JSON.stringify(schema.default)
+}
+
+function readOption(name: string, schema: Schema): TypeNode {
   const text = typeof schema === 'boolean' ? '' : (schema.description ?? '')
-  const found = DEFAULT_PATTERN.exec(text)
   return {
     type: writeType(schema),
     description: text.replace(DEFAULT_PATTERN, ''),
-    default: found?.[1],
+    default: readDefault(name, schema, text),
   }
 }
 
@@ -54,7 +61,7 @@ function SchemaOptions(props: {schema: z.ZodObject}) {
   const schema = z.toJSONSchema(props.schema, {io: 'input', unrepresentable: 'any'})
   const options = Object.entries(schema.properties ?? {}).map(([name, option]): [string, TypeNode] => [
     name,
-    readOption(option),
+    readOption(name, option),
   ])
   return <TypeTable type={Object.fromEntries(options)} />
 }
