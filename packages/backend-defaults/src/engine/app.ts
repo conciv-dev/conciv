@@ -1052,12 +1052,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     .runPromise(
       Effect.gen(function* () {
         yield* Effect.tryPromise({
-          try: () => ensureConfiguredRows(rows, opts.cfg, pluginHost),
+          try: () =>
+            inSpan(tracer, 'Engine.ensureConfiguredRows', {}, () => ensureConfiguredRows(rows, opts.cfg, pluginHost)),
           catch: (error) => error,
-        }).pipe(Effect.withSpan('Engine.ensureConfiguredRows'))
-        yield* Effect.tryPromise({try: plugins.supervise, catch: (error) => error}).pipe(
-          Effect.withSpan('Engine.supervisePlugins'),
-        )
+        })
+        yield* Effect.tryPromise({
+          try: () => inSpan(tracer, 'Engine.supervisePlugins', {}, plugins.supervise),
+          catch: (error) => error,
+        })
         yield* Effect.logInfo('conciv: the engine started').pipe(
           Effect.annotateLogs({engineId, harness: harness.id, cwd: opts.cwd}),
         )
