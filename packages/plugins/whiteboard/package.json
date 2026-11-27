@@ -96,5 +96,8 @@
   "peerDependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

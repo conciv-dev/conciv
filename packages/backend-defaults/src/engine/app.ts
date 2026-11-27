@@ -754,7 +754,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
     })
   }
-  const plugins = await Promise.try(startPlugins).catch(failedStart([settings.close]))
+  const plugins = await Promise.resolve()
+    .then(startPlugins)
+    .catch(failedStart([settings.close]))
   const pluginHost: PluginHost = plugins.runtime
   const startFailed = (steps: ShutdownStep[]) =>
     failedStart([

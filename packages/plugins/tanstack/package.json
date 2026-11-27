@@ -92,5 +92,8 @@
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@tanstack/react-router": ">=1.170.0"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

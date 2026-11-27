@@ -82,7 +82,7 @@ function environmentOptions(
       emptyOutDir: first,
       sourcemap: !options.jsx && !options.bundleDir,
       emitAssets: server || undefined,
-      target: server ? 'node26' : undefined,
+      target: server ? 'node22' : undefined,
       rolldownOptions: {
         external: [...(options.external ?? [])],
         output: {

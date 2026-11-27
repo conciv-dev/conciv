@@ -9,6 +9,10 @@ name: Packed
 #     (Turbopack and webpack) and runs its test/packed-*.spec.ts with playwright.packed.config.ts
 #     (the default config ignores them)
 #   - e2e/vite-react-packed is packed end to end
+# The packed-node-22 job proves the same tarballs on the oldest Node the published node
+# packages declare (engines.node, one floor for all): conciv-publish check-node-floor packs
+# them into a throwaway consumer and, on that Node, runs the cli, imports every node entry and
+# starts the engine in simulation.
 # It runs on pull requests that touch the paths below, and on demand; on main, release.yml
 # calls it on every push, so a broken tarball blocks npm publish (no standalone push trigger,
 # that would run it twice). The pull request paths are what can drift the two fixture
@@ -60,6 +64,7 @@ on:
       - e2e/nextjs/test/packed-*.spec.ts
       - e2e/nextjs/playwright.packed.config.ts
       - e2e/nextjs/package.json
+      - packages/publish/src/node-floor.ts
   workflow_call: {}
   workflow_dispatch: {}
 
@@ -153,3 +158,49 @@ jobs:
             e2e/vite-react-packed/fixture-lock.yaml
             e2e/nextjs/packed/fixture-lock.yaml
           if-no-files-found: error
+
+  packed-node-22:
+    name: packed install on the Node floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
+      # The floor is the engines.node every published node package declares; check-node-floor
+      # fails when they disagree, so reading one of them is enough here.
+      - name: Read the Node floor
+        id: floor
+        run: echo "version=$(jq -r '.engines.node' packages/backend/package.json | sed 's/^>=//')" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.floor.outputs.version }}
+      - name: Keep the floor Node
+        id: floor-node
+        run: echo "path=$(command -v node)" >> "$GITHUB_OUTPUT"
+      # The repo's own tooling (pnpm, turbo, the TypeScript CLI) runs on 26; only the proofs run
+      # on the floor binary.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-node26-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}
+          restore-keys: turbo-node26-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      - name: Build the published packages
+        run: pnpm exec turbo run build --filter='./packages/**'
+      - name: Prove the packed packages on the Node floor
+        env:
+          FLOOR_NODE: ${{ steps.floor-node.outputs.path }}
+        run: pnpm conciv-publish check-node-floor --node "$FLOOR_NODE"
