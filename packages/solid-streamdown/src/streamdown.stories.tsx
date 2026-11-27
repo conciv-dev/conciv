@@ -383,7 +383,7 @@ const DecliningChart: FenceView = (props) => (
 )
 
 const ThrowingView: FenceView = () => {
-  throw storyErrors.SAMPLE_FAILURE({message: 'the view failed'})
+  throw storyErrors.SAMPLE_FAILURE({detail: 'the view failed'})
 }
 
 const fallbackViews: HighlightCode = (_, lang) => {

@@ -6,14 +6,15 @@ export const siteErrors = defineErrorCatalog('site', {
     fix: 'Add the lucide icon to docsIcons in apps/site/src/lib/source.ts.',
   },
   OG_FONT_NOT_LOADED: {
-    message: ({path, status}: {path: string; status: number}) => `Failed to load OG font ${path}: ${status}`,
+    message: ({path, httpStatus}: {path: string; httpStatus: number}) =>
+      `Failed to load OG font ${path}: ${httpStatus}`,
   },
   BRAND_ASSET_MISSING: {
     status: 404,
     message: ({path}: {path: string}) => `No brand asset emitted for ${path}`,
   },
   SVG_NOT_LOADED: {
-    message: ({status}: {status: number}) => `The SVG could not be loaded: ${status}`,
+    message: ({httpStatus}: {httpStatus: number}) => `The SVG could not be loaded: ${httpStatus}`,
   },
   COPY_BUTTON_OUTSIDE_ROOT: {message: 'CopyButton.* must be used inside CopyButton.Root'},
   FRAMEWORK_TABS_OUTSIDE_ROOT: {message: 'FrameworkTabs.* must be used inside FrameworkTabs.Root'},

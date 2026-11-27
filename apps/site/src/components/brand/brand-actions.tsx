@@ -23,7 +23,7 @@ const COPY_LABEL: Record<MutationStatus, string> = {
 
 async function copySvgSource(path: string) {
   const response = await fetch(brandAssetUrl(path))
-  if (!response.ok) throw siteErrors.SVG_NOT_LOADED({status: response.status})
+  if (!response.ok) throw siteErrors.SVG_NOT_LOADED({httpStatus: response.status})
   await navigator.clipboard.writeText(await response.text())
 }
 

@@ -16,7 +16,7 @@ function ErrorApp(props: {expose: (chat: Chat) => void}): JSX.Element {
     threadId: 'error',
     connection: storyConnection({
       shouldError: true,
-      error: storyErrors.SAMPLE_FAILURE({message: 'Stream failed: 500'}),
+      error: storyErrors.SAMPLE_FAILURE({detail: 'Stream failed: 500'}),
     }),
   })
   onMount(() => props.expose(chat))

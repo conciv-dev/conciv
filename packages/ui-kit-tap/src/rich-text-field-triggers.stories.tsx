@@ -122,7 +122,7 @@ const sourceModes: Record<Mode, ModeItems> = {
   sync: (pool, query) => filterItems(pool, query),
   delayed: (pool, query) => resolveAfter(filterItems(pool, query), 400),
   empty: () => [],
-  error: () => Promise.reject(storyErrors.SAMPLE_FAILURE({message: 'source failed'})),
+  error: () => Promise.reject(storyErrors.SAMPLE_FAILURE({detail: 'source failed'})),
   manual: (pool, query, enqueue) => new Promise((resolve) => enqueue({query, resolve})),
   long: (_pool, query) => filterItems(LONG_COMMANDS, query),
   categories: (_pool, query) => filterItems(CATEGORY_COMMANDS, query),

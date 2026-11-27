@@ -6,7 +6,7 @@ export const storyErrors = defineErrorCatalog('story', {
     fix: 'Check that the story still renders the element its play function looks for.',
   },
   SAMPLE_FAILURE: {
-    message: ({message}: {message: string}) => message,
+    message: ({detail}: {detail: string}) => detail,
     why: 'The story feeds this failure in on purpose, to show the error state.',
   },
 })

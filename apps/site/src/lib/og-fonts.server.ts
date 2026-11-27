@@ -24,7 +24,7 @@ const FONT_FILES: FontFile[] = [
 async function fetchFontFile(assetPath: string, requestUrl: string): Promise<Uint8Array> {
   const response = await env.ASSETS.fetch(new URL(assetPath, requestUrl))
   if (!response.ok) {
-    throw siteErrors.OG_FONT_NOT_LOADED({path: assetPath, status: response.status})
+    throw siteErrors.OG_FONT_NOT_LOADED({path: assetPath, httpStatus: response.status})
   }
   return new Uint8Array(await response.arrayBuffer())
 }

@@ -265,7 +265,7 @@ const failedAttachmentSendSpy = fn()
 const failingImageAdapter: AttachmentAdapter = {
   ...createSimpleImageAttachmentAdapter(),
   send: async () => {
-    throw storyErrors.SAMPLE_FAILURE({message: 'upload unavailable'})
+    throw storyErrors.SAMPLE_FAILURE({detail: 'upload unavailable'})
   },
 }
 
