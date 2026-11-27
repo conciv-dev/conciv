@@ -6,7 +6,7 @@ description: Run one of your plugin's RPC methods on the running engine with npx
 `npx @conciv/cli plugin call` runs one of your plugin's RPC methods on the running engine and prints the answer. Use
 it to try a method while you write it, or to call your plugin from a script.
 
-## Basic
+## Call a method
 
 Start your dev server, then run the method from your project folder:
 
@@ -20,10 +20,10 @@ npx @conciv/cli plugin call plant-shelf count --data '{"plant": "fern"}'
 
 A few things to notice:
 
-- `plant-shelf` is the id of the plugin's RPC contract, and `count` is the method. See
+- `plant-shelf` is the id of the plugin's RPC contract. `count` is the method. See
   [Share an RPC method](/docs/plugins/guides/rpc).
 - `--data` is the method's input, as JSON. Leave it out for a method that takes no input. `-d` is the short form.
-- The answer is one line of JSON, and the command exits `0` on success.
+- The answer is one line of JSON. The command exits `0` on success.
 
 The plugins conciv ships answer the same way. This reads the test runner's last result:
 
@@ -33,7 +33,7 @@ npx @conciv/cli plugin call test-runner status
 
 ## Read a failure
 
-A failure prints `ok: false` and an error, and the command exits `1`. A method's own error carries its name as
+A failure prints `ok: false` and an error. The command exits `1`. A method's own error carries its name as
 `type`, with its message and data. Here the shelf has no ferns left:
 
 ```bash title="terminal"
@@ -61,7 +61,7 @@ The engine answers some errors itself:
 - `rpc.internal`: the method threw. The code is `PLUGIN_RPC_INTERNAL`.
 - `rpc.invalid_output`: the method returned something its output schema refuses. The code is `PLUGIN_RPC_INTERNAL`.
 
-Data that is not JSON is refused before anything is sent:
+The command refuses data that is not JSON before it sends anything:
 
 ```json title="output"
 {
@@ -75,7 +75,7 @@ Data that is not JSON is refused before anything is sent:
 ```
 
 <Accordions>
-<Accordion title="Which engine answers?">
+<Accordion title="Which engine answers">
 
 The command looks for an engine in this order:
 
