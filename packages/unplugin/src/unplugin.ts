@@ -5,6 +5,7 @@ import type {ConcivConfig, LogLevel} from '@conciv/types/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
 import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER, chooseEnginePort} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
+import {makePluginBundlerHooks} from './core/plugin-bundlers.js'
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {concivStateDir} from '@conciv/types/state-types'
@@ -159,15 +160,26 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
       new compiler.webpack.EntryPlugin(compiler.context, client, {name: undefined}).apply(compiler)
     }
 
-    return {
-      name: 'conciv',
+    const vite = makeViteHook(options, builtins, logLevel)
+    const running = () => state.slot.stage === 'running'
+    return [
+      {
+        name: 'conciv',
 
-      vite: makeViteHook(options, builtins, logLevel) as UnpluginOptions['vite'],
-      webpack: serveWidgetInDevelopment,
-      rspack: serveWidgetInDevelopment,
-      rollup: {},
-      esbuild: {},
-    }
+        vite: vite as UnpluginOptions['vite'],
+        webpack: serveWidgetInDevelopment,
+        rspack: serveWidgetInDevelopment,
+        rollup: {},
+        esbuild: {},
+      },
+      {
+        name: 'conciv:plugins',
+        transformInclude: running,
+        loadInclude: running,
+        ...makePluginBundlerHooks(() => (state.slot.stage === 'running' ? state.slot.engine : undefined)),
+        vite: {apply: 'serve', enforce: 'pre', ...makePluginBundlerHooks(vite.api.engine)},
+      },
+    ]
   })
 }
 

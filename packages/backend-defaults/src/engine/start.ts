@@ -16,6 +16,7 @@ import {context, ROOT_CONTEXT} from '@opentelemetry/api'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
+import {Plugin as PluginRegistry} from '@conciv/backend-app-api'
 import type {EngineStaleness} from '@conciv/protocol'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {EngineId} from './lib/engine-id.js'
@@ -137,11 +138,27 @@ export type BackendOptions = {
   simulation?: StartSimulation
 }
 
+type PluginBundlerHooks = Pick<PluginRegistry.Interface, 'transform' | 'resolveId' | 'load'>
+
+function runBundlerHook<Answer>(
+  made: MadeApp,
+  run: (plugins: PluginRegistry.Interface) => Effect.Effect<Answer, PluginRegistry.BundlerHookFailed>,
+) {
+  return made.pluginHost.runPromise(
+    PluginRegistry.Service.use(run).pipe(Effect.mapError((failure) => new Error(failure.message, {cause: failure}))),
+  )
+}
+
 export type Engine = {
   port: number
   agentToken: string
   trustBrowser: (requester: BrowserRequester, grantedAt: number) => Promise<string>
   stop: () => Promise<void>
+  bundler: {
+    [Hook in keyof PluginBundlerHooks]: (
+      ...input: Parameters<PluginBundlerHooks[Hook]>
+    ) => Promise<Effect.Success<ReturnType<PluginBundlerHooks[Hook]>>>
+  }
   cfg: ResolvedConcivConfig
 } & EngineRouterBrand
 
@@ -477,6 +494,12 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
       agentToken,
       cfg,
       trustBrowser,
+      bundler: {
+        transform: (code: string, id: string) => runBundlerHook(made, (plugins) => plugins.transform(code, id)),
+        resolveId: (id: string, importer: string | undefined) =>
+          runBundlerHook(made, (plugins) => plugins.resolveId(id, importer)),
+        load: (id: string) => runBundlerHook(made, (plugins) => plugins.load(id)),
+      },
       stop: async () => {
         try {
           await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
