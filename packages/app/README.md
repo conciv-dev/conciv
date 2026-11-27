@@ -27,7 +27,7 @@ that opens it:
 
 ## Invariants
 
-- `uno.config.ts` scans only this package and packages it depends on (frontend-defaults, frontend-app-api, the ui-kits, and the built-in plugins page, terminal and iOS), so a class edit there rebuilds the widget through `^build` and the package has no `turbo.json`. Any other plugin ships its own sheet.
+- `uno.config.ts` scans only this package and packages it depends on (frontend-defaults, frontend-app-api, the ui-kits), so a class edit there rebuilds the widget through `^build` and the package has no `turbo.json`. It scans no plugin: every plugin, the built-ins page, terminal and iOS included, ships its own sheet.
 - The shared Ark/Solid/`@conciv/*` packages stay external (`EXTERNAL_PREFIXES`); a second bundled copy splits the Solid/Ark context. Guarded by `test/unit/mount-impl.unit.test.ts`.
 
 ## Side Effects

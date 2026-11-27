@@ -8,6 +8,7 @@ import {
   createKeyed,
   Plugin,
   Slot,
+  Style,
   ToolRegistry,
   type BaseContext,
 } from '@conciv/frontend-plugin-api'
@@ -33,6 +34,7 @@ import {GrabNoteCard} from './grab-card.js'
 import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {capturePlugins} from './screenshot.js'
 import {redactedUrl} from './redacted-url.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
 
@@ -40,6 +42,7 @@ export default Plugin.define({
   enforce: 'pre',
   beforeRegister: installReactBridge,
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const routed = () => ctx.sessions.current()
 
     const queryClient = useQueryClient()

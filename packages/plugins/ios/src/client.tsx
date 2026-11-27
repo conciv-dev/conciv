@@ -1,7 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {Effect, FiberSet, Queue, Stream, SubscriptionRef} from 'effect'
-import {Plugin, Slot} from '@conciv/frontend-plugin-api'
+import {Plugin, Slot, Style} from '@conciv/frontend-plugin-api'
 import {
   createEventBusClient,
   PANEL_PLUGIN_ID,
@@ -10,6 +10,7 @@ import {
 } from '@conciv/types/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import type {GrabMode} from './rpc.js'
+import pluginCss from 'virtual:uno.css?inline'
 import {IosBridge} from './bridge.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 
@@ -178,6 +179,7 @@ const startNativeService = Effect.fn('ios.native.start')(function* () {
   const service: NativeService = {
     grabProvider: () => actions,
     setup: (ctx) => {
+      ctx.add(Style, pluginCss)
       ctx.add(Slot, {at: 'page.overlay', hides: false, render: () => <IncompatibleBridgeAlert view={view} />})
     },
   }

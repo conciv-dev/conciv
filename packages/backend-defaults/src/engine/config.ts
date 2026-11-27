@@ -32,6 +32,7 @@ export interface ResolvedConcivConfig {
   permissions: NonNullable<ConcivConfig['permissions']>
   logLevel: LogLevel
   logRetention: Retention
+  simulate: boolean
 }
 
 function shortPermissions(permission: ConcivConfig['permission']): NonNullable<ConcivConfig['permissions']> {
@@ -90,6 +91,7 @@ const EnvFallbacksConfig = Config.all({
   CONCIV_SESSION_ID: envValue('CONCIV_SESSION_ID'),
   CONCIV_CLAUDE_SESSION_ID: envValue('CONCIV_CLAUDE_SESSION_ID'),
   CONCIV_LOG_LEVEL: envValue('CONCIV_LOG_LEVEL'),
+  CONCIV_SIMULATE: Config.Boolean('CONCIV_SIMULATE').pipe(Config.withDefault(false)),
 })
 
 export function resolveConfig(
@@ -111,5 +113,6 @@ export function resolveConfig(
     permissions: [...shortPermissions(options.permission), ...(options.permissions ?? [])],
     logLevel: readLogLevel({env: env.CONCIV_LOG_LEVEL, config: options.logLevel}),
     logRetention: resolveRetention(options.logRetention),
+    simulate: env.CONCIV_SIMULATE,
   }
 }
