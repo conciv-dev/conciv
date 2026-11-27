@@ -7,6 +7,7 @@ import {storyConnection, createTextChunks, createReasoningChunks, createToolCall
 import {Thread} from './thread.js'
 import {Composer} from './composer.js'
 import {NowLine} from './now-line.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/Thread'}
 export default meta
@@ -74,7 +75,7 @@ function play(): Story {
       await waitFor(() => expect(c.getByText('search for the symbol')).toBeVisible())
       const reply = await waitFor(() => c.getByText(/No matches: the symbol is unused/), {timeout: 5000})
       const traceHeader = c.getByText('1 shell').closest('button')
-      if (!traceHeader) throw new Error('trace header trigger not found')
+      if (!traceHeader) throw storyErrors.ELEMENT_MISSING({element: 'trace header trigger'})
 
       await expect(traceHeader).toHaveAttribute('data-state', 'open')
       await expect(c.getByText('Called shell')).toBeVisible()
@@ -155,7 +156,7 @@ function ShiftApp(): JSX.Element {
 
 function findAssistantMessage(node: HTMLElement): HTMLElement {
   const container = node.closest<HTMLElement>('[data-role="assistant"]')
-  if (!container) throw new Error('assistant message container not found')
+  if (!container) throw storyErrors.ELEMENT_MISSING({element: 'assistant message container'})
   return container
 }
 

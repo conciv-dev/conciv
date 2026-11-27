@@ -11,11 +11,9 @@ import {
   codeDiscoverReply,
   codeExecuteReply,
   contractCode,
-  engineErrors,
   type CodeDescriptions,
   type CodeReply,
 } from '@conciv/protocol'
-import {cliErrors} from './failure.js'
 import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId} from '@conciv/types/chat-types'
 import type {InitHarnessId} from '@conciv/types/harness-types'
@@ -39,6 +37,7 @@ import {
   type TabAsk,
   type TabOpen,
 } from './engine-read.js'
+import {causeFrom, cliErrors, engineErrors} from '@conciv/errors'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
 
@@ -193,7 +192,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
         root: runner.root,
         reason: errorText(error),
         after,
-        ...(error instanceof Error ? {cause: error} : {}),
+        ...causeFrom(error),
       })
     }
   }
@@ -240,7 +239,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
         tab,
         root: owner.root,
         reason: errorText(error),
-        ...(error instanceof Error ? {cause: error} : {}),
+        ...causeFrom(error),
       })
     }
   }
@@ -552,7 +551,7 @@ async function listTabsCall(home: string): Promise<Reply> {
 }
 
 function failedProbe(root: string, failure: unknown): Error {
-  const cause = failure instanceof Error ? {cause: failure} : {}
+  const cause = causeFrom(failure)
   if (engineTooOld(failure)) return cliErrors.PROBE_FAILED({text: `${root} (${TOO_OLD})`, ...cause})
   return cliErrors.PROBE_FAILED({text: silence([{root, error: errorText(failure)}]), ...cause})
 }

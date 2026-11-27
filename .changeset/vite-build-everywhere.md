@@ -1,4 +1,5 @@
 ---
+'@conciv/errors': patch
 '@conciv/app': patch
 '@conciv/backend': patch
 '@conciv/backend-app-api': patch

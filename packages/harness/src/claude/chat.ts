@@ -11,6 +11,7 @@ import {lastUserImages} from '../_shared/text-adapter.js'
 import {CLAUDE_BIN} from './args.js'
 import {claudePluginDir} from './plugin-dir.js'
 import {tmpdir} from 'node:os'
+import {harnessErrors} from '@conciv/errors'
 
 const GIT_RISKS = [
   'push --force*',
@@ -78,9 +79,7 @@ export async function imageRefs(images: HarnessImage[], cwd: string): Promise<st
 
 function spaceFreePath(flag: string, path: string): string {
   if (/\s/.test(path)) {
-    throw new Error(
-      `claudeExecutable: ${flag} path "${path}" contains whitespace. The claude harness cannot pass a path containing whitespace because @tanstack/ai-claude-code splits its executable string on plain spaces before spawning. Move it to a space-free path.`,
-    )
+    throw harnessErrors.CLAUDE_PATH_HAS_WHITESPACE({flag, path})
   }
   return path
 }

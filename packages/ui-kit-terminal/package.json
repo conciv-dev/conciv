@@ -38,6 +38,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/types": "workspace:^",
     "@tanstack/pacer": "catalog:",
     "@xterm/addon-fit": "^0.11.0",

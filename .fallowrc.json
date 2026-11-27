@@ -495,7 +495,8 @@
     "@conciv/backend-defaults",
     "@conciv/backend-test-utils",
     "@conciv/protocol",
-    "@conciv/frontend-plugin-api"
+    "@conciv/frontend-plugin-api",
+    "@conciv/errors"
   ],
   "ignoreExports": [
     {
@@ -585,7 +586,7 @@
     },
     {
       "file": "packages/backend-app-api/src/core/image.ts",
-      "exports": ["Editor"]
+      "exports": ["Editor", "Content"]
     },
     {
       "file": "packages/backend-defaults/src/core/image/photon-normalize.ts",
@@ -660,6 +661,10 @@
     {
       "file": "packages/backend-plugin-api/src/{effect,promise}/job.ts",
       "exports": ["JobDomain", "JobStartInput"]
+    },
+    {
+      "file": "packages/backend-plugin-api/src/{effect,promise}/bundler.ts",
+      "exports": ["BundlerDomain", "BundlerEditor", "BundlerHooks"]
     },
     {
       "file": "packages/backend-app-api/src/core/session.ts",

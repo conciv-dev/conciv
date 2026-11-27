@@ -5,6 +5,7 @@ import {claudeCodeText, type ClaudeCodeTextConfig} from '@tanstack/ai-claude-cod
 import {codexText, CODEX_MODELS, type CodexTextConfig} from '@tanstack/ai-codex'
 import {opencodeText, type OpencodeTextConfig} from '@tanstack/ai-opencode'
 import type {ChatEvent} from '@conciv/types/chat-event-types'
+import {harnessErrors} from '@conciv/errors'
 
 export type TextAdapter = AnyTextAdapter
 
@@ -30,7 +31,7 @@ class DelegatingTextAdapter extends BaseTextAdapter<string, Record<string, never
   }
 
   structuredOutput(_options: StructuredOutputOptions<Record<string, never>>): Promise<StructuredOutputResult<unknown>> {
-    return Promise.reject(new Error(`harness '${this.name}' does not support structured output`))
+    return Promise.reject(harnessErrors.NO_STRUCTURED_OUTPUT({name: this.name}))
   }
 }
 

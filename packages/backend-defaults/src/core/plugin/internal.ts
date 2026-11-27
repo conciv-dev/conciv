@@ -1,4 +1,4 @@
-import type {Plugin, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Plugin, Services} from '@conciv/backend-plugin-api/effect/plugin'
 import type {Generation} from '@conciv/backend-app-api/core/plugin/service'
 import {Context, Effect, Layer} from 'effect'
 import {PluginSupervisor} from '@conciv/backend-app-api'
@@ -33,7 +33,7 @@ const services = [
 
 export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
-export type InternalPlugin = Plugin<Requirements | Services, TaggedError>
+export type InternalPlugin = Plugin<Requirements | Services, Error>
 
 const pre = [SkillPlugin.Plugin, SkillTool.Plugin, ServerTools.Plugin] as const satisfies readonly InternalPlugin[]
 

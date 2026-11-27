@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {sessionErrors} from '@conciv/errors'
 import {EventType, type CustomEvent, type StreamChunk} from '@tanstack/ai'
 import type {ToolCallPart} from './chat-message-types.js'
 
@@ -10,7 +11,7 @@ export const ChatEventType = EventType
 
 export {CONTEXT_OVERFLOW_CODE} from '@tanstack/ai'
 
-export const SESSION_DELETED_CODE = 'session_deleted'
+export const SESSION_DELETED_CODE = sessionErrors.DELETED.code
 
 export type ChatEventDefinition<Name extends string, Schema extends z.ZodType> = {
   name: Name

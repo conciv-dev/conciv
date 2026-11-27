@@ -2,6 +2,7 @@ import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import type {Context} from '@conciv/frontend-plugin-api'
 import {createWhiteboardDb, type WhiteboardDb} from './whiteboard-db.js'
 import {useWhiteboardRuntime} from './solid-runtime.js'
+import {canvasErrors} from './errors/canvas-errors.js'
 
 const WhiteboardDbContext = createContext<WhiteboardDb>()
 
@@ -19,6 +20,6 @@ export function WhiteboardDbProvider(props: {
 
 export function useWhiteboardDb(): WhiteboardDb {
   const db = useContext(WhiteboardDbContext)
-  if (!db) throw new Error('useWhiteboardDb must be used inside a WhiteboardDbProvider')
+  if (!db) throw canvasErrors.DB_MISSING()
   return db
 }

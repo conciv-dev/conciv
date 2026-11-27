@@ -8,7 +8,8 @@ import * as Bus from '@conciv/backend-app-api/core/bus'
 import * as Database from '@conciv/backend-app-api/core/database/database'
 import * as Location from '@conciv/backend-app-api/core/location'
 import * as Session from '@conciv/backend-app-api/core/session'
-import {makeUnavailableError, Service, type Outcome} from '@conciv/backend-app-api/core/tab'
+import {Service, type Outcome} from '@conciv/backend-app-api/core/tab'
+import {tabErrors} from '@conciv/errors'
 import {TabTable} from '@conciv/backend-app-api/core/tab/sql'
 
 type Live = {
@@ -111,7 +112,7 @@ export const layer = Layer.effect(
             Effect.gen(function* () {
               const session = yield* sessions.get(input.sessionId)
               if (session.location.directory !== location.directory)
-                return yield* Effect.fail(makeUnavailableError('Session belongs to another location.'))
+                return yield* Effect.fail(tabErrors.OTHER_LOCATION())
               const previous = HashMap.get(yield* Ref.get(live), input.tab.id)
               yield* Ref.update(live, HashMap.set(input.tab.id, entry))
               yield* bus.publish(BrowserTabEvent.Opened, {
@@ -139,7 +140,7 @@ export const layer = Layer.effect(
         yield* lock.withPermit(
           Effect.gen(function* () {
             if (!isOwner(HashMap.get(yield* Ref.get(live), input.tab.id), input))
-              return yield* Effect.fail(makeUnavailableError('The browser tab is not open on this engine.'))
+              return yield* Effect.fail(tabErrors.NOT_OPEN())
             yield* bus.publish(BrowserTabEvent.Updated, {
               sessionID: input.sessionId,
               tabId: input.tab.id,

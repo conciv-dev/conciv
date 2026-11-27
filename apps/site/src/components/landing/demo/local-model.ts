@@ -1,5 +1,6 @@
 import {pipeline, env, type TextGenerationPipeline} from '@huggingface/transformers'
 import {DEFAULT_MODEL, type CssPatch, type LoadProgress, type RunResult} from './models'
+import {siteErrors} from '@conciv/errors'
 
 env.allowLocalModels = false
 env.useBrowserCache = true
@@ -83,7 +84,7 @@ const buildPrompt = (html: string, instruction: string) => [
 const extractJson = (text: string): unknown => {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
-  if (start === -1 || end === -1) throw new Error(`no JSON object in output:\n${text}`)
+  if (start === -1 || end === -1) throw siteErrors.MODEL_OUTPUT_NOT_JSON({output: text})
   return JSON.parse(text.slice(start, end + 1))
 }
 
@@ -151,11 +152,11 @@ const TEMPLATE_OPTIONS: ChatTemplateOptions & {enable_thinking: boolean} = {
 const generate = async (generator: TextGenerationPipeline, html: string, instruction: string): Promise<string> => {
   const messages = buildPrompt(html, instruction)
   const prompt = generator.tokenizer.apply_chat_template(messages, TEMPLATE_OPTIONS)
-  if (typeof prompt !== 'string') throw new Error('chat template did not produce a string prompt')
+  if (typeof prompt !== 'string') throw siteErrors.PROMPT_NOT_STRING()
   const output = await generator(prompt, {max_new_tokens: 160, do_sample: false, return_full_text: false})
   const first = [output].flat(2)[0]
   const generated = first?.generated_text
-  if (typeof generated !== 'string') throw new Error('model returned a non-text generation')
+  if (typeof generated !== 'string') throw siteErrors.GENERATION_NOT_TEXT()
   return stripThink(generated)
 }
 

@@ -1,6 +1,7 @@
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, Layer} from 'effect'
 import type {Generation} from '../plugin.js'
+import {pluginHostErrors} from '@conciv/errors'
 
 export type List = readonly Plugin[]
 
@@ -27,7 +28,7 @@ export function bound(plugins: List, builtin: Builtin = {}) {
   const listed = [...pre, ...plugins, ...post]
   const duplicates = listed.filter((plugin, index) => listed.findIndex((other) => other.id === plugin.id) !== index)
   if (duplicates.length > 0) {
-    throw new Error(`duplicate instance plugin ids: ${duplicates.map((plugin) => plugin.id).join(', ')}`)
+    throw pluginHostErrors.DUPLICATE_INSTANCE_IDS({ids: duplicates.map((plugin) => plugin.id).join(', ')})
   }
   const stamped = plugins.map((plugin): Generation => ({...plugin, revision: 'instance', source: {type: 'sdk'}}))
   const stampBuiltin = (plugin: Plugin): Generation => ({...plugin, revision: 'internal', source: {type: 'builtin'}})

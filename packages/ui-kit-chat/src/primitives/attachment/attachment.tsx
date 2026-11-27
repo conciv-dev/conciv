@@ -2,6 +2,7 @@ import {createContext, useContext, type JSX} from 'solid-js'
 import {Primitive} from '../util/primitive.js'
 import {useComposerContext} from '../composer/composer-context.js'
 import type {Attachment as AttachmentState} from './attachment-adapter.js'
+import {chatKitErrors} from '@conciv/errors'
 
 const AttachmentContext = createContext<AttachmentState>()
 
@@ -9,7 +10,11 @@ export const AttachmentProvider = AttachmentContext.Provider
 
 export function useAttachment(): AttachmentState {
   const context = useContext(AttachmentContext)
-  if (!context) throw new Error('Attachment.* must be used within a Composer.Attachments / Message.Attachments')
+  if (!context)
+    throw chatKitErrors.OUTSIDE_PROVIDER({
+      part: 'Attachment.*',
+      provider: 'a Composer.Attachments / Message.Attachments',
+    })
   return context
 }
 

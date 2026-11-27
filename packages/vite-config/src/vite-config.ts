@@ -130,6 +130,14 @@ function declarations(directory: string, name: string, emitDtsOnly: boolean): Pl
   }))
 }
 
+function buildTransforms(preservesJsx: boolean): Plugin {
+  return {
+    name: 'conciv:build-transforms',
+    apply: 'build',
+    config: () => ({oxc: {exclude: [/\.js$/, /\.d\.[cm]?ts$/, ...(preservesJsx ? [/\.tsx$/] : [])]}}),
+  }
+}
+
 export function libConfig(options: LibOptions): UserConfig {
   const directory = dirname(fileURLToPath(options.root))
   const environments = Object.entries(options.environments).flatMap(splitBundled)
@@ -138,8 +146,8 @@ export function libConfig(options: LibOptions): UserConfig {
   )
   const preservesJsx = environments.some(([, entry]) => entry.jsx === 'preserve')
   return {
-    oxc: {exclude: [/\.js$/, /\.d\.[cm]?ts$/, ...(preservesJsx ? [/\.tsx$/] : [])]},
     plugins: [
+      buildTransforms(preservesJsx),
       ...(options.plugins ?? []),
       ...typed.flatMap(([name, entry]) => declarations(directory, name, entry.typesOnly === true)),
     ],

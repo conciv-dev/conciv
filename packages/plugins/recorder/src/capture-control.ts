@@ -1,14 +1,13 @@
 export * as CaptureControlModel from './capture-control.js'
-import {Clock, Context, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef, Schema} from 'effect'
+import {Clock, Context, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef} from 'effect'
+import type {EvlogError} from 'evlog'
 import {makeMachineDriver} from './machine-driver.js'
 import {RecorderCaptureControlMachine} from './capture-control-machine.js'
 import {ClientRings} from './rings.js'
 import type {RecorderControl} from './rpc.js'
+import {recorderErrors} from './errors/errors.js'
 
 const CAPTURE_TICK = '5 seconds'
-
-const CaptureNotFound = Schema.TaggedStruct('RecorderCaptureNotFound', {captureId: Schema.String})
-type CaptureNotFound = typeof CaptureNotFound.Type
 
 type StartedCapture = {readonly captureId: string; readonly startTs: number; readonly appendCursor: number}
 
@@ -19,7 +18,7 @@ type CaptureControlInterface = {
   readonly emit: (control: RecorderControl) => Effect.Effect<number>
   readonly isLive: Effect.Effect<boolean>
   readonly startCapture: Effect.Effect<StartedCapture>
-  readonly stopCapture: (captureId: string) => Effect.Effect<StoppedCapture, CaptureNotFound>
+  readonly stopCapture: (captureId: string) => Effect.Effect<StoppedCapture, EvlogError>
   readonly renewViewer: (viewerId: string) => Effect.Effect<void>
   readonly dropViewer: (viewerId: string) => Effect.Effect<void>
   readonly awaitAppendAfter: (appendCursor: number, timeoutMs: number) => Effect.Effect<boolean>
@@ -88,7 +87,7 @@ export const captureControlLayer = Layer.effect(
         const cursor = yield* appendCursor
         const {effects} = yield* dispatch((now) => ({type: 'capture.stopped', captureId, now}))
         const range = readStop(effects)
-        if (!range) return yield* Effect.fail(CaptureNotFound.make({captureId}))
+        if (!range) return yield* Effect.fail(recorderErrors.CAPTURE_NOT_FOUND({captureId}))
         return {...range, appendCursor: cursor}
       }),
       renewViewer: (viewerId) => Effect.asVoid(dispatch((now) => ({type: 'viewer.renewed', viewerId, now}))),

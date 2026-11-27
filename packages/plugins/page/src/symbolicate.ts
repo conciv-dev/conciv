@@ -4,6 +4,7 @@ import {resolve, sep} from 'node:path'
 import {AnyMap, originalPositionFor, type TraceMap} from '@jridgewell/trace-mapping'
 import {Cache, Duration, Effect, Exit} from 'effect'
 import type {RawFrame, SourceLoc} from '@conciv/protocol'
+import {pageErrors} from './errors/errors.js'
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
 const LOOPBACK_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '::1', '[::1]']
@@ -19,14 +20,14 @@ function readFileInRoot(path: string, root: string) {
   return Effect.tryPromise(async () => {
     const base = await realpath(root)
     const absolute = await realpath(resolve(base, path))
-    if (absolute !== base && !absolute.startsWith(base + sep)) throw new Error(`refused: ${path} outside project root`)
+    if (absolute !== base && !absolute.startsWith(base + sep)) throw pageErrors.PATH_OUTSIDE_ROOT({path})
     return readFile(absolute, 'utf8')
   })
 }
 
 function fetchLoopback(url: string) {
   return Effect.tryPromise(async (signal) => {
-    if (!LOOPBACK_HOSTS.includes(new URL(url).hostname)) throw new Error(`refused: non-loopback host ${url}`)
+    if (!LOOPBACK_HOSTS.includes(new URL(url).hostname)) throw pageErrors.HOST_NOT_LOOPBACK({url})
     return (await fetch(url, {signal})).text()
   }).pipe(Effect.timeout(Duration.millis(SOURCE_FETCH_TIMEOUT_MS)))
 }

@@ -1,3 +1,4 @@
+import {widgetErrors} from '@conciv/errors'
 export interface OpaqueShape {
   public: {$$type: string}
   versions: {version: string | undefined}
@@ -55,13 +56,13 @@ export function createOpaqueType<T extends OpaqueShape>(options: {
     TInternal: undefined as never,
     isType: isThisInternalType,
     toInternal(value) {
-      if (!isThisInternalType(value))
-        throw new TypeError(`Invalid opaque type, expected '${type}', but got '${stringifyUnknown(value)}'`)
+      if (!isThisInternalType(value)) throw widgetErrors.OPAQUE_WRONG_TYPE({type, received: stringifyUnknown(value)})
 
       if (!versions.has(value.version))
-        throw new TypeError(
-          `Invalid opaque type instance, got version ${stringifyVersion(value.version)}, expected ${joinExpectedVersions(versions)}`,
-        )
+        throw widgetErrors.OPAQUE_WRONG_VERSION({
+          received: stringifyVersion(value.version),
+          expected: joinExpectedVersions(versions),
+        })
 
       return value
     },

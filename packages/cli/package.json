@@ -44,6 +44,7 @@
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/home": "workspace:^",
     "@conciv/protocol": "workspace:^",

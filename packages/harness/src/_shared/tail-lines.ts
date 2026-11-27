@@ -1,6 +1,7 @@
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import type {TranscriptCursor, TranscriptPage} from '@conciv/types/harness-types'
 import {open} from 'node:fs/promises'
+import {harnessErrors} from '@conciv/errors'
 
 const CHUNK_BYTES = 262_144
 const NEWLINE = 0x0a
@@ -21,7 +22,7 @@ export async function* readLinesBackward(
       const start = Math.max(0, position - CHUNK_BYTES)
       const chunk = Buffer.allocUnsafe(position - start)
       const {bytesRead} = await file.read(chunk, 0, chunk.byteLength, start)
-      if (bytesRead < chunk.byteLength) throw new Error(`${path} shrank while it was read`)
+      if (bytesRead < chunk.byteLength) throw harnessErrors.FILE_SHRANK({path})
       let lineEnd = chunk.byteLength
       let newline = chunk.lastIndexOf(NEWLINE, lineEnd - 1)
       while (newline >= 0) {

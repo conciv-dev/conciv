@@ -3,7 +3,7 @@ import type {EngineClient} from '../connection/rpc-client.js'
 import {z} from 'zod'
 import type * as Rpc from '@conciv/protocol/schema/rpc'
 import type {ConcivEvent, RpcEvent} from './events.js'
-import {clientErrors} from '../connection/client-errors.js'
+import {clientErrors} from '@conciv/errors'
 
 export type RpcCallOptions = {readonly signal?: AbortSignal}
 

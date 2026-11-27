@@ -105,10 +105,10 @@ describe.concurrent('the agent records what the user does on the page', () => {
     expect(await engine.session.tool('recording_get').call({recordingId: saved.recordingId, keyframes: 0})).toBe(log)
     expect(
       await engine.session.tool('recording_get').failure({recordingId: 'no-such-recording', keyframes: 0}),
-    ).toMatchObject({message: expect.stringContaining('there is no saved recording no-such-recording')})
+    ).toMatchObject({message: expect.stringContaining('There is no saved recording no-such-recording')})
     const lastWeek = `${Date.now() - 8 * 24 * 60 * 60 * 1000}-000001-0b4f2a8e-1c3d-4e5f-8a9b-0c1d2e3f4a5b`
     expect(await engine.session.tool('recording_get').failure({recordingId: lastWeek, keyframes: 0})).toMatchObject({
-      message: expect.stringContaining(`the recording ${lastWeek} has expired`),
+      message: expect.stringContaining(`The recording ${lastWeek} has expired`),
     })
   })
 
@@ -159,11 +159,11 @@ describe.concurrent('the agent records with nothing to record', () => {
 
     expect(await engine.clock.advance(engine.session.tool('recording_start').failure({}))).toMatchObject({
       message: expect.stringContaining(
-        'no page client attached within 5s; the app page with the widget must be open to record',
+        'No page client attached within 5s; the app page with the widget must be open to record',
       ),
     })
     expect(await engine.session.tool('recording_stop').failure({captureId: 'lost-capture'})).toMatchObject({
-      message: expect.stringContaining('no active capture lost-capture'),
+      message: expect.stringContaining('No active capture lost-capture'),
     })
     expect(await engine.session.tool('recording_pull').call({})).toBe('No recorded activity in this window.')
   })

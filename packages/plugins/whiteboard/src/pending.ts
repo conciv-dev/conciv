@@ -1,6 +1,8 @@
 export * as WhiteboardPending from './pending.js'
 import {Clock, Deferred, Effect, Option, Stream} from 'effect'
-import type {Store, StoreError, WhiteboardEvent} from './store.js'
+import type {EvlogError} from 'evlog'
+import {toolErrors} from './errors/tool-errors.js'
+import type {Store, WhiteboardEvent} from './store.js'
 import {WhiteboardPendingMachine} from './pending-machine.js'
 
 export const pendingDrained =
@@ -21,10 +23,10 @@ const readClaim = (store: Store, room: string, id: string) =>
 const drivePending = (
   transition: WhiteboardPendingMachine.PendingTransition,
   drained: Deferred.Deferred<void>,
-  readPendingClaim: Effect.Effect<WhiteboardPendingMachine.PendingClaim, StoreError>,
-): Effect.Effect<WhiteboardPendingMachine.PendingOutcome, StoreError> => {
+  readPendingClaim: Effect.Effect<WhiteboardPendingMachine.PendingClaim, EvlogError>,
+): Effect.Effect<WhiteboardPendingMachine.PendingOutcome, EvlogError> => {
   const [effect] = transition.effects
-  if (effect === undefined) return Effect.die(new Error(`the pending machine stopped in ${transition.state.status}`))
+  if (effect === undefined) return Effect.die(toolErrors.PENDING_STOPPED({state: transition.state.status}))
   if (effect.type === 'finish') return Effect.succeed(effect.outcome)
   return Deferred.await(drained).pipe(
     Effect.as({type: 'drained' as const}),
@@ -44,7 +46,7 @@ const drivePending = (
 export const awaitDrawing = Effect.fn('whiteboard.canvas.awaitDrawing')(function* (
   store: Store,
   room: string,
-  write: (id: string) => Effect.Effect<unknown, StoreError>,
+  write: (id: string) => Effect.Effect<unknown, EvlogError>,
   drawDeadlineMs: number,
 ) {
   const id = crypto.randomUUID()

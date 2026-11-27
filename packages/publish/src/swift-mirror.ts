@@ -3,6 +3,7 @@ import {cp, mkdir, readFile, readdir, rm} from 'node:fs/promises'
 import {join} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
+import {publishErrors} from './errors/errors.ts'
 
 const BARE_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
@@ -14,9 +15,7 @@ const bridgeManifestSchema = z.object({version: z.string()})
 
 export function assertBareSemver(version: string): void {
   if (!BARE_SEMVER.test(version)) {
-    throw new Error(
-      `invalid swift sdk version ${JSON.stringify(version)}: must be a bare semver major.minor.patch with no leading zeroes`,
-    )
+    throw publishErrors.INVALID_SWIFT_VERSION({version})
   }
 }
 
@@ -45,9 +44,7 @@ export async function resolveVersionCommit(cwd: string, manifestRelPath: string,
   ])
   const commit = stdout.trim()
   if (!commit) {
-    throw new Error(
-      `could not find the commit that set ${manifestRelPath} version to ${version}: the mirror tree must be anchored to the release commit, so full history is required (checkout with fetch-depth: 0)`,
-    )
+    throw publishErrors.RELEASE_COMMIT_NOT_FOUND({path: manifestRelPath, version})
   }
   return commit
 }

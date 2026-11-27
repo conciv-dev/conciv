@@ -3,6 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
 import {ColorPicker} from './color-picker.js'
 import {FieldShell} from './field-shell.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-system/ColorPicker'}
 export default meta
@@ -58,7 +59,7 @@ export const Keyboard: Story = {
     await expect(background).toHaveFocus()
 
     const [green] = canvas.getAllByRole('button', {name: 'select #27AE60 as the color'})
-    if (!green) throw new Error('the background picker renders no green preset')
+    if (!green) throw storyErrors.ELEMENT_MISSING({element: 'background picker green preset'})
     await userEvent.click(green)
     await waitFor(() => expect(background).toHaveValue('#27AE60'))
     await expect(canvas.getByText('Committed #27AE60')).toBeVisible()

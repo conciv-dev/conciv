@@ -3,7 +3,7 @@ import type {JsonSchema, Schema} from 'effect'
 import type * as Event from './event.js'
 import type * as Location from './location.js'
 import type * as Tool from './tool.js'
-import {engineErrors} from '../errors.js'
+import {engineErrors} from '@conciv/errors'
 
 export type ErrorMap = Readonly<Record<string, Tool.ValueSchema>> & {
   readonly [Name in `rpc.${string}`]?: never

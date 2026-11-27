@@ -4,6 +4,7 @@ import type {Readable} from 'node:stream'
 import {z} from 'zod'
 import {killLeftovers} from '../local-sandbox.js'
 import type {HarnessModel} from '@conciv/types/harness-types'
+import {harnessErrors} from '@conciv/errors'
 
 const LISTING_TIMEOUT_MS = 30_000
 
@@ -101,7 +102,10 @@ async function listingOutput(signal: AbortSignal): Promise<string> {
       once(child, 'close', {signal: AbortSignal.any([signal, AbortSignal.timeout(LISTING_TIMEOUT_MS)])}),
     ])
     if (child.exitCode !== 0) {
-      throw new Error(`opencode models failed (${child.exitCode ?? child.signalCode}): ${stderr.trim()}`)
+      throw harnessErrors.OPENCODE_MODELS_FAILED({
+        exit: String(child.exitCode ?? child.signalCode),
+        stderr: stderr.trim(),
+      })
     }
     return stdout
   } finally {

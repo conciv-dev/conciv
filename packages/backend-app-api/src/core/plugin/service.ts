@@ -1,18 +1,20 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
 import type {
   BundlerCode,
+  BundlerHooks,
   Plugin as PluginDefinition,
   Services,
-  TaggedError,
 } from '@conciv/backend-plugin-api/effect/plugin'
-import {Context, type Effect, type Exit, Schema} from 'effect'
+import {Context, type Effect, type Exit, type Stream} from 'effect'
+import type {EvlogError} from 'evlog'
 
 export interface Interface {
   readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Plugin.Info[]>
-  readonly transform: (code: string, id: string) => Effect.Effect<TransformedCode | null, BundlerHookFailed>
-  readonly resolveId: (id: string, importer: string | undefined) => Effect.Effect<string | null, BundlerHookFailed>
-  readonly load: (id: string) => Effect.Effect<TransformedCode | null, BundlerHookFailed>
+  readonly transform: (code: string, id: string) => Effect.Effect<TransformedCode | null, EvlogError>
+  readonly resolveId: (id: string, importer: string | undefined) => Effect.Effect<string | null, EvlogError>
+  readonly load: (id: string) => Effect.Effect<TransformedCode | null, EvlogError>
+  readonly bundlerChanges: Stream.Stream<void>
   readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
   readonly experimentalChunk: (
     id: Plugin.Id,
@@ -25,19 +27,17 @@ export interface Interface {
 
 export type TransformedCode = Exclude<BundlerCode, string | null | undefined>
 
-export const BundlerHookFailed = Schema.TaggedStruct('Plugin.BundlerHookFailed', {
-  hook: Schema.Literals(['transform', 'resolveId', 'load']),
-  plugin: Schema.String,
-  module: Schema.String,
-  message: Schema.String,
-})
-export type BundlerHookFailed = typeof BundlerHookFailed.Type
+export type BundlerRegistration = {readonly plugin: string; readonly hooks: BundlerHooks}
 
-export type BundlerHook = BundlerHookFailed['hook']
+export interface BundlerRegistry {
+  add(hooks: BundlerHooks, plugin: string): void
+}
+
+export type BundlerHook = 'transform' | 'resolveId' | 'load'
 
 export type Failure = Plugin.Info & {readonly state: Extract<Plugin.State, {readonly status: 'failed'}>}
 
-export type Generation = PluginDefinition<Services, TaggedError> & {
+export type Generation = PluginDefinition<Services, Error> & {
   readonly revision: string
   readonly source?: Plugin.Source
   readonly features?: Plugin.Features

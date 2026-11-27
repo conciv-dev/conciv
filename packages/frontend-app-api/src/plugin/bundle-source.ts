@@ -1,4 +1,4 @@
-import {log} from 'evlog'
+import {log, type EvlogError} from 'evlog'
 import {isEqual, uniqBy} from 'es-toolkit'
 import {observable, untrack, type Accessor} from 'solid-js'
 import {z} from 'zod'
@@ -18,7 +18,6 @@ import {
   PubSub,
   Queue,
   Ref,
-  Schema,
   Scope,
   Semaphore,
   Stream,
@@ -36,10 +35,10 @@ import {
   type HostEndpoint,
   type HostEvent,
 } from './host-machine'
-import {pluginError} from './error'
 import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
 import type {BridgePluginExperimental, BridgePluginExperimentals, InstalledSource} from './startup'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const text = (maximum: number) => z.string().min(1).max(maximum)
 
@@ -55,10 +54,6 @@ const PluginExperimentalSchema = z.object({
 })
 
 const ReservedSchema = z.array(id)
-
-const PluginSourceClosed = Schema.TaggedStruct('PluginSourceClosed', {message: Schema.String})
-
-type PluginSourceClosed = typeof PluginSourceClosed.Type
 
 type Parts = {
   readonly server: ReadonlySet<string>
@@ -109,7 +104,7 @@ const PluginEngine = Context.Service<PluginEngineShape>('@internal/frontend-app-
 
 type BundleDriverShape = {
   readonly following: Effect.Effect<boolean>
-  readonly pluginExperimentals: Effect.Effect<BridgePluginExperimentals, PluginSourceClosed>
+  readonly pluginExperimentals: Effect.Effect<BridgePluginExperimentals, EvlogError>
   readonly enableLoaded: Effect.Effect<readonly EnableState[], unknown>
   readonly installed: Effect.Effect<readonly Installed[]>
   readonly builtinOptions: (pluginId: string) => PluginOptions | undefined
@@ -227,7 +222,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
   const listFiber = yield* FiberHandle.make<void, never>()
   const reports = yield* FiberSet.make<void, never>()
   const listeners = yield* FiberSet.make<void, never>()
-  const firstListing = yield* Deferred.make<void, PluginSourceClosed>()
+  const firstListing = yield* Deferred.make<void, EvlogError>()
   const loaded = yield* Deferred.make<readonly EnableState[], unknown>()
   const followed = () => {
     const state = Ref.getUnsafe(machine)
@@ -500,7 +495,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
 
   const setEnabled = (pluginId: string, value: boolean) =>
     Effect.gen(function* () {
-      if (!known(pluginId)) return yield* Effect.fail(pluginError('notFound'))
+      if (!known(pluginId)) return yield* Effect.fail(widgetPluginErrors.NOT_FOUND())
 
       yield* Deferred.await(loaded)
       const previous = enableState.rows
@@ -522,11 +517,8 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
 
   const stop = Effect.all(
     [
-      Deferred.fail(loaded, PluginSourceClosed.make({message: 'the plugin manager was disposed'})),
-      Deferred.fail(
-        firstListing,
-        PluginSourceClosed.make({message: 'the engine trust ended before the engine first listed its plugins'}),
-      ),
+      Deferred.fail(loaded, widgetPluginErrors.SOURCE_DISPOSED()),
+      Deferred.fail(firstListing, widgetPluginErrors.TRUST_ENDED_BEFORE_LISTING()),
       dispatch({type: 'stopped'}),
     ],
     {discard: true},
@@ -554,7 +546,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
         ),
       ),
     setEnabled,
-    reload: (pluginId) => (known(pluginId) ? changed : Effect.fail(pluginError('notFound'))),
+    reload: (pluginId) => (known(pluginId) ? changed : Effect.fail(widgetPluginErrors.NOT_FOUND())),
     stop,
   }
 

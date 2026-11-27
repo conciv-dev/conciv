@@ -1,5 +1,6 @@
 import type {ImagePreview, DomPreview} from '@conciv/grab'
-import {capturePlugins} from './screenshot.js'
+import {capturePlugins, paintedBackground} from './screenshot.js'
+import {pageErrors} from './errors/errors.js'
 
 const FIT_MIME = 'image/webp'
 
@@ -71,17 +72,24 @@ function readDataUrl(blob: Blob): Promise<string> {
     const reader = new FileReader()
     reader.addEventListener(
       'load',
-      () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('unreadable'))),
+      () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(pageErrors.PREVIEW_UNREADABLE())),
       {once: true},
     )
-    reader.addEventListener('error', () => reject(reader.error ?? new Error('unreadable')), {once: true})
+    reader.addEventListener('error', () => reject(pageErrors.PREVIEW_UNREADABLE({cause: reader.error ?? undefined})), {
+      once: true,
+    })
     reader.readAsDataURL(blob)
   })
 }
 
 async function elementImage(el: Element): Promise<ImagePreview> {
   const {snapdom} = await import('@zumer/snapdom')
-  const capture = await snapdom(el, {dpr: 1, embedFonts: true, plugins: capturePlugins})
+  const capture = await snapdom(el, {
+    dpr: 1,
+    embedFonts: true,
+    plugins: capturePlugins,
+    backgroundColor: paintedBackground(el),
+  })
   const blob = await capture.toBlob({format: 'webp', quality: FIT_QUALITY})
   const bitmap = await createImageBitmap(blob)
   const {width, height} = bitmap

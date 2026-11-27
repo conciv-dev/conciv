@@ -2,6 +2,8 @@ import {createHash} from 'crypto'
 import * as Instruction from '@conciv/protocol/schema/instruction'
 import {Data, Effect, Option, Schema} from 'effect'
 import {canonicalJson} from '../util/canonical-json.js'
+import {instructionsErrors} from '@conciv/errors'
+import type {EvlogError} from 'evlog'
 
 export const Key = Instruction.Key
 export type Key = Instruction.Key
@@ -54,30 +56,6 @@ export interface Admission {
   readonly blobs: Readonly<Record<string, Schema.Json>>
 }
 
-export const InitializationBlocked = Schema.TaggedStruct('Instructions.InitializationBlocked', {
-  keys: Schema.Array(Key),
-})
-export type InitializationBlocked = typeof InitializationBlocked.Type & globalThis.Error
-
-export const makeInitializationBlocked = (
-  fields: Omit<typeof InitializationBlocked.Type, '_tag'>,
-): InitializationBlocked =>
-  Object.assign(
-    new globalThis.Error(`Instruction initialization blocked by unavailable sources: ${fields.keys.join(', ')}`),
-    InitializationBlocked.make(fields),
-    {name: 'Instructions.InitializationBlocked'},
-  )
-
-export const DuplicateKeyError = Schema.TaggedStruct('Instructions.DuplicateKeyError', {
-  key: Key,
-})
-export type DuplicateKeyError = typeof DuplicateKeyError.Type & globalThis.Error
-
-export const makeDuplicateKeyError = (fields: Omit<typeof DuplicateKeyError.Type, '_tag'>): DuplicateKeyError =>
-  Object.assign(new globalThis.Error(`Duplicate instruction key: ${fields.key}`), DuplicateKeyError.make(fields), {
-    name: 'Instructions.DuplicateKeyError',
-  })
-
 export const empty: List = []
 
 export function make<A>(source: Source.Definition<A>): List {
@@ -121,7 +99,7 @@ export function combine(values: ReadonlyArray<List>): List {
   const sources = values.flat()
   const keys = new Set<Key>()
   for (const source of sources) {
-    if (keys.has(source.key)) throw makeDuplicateKeyError({key: source.key})
+    if (keys.has(source.key)) throw instructionsErrors.DUPLICATE_KEY({key: source.key})
     keys.add(source.key)
   }
   return sources
@@ -135,9 +113,10 @@ export function read(value: List): Effect.Effect<ReadResult> {
   )
 }
 
-export function diff(observed: ReadResult, previous?: Values): Effect.Effect<Admission, InitializationBlocked> {
+export function diff(observed: ReadResult, previous?: Values): Effect.Effect<Admission, EvlogError> {
   const blocked = previous ? [] : observed.flatMap((entry) => (isUnavailable(entry.value) ? [entry.key] : []))
-  if (blocked.length > 0) return Effect.fail(makeInitializationBlocked({keys: blocked}))
+  if (blocked.length > 0)
+    return Effect.fail(instructionsErrors.INITIALIZATION_BLOCKED({keys: blocked.join(', '), internal: {keys: blocked}}))
   const delta: Record<string, Hash | Instruction.Removed> = {}
   const blobs: Record<string, Schema.Json> = {}
   for (const entry of observed) {
@@ -275,6 +254,6 @@ function isRemoved(value: unknown): value is Removed {
 }
 
 function requireText(key: Key, kind: string, text: string) {
-  if (text.length === 0) throw new Error(`Instruction source ${key} rendered an empty ${kind}`)
+  if (text.length === 0) throw instructionsErrors.EMPTY_RENDER({key, kind})
   return text
 }

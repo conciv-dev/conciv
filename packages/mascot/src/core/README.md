@@ -14,7 +14,7 @@ The framework-free mascot service. `createMascot` binds the head, eyes and anten
 - `mascot.ts:followTarget` - no gaze channel is followed while `working` or under reduced motion.
 - `mascot.ts` - under `reduceMotion()` the pose is set with `pose.set` instead of animated.
 - `mascot.ts:createMascot` - after `destroy()` the service ignores further updates and registrations.
-- `slot-contract.ts:partAlreadyProvided` - error `mascot part '<part>' is already provided; render exactly one <Mascot.X>`.
+- `mascotErrors.PART_ALREADY_PROVIDED` (from `@conciv/errors`) - error `mascot part '<part>' is already provided; render exactly one <Mascot.X>`.
 
 ## Side Effects
 

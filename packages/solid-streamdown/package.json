@@ -53,6 +53,7 @@
     "unified": "catalog:"
   },
   "devDependencies": {
+    "@conciv/errors": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",

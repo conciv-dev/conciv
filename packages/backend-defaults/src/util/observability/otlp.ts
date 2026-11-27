@@ -2,6 +2,7 @@ import {Effect, Layer, Scope} from 'effect'
 import {OtlpLogger} from 'effect/observability'
 import {gate, type Enabled} from './log-level.js'
 import {makeRunId} from './shared.js'
+import {observabilityErrors} from '@conciv/errors'
 
 export interface Options {
   readonly endpoint?: string
@@ -33,7 +34,7 @@ function resourceAttributes() {
     return Object.fromEntries(
       value.split(',').map((entry) => {
         const index = entry.indexOf('=')
-        if (index < 1) throw new Error('Invalid OTEL_RESOURCE_ATTRIBUTES entry')
+        if (index < 1) throw observabilityErrors.RESOURCE_ATTRIBUTE_INVALID()
         return [decodeURIComponent(entry.slice(0, index)), decodeURIComponent(entry.slice(index + 1))]
       }),
     )

@@ -4,9 +4,7 @@ import type {PlatformError} from 'effect/PlatformError'
 export const abortError = (signal: AbortSignal): Error => {
   const reason = signal.reason
   if (reason instanceof Error) return reason
-  const error = new Error('Aborted')
-  error.name = 'AbortError'
-  return error
+  return new DOMException('Aborted', 'AbortError')
 }
 
 export const waitForAbort = (signal: AbortSignal) =>
