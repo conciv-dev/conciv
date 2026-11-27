@@ -34,7 +34,7 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime `ConcivWidget` mounts the widget DOM inside its anchor element; a failed mount is logged by the widget's own logger and the rejection is dropped. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime `ConcivWidget` mounts the widget DOM inside its anchor element; a failed mount is logged at error level through evlog (`action: 'widget'`), shown when the `logLevel` prop turns logs on (off by default). Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

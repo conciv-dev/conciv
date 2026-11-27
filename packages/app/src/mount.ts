@@ -1,9 +1,9 @@
-import {log} from 'evlog'
+import {initLogger, log} from 'evlog'
 import type {EngineConnectionTimings} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
-import type {ConcivSettingsInit} from '@conciv/types/config-types'
+import type {ConcivSettingsInit, LogLevel} from '@conciv/types/config-types'
 import type {EventBusClient, PanelCommandEventMap} from '@conciv/types/event-bus'
 
 export type {ConcivSettingsInit} from '@conciv/types/config-types'
@@ -20,6 +20,7 @@ export type ConcivInit = {
     engine?: Partial<EngineConnectionTimings>
     queryRetryDelayMs?: number
   }
+  logLevel?: LogLevel
 }
 
 export type ConcivHandle = {
@@ -35,7 +36,17 @@ type MountState = 'unmounted' | 'mounting' | 'mounted'
 
 type PanelCommandName = keyof PanelCommandEventMap & string
 
+function startPageLog(level: LogLevel): void {
+  initLogger({
+    enabled: level !== 'off',
+    ...(level === 'off' ? {} : {minLevel: level}),
+    env: {service: 'conciv-page'},
+    _suppressDrainWarning: true,
+  })
+}
+
 export function createConciv(init: ConcivInit = {}): ConcivHandle {
+  startPageLog(init.logLevel ?? 'off')
   let state: MountState = 'unmounted'
   let abort: AbortController | undefined
   let teardown: (() => void) | undefined
@@ -75,7 +86,6 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
       teardown = undefined
       rebindImpl = undefined
       state = 'unmounted'
-      log.error({action: 'widget', message: 'failed to start widget', error})
       throw error
     }
   }
@@ -131,14 +141,14 @@ function insideCaptureFrame(): boolean {
   }
 }
 
-export function mountConciv(plugins: readonly PluginEntry[] = []): Promise<void> {
+export function mountConciv(plugins: readonly PluginEntry[] = [], logLevel: LogLevel = 'off'): Promise<void> {
   if (typeof document === 'undefined') return Promise.resolve()
   if (insideCaptureFrame()) return Promise.resolve()
   if (document.querySelector('[data-conciv-script-root]')) return Promise.resolve()
   const el = document.createElement('div')
   el.setAttribute('data-conciv-script-root', '')
   document.body.appendChild(el)
-  return createConciv({plugins})
+  return createConciv({plugins, logLevel})
     .mount(el)
     .catch((error: unknown) => {
       el.remove()

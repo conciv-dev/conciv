@@ -11,7 +11,7 @@ The `ConcivWidget` React component (`react.ts`), which mounts the conciv widget 
 
 ## Side Effects
 
-- `react.ts:ConcivWidget` - mounts the widget DOM inside the anchor element; a failed mount is logged by the widget's own logger, and the rejection is dropped.
+- `react.ts:ConcivWidget` - mounts the widget DOM inside the anchor element; a failed mount is logged at error level through evlog (`action: 'widget'`), shown when the `logLevel` prop turns logs on (off by default).
 
 ## Verification
 

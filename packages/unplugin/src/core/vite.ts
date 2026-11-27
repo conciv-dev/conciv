@@ -4,7 +4,7 @@ import {access, readFile, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir, createConcivStateDir} from '@conciv/types/state-types'
 import type {Engine, LogEntry} from '@conciv/backend/start'
-import type {ConcivConfig, ConcivSettingsInit} from '@conciv/types/config-types'
+import type {ConcivConfig, ConcivSettingsInit, LogLevel} from '@conciv/types/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {readEngineLine} from './engine-log.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
@@ -297,7 +297,11 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
   return {...widget, launcher: false, defaultOpen: true, surface: 'dock'}
 }
 
-export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
+export function makeViteHook(
+  options: ConcivConfig = {},
+  builtins: Builtins = {},
+  logLevel: LogLevel = 'off',
+): DevToolsPlugin {
   const engines: Engine[] = []
   const deadlines: (() => void)[] = []
   const shutdown = createShutdownTracker()
@@ -382,7 +386,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       return resolveWidgetModule(id)
     },
     load(id) {
-      return loadWidgetModule(id, apiBase, builtins.embedEntry)
+      return loadWidgetModule(id, {apiBase, embedEntry: builtins.embedEntry ?? '@conciv/app', logLevel})
     },
     transform(code, id) {
       if (options.enabled === false || testing) return null

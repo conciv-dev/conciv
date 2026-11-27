@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {Effect, Exit, Scope} from 'effect'
 import {builtins} from '@conciv/plugin-ios/builtins'
 import {createConciv, type PluginEntry} from './mount.js'
@@ -42,4 +43,6 @@ window.addEventListener('pagehide', (event) => {
   void Effect.runPromise(Scope.close(scope, Exit.void))
 })
 
-void handle.mount(root)
+handle
+  .mount(root)
+  .catch((error: unknown) => log.error({action: 'widget', message: 'the widget failed to start', error}))

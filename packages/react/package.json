@@ -40,7 +40,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/app": "workspace:^"
+    "@conciv/app": "workspace:^",
+    "evlog": "catalog:"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",

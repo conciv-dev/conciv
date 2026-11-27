@@ -13,7 +13,7 @@ Single entry `preact.ts`: a Preact component that renders an anchor `<div>` and 
 ## Side Effects
 
 - `handle.mount(host)` mounts the widget into the rendered div (`preact.ts`).
-- Drops the mount promise's rejection; the widget logs its own failed mount.
+- Logs a failed mount at error level through evlog (`action: 'widget'`), shown when the `logLevel` prop turns logs on (off by default).
 
 ## Verification
 

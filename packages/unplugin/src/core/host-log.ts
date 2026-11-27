@@ -1,7 +1,7 @@
 import {initLogger} from 'evlog'
 import {readLogLevel, type LogLevel} from '@conciv/types/config-types'
 
-export function startHostLog(config: LogLevel | undefined): void {
+export function startHostLog(config: LogLevel | undefined): LogLevel {
   const level = readLogLevel({env: process.env.CONCIV_LOG_LEVEL, config})
   initLogger({
     enabled: level !== 'off',
@@ -14,4 +14,5 @@ export function startHostLog(config: LogLevel | undefined): void {
       process.stderr.write(`${JSON.stringify(event)}\n`)
     },
   })
+  return level
 }

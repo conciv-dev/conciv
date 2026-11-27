@@ -1,20 +1,16 @@
 import {log} from 'evlog'
 import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplugin'
 import type {Engine} from '@conciv/backend/start'
-import type {ConcivConfig} from '@conciv/types/config-types'
+import type {ConcivConfig, LogLevel} from '@conciv/types/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
 import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER, chooseEnginePort} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {concivStateDir} from '@conciv/types/state-types'
 import {isEnginePort} from './core/widget-start.js'
+import {widgetStarterPath} from './core/widget-module.js'
 import {startHostLog} from './core/host-log.js'
-
-function widgetStarterPath(): string {
-  return fileURLToPath(new URL('../dist/core/widget-start.js', import.meta.url))
-}
 
 const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
 
@@ -29,8 +25,11 @@ function createStateDirNow(stateDir: string): void {
   }
 }
 
-function writeWidgetClient(root: string, client: {askedPort: number; port: number}): string | undefined {
-  const {askedPort, port} = client
+function writeWidgetClient(
+  root: string,
+  client: {askedPort: number; port: number; logLevel: LogLevel},
+): string | undefined {
+  const {askedPort, port, logLevel} = client
   if (!isEnginePort(port)) {
     log.error({
       action: 'unplugin',
@@ -43,7 +42,7 @@ function writeWidgetClient(root: string, client: {askedPort: number; port: numbe
   const path = join(stateDir, `widget-client.${String(askedPort)}.gen.js`)
   const source = [
     `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
-    `startConcivWidget(${String(port)})`,
+    `startConcivWidget(${String(port)}, ${JSON.stringify(logLevel)})`,
     '',
   ].join('\n')
   try {
@@ -101,7 +100,7 @@ function reportStartFailure(error: unknown): never {
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
-    startHostLog(options.logLevel)
+    const logLevel = startHostLog(options.logLevel)
     const askedPort = options.port ?? CONCIV_DEFAULT_PORT
     const state: {slot: EngineSlot} = {slot: {stage: 'idle'}}
     const startEngine = async (onPort: (port: number) => void): Promise<Engine> => {
@@ -139,10 +138,13 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     const serveWidgetInDevelopment = (compiler: BundlerCompiler) => {
       if (options.enabled === false || (compiler.options.mode ?? 'production') === 'production') return
       const client =
-        options.widget === false ? undefined : writeWidgetClient(compiler.context, {askedPort, port: askedPort})
+        options.widget === false
+          ? undefined
+          : writeWidgetClient(compiler.context, {askedPort, port: askedPort, logLevel})
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
         await startEngine((port) => {
-          if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port}) !== undefined) return
+          if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port, logLevel}) !== undefined)
+            return
           throw new Error(`conciv: could not rewrite the widget client for port ${String(port)}`)
         })
       })
@@ -160,7 +162,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     return {
       name: 'conciv',
 
-      vite: makeViteHook(options, builtins) as UnpluginOptions['vite'],
+      vite: makeViteHook(options, builtins, logLevel) as UnpluginOptions['vite'],
       webpack: serveWidgetInDevelopment,
       rspack: serveWidgetInDevelopment,
       rollup: {},
