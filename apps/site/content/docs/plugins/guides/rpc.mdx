@@ -3,14 +3,14 @@ title: Share an RPC method
 description: Let your plugin's browser part, a terminal or another plugin call methods on its engine part, and follow its events.
 ---
 
+An RPC method is a function your engine part answers. Anything else calls it by name: your browser part, a terminal,
+or another plugin. This guide builds a plant shelf, with a `count` method and a `sell` method that can fail.
+
 The contract file imports `@conciv/protocol`, which the tutorial installed only for the Effect style.
 
 ```package-install
 npm install -D @conciv/protocol
 ```
-
-An RPC method is a function your engine part answers. Anything else calls it by name: your browser part, a terminal,
-or another plugin. This guide builds a plant shelf, with a `count` method and a `sell` method that can fail.
 
 ## Declare the contract
 
