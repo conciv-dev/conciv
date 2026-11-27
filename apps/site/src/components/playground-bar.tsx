@@ -74,8 +74,8 @@ export function PlaygroundBar({title, controls}: {title: string; controls: Playg
       <p className="min-w-0 flex-1 truncate text-sm font-medium text-fd-foreground">{title}</p>
       {controls === undefined ? null : (
         <TooltipProvider delayDuration={300}>
-          <div className="hidden items-center gap-1 @md:flex">
-            <p className="pe-2 text-xs text-fd-muted-foreground tabular-nums" aria-live="polite">
+          <div className="flex shrink-0 items-center gap-1">
+            <p className="pe-2 text-xs text-fd-muted-foreground tabular-nums @max-sm:sr-only" aria-live="polite">
               {describeProgress(controls.progress, controls.paused)}
             </p>
             <PlayToggle controls={controls} />

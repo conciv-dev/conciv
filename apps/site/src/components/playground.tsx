@@ -53,8 +53,7 @@ function Still(props: {
         <p className="text-sm text-fd-muted-foreground">
           A scripted session in the real panel. It plays in your browser, with no server.
         </p>
-        <PlayButton onPlay={props.onPlay} className="hidden self-start @md:inline-flex" />
-        <p className="text-sm text-fd-muted-foreground @md:hidden">Open on a wider screen to play it.</p>
+        <PlayButton onPlay={props.onPlay} className="self-start" />
       </div>
       <PanelStill
         script={props.script}
