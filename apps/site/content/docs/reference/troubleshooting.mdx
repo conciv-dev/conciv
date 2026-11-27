@@ -88,7 +88,7 @@ The login messages live on this page only. Learn more in the [Logging in documen
 
 ### Older engine
 
-> This widget is version \<version\> but the conciv engine is older.
+> This widget is version &lt;version&gt; but the conciv engine is older.
 
 **Cause.** Your `@conciv/*` packages are on different versions.
 
@@ -113,7 +113,7 @@ documentation](/docs/harnesses#pi).
 
 ### A path with a space
 
-> claudeExecutable: --plugin-dir path "\<path\>" contains whitespace.
+> claudeExecutable: --plugin-dir path "&lt;path&gt;" contains whitespace.
 
 **Cause.** conciv cannot pass a path with a space in it to Claude Code. The message names the path, or `--settings`.
 
@@ -123,7 +123,7 @@ documentation](/docs/harnesses#pi).
 
 ### Port in use
 
-> conciv: port \<port\> is already in use, the engine is listening on http://127.0.0.1:\<other\> instead
+> conciv: port &lt;port&gt; is already in use, the engine is listening on http://127.0.0.1:&lt;other&gt; instead
 
 **Cause.** On Vite, the `port` you set is taken. The engine took a free port instead, and the widget follows it.
 
@@ -131,7 +131,7 @@ documentation](/docs/harnesses#pi).
 
 ### Not a session id
 
-> the configured conciv session id "\<id\>" is not a conciv session id (ses\_...)
+> the configured conciv session id "&lt;id&gt;" is not a conciv session id (ses\_...)
 
 **Cause.** The `sessionId` option is not a conciv session id, so the engine does not start.
 
@@ -140,7 +140,7 @@ documentation](/docs/reference/configuration#sessionid-and-claudesessionid).
 
 ### Unknown harness
 
-> conciv: unknown harness "\<id\>". Known harnesses: claude, codex, gemini-cli, opencode, pi.
+> conciv: unknown harness "&lt;id&gt;". Known harnesses: claude, codex, gemini-cli, opencode, pi.
 
 **Cause.** The `harness` option names a harness conciv does not have.
 
@@ -179,7 +179,7 @@ method and the address.
 
 ### Widget call not supported
 
-> the widget does not support \<call\>
+> the widget does not support &lt;call&gt;
 
 **Cause.** The widget does not answer `ui.capture`, `ui.recording.finish`, `ui.mouse` or `ui.resize`.
 
@@ -198,7 +198,7 @@ socket still works.
 
 ### No dev server
 
-> No conciv dev server on 127.0.0.1:\<port\>.
+> No conciv dev server on 127.0.0.1:&lt;port&gt;.
 
 **Cause.** The command found no engine on that port.
 
@@ -216,7 +216,7 @@ the newest engine on this machine, then 5173.
 
 ### Unknown browser id
 
-> no trusted browser has the id "\<id\>"
+> no trusted browser has the id "&lt;id&gt;"
 
 **Cause.** No logged-in browser has that id.
 
