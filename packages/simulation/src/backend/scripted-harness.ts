@@ -3,6 +3,7 @@ import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
 import {pageAfter} from '@conciv/harness/page'
+import {simulationErrors} from '@conciv/protocol/simulation'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/types/chat-types'
 import type {
@@ -93,7 +94,7 @@ function shellCommand(context: HarnessConnectContext): TtyCommand {
 function storedSession(session: ScriptedSession, project: string): StoredSession {
   const id = HarnessSessionId.safeParse(session.id)
   if (!id.success) {
-    throw new Error(`the scripted session id ${session.id} is not a harness session id: use letters, digits, _ and -`)
+    throw simulationErrors.SCRIPTED_SESSION_ID({id: session.id})
   }
   return {
     meta: {id: id.data, cwd: session.cwd ?? project, derivedTitle: session.derivedTitle, updatedAt: session.updatedAt},
@@ -166,7 +167,7 @@ export function scriptedHarness(
     id,
     binName: 'true',
     chatConfig: async () => {
-      throw new Error(`the scripted harness ${id} answers only inside the simulation`)
+      throw simulationErrors.OUTSIDE_SIMULATION({id})
     },
     models,
     commands: async () => commands,

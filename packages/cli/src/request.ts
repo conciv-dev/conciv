@@ -1,4 +1,4 @@
-import {safe, toORPCError, type ORPCError} from '@orpc/client'
+import {ORPCError, safe} from '@orpc/client'
 import {z} from 'zod'
 import {
   CONCIV_CLIENT_HEADER,
@@ -8,10 +8,11 @@ import {
   type SessionId,
 } from '@conciv/types/chat-types'
 import {makeRpcClient, type EngineClient} from '@conciv/client'
+import {contractCode, ENGINE_ERROR_STATUS, engineErrors, ErrorDetailSchema} from '@conciv/protocol'
 import {initContributions} from '@conciv/harness/init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import type {CliOutcome} from './envelope.js'
-import {userFailure} from './failure.js'
+import {cliErrors} from './failure.js'
 import {engineOrigin} from './engine-origin.js'
 
 const OFFLINE_CODES = [
@@ -32,11 +33,10 @@ const TERMINAL_CLIENT = 'terminal'
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
 
-const RemoteSchema = z.object({status: z.number(), code: z.string()})
-
-const APPROVAL_DENIED = 'APPROVAL_DENIED'
-
-const PLUGIN_RPC_CODES: readonly string[] = ['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']
+const PLUGIN_RPC_CODES: readonly string[] = [
+  contractCode(engineErrors.PLUGIN_RPC),
+  contractCode(engineErrors.PLUGIN_RPC_INTERNAL),
+]
 
 const PluginFailureSchema = z.object({type: z.string(), data: z.unknown().optional()})
 
@@ -44,9 +44,7 @@ function declaredSessionId(): SessionId | null {
   const raw = process.env.CONCIV_SESSION_ID?.trim()
   if (!raw) return null
   if (!isSessionId(raw)) {
-    throw userFailure(`CONCIV_SESSION_ID is not a conciv session id: "${raw}"`, {
-      hint: 'Unset it, or set it to the ses_… id the engine handed your terminal.',
-    })
+    throw cliErrors.SESSION_ID_INVALID({raw})
   }
   return raw
 }
@@ -82,9 +80,8 @@ async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCal
 export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {
   const result = await safe(pending)
   if (result.isSuccess) return result.data
-  if (result.isDefined) throw rpcFailure(toORPCError(result.error))
+  if (rejectedByServer(result.error)) throw rpcFailure(result.error)
   if (offline(result.error, 0)) throw offlineFailure(origin)
-  if (rejectedByServer(result.error)) throw rpcFailure(toORPCError(result.error))
   throw result.error
 }
 
@@ -103,22 +100,28 @@ function callingAgent(env: NodeJS.ProcessEnv): string {
   )
 }
 
-function rejectedByServer(error: unknown): boolean {
-  const remote = RemoteSchema.safeParse(error)
-  if (!remote.success) return false
-  return remote.data.code === APPROVAL_DENIED || (remote.data.status >= 400 && remote.data.status < 500)
+function rejectedByServer(error: unknown): error is ORPCError<string, unknown> {
+  if (!(error instanceof ORPCError)) return false
+  return error.defined || clientError(ENGINE_ERROR_STATUS[error.code])
+}
+
+function clientError(status: number | undefined): boolean {
+  return status !== undefined && status >= 400 && status < 500
+}
+
+function rpcFields(error: ORPCError<string, unknown>): {code: string; type?: string; data?: unknown} {
+  if (!PLUGIN_RPC_CODES.includes(error.code)) return {code: error.code}
+  const plugin = PluginFailureSchema.safeParse(error.data)
+  return plugin.success ? {code: error.code, type: plugin.data.type, data: plugin.data.data} : {code: error.code}
 }
 
 function rpcFailure(error: ORPCError<string, unknown>): Error {
-  const plugin = PLUGIN_RPC_CODES.includes(error.code) ? PluginFailureSchema.safeParse(error.data) : null
-  if (plugin === null || !plugin.success) return userFailure(error.message, {code: error.code})
-  return userFailure(error.message, {code: error.code, type: plugin.data.type, data: plugin.data.data})
+  const fix = ErrorDetailSchema.safeParse(error.data).data?.fix
+  return cliErrors.RPC_REJECTED({message: error.message, fix, internal: rpcFields(error), cause: error})
 }
 
 function offlineFailure(origin: string): Error {
-  return userFailure(`No conciv dev server on ${new URL(origin).host}.`, {
-    hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
-  })
+  return cliErrors.OFFLINE({host: new URL(origin).host})
 }
 
 function offline(error: unknown, depth: number): boolean {

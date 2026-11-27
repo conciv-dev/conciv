@@ -1,5 +1,7 @@
 # Every browser oRPC call over one reconnecting WebSocket
 
+> 2026-11-27: historical. The code moved to oRPC 2; see `docs/superpowers/plans/2026-11-27-orpc-2-upgrade.md`.
+
 Status: approved direction (Omri, 2026-11-05 in the engine-login work: "no reason to have HTTP as well"; 2026-11-09:
 "B you send agent to do in a new PR"). Branch `feat/rpc-over-websocket`, off `main`.
 

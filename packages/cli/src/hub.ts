@@ -6,7 +6,16 @@ import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {concivHome, type EngineRow} from '@conciv/home'
-import {cappedText, codeDiscoverReply, codeExecuteReply, type CodeDescriptions, type CodeReply} from '@conciv/protocol'
+import {
+  cappedText,
+  codeDiscoverReply,
+  codeExecuteReply,
+  contractCode,
+  engineErrors,
+  type CodeDescriptions,
+  type CodeReply,
+} from '@conciv/protocol'
+import {cliErrors} from './failure.js'
 import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId} from '@conciv/types/chat-types'
 import type {InitHarnessId} from '@conciv/types/harness-types'
@@ -180,10 +189,12 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
         (next) => `the next call runs on ${next.root}`,
         () => 'no other conciv dev server is running',
       )
-      throw new Error(
-        `the call failed on the conciv engine at ${runner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; ${after}`,
-        {cause: error},
-      )
+      throw cliErrors.CALL_FAILED({
+        root: runner.root,
+        reason: errorText(error),
+        after,
+        ...(error instanceof Error ? {cause: error} : {}),
+      })
     }
   }
 
@@ -225,10 +236,12 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
         return {reply: greeted(entry, owner, failed(answerText(owner.root, error))), value: null}
       }
       forget(entry, kept)
-      throw new Error(
-        `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
-        {cause: error},
-      )
+      throw cliErrors.TAB_CALL_FAILED({
+        tab,
+        root: owner.root,
+        reason: errorText(error),
+        ...(error instanceof Error ? {cause: error} : {}),
+      })
     }
   }
 
@@ -439,9 +452,9 @@ async function pickRunner(home: string, headers: Record<string, string>): Promis
 }
 
 function noRunner(unusable: string[], silent: Silent): Error {
-  if (unusable.length === 0) return new Error(`no conciv dev server answered: ${silence(silent)}`)
+  if (unusable.length === 0) return cliErrors.NO_RUNNER({silent: silence(silent)})
   const named = silent.length === 0 ? unusable : [...unusable, silence(silent)]
-  return new Error(`no conciv dev server this hub can use is running: ${named.join('; ')}`)
+  return cliErrors.NO_USABLE_RUNNER({named: named.join('; ')})
 }
 
 async function firstUsable(rows: EngineRow[], headers: Record<string, string>, unusable: string[]): Promise<Picked> {
@@ -458,7 +471,8 @@ async function runnerAt(row: EngineRow, headers: Record<string, string>): Promis
     (described): Candidate => ({runner: {root: row.root, rpc, described}, unusable: null}),
     (error: unknown): Candidate => {
       if (engineTooOld(error)) return {runner: null, unusable: TOO_OLD}
-      if (error instanceof ORPCError && error.code === 'NO_CODE_MODE') return {runner: null, unusable: errorText(error)}
+      if (error instanceof ORPCError && error.code === contractCode(engineErrors.NO_CODE_MODE))
+        return {runner: null, unusable: errorText(error)}
       logHub(`reading the tool descriptions of the conciv engine at ${row.root} failed; using the built-in text`, error)
       return {runner: {root: row.root, rpc, described: null}, unusable: null}
     },
@@ -506,13 +520,11 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
   const [only, second] = openAnswers(probes)
   const failures = [
     ...probes.flatMap((probe) => (probe.answer === null ? [failedProbe(probe.row.root, probe.failure)] : [])),
-    ...silent.map((entry) => new Error(silence([entry]))),
+    ...silent.map((entry) => cliErrors.PROBE_FAILED({text: silence([entry])})),
   ]
   if (only === undefined) throw notOpen(tab, failures)
   if (second !== undefined) {
-    throw new Error(
-      `tab ${tab} is open on two conciv engines (${only.row.root} and ${second.row.root}); ask the user to close one of the browser tabs`,
-    )
+    throw cliErrors.TAB_ON_TWO_ENGINES({tab, first: only.row.root, second: second.row.root})
   }
   return {
     root: only.row.root,
@@ -524,11 +536,12 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
 }
 
 function notOpen(tab: SessionId, failures: unknown[]): Error {
-  if (failures.length === 0) return new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`)
-  return new Error(
-    `cannot tell whether tab ${tab} is open: no engine that answered has it, and ${failures.map(errorText).join('; ')}; nothing ran`,
-    {cause: new AggregateError(failures, 'the tab probes failed')},
-  )
+  if (failures.length === 0) return cliErrors.HUB_TAB_NOT_OPEN({tab})
+  return cliErrors.TAB_PROBES_FAILED({
+    tab,
+    failures: failures.map(errorText).join('; '),
+    cause: new AggregateError(failures, 'the tab probes failed'),
+  })
 }
 
 async function listTabsCall(home: string): Promise<Reply> {
@@ -539,8 +552,9 @@ async function listTabsCall(home: string): Promise<Reply> {
 }
 
 function failedProbe(root: string, failure: unknown): Error {
-  if (engineTooOld(failure)) return new Error(`${root} (${TOO_OLD})`, {cause: failure})
-  return new Error(silence([{root, error: errorText(failure)}]), {cause: failure})
+  const cause = failure instanceof Error ? {cause: failure} : {}
+  if (engineTooOld(failure)) return cliErrors.PROBE_FAILED({text: `${root} (${TOO_OLD})`, ...cause})
+  return cliErrors.PROBE_FAILED({text: silence([{root, error: errorText(failure)}]), ...cause})
 }
 
 async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
@@ -574,7 +588,10 @@ function withFinished(reply: Reply, finished: readonly Waited[]): Reply {
 }
 
 function unrun(error: unknown): boolean {
-  return RefusedSchema.safeParse(error).success || (error instanceof ORPCError && error.code === 'UNAUTHORIZED')
+  return (
+    RefusedSchema.safeParse(error).success ||
+    (error instanceof ORPCError && error.code === contractCode(engineErrors.UNAUTHORIZED))
+  )
 }
 
 function answered(error: unknown): boolean {

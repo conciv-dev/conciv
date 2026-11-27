@@ -5,7 +5,8 @@ import {makeTextAdapter} from '@conciv/harness/adapters'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/types/harness-types'
-import type {FinishReason, Item, ModelRequest} from '@conciv/protocol/simulation'
+import {failureText} from '@conciv/protocol'
+import {simulationErrors, type FinishReason, type Item, type ModelRequest} from '@conciv/protocol/simulation'
 import type * as SimulatedProvider from './simulated-provider.js'
 
 type StreamOptions = Parameters<Parameters<typeof makeTextAdapter>[1]>[0]
@@ -75,7 +76,7 @@ function closeReasoning(encoding: Encoding): ChatEvent[] {
 
 function parsedInput(call: OpenCall): Record<string, unknown> {
   const input = ToolInputSchema.safeParse(call.args === '' ? {} : JSON.parse(call.args))
-  if (!input.success) throw new Error(`the simulated tool call ${call.id} has input that is not a JSON object`)
+  if (!input.success) throw simulationErrors.TOOL_CALL_INPUT({id: call.id})
   return input.data
 }
 
@@ -125,7 +126,7 @@ function startCall(encoding: Encoding, index: number, id: string, name: string):
 
 function callArgs(encoding: Encoding, index: number, delta: string): ChatEvent[] {
   const call = encoding.calls.get(index)
-  if (call === undefined) throw new Error(`the simulated tool call at index ${index} was never started`)
+  if (call === undefined) throw simulationErrors.TOOL_CALL_NOT_STARTED({index})
   call.args += delta
   return [{type: ChatEventType.TOOL_CALL_ARGS, toolCallId: call.id, delta}]
 }
@@ -211,7 +212,7 @@ async function* encodedRun(
       if (ending !== -1) return
     }
   } catch (error) {
-    const message = ErrorMessageSchema.safeParse(error).data?.message ?? String(error)
+    const message = ErrorMessageSchema.safeParse(error).data?.message ?? failureText(error)
     yield {type: ChatEventType.RUN_ERROR, message, error: {message}}
   }
 }
@@ -227,7 +228,7 @@ export function simulatedHarness(provider: SimulatedProvider.Interface): (harnes
 
 async function* refusedRun(message: string): AsyncGenerator<ChatEvent> {
   yield* []
-  throw new Error(message)
+  throw simulationErrors.HARNESS_REFUSED({message})
 }
 
 export function refusedHarness(message: string): (harness: HarnessAdapter) => HarnessAdapter {

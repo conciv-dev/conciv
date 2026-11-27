@@ -4,6 +4,7 @@ import {makeTextAdapter} from '@conciv/harness/adapters'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/types/harness-types'
+import {simulationErrors} from '@conciv/protocol/simulation'
 import {fakeText} from './ai-testkit.js'
 import {ENGINE_HARNESS, scriptedHarness, writeContextTokens, type ScriptedHarness} from './backend/scripted-harness.js'
 import {recordedRequest} from './backend/simulated-harness.js'
@@ -73,7 +74,7 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
     usage: ScriptedUsage,
   ): AsyncGenerator<ChatEvent> {
     const count = state.requests.push(recordedRequest(request, deps))
-    if (fake.pendingResponses() === 0) throw new Error(`the scripted harness has no reply for request ${count}`)
+    if (fake.pendingResponses() === 0) throw simulationErrors.NO_SCRIPTED_REPLY({count})
     const nativeId = deps.resumeSessionId ?? `fake-${deps.sessionId}`
     for await (const event of fake.chatStream(request)) {
       const code = codes.get(request)

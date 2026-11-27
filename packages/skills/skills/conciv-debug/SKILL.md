@@ -66,11 +66,11 @@ user, not hung.
 
 - **Plugin tools** ask through their own `ctx.permission.assert`. In a chat turn the call runs
   inside `settlingAsks` (`packages/backend-defaults/src/engine/app.ts:741`); from outside a turn (external MCP, the
-  `conciv` CLI, raw RPC) `registry.call` runs it the same way (`runPluginTool`,
+  `conciv` CLI, raw RPC) `registry.invoke` runs it the same way (`runPluginTool`,
   `packages/backend-defaults/src/engine/api/rpc/router.ts:183-199`). Either way the call waits on the card: allow runs
   the tool. A reject in a chat turn becomes the tool result `The user denied running tool "<name>".
   Do not retry it; continue without it.` (`approvalDenied`, `packages/backend-defaults/src/ai/approval-denied.ts:3-7`,
-  mapped in `packages/backend-defaults/src/code-mode.ts:104-109`); through `registry.call` it answers
+  mapped in `packages/backend-defaults/src/code-mode.ts:104-109`); through `registry.invoke` it answers
   `APPROVAL_DENIED` (`pluginToolError`, `packages/backend-defaults/src/engine/api/rpc/router.ts:165-175`).
 - **CLI commands** belong to the CLI's own permission mode first: Claude Code runs with
   `permissionMode: 'auto'` (`packages/harness/src/claude/chat.ts:130`) plus the ask rules
@@ -127,12 +127,12 @@ user, not hung.
 The chat runtime deliberately has no single "settled" moment, and it is split across three surfaces
 rather than one subscribe call:
 
-- **The one-shot snapshot is `chat.hydrate`** (`packages/protocol/src/contract.ts:522-525`), served by
+- **The one-shot snapshot is `chat.hydrate`** (`packages/protocol/src/contract.ts:470-473`), served by
   the chat plane's `hydrate` (`packages/backend-defaults/src/backend-defaults.ts:144-153`). It resolves once with messages, the
   active run, the last run lifecycle, and any pending approvals; it never streams.
 - **The turn itself streams over the rpc socket**: `chat.send` starts a run and streams it, and
   `chat.join` streams a run again from a `lastEventId` (`ChatJoinInput`,
-  `packages/protocol/src/contract.ts:62`, used at `packages/protocol/src/contract.ts:520-521`), which is
+  `packages/protocol/src/contract.ts:73`, used at `packages/protocol/src/contract.ts:468-469`), which is
   how a reload rejoins a run already in flight.
 - **Out-of-band session events** ride the `chat.events` iterator: the session scope yields a catch-up and
   then the session bus's `events` generator (`packages/backend-defaults/src/engine/runtime/core-runtime.ts:32`), which lives

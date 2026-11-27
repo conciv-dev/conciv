@@ -1,8 +1,9 @@
 import {z} from 'zod'
 import type {Maker} from '@conciv/protocol/schema/identifier'
-import {ORPCError, withEventMeta, type Router} from '@orpc/server'
+import {ORPCError, withEventMeta, type ContractedRouter} from '@orpc/server'
+import type {EvlogError} from 'evlog'
 import {asc, eq, sql} from 'drizzle-orm'
-import {isToolError, type RegistryCallGate} from '@conciv/types/tool-call-types'
+import {isToolError} from '@conciv/types/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '../../../db/schema.js'
 import {Cause, Effect, Exit, Option, Result, Schema, Stream, Queue} from 'effect'
@@ -13,11 +14,15 @@ import {approvalDenied} from '../../../ai.js'
 import * as EventFeed from '../../event-feed.js'
 import {
   cappedText,
+  contractError,
+  engineErrors,
+  failureText,
+  isCatalogError,
+  pluginRpcError,
   PluginExperimentalBundleSchema,
   PluginExperimentalChunksSchema,
   safeStringify,
   type contract,
-  type RegistryCallErrorName,
 } from '@conciv/protocol'
 import {widgetCaller} from '../../lib/cors.js'
 import {engineMcpUrl} from '../../engine-login.js'
@@ -34,7 +39,7 @@ import {
   makeSessionOs,
   makeToolCallOs,
   os,
-  type PluginHost,
+  type EngineRpcContext,
   type RpcDeps,
   type SessionOs,
 } from './mount.js'
@@ -47,43 +52,54 @@ import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards
 import type {SessionId, ChatCommand, ChatCommands} from '@conciv/types/chat-types'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
 
-function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof contract.chat, RpcContext> {
+function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeof contract.chat, EngineRpcContext> {
   return {
-    events: os.chat.events.handler(({input, signal}) =>
-      deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
-    ),
-    send: os.chat.send.handler(({input, signal, lastEventId}) =>
-      deps.chat.plane.send(
-        {threadId: input.sessionId, runId: input.runId, messages: input.messages, lastEventId},
-        signal,
-      ),
-    ),
-    join: os.chat.join.handler(({input, signal, lastEventId}) =>
-      deps.chat.plane.join({runId: input.runId, lastEventId: lastEventId ?? input.lastEventId}, signal),
-    ),
-    hydrate: os.chat.hydrate.handler(({input}) =>
-      deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
-    ),
-    stop: os.chat.stop.handler(async ({input}) => {
-      await deps.runtime.forSession(input.sessionId).run.stop(input.runIds)
+    events: os.chat.events.effect(function* ({input, signal}) {
+      return yield* Effect.sync(() =>
+        deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
+      )
+    }),
+    send: os.chat.send.effect(function* ({input, signal, lastEventId}) {
+      return yield* Effect.sync(() =>
+        deps.chat.plane.send(
+          {threadId: input.sessionId, runId: input.runId, messages: input.messages, lastEventId},
+          signal,
+        ),
+      )
+    }),
+    join: os.chat.join.effect(function* ({input, signal, lastEventId}) {
+      return yield* Effect.sync(() =>
+        deps.chat.plane.join({runId: input.runId, lastEventId: lastEventId ?? input.lastEventId}, signal),
+      )
+    }),
+    hydrate: os.chat.hydrate.effect(function* ({input}) {
+      return yield* Effect.promise(() =>
+        deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
+      )
+    }),
+    stop: os.chat.stop.effect(function* ({input}) {
+      yield* Effect.promise(() => deps.runtime.forSession(input.sessionId).run.stop(input.runIds))
       return {ok: true}
     }),
-    permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
-      const decided = await decidePermissionCard(
-        {
-          answer: deps.answerPermission,
-          publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
-        },
-        context.session.id,
-        input,
+    permissionDecision: sessionOs.chat.permissionDecision.effect(function* ({input, context}) {
+      const decided = yield* Effect.promise(() =>
+        decidePermissionCard(
+          {
+            answer: deps.answerPermission,
+            publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
+          },
+          context.session.id,
+          input,
+        ),
       )
-      if (!decided) throw errors.UNKNOWN_REQUEST()
+      if (!decided) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST())
       return {ok: true as const}
     }),
-    uiReply: os.chat.uiReply.handler(({input, errors}) => {
-      if (!deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value)) {
-        throw errors.UNKNOWN_REQUEST()
-      }
+    uiReply: os.chat.uiReply.effect(function* ({input}) {
+      const answered = yield* Effect.sync(() =>
+        deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value),
+      )
+      if (!answered) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST({message: 'no pending ui question'}))
       return {ok: true as const}
     }),
   }
@@ -152,54 +168,53 @@ export function ptyOutput<Failure>(
   )
 }
 
-type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
-type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
 
-function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data, cause: error})
-  if (error instanceof ORPCError) return error
-  return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error), cause: error})
+function registryCallError(error: unknown): unknown {
+  if (isToolError(error) || error instanceof ORPCError || isCatalogError(engineErrors._prefix, error)) return error
+  return engineErrors.HANDLER_ERROR({
+    message: error instanceof Error ? error.message : String(error),
+    ...(error instanceof Error ? {cause: error} : {}),
+  })
 }
 
 const isDeclined = Schema.is(Permission.DeclinedError)
 const isBlocked = Schema.is(Permission.BlockedError)
 const isCorrected = Schema.is(Permission.CorrectedError)
 
-function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: RegistryErrors & ApprovalErrors): Error {
+function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect) && isDeclined(defect.success)) {
-    return errors.APPROVAL_DENIED({message: approvalDenied(name).message})
+    return engineErrors.APPROVAL_DENIED({message: approvalDenied(name).message})
   }
   const failure = Cause.findErrorOption(cause)
-  if (Option.isNone(failure)) return registryCallError(Cause.squash(cause), errors)
+  if (Option.isNone(failure)) return registryCallError(Cause.squash(cause))
   const refused = failure.value.error
-  if (isBlocked(refused) || isCorrected(refused)) return errors.APPROVAL_DENIED({message: failure.value.message})
-  return registryCallError(failure.value, errors)
+  if (isBlocked(refused) || isCorrected(refused)) return engineErrors.APPROVAL_DENIED({message: failure.value.message})
+  return registryCallError(failure.value)
 }
 
-async function requireLiveSession(deps: RpcDeps, sessionId: SessionId, errors: ApprovalErrors): Promise<void> {
-  const row = await rowById(deps.chat.db, sessionId)
-  if (row !== null && row.deletedAt === null) return
-  throw errors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`})
+function requireLiveSession(deps: RpcDeps, sessionId: SessionId): Effect.Effect<void, EvlogError> {
+  return Effect.gen(function* () {
+    const row = yield* Effect.promise(() => rowById(deps.chat.db, sessionId))
+    if (row !== null && row.deletedAt === null) return
+    return yield* Effect.fail(engineErrors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`}))
+  })
 }
 
-async function runPluginTool(
+function runPluginTool(
   deps: RpcDeps,
-  call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean; signal?: AbortSignal},
-  errors: RegistryErrors & ApprovalErrors,
-): Promise<unknown> {
-  if (!call.widget) await requireLiveSession(deps, call.sessionId, errors)
-  const exit = await deps.pluginHost.runPromiseExit(
-    settlingAsks(
+  call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean},
+) {
+  return Effect.gen(function* () {
+    if (!call.widget) yield* requireLiveSession(deps, call.sessionId)
+    const result = yield* settlingAsks(
       call.sessionId,
       callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
       (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
-    ),
-    {signal: call.signal},
-  )
-  if (Exit.isFailure(exit)) throw pluginToolError(call.name, exit.cause, errors)
-  return registryAnswer(exit.value)
+    ).pipe(Effect.catchCause((cause) => Effect.fail(pluginToolError(call.name, cause))))
+    return registryAnswer(result)
+  })
 }
 
 function registryAnswer(result: Tool.NormalizedResult): unknown {
@@ -215,39 +230,42 @@ function contentPart(part: Tool.Content) {
   return {type: 'image', source: {type: 'data', value, mimeType: part.mime}}
 }
 
-async function hubTraced<Result>(
+function hubTraced<Value, Failure, Services>(
   deps: RpcDeps,
   context: SessionContext,
-  name: string,
-  input: unknown,
-  run: () => Promise<Result>,
-  trace: ReturnType<typeof callTrace> = callTrace((header) => rpcHeader(context, header), deps.code.ids),
-): Promise<Result> {
-  if (trace.hub === null) return run()
-  const scope = context.session
-  const mirrored = {threadId: scope.id, live: await scope.run.live()}
-  const mirror = trace.mirror(mirrored, {
-    publish: scope.stream.publish,
-    record: scope.run.record,
-    driving: () => deps.code.driving(scope.id),
-    runtime: deps.code.runtime,
+  call: {name: string; input: unknown; trace: ReturnType<typeof callTrace>},
+  run: Effect.Effect<Value, Failure, Services>,
+): Effect.Effect<Value, Failure, Services> {
+  const {name, input, trace} = call
+  if (trace.hub === null) return run
+  return Effect.gen(function* () {
+    const scope = context.session
+    const mirrored = {threadId: scope.id, live: yield* Effect.promise(() => scope.run.live())}
+    const mirror = trace.mirror(mirrored, {
+      publish: scope.stream.publish,
+      record: scope.run.record,
+      driving: () => deps.code.driving(scope.id),
+      runtime: deps.code.runtime,
+    })
+    const finish = (text: string, failed: boolean) =>
+      Effect.promise(() => {
+        void mirror.publish(trace.result(mirrored, text, failed))
+        return mirror.settle()
+      })
+    return yield* Effect.uninterruptibleMask((restore) =>
+      Effect.promise(() => mirror.publish(trace.start(mirrored, name, input))).pipe(
+        Effect.andThen(restore(run)),
+        Effect.onExit((exit) =>
+          Exit.isSuccess(exit)
+            ? finish(cappedText(safeStringify(exit.value)), false)
+            : finish(failureText(Cause.squash(exit.cause)), true),
+        ),
+      ),
+    )
   })
-  await mirror.publish(trace.start(mirrored, name, input))
-  try {
-    const value = await run()
-    mirror.publish(trace.result(mirrored, cappedText(safeStringify(value)), false))
-    await mirror.settle()
-    return value
-  } catch (error) {
-    mirror.publish(trace.result(mirrored, String(error), true))
-    await mirror.settle()
-    throw error
-  }
 }
 
-type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
-
-type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
+type CodeCall = {context: RpcContext; signal: AbortSignal}
 
 async function resolveCodeSession(
   deps: RpcDeps,
@@ -260,30 +278,31 @@ async function resolveCodeSession(
   const code = await openCodeSession(deps.code, scope, {
     trace,
     outside: trace.hub !== null && sessionId === undefined,
-    signal: call.signal ?? new AbortController().signal,
+    signal: call.signal,
   })
-  if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()
+  if (code === null || code.sandbox === null) throw engineErrors.NO_CODE_MODE()
   return code.sandbox
 }
 
-async function eventStream(
-  host: PluginHost,
+function eventStream(
   heartbeatIntervalMs: number | undefined,
   types: ReadonlyArray<string> | undefined,
   signal: AbortSignal | undefined,
   ids: Maker,
 ) {
-  const feed = await host.runPromise(EventFeed.Service.use(Effect.succeed))
-  const connected = {id: Event.Id.create(ids), type: 'server.connected', data: {}}
-  const output = Stream.unwrap(
-    feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
-  )
-  const heartbeat = Stream.tick(heartbeatIntervalMs ?? 15_000).pipe(
-    Stream.drop(1),
-    Stream.map(() => ({id: Event.Id.create(ids), type: 'server.heartbeat', data: {}})),
-  )
-  const stream = output.pipe(Stream.merge(heartbeat, {haltStrategy: 'left'}))
-  return relayEvents(Stream.toAsyncIterableWith(stream, await host.context())[Symbol.asyncIterator](), signal)
+  return Effect.gen(function* () {
+    const feed = yield* EventFeed.Service
+    const connected = {id: Event.Id.create(ids), type: 'server.connected', data: {}}
+    const output = Stream.unwrap(
+      feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
+    )
+    const heartbeat = Stream.tick(heartbeatIntervalMs ?? 15_000).pipe(
+      Stream.drop(1),
+      Stream.map(() => ({id: Event.Id.create(ids), type: 'server.heartbeat', data: {}})),
+    )
+    const events = yield* Stream.toAsyncIterableEffect(output.pipe(Stream.merge(heartbeat, {haltStrategy: 'left'})))
+    return relayEvents(events[Symbol.asyncIterator](), signal)
+  })
 }
 
 const PtyResumeCursor = z.coerce.number().int().nonnegative()
@@ -311,78 +330,47 @@ function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Fai
   }).pipe(Effect.withSpan('core.rpc.locationResponse'))
 }
 
-function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(
-    locationResponse(Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list())))),
-    {signal},
-  )
+function pluginExperimental(id: string) {
+  return Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const bundle = yield* plugins.experimental(Plugin.Id.make(id))
+    if (!bundle) return undefined
+    return yield* locationResponse(Effect.succeed(PluginExperimentalBundleSchema.parse(bundle)))
+  }).pipe(Effect.result)
 }
 
-function skillList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(Skill.Service.use((skill) => skill.list())), {signal})
+function pluginExperimentalChunk(input: {id: string; file: string}) {
+  return Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const chunks = yield* plugins.experimentalChunk(Plugin.Id.make(input.id), input.file)
+    if (!chunks) return undefined
+    return yield* locationResponse(Effect.succeed(PluginExperimentalChunksSchema.parse(chunks)))
+  }).pipe(Effect.result)
 }
 
-function agentList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(Agent.Service.use((agent) => agent.list())), {signal})
-}
-
-function fsFind(host: PluginHost, input: FileSystem.FindInput, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(FileSystem.Service.use((files) => files.find(input))), {signal})
-}
-
-function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
-  return host.runPromise(
-    Effect.gen(function* () {
-      const plugins = yield* Plugin.Service
-      const bundle = yield* plugins.experimental(Plugin.Id.make(id))
-      if (!bundle) return undefined
-      return yield* locationResponse(Effect.succeed(PluginExperimentalBundleSchema.parse(bundle)))
-    }).pipe(Effect.result),
-    {signal},
-  )
-}
-
-function pluginExperimentalChunk(host: PluginHost, input: {id: string; file: string}, signal: AbortSignal | undefined) {
-  return host.runPromise(
-    Effect.gen(function* () {
-      const plugins = yield* Plugin.Service
-      const chunks = yield* plugins.experimentalChunk(Plugin.Id.make(input.id), input.file)
-      if (!chunks) return undefined
-      return yield* locationResponse(Effect.succeed(PluginExperimentalChunksSchema.parse(chunks)))
-    }).pipe(Effect.result),
-    {signal},
-  )
-}
-
-function missingChunk(pluginId: string, file: string) {
-  return {message: `No chunk ${file} in the current build of the plugin ${pluginId}`, data: {pluginId, file}}
-}
-
-function missingPlugin(pluginId: string) {
-  const message = `No active plugin with a ./plugin-experimental bundle: ${pluginId}`
-  return {message, data: {pluginId, message}}
-}
-
-async function pluginCall(
-  host: PluginHost,
-  input: {rpcId: string; method: string; input?: unknown},
-  signal?: AbortSignal,
-) {
-  return host.runPromise(
-    Plugin.awaitActivation.pipe(
-      Effect.andThen(Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input))),
-      Effect.catchDefect((defect) =>
-        Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
-          Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),
-        ),
+function pluginCall(input: {rpcId: string; method: string; input?: unknown}) {
+  return Plugin.awaitActivation.pipe(
+    Effect.andThen(Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input))),
+    Effect.mapError(pluginRpcError),
+    Effect.catchDefect((defect) =>
+      Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
+        Effect.andThen(Effect.fail(pluginRpcError({type: 'rpc.internal', message: 'RPC call failed'}))),
       ),
-      Effect.result,
     ),
-    {signal},
   )
 }
 
-export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext> {
+function missingPluginOutcome<Success>(
+  outcome: Result.Result<Success | undefined, {file: string}>,
+  pluginId: string,
+): Effect.Effect<Success, EvlogError> {
+  if (Result.isFailure(outcome))
+    return Effect.fail(engineErrors.PLUGIN_CHUNK_NOT_FOUND({pluginId, file: outcome.failure.file}))
+  if (outcome.success !== undefined) return Effect.succeed(outcome.success)
+  return Effect.fail(engineErrors.PLUGIN_NOT_FOUND({pluginId}))
+}
+
+export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, EngineRpcContext> {
   const chat = deps.chat
   const db = chat.db
   const engine = deps.runtime.engine
@@ -391,191 +379,216 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
   return os.use(makeHubAdmission(deps)).router({
     auth: deps.auth,
     sessions: sessionsRouter(deps),
-    tabs: tabsRouter(deps),
-    jobs: jobsRouter(deps),
-    logs: logsRouter(deps),
+    tabs: tabsRouter(),
+    jobs: jobsRouter(),
+    logs: logsRouter(),
     chat: chatRouter(deps, sessionOs),
     settings: {
-      all: os.settings.all.handler(async ({input}) => (await deps.settings.file(input.scope, input.namespace)).read()),
-      set: os.settings.set.handler(async ({input}) =>
-        (await deps.settings.file(input.scope, input.namespace)).set(input.key, input.value),
-      ),
-      delete: os.settings.delete.handler(async ({input}) =>
-        (await deps.settings.file(input.scope, input.namespace)).delete(input.key),
-      ),
-      changes: os.settings.changes.handler(async ({input, signal}) =>
-        (await deps.settings.file(input.scope, input.namespace)).changes(signal),
-      ),
+      all: os.settings.all.effect(function* ({input}) {
+        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+        return yield* Effect.promise(() => file.read())
+      }),
+      set: os.settings.set.effect(function* ({input}) {
+        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+        return yield* Effect.promise(() => file.set(input.key, input.value))
+      }),
+      delete: os.settings.delete.effect(function* ({input}) {
+        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+        return yield* Effect.promise(() => file.delete(input.key))
+      }),
+      changes: os.settings.changes.effect(function* ({input, signal}) {
+        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+        return file.changes(signal)
+      }),
     },
     drafts: {
-      get: os.drafts.get.handler(async ({input}) => {
-        const rows = await Effect.runPromise(db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId)))
+      get: os.drafts.get.effect(function* ({input}) {
+        const rows = yield* db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
         return rows[0] ?? null
       }),
-      set: os.drafts.set.handler(async ({input}) => {
-        await Effect.runPromise(
-          db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input}),
-        )
+      set: os.drafts.set.effect(function* ({input}) {
+        yield* db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input})
         return {ok: true as const}
       }),
     },
     markers: {
-      list: os.markers.list.handler(({input}) =>
-        Effect.runPromise(
-          db
-            .select()
-            .from(markers)
-            .where(eq(markers.sessionId, input.sessionId))
-            .orderBy(asc(sql`rowid`)),
-        ),
-      ),
+      list: os.markers.list.effect(function* ({input}) {
+        return yield* db
+          .select()
+          .from(markers)
+          .where(eq(markers.sessionId, input.sessionId))
+          .orderBy(asc(sql`rowid`))
+      }),
     },
     registry: {
-      catalog: os.registry.catalog.handler(({signal}) => deps.pluginHost.runPromise(pluginSignatures(), {signal})),
-      call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
+      catalog: os.registry.catalog.effect(function* () {
+        return yield* pluginSignatures()
+      }),
+      invoke: toolCallOs.registry.invoke.effect(function* ({input, context, path}) {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
-        const plugin =
-          assist === undefined ? await deps.pluginHost.runPromise(pluginSignature(input.name), {signal}) : undefined
-        if (assist === undefined && plugin === undefined) throw errors.UNKNOWN_TOOL()
+        const plugin = assist === undefined ? yield* pluginSignature(input.name) : undefined
+        if (assist === undefined && plugin === undefined) return yield* Effect.fail(engineErrors.UNKNOWN_TOOL())
         const trace = callTrace((header) => rpcHeader(context, header), deps.code.ids)
-        const gate: RegistryCallGate = async (run) => {
-          await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
-          return hubTraced(deps, context, input.name, input.input, run, trace)
-        }
-        const pluginRun = () =>
-          runPluginTool(
-            deps,
-            {
-              sessionId: context.session.id,
-              name: input.name,
-              input: input.input,
-              callId: trace.callId,
-              widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
-              signal,
-            },
-            errors,
-          )
-        const call = (): Promise<unknown> =>
-          assist === undefined ? gate(pluginRun) : gate(() => assist.execute(input.input))
-        return call().catch((error: unknown) => {
-          throw registryCallError(error, errors)
-        })
+        const run =
+          assist === undefined
+            ? runPluginTool(deps, {
+                sessionId: context.session.id,
+                name: input.name,
+                input: input.input,
+                callId: trace.callId,
+                widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
+              })
+            : Effect.tryPromise({try: () => assist.execute(input.input), catch: (error) => error})
+        return yield* admitOutsideCall(deps, context, context.session, path.join('.')).pipe(
+          Effect.andThen(hubTraced(deps, context, {name: input.name, input: input.input, trace}, run)),
+          Effect.catchCause((cause) => Effect.fail(registryCallError(Cause.squash(cause)))),
+        )
       }),
     },
     skill: {
-      list: os.skill.list.handler(({signal}) => skillList(deps.pluginHost, signal)),
+      list: os.skill.list.effect(function* () {
+        return yield* locationResponse(Skill.Service.use((skill) => skill.list()))
+      }),
     },
     agent: {
-      list: os.agent.list.handler(({signal}) => agentList(deps.pluginHost, signal)),
+      list: os.agent.list.effect(function* () {
+        return yield* locationResponse(Agent.Service.use((agent) => agent.list()))
+      }),
     },
     fs: {
-      find: os.fs.find.handler(({input, signal}) => fsFind(deps.pluginHost, input, signal)),
+      find: os.fs.find.effect(function* ({input}) {
+        return yield* locationResponse(FileSystem.Service.use((files) => files.find(input)))
+      }),
     },
     plugin: {
-      call: os.plugin.call.handler(async ({input, errors, signal}) => {
-        const outcome = await pluginCall(deps.pluginHost, input, signal)
-        if (Result.isSuccess(outcome)) return outcome.success
-        const {type, message} = outcome.failure
-        if (type === 'rpc.internal' || type === 'rpc.invalid_output')
-          throw errors.PLUGIN_RPC_INTERNAL({message, data: {type, message}})
-        throw errors.PLUGIN_RPC({message, data: outcome.failure})
+      invoke: os.plugin.invoke.effect(function* ({input}) {
+        return yield* pluginCall(input)
       }),
-      list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
-      experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
-        const outcome = await pluginExperimental(deps.pluginHost, input.id, signal)
-        if (Result.isFailure(outcome)) throw errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(input.id, outcome.failure.file))
-        if (outcome.success !== undefined) return outcome.success
-        throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
+      list: os.plugin.list.effect(function* () {
+        return yield* locationResponse(
+          Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list()))),
+        )
       }),
-      experimentalChunk: os.plugin.experimentalChunk.handler(async ({input, errors, signal}) => {
-        const outcome = await pluginExperimentalChunk(deps.pluginHost, input, signal)
-        if (Result.isFailure(outcome)) throw errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(input.id, outcome.failure.file))
-        if (outcome.success !== undefined) return outcome.success
-        throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
+      experimental: os.plugin.experimental.effect(function* ({input}) {
+        return yield* missingPluginOutcome(yield* pluginExperimental(input.id), input.id)
+      }),
+      experimentalChunk: os.plugin.experimentalChunk.effect(function* ({input}) {
+        return yield* missingPluginOutcome(yield* pluginExperimentalChunk(input), input.id)
       }),
     },
     experimental: {
       persistentPty: {
-        create: os.experimental.persistentPty.create.handler(async ({input, context, errors}) => {
-          const created = await deps.ptys.create(input, context.callerOrigin)
-          if (created === null) throw errors.NO_TTY()
+        create: os.experimental.persistentPty.create.effect(function* ({input, context}) {
+          const created = yield* Effect.promise(() => deps.ptys.create(input, context.callerOrigin))
+          if (created === null) return yield* Effect.fail(engineErrors.NO_TTY())
           return created
         }),
-        remove: os.experimental.persistentPty.remove.handler(({input, errors}) => {
+        remove: os.experimental.persistentPty.remove.effect(function* ({input}) {
           const pty = deps.ptys.find(input.ptyId)
-          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
-          if (pty.busy()) throw errors.BUSY()
-          pty.kill()
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
+          if (pty.busy()) return yield* Effect.fail(engineErrors.BUSY())
+          yield* Effect.sync(() => pty.kill())
           return {ok: true as const}
         }),
-        output: os.experimental.persistentPty.output.handler(({input, context, errors, signal, lastEventId}) => {
+        output: os.experimental.persistentPty.output.effect(function* ({
+          input,
+          context,
+          signal,
+          lastEventId,
+          procedure,
+        }) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
           const resumed = PtyResumeCursor.safeParse(lastEventId)
           const stream = ptyOutput(pty, {
             cursor: resumed.success ? resumed.data : input.cursor,
-            overflow: () => errors.SLOW_CONSUMER({data: {capacity: OUTPUT_CAPACITY}}),
+            overflow: () => contractError(engineErrors.SLOW_CONSUMER(), procedure['~orpc'].errorMap),
           })
-          return ptyEvents(relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal))
+          const events = yield* Stream.toAsyncIterableEffect(stream)
+          return ptyEvents(relayEvents(events[Symbol.asyncIterator](), signal))
         }),
-        write: os.experimental.persistentPty.write.handler(({input, context, errors}) => {
+        write: os.experimental.persistentPty.write.effect(function* ({input, context}) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
-          writeToPty(pty, input.data)
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
+          yield* Effect.sync(() => writeToPty(pty, input.data))
           return {ok: true as const}
         }),
-        resize: os.experimental.persistentPty.resize.handler(({input, context, errors}) => {
+        resize: os.experimental.persistentPty.resize.effect(function* ({input, context}) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
-          pty.resize(input.cols, input.rows)
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
+          yield* Effect.sync(() => pty.resize(input.cols, input.rows))
           return {ok: true as const}
         }),
-        inject: os.experimental.persistentPty.inject.handler(({input, context, errors}) => {
+        inject: os.experimental.persistentPty.inject.effect(function* ({input, context}) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
-          pty.inject(input.text)
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
+          yield* Effect.sync(() => pty.inject(input.text))
           return {ok: true as const}
         }),
       },
     },
     event: {
-      subscribe: os.event.subscribe.handler(({input, signal}) =>
-        eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal, deps.code.ids),
-      ),
+      subscribe: os.event.subscribe.effect(function* ({input, signal}) {
+        return yield* eventStream(deps.eventHeartbeatIntervalMs, input?.types, signal, deps.code.ids)
+      }),
     },
     code: {
-      describe: os.code.describe.handler(async (call) => (await resolveCodeSession(deps, undefined, call)).describe()),
-      execute: os.code.execute.handler(async ({input, ...call}) => {
-        const code = await resolveCodeSession(deps, input.sessionId, call)
-        return (await code.execute(input.typescriptCode)).result
+      describe: os.code.describe.effect(function* ({context}) {
+        return yield* Effect.promise(async (signal) =>
+          (await resolveCodeSession(deps, undefined, {context, signal})).describe(),
+        )
       }),
-      discover: os.code.discover.handler(async ({input, ...call}) => {
-        const code = await resolveCodeSession(deps, input.sessionId, call)
-        if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
-        return code.discover(input.toolNames)
+      execute: os.code.execute.effect(function* ({input, context}) {
+        return yield* Effect.promise(async (signal) => {
+          const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
+          return (await code.execute(input.typescriptCode)).result
+        })
+      }),
+      discover: os.code.discover.effect(function* ({input, context}) {
+        return yield* Effect.promise(async (signal) => {
+          const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
+          if (code.sandbox.discover === null) throw engineErrors.NO_CODE_MODE({message: 'no tools to discover'})
+          return code.discover(input.toolNames)
+        })
       }),
     },
     meta: {
-      models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {
-        const harness = await chat.harnessFor(input.sessionId)
-        const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.runtime)
-        return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
+      models: os.meta.models.effect(function* ({input}) {
+        return yield* Effect.promise(async (signal) => {
+          const harness = await chat.harnessFor(input.sessionId)
+          const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.runtime)
+          return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
+        })
       }),
-      harnesses: os.meta.harnesses.handler(async ({signal = new AbortController().signal}) => ({
-        harnesses: await Promise.all(
-          chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.runtime)),
-        ),
-        defaultHarness: chat.defaultHarness.id,
-      })),
-      commands: os.meta.commands.handler(({input, context}) =>
-        listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
-      ),
-      tools: os.meta.tools.handler(async ({input}) => ({tools: await deps.tools(input.sessionId)})),
-      engine: os.meta.engine.handler(() => engine.staleness()),
-      project: os.meta.project.handler(() => readProject(deps.project)),
-      hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
-      connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
-      disconnectHub: os.meta.disconnectHub.handler(({input}) => deps.hub.disconnect(input.harness)),
+      harnesses: os.meta.harnesses.effect(function* () {
+        return yield* Effect.promise(async (signal) => ({
+          harnesses: await Promise.all(
+            chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.runtime)),
+          ),
+          defaultHarness: chat.defaultHarness.id,
+        }))
+      }),
+      commands: os.meta.commands.effect(function* ({input, context}) {
+        return yield* Effect.promise(() => listCommands(chat, {sessionId: input.sessionId, origin: context.origin}))
+      }),
+      tools: os.meta.tools.effect(function* ({input}) {
+        return {tools: yield* Effect.promise(() => deps.tools(input.sessionId))}
+      }),
+      engine: os.meta.engine.effect(function* () {
+        return yield* Effect.promise(() => engine.staleness())
+      }),
+      project: os.meta.project.effect(function* () {
+        return yield* Effect.promise(() => readProject(deps.project))
+      }),
+      hubAgents: os.meta.hubAgents.effect(function* ({signal}) {
+        return yield* Effect.sync(() => deps.hub.agents(signal))
+      }),
+      connectHub: os.meta.connectHub.effect(function* ({input}) {
+        return yield* Effect.promise(() => deps.hub.connect(input.harness))
+      }),
+      disconnectHub: os.meta.disconnectHub.effect(function* ({input}) {
+        return yield* Effect.promise(() => deps.hub.disconnect(input.harness))
+      }),
     },
   })
 }

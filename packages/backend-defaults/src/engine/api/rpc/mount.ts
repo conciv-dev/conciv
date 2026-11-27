@@ -1,7 +1,10 @@
 import type {Tracer} from '../../../ai.js'
 import type * as Identifier from '@conciv/protocol/schema/identifier'
-import {implement, ORPCError, os as plainOs, type Implementer} from '@orpc/server'
-import {contract} from '@conciv/protocol'
+import '@orpc/effect/extensions/effect'
+import {middlewareGen, type EffectWrapOptions, type WithEffectContext} from '@orpc/effect'
+import {implement, ORPCError, type Implementer} from '@orpc/server'
+import {answerCatalogErrors, contract, engineErrors} from '@conciv/protocol'
+import {isToolError} from '@conciv/types/tool-call-types'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/types/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
@@ -20,7 +23,9 @@ import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {ProjectDeps} from '../../lib/project.js'
-import type {ManagedRuntime} from 'effect'
+import {Context, Effect, Option, type ManagedRuntime} from 'effect'
+import type {AuditableLogger, EvlogError, RequestLogger} from 'evlog'
+import {EvlogLogger} from 'evlog/effect'
 import type * as Tab from '@conciv/backend-app-api/core/tab'
 import type * as Job from '@conciv/backend-app-api/core/job'
 import type {
@@ -47,7 +52,7 @@ import type {EngineRuntime} from '../../lib/logging.js'
 import type * as LogLevel from '../../../util/observability/log-level.js'
 import type * as LogStore from '../../../util/observability/log-store.js'
 
-export type PluginHost = ManagedRuntime.ManagedRuntime<
+export type EngineServices =
   | Tool.Interface
   | Permission.Interface
   | Agent.Interface
@@ -71,9 +76,11 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Job.Interface
   | LogLevel.Interface
   | LogStore.Interface
-  | Identifier.Maker,
-  never
->
+  | Identifier.Maker
+
+export type PluginHost = ManagedRuntime.ManagedRuntime<EngineServices, never>
+
+export type EngineRpcContext = RpcContext & WithEffectContext<EngineServices>
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -109,59 +116,114 @@ export type RpcDeps = {
   ptys: PersistentPtys
 }
 
-export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()
+export const os: Implementer<typeof contract, EngineRpcContext> = implement(contract).$context<EngineRpcContext>()
 
-function headerSessionId(context: RpcContext): SessionId | null {
-  const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
-  if (!raw) return null
-  if (!isSessionId(raw)) {
-    throw new ORPCError('BAD_REQUEST', {
-      message: `the ${CONCIV_SESSION_HEADER} header carries a malformed session id`,
-    })
-  }
-  return raw
+const TaggedFailureSchema = z.object({
+  _tag: z.enum(['Session.NotFoundError', 'Tab.UnavailableError']),
+  message: z.string().optional(),
+})
+
+function catalogFailure(failure: unknown): unknown {
+  if (isToolError(failure))
+    return new ORPCError(failure.code, {message: failure.message, data: failure.data, cause: failure})
+  const tagged = TaggedFailureSchema.safeParse(failure)
+  if (!tagged.success) return failure
+  if (tagged.data._tag === 'Session.NotFoundError') return engineErrors.NOT_FOUND()
+  return engineErrors.UNAVAILABLE({message: tagged.data.message})
 }
 
-export function callerScope(deps: RpcDeps, context: RpcContext): SessionScope {
-  const sessionId = headerSessionId(context)
-  if (sessionId === null) {
-    throw new ORPCError('BAD_REQUEST', {
-      message: `this procedure acts on behalf of one session and the caller sent no ${CONCIV_SESSION_HEADER} header; resolve a session with sessions.resolve and send it on every call`,
-    })
+function recordEngineError(options: EffectWrapOptions) {
+  return (failure: EvlogError, answer: ORPCError<string, unknown>): Effect.Effect<void> => {
+    const recorded = Effect.serviceOption(EvlogLogger).pipe(
+      Effect.map(Option.map((logger) => logger.set({error: {code: failure.code, why: failure.why, fix: failure.fix}}))),
+      Effect.asVoid,
+    )
+    if (answer.code !== 'INTERNAL_SERVER_ERROR') return recorded
+    return recorded.pipe(
+      Effect.andThen(
+        Effect.logError('an engine error the procedure does not declare', {path: options.path, error: failure}),
+      ),
+    )
   }
-  return deps.runtime.forSession(sessionId)
+}
+
+function wrapEngineEffect<A>(effect: Effect.Effect<A, unknown>, options: EffectWrapOptions): Effect.Effect<A, unknown> {
+  return effect.pipe(
+    Effect.mapError(catalogFailure),
+    answerCatalogErrors(engineErrors._prefix, options.procedure['~orpc'].errorMap, recordEngineError(options)),
+  )
+}
+
+function isAuditable(logger: RequestLogger): logger is AuditableLogger {
+  return typeof Reflect.get(logger, 'audit') === 'function'
+}
+
+export function makeCallContext(
+  host: PluginHost,
+): (logger: RequestLogger | undefined) => Promise<WithEffectContext<EngineServices>> {
+  return async (logger) => {
+    const services = await host.context()
+    const call = logger !== undefined && isAuditable(logger) ? Context.add(services, EvlogLogger, logger) : services
+    return {'effect/context': call, 'effect/wrap': wrapEngineEffect}
+  }
+}
+
+function headerSessionId(context: RpcContext): Effect.Effect<SessionId | null, EvlogError> {
+  const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
+  if (!raw) return Effect.succeed(null)
+  if (isSessionId(raw)) return Effect.succeed(raw)
+  return Effect.fail(
+    engineErrors.BAD_REQUEST({message: `the ${CONCIV_SESSION_HEADER} header carries a malformed session id`}),
+  )
+}
+
+export function callerScope(deps: RpcDeps, context: RpcContext): Effect.Effect<SessionScope, EvlogError> {
+  return headerSessionId(context).pipe(
+    Effect.flatMap((sessionId) =>
+      sessionId === null
+        ? Effect.fail(
+            engineErrors.BAD_REQUEST({
+              message: `this procedure acts on behalf of one session and the caller sent no ${CONCIV_SESSION_HEADER} header; resolve a session with sessions.resolve and send it on every call`,
+              fix: `resolve a session with sessions.resolve and send its id in the ${CONCIV_SESSION_HEADER} header`,
+            }),
+          )
+        : Effect.succeed(deps.runtime.forSession(sessionId)),
+    ),
+  )
 }
 
 const NamedSessionSchema = z.object({sessionId: SessionId})
 
 export function makeSessionOs(deps: RpcDeps): SessionOs {
-  return os.use(async ({context, next, signal}) => {
-    const scope = callerScope(deps, context)
-    await admitHubCaller(deps, context, scope, signal)
-    return next({context: {session: scope}})
-  })
+  return os.use(
+    middlewareGen(function* ({context, next}) {
+      const scope = yield* callerScope(deps, context)
+      yield* admitHubCaller(deps, context, scope)
+      return yield* next({context: {session: scope}})
+    }),
+  )
 }
 
 export function makeToolCallOs(deps: RpcDeps): SessionOs {
-  return os.use(({context, next}) => {
-    const scope = callerScope(deps, context)
-    return next({context: {session: scope}})
-  })
+  return os.use(
+    middlewareGen(function* ({context, next}) {
+      const scope = yield* callerScope(deps, context)
+      return yield* next({context: {session: scope}})
+    }),
+  )
 }
 
-const ADMITTED_INSIDE_THE_TOOL: readonly string[] = ['registry.call']
+const ADMITTED_INSIDE_THE_TOOL: readonly string[] = ['registry.invoke']
 
-export async function admitOutsideCall(
+export function admitOutsideCall(
   deps: RpcDeps,
   context: RpcContext,
   scope: SessionScope,
-  signal: AbortSignal | undefined,
   procedure: string,
-): Promise<void> {
+): Effect.Effect<void, EvlogError> {
   const hub = hubOrigin((header) => rpcHeader(context, header))
-  if (hub === null) return
-  await refuseOutside(deps, hub.client, procedure)
-  await admitHubCaller(deps, context, scope, signal)
+  if (hub === null) return Effect.void
+  return refuseOutside(deps, hub.client, procedure).pipe(Effect.andThen(admitHubCaller(deps, context, scope)))
 }
 
 const DECIDING_PROCEDURES: readonly string[] = ['chat.permissionDecision']
@@ -177,7 +239,7 @@ const EVENT_PROCEDURES: readonly string[] = ['event.subscribe', 'chat.join']
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
 const PLUGIN_PROCEDURES: readonly string[] = [
-  'plugin.call',
+  'plugin.invoke',
   'plugin.list',
   'plugin.experimental',
   'plugin.experimentalChunk',
@@ -204,41 +266,48 @@ const WIDGET_LOG_PROCEDURES: readonly string[] = ['logs.write']
 const OUTSIDE_WIDGET_LOG_REFUSAL = "outside agents can't write the widget's logs"
 
 export function makeHubAdmission(deps: RpcDeps) {
-  return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
+  return middlewareGen<EngineRpcContext>(function* ({context, next, path}, input) {
     const hub = hubOrigin((header) => rpcHeader(context, header))
     const procedure = path.join('.')
-    if (hub !== null && !ADMITTED_INSIDE_THE_TOOL.includes(procedure)) await refuseOutside(deps, hub.client, procedure)
+    if (hub !== null && !ADMITTED_INSIDE_THE_TOOL.includes(procedure)) yield* refuseOutside(deps, hub.client, procedure)
     const named = NamedSessionSchema.safeParse(input)
-    if (named.success) await admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId), signal)
-    return next()
+    if (named.success) yield* admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId))
+    return yield* next()
   })
 }
 
-async function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): Promise<void> {
-  const disconnected = await deps.hub.refusal(client)
-  if (disconnected !== null) throw new ORPCError('APPROVAL_DENIED', {message: disconnected})
-  if (DECIDING_PROCEDURES.includes(procedure))
-    throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
-  if (HUB_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
-  if (EVENT_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_EVENT_REFUSAL})
-  if (PLUGIN_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PLUGIN_REFUSAL})
-  if (PTY_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PTY_REFUSAL})
-  if (WIDGET_LOG_PROCEDURES.includes(procedure))
-    throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_WIDGET_LOG_REFUSAL})
+function approvalDenied(message: string): Effect.Effect<never, EvlogError> {
+  return Effect.fail(engineErrors.APPROVAL_DENIED({message}))
 }
 
-async function admitHubCaller(
-  deps: RpcDeps,
-  context: RpcContext,
-  scope: SessionScope,
-  signal: AbortSignal | undefined,
-): Promise<void> {
+function outsideRefusal(procedure: string): string | null {
+  if (DECIDING_PROCEDURES.includes(procedure)) return OUTSIDE_DECISION_REFUSAL
+  if (HUB_PROCEDURES.includes(procedure)) return OUTSIDE_HUB_REFUSAL
+  if (EVENT_PROCEDURES.includes(procedure)) return OUTSIDE_EVENT_REFUSAL
+  if (PLUGIN_PROCEDURES.includes(procedure)) return OUTSIDE_PLUGIN_REFUSAL
+  if (PTY_PROCEDURES.includes(procedure)) return OUTSIDE_PTY_REFUSAL
+  if (WIDGET_LOG_PROCEDURES.includes(procedure)) return OUTSIDE_WIDGET_LOG_REFUSAL
+  return null
+}
+
+function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): Effect.Effect<void, EvlogError> {
+  return Effect.gen(function* () {
+    const disconnected = yield* Effect.promise(() => deps.hub.refusal(client))
+    if (disconnected !== null) return yield* approvalDenied(disconnected)
+    const refused = outsideRefusal(procedure)
+    if (refused !== null) return yield* approvalDenied(refused)
+  })
+}
+
+function admitHubCaller(deps: RpcDeps, context: RpcContext, scope: SessionScope): Effect.Effect<void, EvlogError> {
   const hub = hubOrigin((header) => rpcHeader(context, header))
-  if (hub === null) return
-  const refusal =
-    (await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)) ??
-    (await deps.hub.refusal(hub.client))
-  if (refusal !== null) throw new ORPCError('APPROVAL_DENIED', {message: refusal})
+  if (hub === null) return Effect.void
+  return Effect.gen(function* () {
+    const refusal =
+      (yield* Effect.promise((signal) => deps.admitOutside(scope, hub.client, signal))) ??
+      (yield* Effect.promise(() => deps.hub.refusal(hub.client)))
+    if (refusal !== null) return yield* approvalDenied(refusal)
+  })
 }
 
 export type SessionOs = ReturnType<typeof os.use<{session: SessionScope}>>

@@ -1,6 +1,7 @@
 import {homedir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
 import {Config, Effect, FileSystem, Predicate, Schema} from 'effect'
+import {failureText} from '@conciv/protocol'
 
 const ENDPOINT = 'a loopback WebSocket endpoint with an explicit port'
 
@@ -70,7 +71,7 @@ export const defaults: Manifest = {
 const decode = Schema.decodeUnknownEffect(Schema.fromJsonString(ManifestSchema))
 
 const configError = (cause: unknown) =>
-  makeResolveError({reason: 'config', message: `Invalid Drive configuration: ${String(cause)}`, cause})
+  makeResolveError({reason: 'config', message: `Invalid Drive configuration: ${failureText(cause)}`, cause})
 
 export const resolve: () => Effect.Effect<Manifest, ResolveError, FileSystem.FileSystem> = Effect.fn(
   'DriveManifest.resolve',

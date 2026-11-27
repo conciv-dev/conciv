@@ -5,7 +5,7 @@ import {SessionId} from '@conciv/types/chat-types'
 import {readLogLevel, type LogLevel} from '@conciv/types/config-types'
 import {routeFailure} from './arguments.js'
 import {writeFailure, writeOutcome} from './envelope.js'
-import {readFailure, userFailure} from './failure.js'
+import {cliErrors, readFailure} from './failure.js'
 import {startCliLog} from './log.js'
 import {readHandler} from './router/handler.js'
 import type {main} from './main.js'
@@ -44,11 +44,11 @@ export async function runCli(app: typeof main, argv: string[]): Promise<number> 
       return 0
     }
     const run = readHandler(result.definition)
-    if (run === null) throw new Error(`the route ${result.route} has no handler`)
+    if (run === null) throw cliErrors.NO_HANDLER({route: result.route})
     const model = ModelSchema.parse(result.model)
     const tabs = Object.values(ModelsSchema.parse(result.models)).flatMap((routeModel) => routeModel.tab ?? [])
     if ((tabs[0] ?? null) !== tab || tabs.some((each) => each !== tab)) {
-      throw userFailure('--tab was given more than once with different tab ids.', {hint: 'pass --tab once.'})
+      throw cliErrors.TAB_REPEATED()
     }
     return await writeOutcome(Promise.resolve().then(() => run(model, {tab})))
   } catch (error) {
@@ -63,7 +63,7 @@ async function settle(parsed: Parsed, target: CliTarget): Promise<Settled> {
 
 async function liveCatalog(target: CliTarget): Promise<unknown> {
   const outcome = await runRpc(target, (rpc) => rpc.registry.catalog(undefined))
-  if (outcome.report !== 'json') throw new Error('the registry catalog returned no data')
+  if (outcome.report !== 'json') throw cliErrors.EMPTY_CATALOG()
   return outcome.data
 }
 

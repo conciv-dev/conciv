@@ -32,6 +32,7 @@
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-terminal": "workspace:^",
     "@orpc/client": "catalog:",
+    "@orpc/effect": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "effect": "catalog:",
     "lucide-solid": "catalog:",

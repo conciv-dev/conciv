@@ -54,10 +54,15 @@ describe('engine spans', () => {
     }
   }
 
+  const CLIENT_CALL_STEPS = ['encode_input', 'send_request', 'decode_response']
   function stoppedRunSpans(spans: readonly Span[]): Span[] {
     const stops = spans.filter((span) => span.name === 'Engine.stop')
     expect(stops).toHaveLength(1)
-    return spans.filter((span) => span.engine === stops[0]?.engine)
+    const run = spans.filter((span) => span.engine === stops[0]?.engine)
+    const clientCalls = new Set(
+      run.filter((span) => CLIENT_CALL_STEPS.includes(span.name)).map((span) => span.parentSpanId),
+    )
+    return run.map((span) => (clientCalls.has(span.spanId) ? {...span, name: `client ${span.name}`} : span))
   }
 
   function parentNames(spans: readonly Span[], names: readonly string[]): Record<string, string | null> {
@@ -93,7 +98,6 @@ describe('engine spans', () => {
     'core.permissions.followCards': 'Engine.makeApp',
     'Engine.ensureConfiguredRows': 'Engine.makeApp',
     'Engine.supervisePlugins': 'Engine.makeApp',
-    'SQLiteNodeDrizzle.make': 'Engine.buildPluginHost',
     'core.eventFeed.make': 'Engine.buildPluginHost',
     'core.bundler.followDiagnostics': 'Engine.buildPluginHost',
     'ConfigPluginSource.reconcileWatches': 'Engine.buildPluginHost',
@@ -107,8 +111,8 @@ describe('engine spans', () => {
     'ConfigPluginSource.scan': 'ConfigPluginSource.operations',
     'ConfigPluginSource.watchConfiguredSources': 'ConfigPluginSource.operations',
     'PluginSourceDirectory.discover': 'ConfigPluginSource.scan',
-    'Rpc.sessions.create': null,
-    'Rpc.meta.harnesses': null,
+    'orpc.sessions/create': null,
+    'orpc.meta/harnesses': null,
     'Engine.stop': null,
     'Engine.dispose': 'Engine.stop',
     'Engine.dispose.endListings': 'Engine.dispose',
@@ -128,7 +132,7 @@ describe('engine spans', () => {
   }
 
   const TURN_SPANS = {
-    'Rpc.chat.send': null,
+    'orpc.chat/send': null,
     'ChatServer.turn': null,
     'ChatServer.plan': 'ChatServer.turn',
     'ChatServer.admit': 'ChatServer.turn',

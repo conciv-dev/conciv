@@ -13,7 +13,7 @@ envelope with a suggested fix.
 
 - The CLI carries no tool declarations of its own: `conciv tools` builds its commands from the running engine's
   registry catalog (`registry.catalog`), one group per tool-name prefix (`page_snapshot` is `page snapshot`) plus the
-  fixed `tabs` command; every group verb calls `registry.call` (`tools.ts`). With no engine running, `conciv tools ...`
+  fixed `tabs` command; every group verb calls `registry.invoke` (`tools.ts`). With no engine running, `conciv tools ...`
   (help included) fails with the `No conciv dev server` envelope.
 - Engine lookup (`engine-origin.ts`): with `--tab`, the live engine whose core tab list (`tabs.list`) has the tab open, else a user
   failure naming the tab; otherwise `CONCIV_PORT`, `.conciv/server.json` in cwd or an ancestor, the most recently

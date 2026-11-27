@@ -1,5 +1,7 @@
+import '@orpc/effect/extensions/effect'
 import {implement, ORPCError, type AnyRouter} from '@orpc/server'
-import {isContractProcedure, type AnyContractRouter} from '@orpc/contract'
+import {Effect} from 'effect'
+import {ProcedureContract, type RouterContract} from '@orpc/contract'
 import type {FakeEngineHandlers} from './fake-types.js'
 
 export function withSendRecorded(
@@ -33,24 +35,21 @@ export function lookup(handlers: unknown, path: readonly string[]): unknown {
 }
 
 export function buildRouter(
-  node: AnyContractRouter,
+  node: RouterContract,
   path: readonly string[],
   layers: readonly unknown[],
   unanswered: string[],
 ): AnyRouter {
-  if (isContractProcedure(node)) {
+  if (node instanceof ProcedureContract) {
     const name = path.join('.')
-    const declared = Object.keys(node['~orpc'].errorMap)
-    return implement(node).handler(async ({input, signal}) => {
+    return implement(node).effect(function* ({input, signal}) {
       const handler = layers.map((layer) => lookup(layer, path)).find((found) => typeof found === 'function')
       if (typeof handler !== 'function') return notImplemented(name, unanswered)
-      try {
-        const answer: unknown = await handler(input, {signal})
-        return answer
-      } catch (error) {
-        if (!(error instanceof ORPCError) || !declared.includes(error.code)) throw error
-        throw new ORPCError(error.code, {defined: true, status: error.status, message: error.message, data: error.data})
-      }
+      const answer: unknown = yield* Effect.tryPromise({
+        try: async () => handler(input, {signal}),
+        catch: (error) => error,
+      })
+      return answer
     })
   }
   return Object.fromEntries(

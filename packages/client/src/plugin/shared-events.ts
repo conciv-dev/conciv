@@ -1,3 +1,5 @@
+import {clientErrors} from '../connection/client-errors.js'
+
 export type SelectedEvent<A extends {readonly type: string}, Type extends string> = A extends unknown
   ? [Extract<Type, A['type']>] extends [never]
     ? never
@@ -106,7 +108,7 @@ export function make<A extends {readonly type: string}>(
                 return
               }
               if (queued.length === capacity) {
-                finish({status: 'failed', error: new Error(`Event subscriber exceeded its ${capacity}-event capacity`)})
+                finish({status: 'failed', error: clientErrors.SUBSCRIBER_OVERFLOW({capacity})})
                 return
               }
               queued.push(value)

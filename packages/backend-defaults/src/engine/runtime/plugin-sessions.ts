@@ -102,11 +102,13 @@ function modelChoice(harness: HarnessAdapter, ref: ModelRef, signal: AbortSignal
 }
 
 function applyModelChoice(chat: ChatContext, sessionId: SessionId, choice: ModelChoice) {
-  return Effect.promise(async () => {
-    if ((await switchSessionModel(chat, sessionId, choice.model)) !== 'switched') return false
-    if (choice.effort === null) return true
-    return (await switchSessionEffort(chat, sessionId, choice.effort)) === 'switched'
-  })
+  return Effect.uninterruptible(
+    Effect.gen(function* () {
+      if ((yield* switchSessionModel(chat, sessionId, choice.model)) !== 'switched') return false
+      if (choice.effort === null) return true
+      return (yield* switchSessionEffort(chat, sessionId, choice.effort)) === 'switched'
+    }),
+  )
 }
 
 const createdModel = Effect.fn('core.sessions.chooseCreatedModel')(function* (

@@ -43,14 +43,14 @@ const resolved = await context.queryClient.ensureQueryData(
 )
 ```
 
-A live read is a query too: `useQuery(() => appData.utils.sessions.changes.experimental_liveOptions())`
+A live read is a query too: `useQuery(() => appData.utils.sessions.changes.liveOptions())`
 (`packages/frontend-defaults/src/composer/session-selector.tsx:157`).
 
 ## Solid-specific mechanics (from @tanstack/solid-query source)
 
 - `useQuery` takes a FUNCTION returning options; it is wrapped in `createMemo` (`useQuery.ts`). Reactivity comes from reading signals INSIDE that function (`enabled: open()`, input from a signal). A plain object argument is a type error; reading signals outside the function loses reactivity.
 - The result is a Solid store updated via `reconcile` (`useBaseQuery.ts`). Access fields in JSX (`list.data`, `list.isPending`) for fine-grained updates. NEVER destructure the result: destructuring snapshots it dead.
-- This app's `QueryClient` defaults every query to `staleTime: Infinity` and `refetchOnWindowFocus: 'always'` (`packages/frontend-defaults/src/router.tsx:173`). Data changes only three ways: a server push (`experimental_liveOptions`), an invalidation at the action of ours that changed it, or a window refocus. Never add a per-query `staleTime` to make data refresh; invalidate it where we change it, or poll with `refetchInterval` where the server changes it with no push. An explicit `refetchOnWindowFocus: true` turns the refocus refetch OFF under an infinite staleTime; use `'always'` or leave the default.
+- This app's `QueryClient` defaults every query to `staleTime: Infinity` and `refetchOnWindowFocus: 'always'` (`packages/frontend-defaults/src/router.tsx:173`). Data changes only three ways: a server push (`liveOptions`), an invalidation at the action of ours that changed it, or a window refocus. Never add a per-query `staleTime` to make data refresh; invalidate it where we change it, or poll with `refetchInterval` where the server changes it with no push. An explicit `refetchOnWindowFocus: true` turns the refocus refetch OFF under an infinite staleTime; use `'always'` or leave the default.
 
 ## State vocabulary (drives the UI async matrix)
 
