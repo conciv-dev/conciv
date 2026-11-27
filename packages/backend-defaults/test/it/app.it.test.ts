@@ -2,6 +2,7 @@ import {ConfigProvider, Effect, Logger} from 'effect'
 import {describe, expect, test} from 'vitest'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
 import {tempDir} from '@internal/vitest-config/temp-dir'
 import {makeApp, withSavedModels} from '../../src/engine/app.js'
 import {resolveConfig} from '../../src/engine/config.js'
@@ -63,13 +64,19 @@ describe('the saved model list', () => {
     await warmed.settled()
 
     const engineStarted: string[] = []
+    const engineListed = Promise.withResolvers<void>()
     const recorded = {
       ...adapter,
       models: () => {
         engineStarted.push('listing')
+        engineListed.resolve()
         return Promise.resolve(listed)
       },
     }
+    const activationRecorder = Plugin.define({
+      id: 'activation-recorder',
+      effect: () => Effect.sync(() => engineStarted.push('activated')),
+    })
     const root = tempDir('app-root-')
     const configProvider = ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')})
     const made = await makeApp({
@@ -81,9 +88,10 @@ describe('the saved model list', () => {
       harness: recorded,
       harnesses: [recorded],
       ids: makeMaker(),
+      plugins: [activationRecorder],
     })
-    await made.awaitActivation()
-    await expect.poll(() => engineStarted).toEqual(['listing'])
+    await engineListed.promise
+    expect(engineStarted).toEqual(['activated', 'listing'])
     await made.dispose()
   })
 })
