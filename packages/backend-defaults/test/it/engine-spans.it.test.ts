@@ -62,7 +62,7 @@ describe('engine spans', () => {
     const clientCalls = new Set(
       run.filter((span) => CLIENT_CALL_STEPS.includes(span.name)).map((span) => span.parentSpanId),
     )
-    return run.filter((span) => !clientCalls.has(span.spanId))
+    return run.map((span) => (clientCalls.has(span.spanId) ? {...span, name: `client ${span.name}`} : span))
   }
 
   function parentNames(spans: readonly Span[], names: readonly string[]): Record<string, string | null> {
