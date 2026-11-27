@@ -1,5 +1,6 @@
 ---
 '@conciv/backend-plugin-api': patch
+'@conciv/unplugin': patch
 ---
 
-A plugin registers its bundler hooks through `ctx.bundler.transform((editor) => editor.add({transform, resolveId, load}))` inside its `effect` (or `setup` on the promise entry), so the hooks can reach state the plugin creates there. The registration lives with the plugin's scope and goes when the plugin stops or reloads. The static `bundler` property on the plugin definition is gone.
+A plugin can reach the host's dev bundler: inside its `effect` (or `setup` on the promise entry) it registers `transform`, `resolveId` and `load` hooks with `ctx.bundler.transform((editor) => editor.add({transform, resolveId, load}))`, so the hooks can use state the plugin creates there. In dev, `@conciv/unplugin` runs them after its own source stamp, in plugin load order; a registration goes when its plugin stops or reloads.
