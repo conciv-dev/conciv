@@ -70,7 +70,7 @@ describe.concurrent('the vite dev server', () => {
     const agent = Number(readFileSync(pidFile, 'utf8'))
     started.push(agent)
     expect(adapterFiles(project)).toHaveLength(3)
-    const stored = (text: string) => browser.rpc.logs.query({text, source: 'engine', limit: 10})
+    const stored = (query: string) => browser.rpc.logs.query({text: query, source: 'engine', limit: 10})
     expect((await stored('watcher started')).events).toContainEqual(
       expect.objectContaining({level: 'info', message: 'watcher started'}),
     )
@@ -88,15 +88,16 @@ describe.concurrent('the vite dev server', () => {
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test('a second dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
+  test('a dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
     viteDev,
+    holdPort,
     browser: openBrowser,
     expect,
   }) => {
-    const first = await viteDev({}, {CONCIV_SIMULATE: '1'})
-    const second = await viteDev({port: first.port})
+    const taken = await holdPort()
+    const [first, second] = await Promise.all([viteDev({}, {CONCIV_SIMULATE: '1'}), viteDev({port: taken})])
 
-    expect(second.port).not.toBe(first.port)
+    expect(second.port).not.toBe(taken)
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
 
