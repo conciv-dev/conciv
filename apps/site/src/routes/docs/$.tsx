@@ -96,6 +96,7 @@ const comparisonTableClass = [
   '[&_th]:bg-transparent',
   '[&_th]:font-medium',
   '[&_th:not(:first-child)]:w-40',
+  '[&_table:has(th:nth-child(5))_th:not(:first-child)]:w-32',
   '[&_td:first-child_a]:font-normal',
   '[&_td:first-child_a]:text-fd-foreground',
   '[&_td:first-child_a]:decoration-dotted',
