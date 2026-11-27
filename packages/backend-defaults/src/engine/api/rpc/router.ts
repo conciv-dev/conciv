@@ -6,7 +6,7 @@ import {asc, eq, sql} from 'drizzle-orm'
 import {isToolError} from '@conciv/types/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '../../../db/schema.js'
-import {Cause, Effect, Option, Result, Schema, Stream, Queue} from 'effect'
+import {Cause, Effect, Exit, Option, Result, Schema, Stream, Queue} from 'effect'
 import type {TtySession} from '../../pty/pty-sessions.js'
 import {Agent, Event, Location, Permission, Plugin, Rpc, Skill, Tool} from '@conciv/backend-app-api'
 import {FileSystem} from '../../../backend-defaults.js'
@@ -252,10 +252,15 @@ function hubTraced<Value, Failure, Services>(
         void mirror.publish(trace.result(mirrored, text, failed))
         return mirror.settle()
       })
-    yield* Effect.promise(() => mirror.publish(trace.start(mirrored, name, input)))
-    return yield* run.pipe(
-      Effect.tap((value) => finish(cappedText(safeStringify(value)), false)),
-      Effect.tapCause((cause) => finish(failureText(Cause.squash(cause)), true)),
+    return yield* Effect.uninterruptibleMask((restore) =>
+      Effect.promise(() => mirror.publish(trace.start(mirrored, name, input))).pipe(
+        Effect.andThen(restore(run)),
+        Effect.onExit((exit) =>
+          Exit.isSuccess(exit)
+            ? finish(cappedText(safeStringify(exit.value)), false)
+            : finish(failureText(Cause.squash(exit.cause)), true),
+        ),
+      ),
     )
   })
 }
