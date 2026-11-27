@@ -118,6 +118,30 @@ export const simulationErrorEntries = {
     why: 'the engine is not listening on its ui endpoint',
     fix: 'start the engine with CONCIV_DRIVE set, and dial the ui endpoint its manifest lists',
   },
+  MANIFEST_CONFIG_INVALID: {
+    status: 400,
+    message: ({reason}: {reason: string}) => `Invalid Drive configuration: ${reason}`,
+    why: 'CONCIV_DRIVE, XDG_STATE_HOME or DRIVE_REGISTRY_DIR holds a value Drive cannot use',
+    fix: 'set CONCIV_DRIVE to 1 or to a Drive instance name of letters, digits, ., _ and -',
+  },
+  MANIFEST_NOT_FOUND: {
+    status: 404,
+    message: ({path}: {path: string}) => `Drive manifest not found: ${path}`,
+    why: 'no Drive instance with that name wrote its manifest',
+    fix: 'start the Drive instance first, or set CONCIV_DRIVE to the name of a running one',
+  },
+  MANIFEST_UNREADABLE: {
+    status: 500,
+    message: ({path, reason}: {path: string; reason: string}) => `Failed to read Drive manifest: ${path}: ${reason}`,
+    why: 'the manifest file exists but could not be read',
+    fix: 'check the permissions of the Drive registry folder',
+  },
+  MANIFEST_INVALID: {
+    status: 400,
+    message: ({path, reason}: {path: string; reason: string}) => `Invalid Drive manifest: ${path}: ${reason}`,
+    why: 'the manifest does not hold two loopback WebSocket endpoints with explicit ports, or its other fields are wrong',
+    fix: 'write the manifest again from the Drive instance',
+  },
 } as const satisfies ErrorCatalogMap
 
 export const simulationErrors = defineErrorCatalog('simulation', simulationErrorEntries)
