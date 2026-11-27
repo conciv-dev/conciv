@@ -3,7 +3,7 @@ title: Configuration
 description: Set conciv's options where you add it to your bundler, one option at a time.
 ---
 
-conciv takes one options object where you add it to your bundler. Every option is optional, so set only the ones you
+conciv takes one options object where you add it to your bundler. Every option is optional. Set only the ones you
 need.
 
 ```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
@@ -73,11 +73,11 @@ projects rarely ask for the same one. The engine listens on `127.0.0.1` only. It
 `.conciv/server.json`.
 
 When the port is taken, the engine takes a free one. On Vite it prints a warning. Next.js, webpack and Rspack switch
-with no message, before the widget is built, so the widget and the engine still agree.
+with no message. They switch before they build the widget, so the widget and the engine still agree.
 
 ### widget
 
-Move or turn off the two layouts: `modal`, the corner panel, and `quickTerminal`, the sheet that drops from the top.
+Move or turn off the two layouts. `modal` is the corner panel. `quickTerminal` is the sheet that drops from the top.
 
 ```ts twoslash title="vite.config.ts"
 import conciv from '@conciv/it/plugin/vite'
@@ -178,8 +178,18 @@ import conciv from '@conciv/it/plugin/vite'
 conciv({policies: [{action: 'plugin.use', resource: '*/greeter', effect: 'deny'}]})
 ```
 
-The actions are `provider.use`, `tool.use`, `integration.connect`, `integration.use`, `mcp.use`, `skill.use`,
-`plugin.use` and `websearch.use`. The effect is `allow` or `deny`.
+The actions are:
+
+- `provider.use`
+- `tool.use`
+- `integration.connect`
+- `integration.use`
+- `mcp.use`
+- `skill.use`
+- `plugin.use`
+- `websearch.use`
+
+The effect is `allow` or `deny`.
 
 ### hubAccess
 
@@ -266,7 +276,7 @@ An option set in the config wins over its variable.
 
 ## All options
 
-This table is generated from the config schema conciv validates your options with.
+conciv generates this table from the config schema it validates your options with.
 
 <ConfigOptions />
 
