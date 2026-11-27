@@ -1,7 +1,7 @@
 import type {BundlerConfig, ModuleNode} from '@conciv/types/bundler-types'
 import {Schema} from 'effect'
 import {ephemeral, inventory} from './event.js'
-import {engineErrors} from '../errors.js'
+import {engineErrors} from '@conciv/errors'
 
 export const SourceLocation = Schema.Struct({line: Schema.Finite, column: Schema.Finite}).annotate({
   identifier: 'Bundler.SourceLocation',

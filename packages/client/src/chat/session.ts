@@ -13,7 +13,7 @@ import {
 import type {ChatMessage, ToolCallPart} from '@conciv/types/chat-message-types'
 import {chatBusy} from '@conciv/types/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/types/chat-types'
-import {clientErrors} from '../connection/client-errors.js'
+import {clientErrors} from '@conciv/errors'
 
 export type Chat = UseChatReturn
 

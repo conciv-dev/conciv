@@ -89,6 +89,7 @@ import {
   type StoreLoads,
 } from '@internal/frontend-app-api/plugin/stores'
 import {ui} from '@internal/frontend-app-api/plugin/ui'
+import {causeFrom, widgetPluginErrors} from '@conciv/errors'
 
 type Attached = {
   sessions: Accessor<readonly SessionRef[]>
@@ -130,8 +131,6 @@ const TOAST_TONE: Record<NonNullable<ToastOptions['variant']>, NoticeTone> = {
   loading: 'info',
 }
 
-const UNAVAILABLE = 'The server that runs this plugin is unavailable'
-
 const HostSettingsTab = z.enum(['general', 'shortcuts', 'plugins', 'advanced'])
 
 function openInput(file: string, position: {line: number; column?: number} | undefined) {
@@ -158,9 +157,9 @@ export function createHostApis() {
   const client = appData.client
   const data = createServerData(appData.utils)
   const unavailable = Conciv.make(
-    createORPCClient<EngineClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}),
+    createORPCClient<EngineClient>({call: () => Promise.reject(widgetPluginErrors.SERVER_UNAVAILABLE())}),
     {
-      server: () => UNAVAILABLE,
+      server: () => widgetPluginErrors.SERVER_UNAVAILABLE.message,
     },
   )
 
@@ -235,12 +234,12 @@ export function createHostApis() {
     if ('session' in scope) {
       const location = scope.session.location
 
-      if (!location) throw new Error('Session storage requires a session location')
+      if (!location) throw widgetPluginErrors.SESSION_LOCATION_MISSING()
 
       return {...Persist.session(scope.session.id, name), copyFrom: storeImports(from)}
     }
 
-    if (!connected.server(scope.server)) throw new Error(`Server ${scope.server} is unavailable`)
+    if (!connected.server(scope.server)) throw widgetPluginErrors.NAMED_SERVER_UNAVAILABLE({server: scope.server})
 
     return {...Persist.server(name), copyFrom: storeImports(from)}
   }
@@ -312,7 +311,9 @@ export function createHostApis() {
     }),
     system: () => ({
       copy: (text) =>
-        writeClipboardText(text).catch((cause: unknown) => Promise.reject(new Error('Request failed', {cause}))),
+        writeClipboardText(text).catch((cause: unknown) =>
+          Promise.reject(widgetPluginErrors.CLIPBOARD_REFUSED(causeFrom(cause))),
+        ),
       async save(file) {
         const url = URL.createObjectURL(new Blob([file.content], {type: 'application/octet-stream'}))
         const link = document.createElement('a')

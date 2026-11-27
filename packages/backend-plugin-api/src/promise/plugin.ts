@@ -1,11 +1,11 @@
 import type {ExperimentalGenerateApi} from './generate.js'
-import type {BundlerCode} from '../effect/plugin.js'
 import type {RpcCallOptions} from '@conciv/client'
 import type {PluginInfo} from '@conciv/client'
 import type {App} from '../app.js'
 import type {PluginOptions} from '@conciv/protocol/options'
 import type {Info, PublicRef} from '@conciv/protocol/schema/location'
 import type {AgentDomain} from './agent.js'
+import type {BundlerDomain} from './bundler.js'
 import type {EventDomain} from './event.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
@@ -24,6 +24,7 @@ export interface Context {
   readonly location: Info
   readonly options: PluginOptions
   readonly agent: AgentDomain
+  readonly bundler: BundlerDomain
   readonly event: EventDomain
   readonly experimental: {
     /** @remarks Not implemented yet. Always undefined in this version. */
@@ -54,19 +55,7 @@ export type Cleanup = () => Promise<void> | void
 export interface Plugin {
   readonly id: string
   readonly setup: (context: Context) => Promise<Cleanup | void> | Cleanup | void
-  readonly bundler?: Bundler
 }
-
-export interface Bundler {
-  readonly transform?: (code: string, id: string) => BundlerCode | Promise<BundlerCode>
-  readonly resolveId?: (
-    id: string,
-    importer: string | undefined,
-  ) => string | null | undefined | Promise<string | null | undefined>
-  readonly load?: (id: string) => BundlerCode | Promise<BundlerCode>
-}
-
-export type {BundlerCode, SourceMap} from '../effect/plugin.js'
 
 export function define(plugin: Plugin): Plugin {
   return plugin

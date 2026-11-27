@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

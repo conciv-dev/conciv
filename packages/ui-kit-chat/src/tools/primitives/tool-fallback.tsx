@@ -2,6 +2,7 @@ import {createContext, createMemo, useContext, type Accessor, type JSX} from 'so
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import type {ToolViewCtx} from '@conciv/types/tool-view-types'
 import {toolStatus, type ToolStatus} from './tool-status.js'
+import {chatKitErrors} from '@conciv/errors'
 
 function argsText(part: ToolCallPart): string {
   const raw = part.arguments?.trim() ?? ''
@@ -42,7 +43,8 @@ const ToolFallbackContext = createContext<ToolFallbackContextValue>()
 
 export function useToolFallback(): ToolFallbackContextValue {
   const context = useContext(ToolFallbackContext)
-  if (!context) throw new Error('ToolFallback sub-components must be used within ToolFallback.Root')
+  if (!context)
+    throw chatKitErrors.OUTSIDE_PROVIDER({part: 'ToolFallback sub-components', provider: 'ToolFallback.Root'})
   return context
 }
 

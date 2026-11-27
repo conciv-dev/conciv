@@ -1,9 +1,12 @@
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {ToolEditor} from '@conciv/backend-plugin-api/effect/tool'
 import type {Renderer} from '@takumi-rs/core'
-import {confirmed, fail, toolEdge, type Confirm} from './refusal.js'
+import {confirmed, toolEdge, type Confirm} from './refusal.js'
 import {registerCanvas, type CanvasDeadlines} from './canvas-tools.js'
 import {Clock, Effect} from 'effect'
+import type {EvlogError} from 'evlog'
+import {storeErrors} from './errors/store-errors.js'
+import {toolErrors} from './errors/tool-errors.js'
 import {z} from 'zod'
 import type {Store} from './store.js'
 import {json} from './rows.js'
@@ -29,7 +32,7 @@ const CommentOutput = z
 
 const commentByCid = Effect.fn('whiteboard.comment.byCid')(function* (store: Store, room: string, cid: string) {
   const row = (yield* store.comments.list(room)).find((comment) => comment.cid === cid)
-  if (!row) return yield* fail({code: 'COMMENT_NOT_FOUND', message: `comment ${cid} not found`})
+  if (!row) return yield* Effect.fail(toolErrors.COMMENT_NOT_FOUND({cid}))
   return row
 })
 
@@ -46,12 +49,19 @@ const removeThread = Effect.fn('whiteboard.comment.removeThread')(function* (
 
 const pinByCid = Effect.fn('whiteboard.pin.byCid')(function* (store: Store, room: string, cid: string) {
   const row = (yield* store.pins.list(room)).find((pin) => pin.cid === cid)
-  if (!row) return yield* fail({code: 'PIN_NOT_FOUND', message: `no pin for comment ${cid}`})
+  if (!row) return yield* Effect.fail(toolErrors.PIN_NOT_FOUND({cid}))
   return row
 })
 
-const pinNotFound = (cid: string) => () => fail({code: 'PIN_NOT_FOUND', message: `no pin for comment ${cid}`})
-const commentNotFound = (cid: string) => () => fail({code: 'COMMENT_NOT_FOUND', message: `comment ${cid} not found`})
+const isRowNotFound = (error: EvlogError) => error.code === storeErrors.ROW_NOT_FOUND.code
+const pinNotFound =
+  (cid: string) =>
+  <Value>(work: Effect.Effect<Value, EvlogError>) =>
+    work.pipe(Effect.catchIf(isRowNotFound, () => Effect.fail(toolErrors.PIN_NOT_FOUND({cid}))))
+const commentNotFound =
+  (cid: string) =>
+  <Value>(work: Effect.Effect<Value, EvlogError>) =>
+    work.pipe(Effect.catchIf(isRowNotFound, () => Effect.fail(toolErrors.COMMENT_NOT_FOUND({cid}))))
 
 function registerComments(
   editor: ToolEditor,
@@ -123,7 +133,7 @@ function registerComments(
     name: 'reply',
     options: COMMENT_OPTIONS,
     description:
-      'Add a threaded reply to an existing comment; the reply joins the same thread. Fails COMMENT_NOT_FOUND.',
+      'Add a threaded reply to an existing comment; the reply joins the same thread. Fails whiteboard.tool.COMMENT_NOT_FOUND.',
     input: z.object({
       cid: z.string(),
       parts: z.array(json),
@@ -168,7 +178,7 @@ function registerComments(
   editor.add({
     name: 'read',
     options: COMMENT_OPTIONS,
-    description: 'Read a comment and its full thread of replies. Fails COMMENT_NOT_FOUND.',
+    description: 'Read a comment and its full thread of replies. Fails whiteboard.tool.COMMENT_NOT_FOUND.',
     input: z.object({cid: z.string()}),
     output: z.object({comment: CommentOutput, replies: z.array(CommentOutput)}),
     execute: ({cid}, {sessionId}) =>
@@ -209,7 +219,7 @@ function registerComments(
     name: 'resolve',
     options: COMMENT_OPTIONS,
     description:
-      'Mark a comment resolved once it has been addressed. The user is asked to confirm. Fails COMMENT_NOT_FOUND.',
+      'Mark a comment resolved once it has been addressed. The user is asked to confirm. Fails whiteboard.tool.COMMENT_NOT_FOUND.',
     input: z.object({cid: z.string()}),
     output: z.object({cid: z.string(), status: z.literal('resolved')}),
     execute: ({cid}, invocation) =>
@@ -221,7 +231,7 @@ function registerComments(
               const now = yield* Clock.currentTimeMillis
               yield* store.comments
                 .update(invocation.sessionId, comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
-                .pipe(Effect.catchTag('RowNotFound', commentNotFound(cid)))
+                .pipe(commentNotFound(cid))
               return {output: {cid, status: 'resolved' as const}}
             }),
           ),
@@ -232,7 +242,7 @@ function registerComments(
     name: 'delete',
     options: COMMENT_OPTIONS,
     description:
-      'Remove a comment; deleting a thread root removes the whole thread and its canvas pin. Destructive: the user is asked to confirm. Fails COMMENT_NOT_FOUND.',
+      'Remove a comment; deleting a thread root removes the whole thread and its canvas pin. Destructive: the user is asked to confirm. Fails whiteboard.tool.COMMENT_NOT_FOUND.',
     input: z.object({cid: z.string()}),
     output: z.object({cid: z.string(), deleted: z.literal(true)}),
     execute: ({cid}, invocation) =>
@@ -256,14 +266,14 @@ function registerComments(
   editor.add({
     name: 'move',
     options: COMMENT_OPTIONS,
-    description: 'Move a comment pin to new scene coordinates. Fails PIN_NOT_FOUND.',
+    description: 'Move a comment pin to new scene coordinates. Fails whiteboard.tool.PIN_NOT_FOUND.',
     input: z.object({cid: z.string(), x: z.number(), y: z.number()}),
     output: z.object({cid: z.string(), x: z.number(), y: z.number()}),
     execute: ({cid, x, y}, {sessionId}) =>
       toolEdge(
         Effect.gen(function* () {
           const pin = yield* pinByCid(store, sessionId, cid)
-          yield* store.pins.update(sessionId, pin.id, {x, y}).pipe(Effect.catchTag('RowNotFound', pinNotFound(cid)))
+          yield* store.pins.update(sessionId, pin.id, {x, y}).pipe(pinNotFound(cid))
           return {output: {cid, x, y}}
         }).pipe(Effect.tap(() => moveAgentCursor(sessionId, {x, y}))),
       ),
@@ -272,14 +282,14 @@ function registerComments(
     name: 'set_state',
     options: PIN_OPTIONS,
     description:
-      'Set a pin to locked (tracks its element) or offset (floats at a custom position). Fails PIN_NOT_FOUND.',
+      'Set a pin to locked (tracks its element) or offset (floats at a custom position). Fails whiteboard.tool.PIN_NOT_FOUND.',
     input: z.object({cid: z.string(), pinState: z.enum(['locked', 'offset'])}),
     output: z.object({cid: z.string(), pinState: z.enum(['locked', 'offset'])}),
     execute: ({cid, pinState}, {sessionId}) =>
       toolEdge(
         Effect.gen(function* () {
           const pin = yield* pinByCid(store, sessionId, cid)
-          yield* store.pins.update(sessionId, pin.id, {pinState}).pipe(Effect.catchTag('RowNotFound', pinNotFound(cid)))
+          yield* store.pins.update(sessionId, pin.id, {pinState}).pipe(pinNotFound(cid))
           return {output: {cid, pinState}}
         }),
       ),
@@ -311,7 +321,7 @@ function registerAnchors(editor: ToolEditor, store: Store, resolver: LoadResolve
     name: 'resolve',
     options: ANCHOR_OPTIONS,
     description:
-      'Check whether a source-linked comment still points at its element: fresh, moved, drifted, orphaned or ambiguous. Fails COMMENT_NOT_FOUND.',
+      'Check whether a source-linked comment still points at its element: fresh, moved, drifted, orphaned or ambiguous. Fails whiteboard.tool.COMMENT_NOT_FOUND.',
     input: z.object({cid: z.string()}),
     output: z.object({
       status: z.enum(['fresh', 'moved', 'drifted', 'orphaned', 'ambiguous']),

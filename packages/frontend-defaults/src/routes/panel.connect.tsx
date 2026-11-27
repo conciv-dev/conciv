@@ -33,13 +33,12 @@ function ConnectRoute(): JSX.Element {
     bind.mutate(server)
   }
 
+  const classification = () => classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE)
+
   return (
     <Show when={bind.isError ? bind.variables : undefined} keyed>
       {(server) => (
-        <ErrorScreen
-          message={classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).message}
-          onRetry={() => retry(server)}
-        />
+        <ErrorScreen message={classification().message} detail={classification().fix} onRetry={() => retry(server)} />
       )}
     </Show>
   )

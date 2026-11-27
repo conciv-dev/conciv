@@ -58,6 +58,7 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@chenglou/pretext": "1.0.0",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",

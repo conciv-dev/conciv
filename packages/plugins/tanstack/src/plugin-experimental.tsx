@@ -16,6 +16,7 @@ import {OpaqueUi, type InternalUi} from '@internal/frontend-app-api'
 import {PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {tanstackToolLabel, tanstackToolName, type TanstackToolName} from './tool-labels.js'
 import {errorRingLayer} from './error-ring.js'
+import {tanstackErrors} from './errors/errors.js'
 import {execute} from './operations.js'
 import {
   AppError,
@@ -58,7 +59,7 @@ function tanstackOperation<const Name extends Operation['name']>(name: Name): Ex
   const operation = Operations.find(
     (candidate): candidate is Extract<Operation, {name: Name}> => candidate.name === name,
   )
-  if (operation === undefined) throw new Error(`no tanstack operation named ${name}`)
+  if (operation === undefined) throw tanstackErrors.OPERATION_UNKNOWN({name})
   return operation
 }
 

@@ -8,6 +8,7 @@ import {PageRaisedErrorSchema} from './page-types.js'
 import {RawFrameSchema, SourceLocSchema} from '@conciv/protocol'
 import {toolFailure, type Connection} from './connection.js'
 import {PageFiles} from './files.js'
+import {pageErrors} from './errors/errors.js'
 import {
   CliTools,
   Operations,
@@ -176,11 +177,9 @@ function decodeResult(operation: Operation, result: Result) {
       : result.value
     const decoded = operation.output.safeParse(value)
     if (decoded.success) return decoded.data
+    const invalid = pageErrors.RESULT_INVALID({operation: operation.name, cause: decoded.error})
     return yield* Effect.fail(
-      Tool.toolError({
-        message: `Page returned an invalid result for page.${operation.name}. Check that the engine and the page run compatible versions. Do not retry the same action to repair a protocol error; it may already have run. Report the mismatch if versions match.`,
-        error: decoded.error,
-      }),
+      Tool.toolError({message: `${invalid.message} ${pageErrors.RESULT_INVALID.fix}`, error: invalid}),
     )
   })
 }
@@ -188,12 +187,9 @@ function decodeResult(operation: Operation, result: Result) {
 function files(value: unknown) {
   const decoded = JsonObject.safeParse(value)
   if (decoded.success) return Effect.succeed(decoded.data)
+  const malformed = pageErrors.FILES_MALFORMED({cause: decoded.error})
   return Effect.fail(
-    Tool.toolError({
-      message:
-        'Page returned malformed file output. Check engine and page compatibility and report the invalid response; do not repeat the capture to repair a protocol error.',
-      error: decoded.error,
-    }),
+    Tool.toolError({message: `${malformed.message} ${pageErrors.FILES_MALFORMED.fix}`, error: malformed}),
   )
 }
 

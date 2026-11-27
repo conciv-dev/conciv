@@ -15,6 +15,7 @@ import type {HarnessSessionId, SessionId} from '@conciv/types/chat-types'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {ConversationSkeleton} from '../pane/indicators.js'
 import {createResumeCopy} from './resume-copy.js'
+import {widgetErrors} from '@conciv/errors'
 
 type PreviewTarget = {
   title: string
@@ -25,7 +26,6 @@ type PreviewTarget = {
 }
 
 const PAGE_LIMIT = 40
-const READ_ONLY = 'the session preview is read-only'
 const FOCUS_THREAD = 'Alt+ArrowRight'
 const BACK_TO_SEARCH = 'Alt+ArrowLeft'
 const CLOSE = 'Escape'
@@ -170,7 +170,7 @@ function PreviewThread(props: {
 }): JSX.Element {
   const matched = untrack(() => props.matched)
   const messages = createMemo(() => props.windows.toReversed().flatMap((window) => window.messages))
-  const readOnly = () => Promise.reject(new Error(READ_ONLY))
+  const readOnly = () => Promise.reject(widgetErrors.PREVIEW_READ_ONLY())
   const chat: Chat = {
     messages,
     error: () => undefined,

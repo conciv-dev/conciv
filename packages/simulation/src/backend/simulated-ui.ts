@@ -8,13 +8,13 @@ import {
   SemanticSnapshotSchema,
   uiContract,
   UiStateSchema,
-  simulationErrors,
   WidgetDrive,
   type UiCapability,
   type WidgetOutcome,
   type WidgetRequest,
 } from '@conciv/protocol/simulation'
 import * as SimulationControlServer from '../control-server.js'
+import {simulationErrors} from '@conciv/errors'
 
 const WIDGET_CAPABILITIES: readonly UiCapability[] = [
   'ui.type',

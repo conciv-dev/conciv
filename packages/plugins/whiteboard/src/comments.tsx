@@ -1,5 +1,6 @@
 import {createContext, onCleanup, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {createCommentsModel, type ChatCover, type CommentsModel} from './comments-model.js'
+import {canvasErrors} from './errors/canvas-errors.js'
 
 const CommentsContext = createContext<CommentsModel>()
 
@@ -24,6 +25,6 @@ export function CommentsProvider(props: {
 
 export function useComments(): CommentsModel {
   const model = useContext(CommentsContext)
-  if (!model) throw new Error('useComments must be used inside a CommentsProvider')
+  if (!model) throw canvasErrors.COMMENTS_MISSING()
   return model
 }

@@ -147,7 +147,7 @@ async function forward(line) {
     await send(line)
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError'
-    failed(line, timedOut ? 'timed out' : String(error))
+    failed(line, timedOut ? 'timed out' : error instanceof Error ? error.message : String(error))
   }
 }
 

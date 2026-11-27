@@ -1,5 +1,6 @@
 import photonWasm from './photon-wasm.node.js'
 import type {Content as ImageContent, Limits} from '@conciv/backend-app-api/core/image'
+import {imageErrors} from '@conciv/errors'
 
 export type Photon = typeof import('@silvia-odwyer/photon-node')
 export type Content = ImageContent & {readonly encoding: 'base64'}
@@ -24,7 +25,7 @@ const JPEG_QUALITIES: readonly [number, ...number[]] = [80, 70, 55, 40]
 export const available = photonWasm !== ''
 
 export async function load(): Promise<Photon> {
-  if (!available) throw new Error('photon wasm is unavailable')
+  if (!available) throw imageErrors.WASM_UNAVAILABLE()
   return await import('@silvia-odwyer/photon-node')
 }
 

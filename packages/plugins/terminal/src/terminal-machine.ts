@@ -1,3 +1,4 @@
+import type {EvlogError} from 'evlog'
 import type {MountedSession} from '@conciv/frontend-plugin-api'
 
 export type LiveTerminal = {
@@ -11,13 +12,13 @@ export type TerminalRun = {
   readonly generation: number
   readonly restarting: boolean
   readonly live: LiveTerminal | null
-  readonly failure: {readonly key: string; readonly message: string} | null
+  readonly failure: {readonly key: string; readonly error: EvlogError} | null
 }
 
 export type TerminalEvent =
   | {readonly type: 'opened'; readonly live: LiveTerminal}
   | {readonly type: 'closed'; readonly key: string}
-  | {readonly type: 'failed'; readonly key: string; readonly message: string}
+  | {readonly type: 'failed'; readonly key: string; readonly error: EvlogError}
   | {readonly type: 'retried'}
   | {readonly type: 'restart.requested'; readonly session: MountedSession; readonly key: string}
   | {readonly type: 'restart.done'}
@@ -70,7 +71,7 @@ export function transitionTerminal(state: TerminalRun, event: TerminalEvent): Te
     case 'closed':
       return stay(state.live?.key === event.key ? {...state, live: null} : state)
     case 'failed':
-      return stay({...state, failure: {key: event.key, message: event.message}})
+      return stay({...state, failure: {key: event.key, error: event.error}})
     case 'retried':
       return stay(nextGeneration(state))
     case 'restart.requested':

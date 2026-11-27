@@ -26,7 +26,7 @@ Top-level engine modules. `createBackend` (`start.ts`, the package's `./backend`
 - `onError` (`app.ts`): HTTPException keeps its status; anything else is 500 'internal error'
 - `/api/shutdown` (`app.ts`): 404 without `onShutdown`
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
-- `EventFeed` (`event-feed.ts`): only public events pass (`server.connected`, `EventManifest` server events, `rpc.*`), so internal events take no subscriber capacity; a subscriber with `types` gets only those types (filtered on the server); each event is encoded once and the same object goes to every subscriber; a subscriber whose queue holds 4096 undelivered events is removed and its stream fails with `SubscriberOverflowError`, the others go on; an encoding failure is logged and fails every current subscriber with `EncodingError`, later subscribers are served; a subscriber is removed and its queue shut down when its scope closes
+- `EventFeed` (`event-feed.ts`): only public events pass (`server.connected`, `EventManifest` server events, `rpc.*`), so internal events take no subscriber capacity; a subscriber with `types` gets only those types (filtered on the server); each event is encoded once and the same object goes to every subscriber; a subscriber whose queue holds 4096 undelivered events is removed and its stream fails with `engine-runtime.SUBSCRIBER_OVERFLOW`, the others go on; an encoding failure is logged and fails every current subscriber with `engine-runtime.EVENT_ENCODING_FAILED`, later subscribers are served; a subscriber is removed and its queue shut down when its scope closes
 
 ## Side Effects
 

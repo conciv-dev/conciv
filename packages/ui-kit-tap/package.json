@@ -51,6 +51,7 @@
     "@tiptap/suggestion": "^3.32.0"
   },
   "devDependencies": {
+    "@conciv/errors": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vite-config": "workspace:*",

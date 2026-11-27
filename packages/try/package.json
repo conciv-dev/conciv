@@ -41,6 +41,7 @@
   "dependencies": {
     "@clack/prompts": "catalog:",
     "@conciv/backend": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/types": "workspace:^",
     "citty": "catalog:",

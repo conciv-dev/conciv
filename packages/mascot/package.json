@@ -111,6 +111,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "gsap": "catalog:"
   },
   "devDependencies": {

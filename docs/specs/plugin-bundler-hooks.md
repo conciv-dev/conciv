@@ -11,38 +11,51 @@ reach the host's bundler; only `@conciv/unplugin` does, and it holds no plugin c
 
 ## Rulings
 
-1. A plugin's bundler part is one optional property on the existing plugin definition, not a new export, not a new
-   `define`, and not a per-plugin line in the host's bundler config:
+1. A plugin's bundler part is a `ctx.bundler` domain the plugin uses inside its `effect` (and `setup` on the promise
+   entry), as opencode contributes everything through ctx domains (`packages/plugin/src/effect/command.ts`
+   `transform: Transform<CommandEditor>`, `CommandEditor.add`) and as our own `ctx.tool` and `ctx.skill` do (Decision
+   D1). It is not a property on the plugin definition, not a new export, not a new `define`, and not a per-plugin line
+   in the host's bundler config. Static hooks could not reach state the plugin creates in `effect` (the design plugin
+   keeps a key map per dev server), and module state is banned:
 
    ```ts
    export default Plugin.define({
      id: 'design',
-     effect: (ctx) => ...,
-     bundler: {transform, resolveId, load},
+     effect: (ctx) =>
+       Effect.gen(function* () {
+         const keys = new Map<string, string>()
+         yield* ctx.bundler.transform((editor) => editor.add({transform: (code, id) => stamp(keys, code, id)}))
+       }),
    })
    ```
 
-2. `bundler` is optional. A plugin without it changes nothing, and with no plugin carrying it the host's build is
+2. A plugin that never calls `ctx.bundler.transform` changes nothing, and with no registration the host's build is
    byte-for-byte what it is today.
-3. `bundler` takes only unplugin's bundler-neutral hooks: `transform`, `resolveId`, `load`. No Vite, webpack, rspack
-   or esbuild type appears in the plugin API, and unplugin runs the hooks the same way in every bundler it supports.
-   Dev-server routes are out: unplugin has no bundler-neutral server hook.
-4. The code of any plugin lives only in `packages/plugins/<name>`. `@conciv/unplugin` only reads the property and
-   runs it; it knows no plugin by name.
+3. `editor.add` takes only unplugin's bundler-neutral hooks: `transform`, `resolveId`, `load`. No Vite, webpack,
+   rspack or esbuild type appears in the plugin API, and unplugin runs the hooks the same way in every bundler it
+   supports. Dev-server routes are out: unplugin has no bundler-neutral server hook.
+4. The code of any plugin lives only in `packages/plugins/<name>`. `@conciv/unplugin` only calls the engine's chain;
+   it knows no plugin by name.
 
 ## Shape
 
-- `@conciv/backend-plugin-api`: the `Plugin` interface (effect and promise entries, `src/effect/plugin.ts` and the
-  promise twin `src/promise/plugin.ts`) gains `readonly bundler?: Bundler`. `Bundler` is a plain object of the three
-  hooks, typed in this package without importing `unplugin` types into the public API. On the Effect entry every hook
-  returns an Effect with an `unknown` error channel, as opencode's Effect entry types every plugin callback:
-  `transform(code, id)` returns `Effect<{code, map?} | string | null | undefined>`, `resolveId(id, importer)` returns
-  `Effect<string | null | undefined>`, `load(id)` returns `Effect<{code, map?} | string | null | undefined>`. The
-  promise twin types the same hooks promise-style (a value or a promise of it), and `fromPromise`
-  (`src/promise/adapter.ts`) adapts each present hook to its Effect form.
+- `@conciv/backend-plugin-api`: `Context` (effect and promise entries, `src/effect/plugin.ts` and the promise twin
+  `src/promise/plugin.ts`) gains `readonly bundler: BundlerDomain`, typed in `src/effect/bundler.ts` and
+  `src/promise/bundler.ts` as every other domain and re-exported from `src/effect/plugin.ts`, with
+  `BundlerDomain = {transform: Transform<BundlerEditor>}` and `BundlerEditor = {add(hooks: BundlerHooks): void}`.
+  `BundlerHooks` is a plain object of the three hooks, typed in this package without importing `unplugin` types into
+  the public API. On the Effect entry every hook returns an Effect with an `unknown` error channel, as opencode's
+  Effect entry types every plugin callback: `transform(code, id)` returns `Effect<{code, map?} | string | null |
+  undefined>`, `resolveId(id, importer)` returns `Effect<string | null | undefined>`, `load(id)` returns
+  `Effect<{code, map?} | string | null | undefined>`, and `transform` returns `Effect<Registration, never, Scope>`.
+  The promise twin types the same hooks promise-style (a value or a promise of it) and `transform` returns
+  `Promise<Registration>`; `fromPromise` (`src/promise/adapter.ts`) adapts each added hook to its Effect form.
+- Registrations live with the plugin's scope, as every other domain transform: they go when the plugin stops,
+  reloads or is disabled, and `Registration.dispose` removes one early. The engine's plugin registry keeps them in
+  one `State.create` (`backend-app-api/src/core/state.ts`), the same store `ctx.skill` and `ctx.agent` use.
 - Where the chain runs: unplugin already boots the engine in the dev server's own process
   (`packages/unplugin/src/core/boot.ts`, `start` from `@conciv/backend/start`). The engine's plugin registry
-  (`backend-app-api/src/core/plugin.ts`) runs the chain over the running plugins in load order, and the `Engine` that
+  (`backend-app-api/src/core/plugin.ts`) runs the chain over the registrations in plugin load order, and the `Engine` that
   `start` returns exposes it as `bundler: {transform, resolveId, load}`, promise-returning. unplugin only awaits the
   engine and calls those three; it keeps no copy, chains nothing and holds no module state.
 - Order: conciv's own `data-tsd-source` stamp (`core/vite.ts` `stampJsxSource`) runs first, then each plugin's
@@ -58,11 +71,14 @@ reach the host's bundler; only `@conciv/unplugin` does, and it holds no plugin c
 ## Tests
 
 - `packages/unplugin/test/it`: a dev server on the existing fixture app with one test plugin carrying a `transform`
-  and a virtual module through `resolveId` + `load`: the served module shows the transform after the source stamp,
-  and an import of the virtual id resolves. A plugin without `bundler` leaves the output unchanged. Fold into the
+  and a virtual module through `resolveId` + `load`, registered with `ctx.bundler` in its `setup`: the served module
+  shows the transform after the source stamp, and an import of the virtual id resolves. A plugin that registers no
+  hooks leaves the output unchanged. Fold into the
   existing `vite.it.test.ts` journey where it fits.
 - Nothing is added to product code for the test (AGENTS.md "No code exists for tests").
 
 ## Opencode
 
-opencode has no equivalent: it never compiles a host app's code. The pattern followed is unplugin's own hook set.
+opencode never compiles a host app's code, so it has no bundler hooks; the hook set is unplugin's own. The way a
+plugin contributes them is opencode's: a ctx domain with a `transform(editor => editor.add(...))` registration, as its
+`command` domain.

@@ -15,7 +15,9 @@ const NoticeSchema = z.object({
   resume: z.boolean().optional(),
 })
 
-const ConflictSchema = z.object({sessionID: z.string(), inputID: z.string()})
+const ConflictSchema = z.object({internal: z.object({sessionID: z.string(), inputID: z.string()})})
+
+const CodedSchema = z.object({code: z.string()})
 
 export default Plugin.define({
   id: 'inbox-notices',
@@ -54,8 +56,9 @@ export default Plugin.define({
             (admitted) => ({output: admitted}),
             (error: unknown) => ({
               output: {
-                refused: error instanceof Error ? error.name : String(error),
-                conflict: ConflictSchema.safeParse(error).data,
+                refused:
+                  CodedSchema.safeParse(error).data?.code ?? (error instanceof Error ? error.name : String(error)),
+                conflict: ConflictSchema.safeParse(error).data?.internal,
               },
             }),
           )

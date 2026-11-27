@@ -1,4 +1,4 @@
-import {Effect, Fiber, FiberHandle, Ref, Schema, Semaphore, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
+import {Effect, Fiber, FiberHandle, Ref, Semaphore, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
 import {onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import type {Context} from '@conciv/frontend-plugin-api'
@@ -6,20 +6,11 @@ import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
 import {TestRunnerFollowMachine} from './follow-machine.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
+import {causeFrom, testRunnerErrors} from './errors/errors.js'
 
 type Client = Context['client']
 
 export type TestRunnerRuntime = ManagedRuntime.ManagedRuntime<never, never>
-
-const ReadFailed = Schema.TaggedStruct('TestRunner.ReadFailed', {cause: Schema.Defect()})
-type ReadFailed = typeof ReadFailed.Type & globalThis.Error
-const makeReadFailed = (fields: Omit<typeof ReadFailed.Type, '_tag'>): ReadFailed =>
-  Object.assign(new globalThis.Error(), ReadFailed.make(fields), {name: 'TestRunner.ReadFailed'})
-
-const StreamFailed = Schema.TaggedStruct('TestRunner.StreamFailed', {cause: Schema.Defect()})
-type StreamFailed = typeof StreamFailed.Type & globalThis.Error
-const makeStreamFailed = (fields: Omit<typeof StreamFailed.Type, '_tag'>): StreamFailed =>
-  Object.assign(new globalThis.Error(), StreamFailed.make(fields), {name: 'TestRunner.StreamFailed'})
 
 const TEST_EVENT = 'rpc.test-runner.event'
 
@@ -31,7 +22,7 @@ function readRun(client: Client) {
       const current = await runner.current(undefined, {signal})
       return {status, current}
     },
-    catch: (cause) => makeReadFailed({cause}),
+    catch: (cause) => testRunnerErrors.RUN_READ_FAILED(causeFrom(cause)),
   })
 }
 
@@ -53,7 +44,7 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
     readRun(client).pipe(
       Effect.matchEffect({
         onSuccess: ({status, current}) => dispatch({type: 'read-done', attempt, status, current}),
-        onFailure: (error) => dispatch({type: 'read-failed', attempt, error: error.cause}),
+        onFailure: (error) => dispatch({type: 'read-failed', attempt, error}),
       }),
     )
 
@@ -79,10 +70,10 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
   yield* Stream.fromAsyncIterable(client.event.subscribe({types: [TEST_EVENT]}), (cause) =>
-    makeStreamFailed({cause}),
+    testRunnerErrors.EVENTS_FAILED(causeFrom(cause)),
   ).pipe(
     Stream.runForEach((event) => dispatch(decodeEvent(event))),
-    Effect.catch((error) => dispatch({type: 'stream-failed', error: error.cause})),
+    Effect.catch((error) => dispatch({type: 'stream-failed', error})),
   )
 })
 

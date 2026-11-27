@@ -1,6 +1,7 @@
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import type {BridgePluginExperimental, BridgePluginExperimentals} from './startup'
+import {widgetPluginErrors} from '@conciv/errors'
 
 export const PLUGIN_EXPERIMENTAL_INITIAL_TIMEOUT_MS = 10_000
 
@@ -92,7 +93,7 @@ export function transitionPluginExperimental(
         {type: 'publish', plugins: [], reserved: []},
         {
           type: 'log',
-          cause: event.type === 'timeout' ? new Error('The engine did not list plugin experimentals') : event.cause,
+          cause: event.type === 'timeout' ? widgetPluginErrors.EXPERIMENTALS_NOT_LISTED() : event.cause,
         },
       ],
     }

@@ -7,7 +7,7 @@ The Solid compound component over the core service (`solid.ts`: `Mascot` with `H
 ## Invariants
 
 - `mascot-context.ts:useMascotContext` - throws `a mascot part can only render inside <Mascot />` outside the root.
-- `use-mascot.ts:createMascotHost` - a second component claiming the same part throws `partAlreadyProvided`.
+- `use-mascot.ts:createMascotHost` - a second component claiming the same part throws `mascotErrors.PART_ALREADY_PROVIDED`.
 
 ## Side Effects
 

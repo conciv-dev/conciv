@@ -9,7 +9,8 @@ import {EvlogHandlerPlugin, getEvlogLogger, type EvlogLoggerContext} from '@orpc
 import type {DrainContext, RequestLogger} from 'evlog'
 import {valid} from 'semver'
 import {z} from 'zod'
-import {ENGINE_ERROR_STATUS, SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
+import {serveErrors} from '@conciv/errors'
+import {ENGINE_ERROR_STATUS, failureText, SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
 import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/types/rpc-types'
 
 const ADAPTER_REFUSED_STATUS = 500
@@ -202,12 +203,6 @@ function peerSocket(held: {socket: WSContext<unknown> | null}): WebSocketLike {
   return {send: (data) => held.socket?.send(data)}
 }
 
-function splitAdapterError(): Error {
-  return new Error(
-    'the rpc websocket upgrade was refused by the hono node-server adapter: the upgradeWebSocket passed to rpcWebsocketRoute comes from a different @hono/node-server module instance than the running server. Import it from @conciv/serve so both come from one instance.',
-  )
-}
-
 export function rpcWebsocketRoute(
   router: AnyRouter,
   options: RpcHandlerSetup & {
@@ -235,7 +230,9 @@ export function rpcWebsocketRoute(
     const context = gate === undefined ? connection : {...connection, socket: gate.trust}
     const peer = peerSocket(held)
     const closePeer = (): void => {
-      handler.close(peer).catch((error: unknown) => options.onError?.(`rpc ws peer close failed: ${String(error)}`))
+      handler
+        .close(peer)
+        .catch((error: unknown) => options.onError?.(`rpc ws peer close failed: ${failureText(error)}`))
     }
     return {
       onOpen: (_event, ws) => {
@@ -268,7 +265,7 @@ export function rpcWebsocketRoute(
             if (!matched) return refuse('not an rpc message')
             replying.resolve(ws.readyState === SOCKET_OPEN)
           },
-          (error: unknown) => refuse(String(error)),
+          (error: unknown) => refuse(failureText(error)),
         )
       },
       onClose: () => {
@@ -286,8 +283,8 @@ export function rpcWebsocketRoute(
     const upgrading = c.req.header('upgrade')?.toLowerCase() === 'websocket'
     const refused = response instanceof Response && response.status === ADAPTER_REFUSED_STATUS
     if (adapted.handled || !upgrading || !refused) return response
-    const failure = splitAdapterError()
-    options.onError?.(failure.message)
+    const failure = serveErrors.SPLIT_ADAPTER()
+    options.onError?.(`${failure.message} ${failure.fix}`)
     throw failure
   }
 }

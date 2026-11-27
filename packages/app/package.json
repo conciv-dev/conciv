@@ -42,6 +42,7 @@
     "@ark-ui/solid": "catalog:",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",

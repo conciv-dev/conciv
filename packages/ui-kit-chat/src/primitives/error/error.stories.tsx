@@ -5,6 +5,7 @@ import {createChat, type Chat} from '@conciv/client/chat'
 import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection} from '@internal/test-utils'
 import {Error} from './error.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/Error'}
 export default meta
@@ -13,7 +14,10 @@ type Story = StoryObj
 function ErrorApp(props: {expose: (chat: Chat) => void}): JSX.Element {
   const chat = createChat({
     threadId: 'error',
-    connection: storyConnection({shouldError: true, error: new globalThis.Error('Stream failed: 500')}),
+    connection: storyConnection({
+      shouldError: true,
+      error: storyErrors.SAMPLE_FAILURE({detail: 'Stream failed: 500'}),
+    }),
   })
   onMount(() => props.expose(chat))
   return (

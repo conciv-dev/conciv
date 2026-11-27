@@ -1,5 +1,6 @@
 import {Effect, Option} from 'effect'
-import {isSecretPath, readSource, type SourceUnreadable} from './anchor-confine.js'
+import type {EvlogError} from 'evlog'
+import {isSecretPath, readSource} from './anchor-confine.js'
 import {captureSource, hashAt, scanElements, type ElementFingerprint, type SourceAnchor} from './oxc-capture.js'
 import {headCommit, isCommittedClean, mapLineAcrossCommits} from './git-track.js'
 
@@ -14,7 +15,7 @@ type ResolveResult = {
 }
 type PickedTarget = {file: string; line: number; column: number}
 export type AnchorResolver = {
-  capture(target: PickedTarget): Effect.Effect<Anchor, SourceUnreadable>
+  capture(target: PickedTarget): Effect.Effect<Anchor, EvlogError>
   resolve(anchor: Anchor): Effect.Effect<ResolveResult>
   locate(file: string, component: string): Effect.Effect<PickedTarget | null>
 }

@@ -1,5 +1,6 @@
 import {createMemo} from 'solid-js'
 import {z} from 'zod'
+import {EvlogError} from 'evlog'
 import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {EngineClient} from '@conciv/client'
 import type {QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
@@ -9,18 +10,21 @@ import {useLiveSessions} from '../app/context.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 import {SESSION_DELETED_MESSAGE, sessionDeleted} from './run-error-row.js'
-import {rpcErrorCode, SESSION_NOT_FOUND_MESSAGE} from '../shell/rpc-error-message.js'
+import {errorFix, rpcErrorCode, SESSION_NOT_FOUND_MESSAGE} from '../shell/rpc-error-message.js'
+import {widgetErrors} from '@conciv/errors'
 
-const SendRejectionSchema = z.object({
-  rejected: z.literal(true),
-  message: z.string().nullable(),
-  tone: z.enum(['info', 'warn']),
-})
+const RefusalToneSchema = z.enum(['info', 'warn']).catch('warn')
 
-type SendRejection = z.infer<typeof SendRejectionSchema>
+function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): EvlogError {
+  if (verdict.message === null) return widgetErrors.SEND_SKIPPED()
+  return widgetErrors.SEND_REFUSED({message: verdict.message, internal: {tone: verdict.tone}})
+}
 
-function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejection {
-  return {rejected: true, message: verdict.message, tone: verdict.tone}
+function sendRefusal(failure: unknown): {message: string; tone: 'info' | 'warn'} | undefined {
+  if (!EvlogError.isEvlogError(failure)) return undefined
+  if (failure.code === widgetErrors.SEND_SKIPPED.code) return {message: '', tone: 'info'}
+  if (failure.code !== widgetErrors.SEND_REFUSED.code) return undefined
+  return {message: failure.message, tone: RefusalToneSchema.parse(failure.internal?.tone)}
 }
 
 function compactFailureMessage(error: unknown): string {
@@ -29,8 +33,6 @@ function compactFailureMessage(error: unknown): string {
 }
 
 const ANSWER_UNSENT = 'Your answer was not sent.'
-
-const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
 
 function failureMessage(failure: unknown): string {
   if (sessionDeleted(failure)) return SESSION_DELETED_MESSAGE
@@ -110,7 +112,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const lastRunFailure = createMemo(() => recordedFailure(deps.chat), undefined, {equals: sameFailure})
   const failureError = createMemo(() => {
     const recorded = lastRunFailure()
-    return recorded === undefined ? undefined : new Error(recorded.message)
+    return recorded === undefined ? undefined : widgetErrors.RUN_FAILED({message: recorded.message})
   })
   const recordedError = (): Error | undefined => (deps.chat.runInProgress() ? undefined : failureError())
   const runError = (): Error | undefined => deps.chat.error() ?? recordedError()
@@ -134,7 +136,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
     await deps.chat.sendMessage(content).catch((error: unknown) => {
-      throw deps.chat.withdrawn() ? WITHDRAWN : error
+      throw deps.chat.withdrawn() ? widgetErrors.SEND_SKIPPED() : error
     })
   }
 
@@ -154,18 +156,17 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   }
 
   const onSendError = (failure: unknown): void => {
-    const rejection = SendRejectionSchema.safeParse(failure)
-    if (rejection.success) {
-      const {message, tone} = rejection.data
-      if (!message) return
+    const refusal = sendRefusal(failure)
+    if (refusal) {
+      if (!refusal.message) return
       notifyUnlessOffline(deps.reachability.sustainedOffline() && deps.reachability.locked() === null, () =>
-        deps.notices.notify(message, {tone}),
+        deps.notices.notify(refusal.message, {tone: refusal.tone}),
       )
       return
     }
     if (failure === visibleError()) return
     notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
-      deps.notices.notify(failureMessage(failure), {tone: 'danger'}),
+      deps.notices.notify(failureMessage(failure), {tone: 'danger', description: errorFix(failure)}),
     )
   }
 

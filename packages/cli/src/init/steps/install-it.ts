@@ -5,7 +5,7 @@ import {captureFile} from '../interrupt.js'
 import type {ManualCard} from '../ledger.js'
 import type {InitStep, SpawnBin} from '../pipeline.js'
 import {hasDependency, readManifest, type PackageJson} from './manifest.js'
-import {cliErrors} from '../../failure.js'
+import {cliErrors} from '@conciv/errors'
 
 const itName = '@conciv/it'
 

@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState, useSyncExternalStore} from 'react'
-import {activityChannels, followChannels, partAlreadyProvided} from '@conciv/mascot/adapter'
+import {activityChannels, followChannels, PART_COMPONENTS} from '@conciv/mascot/adapter'
+import {mascotErrors} from '@conciv/errors'
 import {createMascot, type FollowChannels, type MascotConnect, type MascotPartProps, robotSkin} from '@conciv/mascot'
 import type {ClaimToken, MascotClaims, MascotContextValue, MascotPartName, PartClaim} from './mascot-context.js'
 import type {MascotProps} from './mascot-props.js'
@@ -40,7 +41,8 @@ function createClaimStore(): ClaimStore {
 
   const claimPart = (part: MascotPartName, token: ClaimToken, follow: boolean | undefined) => {
     const current = claims.parts[part]
-    if (current !== undefined && current.token !== token) throw partAlreadyProvided(part)
+    if (current !== undefined && current.token !== token)
+      throw mascotErrors.PART_ALREADY_PROVIDED({part, component: PART_COMPONENTS[part]})
     withPart(part, {token, follow})
     return () => releasePart(part, token)
   }

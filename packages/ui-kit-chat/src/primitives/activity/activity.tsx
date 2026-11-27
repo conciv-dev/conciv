@@ -3,6 +3,7 @@ import type {ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/types/chat
 import {keyBy} from 'es-toolkit'
 import {coalesceTurns, type Turn} from '../../store/grouping.js'
 import {activeCallInParts} from '../../store/active-call.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ActivityLabeler = (part: ToolCallPart) => string
 
@@ -19,7 +20,7 @@ const ActivityContext = createContext<ActivityState>()
 
 export function useActivity(): ActivityState {
   const context = useContext(ActivityContext)
-  if (!context) throw new Error('Activity.* must be used within an Activity.Root')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'Activity.*', provider: 'an Activity.Root'})
   return context
 }
 

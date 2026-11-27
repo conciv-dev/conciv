@@ -1,5 +1,6 @@
 import {useRef, useState} from 'react'
 import {DEFAULT_MODEL, type ModelWorkerResponse, type RunResult} from './models'
+import {siteErrors} from '@conciv/errors'
 
 type ModelStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -47,7 +48,7 @@ export function useLocalModel() {
         pending.current.delete(message.id)
         return
       }
-      pending.current.get(message.id)?.reject(new Error(message.error))
+      pending.current.get(message.id)?.reject(siteErrors.LOCAL_MODEL_RUN_FAILED({reason: message.error}))
       pending.current.delete(message.id)
     })
     workerRef.current = worker

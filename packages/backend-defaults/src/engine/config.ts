@@ -15,6 +15,7 @@ import {
 } from '@conciv/types/chat-types'
 import {Config, type ConfigProvider, Effect, Option, Result} from 'effect'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
+import {engineRuntimeErrors, observabilityErrors} from '@conciv/errors'
 
 export type {ConcivConfig} from '@conciv/types/config-types'
 export {defineConfig} from '@conciv/types/config-types'
@@ -53,7 +54,7 @@ function resolveSessionId(candidates: (string | undefined)[]): SessionId | undef
   const declared = declaredValue(candidates)
   if (declared === undefined) return undefined
   if (!isSessionId(declared)) {
-    throw new Error(`the configured conciv session id "${declared}" is not a conciv session id (ses_...)`)
+    throw engineRuntimeErrors.SESSION_ID_INVALID({declared})
   }
   return declared
 }
@@ -62,9 +63,7 @@ function resolveHarnessSessionId(candidates: (string | undefined)[]): HarnessSes
   const declared = declaredValue(candidates)
   if (declared === undefined) return undefined
   if (!isHarnessSessionId(declared)) {
-    throw new Error(
-      `the configured harness session id "${declared}" is not a harness session id (up to 128 characters of A-Z, a-z, 0-9, "_" and "-")`,
-    )
+    throw engineRuntimeErrors.HARNESS_SESSION_ID_INVALID({declared})
   }
   return declared
 }
@@ -77,7 +76,7 @@ function resolveSystemPrompt(value: string | boolean | undefined): string {
 
 function resolveRetention(value: string | undefined): Retention {
   const parsed = parseRetention(value ?? '7d')
-  if (Result.isFailure(parsed)) throw new Error(`conciv: logRetention: ${parsed.failure}`)
+  if (Result.isFailure(parsed)) throw observabilityErrors.LOG_RETENTION_INVALID({reason: parsed.failure})
   return parsed.success
 }
 
