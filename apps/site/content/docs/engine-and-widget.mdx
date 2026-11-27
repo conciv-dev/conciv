@@ -33,20 +33,6 @@ export default defineConfig({
   widget <-->|websocket, after login| engine`}
 />
 
-<Mermaid
-  look="soft"
-  chart={`flowchart LR
-  subgraph browser[Your browser]
-    widget[Widget on your page]
-  end
-  subgraph machine[Your machine]
-    dev[Dev server with conciv] -->|starts| engine[Engine on 127.0.0.1]
-    engine -->|runs| harness[Agent CLI: claude, codex, ...]
-    outside[Agent in your terminal] -->|MCP| engine
-  end
-  widget <-->|websocket, after login| engine`}
-/>
-
 ## Build plugin
 
 The build plugin is `@conciv/it` in your bundler config. In development it starts the engine and adds the widget to
