@@ -31,16 +31,18 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/types": "workspace:^",
     "@solid-primitives/autofocus": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -52,6 +54,7 @@
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",

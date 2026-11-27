@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/mascot-react": "workspace:*",

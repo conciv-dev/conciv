@@ -61,7 +61,7 @@ export default Plugin.define<RunnerServices>({
     const adapter = getRunner(config.data.runner) ?? vitest
     const manager = yield* adapter
       .create(ctx.location.directory)
-      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
+      .pipe(Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, Effect.die))
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
@@ -115,7 +115,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       execute: () =>
         manager.list(false).pipe(
           Effect.map((output) => ({output})),
-          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+          Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, toolFailure),
         ),
     })
     editor.add({
@@ -196,10 +196,31 @@ export function fail({code, ...failure}: Failure) {
 }
 ```
 
-A typed failure becomes a `Tool.Error` once, at the edge, with `catchTag`:
+A plugin's own errors come from one evlog error catalog, in its `errors.ts`: each entry has a `message`, and `why`
+and `fix` where someone can act on it. Fail with `Effect.fail(deployErrors.TARGET_DOWN({env}))`, and branch on
+`error.code`, never on a tag:
+
+```ts title="errors.ts"
+import {defineErrorCatalog} from 'evlog'
+
+export const deployErrors = defineErrorCatalog('deploy', {
+  TARGET_DOWN: {
+    message: ({env}: {env: string}) => `${env} is not answering`,
+    fix: 'Check that the target is up, then deploy again.',
+  },
+})
+
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    deploy: typeof deployErrors
+  }
+}
+```
+
+A catalog error becomes a `Tool.Error` once, at the edge, with `catchIf` on its code:
 
 ```ts title="packages/plugins/test-runner/src/tools.ts"
-function toolFailure(error: RunnerUnavailable) {
+function toolFailure(error: EvlogError) {
   return Effect.fail(Tool.toolError({message: error.message, error}))
 }
 ```
@@ -275,13 +296,13 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
     status: () => manager.status,
     current: () => manager.current,
     list: (input, call) =>
-      manager
-        .list(input.failedOnly)
-        .pipe(
-          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
+      manager.list(input.failedOnly).pipe(
+        Effect.catchIf(
+          (error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code,
+          (error) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
-          ),
         ),
+      ),
     stop: () => manager.stop.pipe(Effect.as(OK)),
   })
 }

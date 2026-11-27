@@ -5,7 +5,7 @@ import {Effect} from 'effect'
 import {Hono} from 'hono'
 import type {WSContext} from 'hono/ws'
 import {REVOKED_SOCKET_CLOSE_CODE} from '@conciv/client'
-import {engineErrors, type ExchangeRefusal} from '@conciv/protocol'
+import {type ExchangeRefusal} from '@conciv/protocol'
 import {RPC_PREFIX, type RpcSocketGate} from '@conciv/serve/rpc'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
 import {createConcivStateDir} from '@conciv/types/state-types'
@@ -21,6 +21,7 @@ import {os} from './api/rpc/mount.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import type {EngineRuntime} from './lib/logging.js'
 import type {LogWriter} from '../util/observability/host-sink.js'
+import {engineErrors} from '@conciv/errors'
 
 export const AUTH_PROCEDURE_PATHS: readonly string[] = [
   '/rpc/auth/trust',

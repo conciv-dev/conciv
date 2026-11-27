@@ -4,9 +4,9 @@ import {makeRpcClient} from '@conciv/client'
 import {readTrustedBrowsers, revokeBrowsers} from '@conciv/types/engine-trust'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {discoveredEngine, scopedOrigin} from './engine-origin.js'
-import {cliErrors} from './failure.js'
 import {engineAnswer} from './request.js'
 import {handler} from './router/handler.js'
+import {cliErrors} from '@conciv/errors'
 
 const LOGIN_LINK_PARAM = 'conciv_otp'
 

@@ -4,6 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
 import {FieldShell} from './field-shell.js'
 import {Switch} from './switch.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-system/Switch'}
 export default meta
@@ -29,7 +30,7 @@ export const Default: Story = {
     const c = within(canvasElement)
     const toggle = c.getByRole('switch', {name: 'Auto-scroll'})
     const control = canvasElement.querySelector('[data-part="control"]')
-    if (!(control instanceof HTMLElement)) throw new Error('the switch renders no control')
+    if (!(control instanceof HTMLElement)) throw storyErrors.ELEMENT_MISSING({element: 'switch control'})
     const box = control.getBoundingClientRect()
     const y = box.top + box.height / 2
     const drag = (options: {from: number; to: number}) =>
@@ -131,7 +132,8 @@ export const Keyboard: Story = {
     await userEvent.click(canvas.getByText('Archived'))
     await expect(archived).toBeChecked()
     const archivedControl = archived.parentElement?.querySelector('[data-part="control"]')
-    if (!(archivedControl instanceof HTMLElement)) throw new Error('the archived switch renders no control')
+    if (!(archivedControl instanceof HTMLElement))
+      throw storyErrors.ELEMENT_MISSING({element: 'archived switch control'})
     const box = archivedControl.getBoundingClientRect()
     const y = box.top + box.height / 2
     await userEvent.pointer([

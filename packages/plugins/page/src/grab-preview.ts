@@ -1,5 +1,6 @@
 import type {ImagePreview, DomPreview} from '@conciv/grab'
 import {capturePlugins, paintedBackground} from './screenshot.js'
+import {pageErrors} from './errors/errors.js'
 
 const FIT_MIME = 'image/webp'
 
@@ -71,10 +72,12 @@ function readDataUrl(blob: Blob): Promise<string> {
     const reader = new FileReader()
     reader.addEventListener(
       'load',
-      () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('unreadable'))),
+      () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(pageErrors.PREVIEW_UNREADABLE())),
       {once: true},
     )
-    reader.addEventListener('error', () => reject(reader.error ?? new Error('unreadable')), {once: true})
+    reader.addEventListener('error', () => reject(pageErrors.PREVIEW_UNREADABLE({cause: reader.error ?? undefined})), {
+      once: true,
+    })
     reader.readAsDataURL(blob)
   })
 }

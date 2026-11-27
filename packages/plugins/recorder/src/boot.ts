@@ -1,17 +1,12 @@
-import {Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
+import {Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {RecorderControl} from './rpc.js'
 import {RecorderBootMachine} from './boot-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
 
-export const ConfigReadFailed = Schema.TaggedStruct('RecorderConfigReadFailed', {cause: Schema.Defect()})
-export type ConfigReadFailed = typeof ConfigReadFailed.Type
-
-export const StateReadFailed = Schema.TaggedStruct('RecorderStateReadFailed', {cause: Schema.Defect()})
-export type StateReadFailed = typeof StateReadFailed.Type
-
 export function runBoot<Prepared, PrepareFailed>(options: {
   readonly connected: Stream.Stream<boolean>
-  readonly readLive: Effect.Effect<boolean, StateReadFailed>
+  readonly readLive: Effect.Effect<boolean, EvlogError>
   readonly controls: Stream.Stream<RecorderControl>
   readonly selector: Stream.Stream<string | undefined>
   readonly prepare: (selector: string) => Effect.Effect<Prepared, PrepareFailed>
@@ -60,7 +55,7 @@ export function runBoot<Prepared, PrepareFailed>(options: {
     const readLive = options.readLive.pipe(
       Effect.matchEffect({
         onSuccess: (live) => driver.dispatch({type: 'live.read', live}),
-        onFailure: (error) => Effect.logError('recorder: the recorder state could not be read', error.cause),
+        onFailure: (error) => Effect.logError('recorder: the recorder state could not be read', error),
       }),
     )
     yield* options.connected.pipe(

@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Solid compound component over the core service (`solid.ts`: `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots), with the same slots as the React wrapper. Built by `tsdown.config.ts` and, as preserved JSX, by `tsdown.solid-source.config.ts` into `dist/solid`.
+The Solid compound component over the core service (`solid.ts`: `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots), with the same slots as the React wrapper. Built by `vite.config.ts` and, as preserved JSX, by its `source` environment into `dist/solid`.
 
 ## Invariants
 
 - `mascot-context.ts:useMascotContext` - throws `a mascot part can only render inside <Mascot />` outside the root.
-- `use-mascot.ts:createMascotHost` - a second component claiming the same part throws `partAlreadyProvided`.
+- `use-mascot.ts:createMascotHost` - a second component claiming the same part throws `mascotErrors.PART_ALREADY_PROVIDED`.
 
 ## Side Effects
 

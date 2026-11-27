@@ -87,12 +87,18 @@ Rules that hold the layout:
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint` / `pnpm lint:fix`
   (oxlint). Format: `pnpm format` (check) / `pnpm format:fix` (oxfmt). Both: `turbo run quality` /
   `turbo run quality:fix`.
+- Every package that builds runs `vite build` with one `vite.config.ts` calling `libConfig` from
+  `@internal/vite-config` (Vite environments: `client`, or a server environment for node code; declarations from
+  `rolldown-plugin-dts`). The package passes its entries, its own plugins and its extra externals; the helper owns the
+  rest. An environment with several entries is built one file per module, so no `.d.ts` chunk sits outside `exports`;
+  a package that bundles dependencies on purpose sets `bundle: true` and gets one bundled JS build plus one
+  declaration build per entry. No tsdown, no `tsc` in a build script.
 - Lint and format are turbo ROOT tasks (`//#lint`, `//#format`, `//#quality` in `turbo.json`), as Turborepo's
   Oxc guide: one oxlint and one oxfmt over the whole repo, no per-package `lint` script. `//#lint` depends on
   nothing: the `unocss/order` rule reads the one root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`),
   which loads the preset from its source, and the order the preset gives is the same in every package. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
-- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with tsdown and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with `vite build` through `libConfig` (`@internal/vite-config`) and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
@@ -125,7 +131,7 @@ Rules that hold the layout:
 - Disk: the local turbo cache is capped at 5GB and 7 days by turbo's own `cacheMaxSize` and `cacheMaxAge`
   (`turbo.json`); the e2e app builds (`e2e/*` with `.next`, `.output` or `.svelte-kit` output) are not cached;
   agent sessions run with `NODE_DISABLE_COMPILE_CACHE=1` (`.claude/settings.json` `env`, passed through by
-  turbo), so vite and tsdown write no Node compile cache to `/private/tmp`.
+  turbo), so vite writes no Node compile cache to `/private/tmp`.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs `oxlint --fix`
   and then oxfmt on staged files, so whatever the lint autofix rewrites is formatted before it is
   restaged. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.

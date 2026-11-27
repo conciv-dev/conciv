@@ -1,5 +1,6 @@
 import {InstructionEntry, InstructionEntrySchema, Instructions, KV} from '@conciv/backend-app-api'
 import {Effect, Layer, Schema} from 'effect'
+import {instructionsErrors} from '@conciv/errors'
 
 const ENTRY_PREFIX = 'conciv.instruction-entry:'
 const SCAN_LIMIT = 1000
@@ -86,14 +87,7 @@ export const provideInstructionEntries = Layer.effect(
       put: (input) => {
         const actualBytes = Buffer.byteLength(JSON.stringify(input.value), 'utf8')
         const maxBytes = InstructionEntrySchema.MaxValueBytes
-        if (actualBytes > maxBytes)
-          return Effect.fail(
-            InstructionEntrySchema.makeValueTooLargeError({
-              actualBytes,
-              maxBytes,
-              message: `Instruction entry value is ${actualBytes} bytes; the limit is ${maxBytes} bytes`,
-            }),
-          )
+        if (actualBytes > maxBytes) return Effect.fail(instructionsErrors.VALUE_TOO_LARGE({actualBytes, maxBytes}))
         return kv.set(sessionPrefix(input.sessionId) + input.key, {value: input.value, removed: false})
       },
       remove: (input) => {

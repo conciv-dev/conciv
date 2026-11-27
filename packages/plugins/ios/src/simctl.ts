@@ -1,19 +1,15 @@
 export * as Simctl from './simctl.js'
-import {Chunk, Context, Effect, Layer, Schema, Sink, Stream} from 'effect'
+import {Chunk, Context, Effect, Layer, Sink, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
+import type {EvlogError} from 'evlog'
+import {iosErrors} from './errors/errors.js'
 
 export type RunOptions = {cwd?: string; env?: Record<string, string>}
 
 export type RunResult = {code: number; stdout: Uint8Array; stderr: string}
 
-export const SpawnFailed = Schema.TaggedStruct('SpawnFailed', {command: Schema.String, cause: Schema.Unknown})
-
-export const OutputTooLarge = Schema.TaggedStruct('OutputTooLarge', {command: Schema.String})
-
-type RunError = typeof SpawnFailed.Type | typeof OutputTooLarge.Type
-
 export interface Interface {
-  readonly run: (command: string, args: readonly string[], options?: RunOptions) => Effect.Effect<RunResult, RunError>
+  readonly run: (command: string, args: readonly string[], options?: RunOptions) => Effect.Effect<RunResult, EvlogError>
 }
 
 export const Service = Context.Service<Interface>('@conciv/plugin-ios/Simctl')
@@ -25,13 +21,13 @@ type Collected = {size: number; chunks: Chunk.Chunk<Uint8Array>}
 function collectBytes<Failure>(
   command: string,
   stream: Stream.Stream<Uint8Array, Failure>,
-): Effect.Effect<Uint8Array, Failure | typeof OutputTooLarge.Type> {
+): Effect.Effect<Uint8Array, Failure | EvlogError> {
   const capped = Sink.foldArray(
     (): Collected => ({size: 0, chunks: Chunk.empty()}),
     () => true,
     (collected, input: readonly Uint8Array[]) => {
       const size = input.reduce((total, chunk) => total + chunk.length, collected.size)
-      if (size > MAX_OUTPUT_BYTES) return Effect.fail(OutputTooLarge.make({command}))
+      if (size > MAX_OUTPUT_BYTES) return Effect.fail(iosErrors.OUTPUT_TOO_LARGE({command}))
       return Effect.succeed({size, chunks: Chunk.appendAll(collected.chunks, Chunk.fromIterable(input))})
     },
   )
@@ -62,7 +58,7 @@ export const layer = Layer.effect(
         return result
       }).pipe(
         Effect.scoped,
-        Effect.catchTag('PlatformError', (cause) => Effect.fail(SpawnFailed.make({command, cause}))),
+        Effect.catchTag('PlatformError', (cause) => Effect.fail(iosErrors.SPAWN_FAILED({command, cause}))),
       )
     })
     return Service.of({run})

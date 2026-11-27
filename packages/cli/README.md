@@ -139,17 +139,17 @@ Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 
 ## Overview
 
-The package root of `@conciv/cli`: the `conciv` binary, built by tsdown from `src/bin.ts` into one ESM file,
+The package root of `@conciv/cli`: the `conciv` binary, built by `vite build` from `src/bin.ts` into ESM,
 `dist/bin.js`, that the build marks executable. The package has no library API. The commands, their argument checks,
 the JSON envelopes and the engine calls are in [src](./src/README.md).
 
 ## Invariants
 
 - `dist/bin.js` must be executable, or the `conciv` bin does not run (`scripts.build` runs `chmod +x`).
-- `dts: false` (`tsdown.config.ts`): the router's inferred route types cannot be named in a `.d.ts`, so no types ship.
+- `types: false` (`vite.config.ts`): the router's inferred route types cannot be named in a `.d.ts`, so no types ship.
 - Every pure-JS dependency is a devDependency and is bundled into `dist/bin.js`; only the native `@ast-grep/napi` stays
-  a runtime dependency (`deps.onlyImport`). The harness runtime and the agent SDKs are never bundled
-  (`deps.neverBundle`), so reaching one fails the build.
+  a runtime dependency (the `onlyImport` plugin in `vite.config.ts` fails the build on any other import). The harness
+  runtime and the agent SDKs are never bundled (`external`), so reaching one fails the build.
 
 ## Side Effects
 

@@ -28,6 +28,7 @@ import {
   type ComposerWriteEffect,
   type ComposerWriteEvent,
 } from './composer-write-machine'
+import {widgetPluginErrors} from '@conciv/errors'
 
 type ObjectRoot = {dispose?: () => void}
 
@@ -102,7 +103,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const shownFor = (sessionId: string) => {
     const value = untrack(() => shown(sessionId))
 
-    if (!value) throw new Error('The composer is not shown')
+    if (!value) throw widgetPluginErrors.COMPOSER_NOT_SHOWN()
 
     return value
   }
@@ -119,7 +120,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
         insert(text) {
           const handle = shownFor(sessionId).input()
 
-          if (!handle) throw new Error('The composer input is not ready')
+          if (!handle) throw widgetPluginErrors.COMPOSER_INPUT_NOT_READY()
           handle.insert(text)
         },
         items: () => shown(sessionId)?.composer.items() ?? [],

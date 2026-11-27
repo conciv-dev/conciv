@@ -9,9 +9,9 @@ import * as Tool from '@conciv/protocol/schema/tool'
 import {BrowserTabId, BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {DiagnosticsService} from './diagnostics.js'
+import type {EvlogError} from 'evlog'
+import {tanstackErrors} from './errors/errors.js'
 import {
-  BundlerUnavailable,
-  ManifestUnreadable,
   UNTRUSTED_NOTE,
   disconnectedAfterDispatch,
   disconnectedBeforeDispatch,
@@ -59,14 +59,14 @@ export const capabilities = Effect.fn('tanstack.capabilities')(function* (
     }),
     Effect.forkScoped({startImmediately: true}),
   )
-  const unavailable = BundlerUnavailable.make({message: 'bundler bridge unavailable'})
   const buildErrors = Effect.fn('tanstack.buildErrors')(function* () {
     const latest = yield* SubscriptionRef.changes(status).pipe(
       Stream.filter((value) => value !== undefined),
       Stream.runHead,
       Effect.timeoutOption(config.bundlerWaitMs),
     )
-    if (Option.getOrUndefined(Option.flatten(latest)) !== 'connected') return yield* Effect.fail(unavailable)
+    if (Option.getOrUndefined(Option.flatten(latest)) !== 'connected')
+      return yield* Effect.fail(tanstackErrors.BUNDLER_UNAVAILABLE())
     return [...(yield* diagnostics.list)]
   })
   const routeManifest = Effect.fn('tanstack.routeManifest')(function* () {
@@ -75,11 +75,11 @@ export const capabilities = Effect.fn('tanstack.capabilities')(function* (
   return {buildErrors, routeManifest, serverFnTrace: serverFnTrace.read}
 })
 
-function bundlerFailure(failure: BundlerUnavailable) {
+function bundlerFailure(failure: EvlogError) {
   return Tool.toolError({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})
 }
 
-function manifestFailure(failure: ManifestUnreadable) {
+function manifestFailure(failure: EvlogError) {
   return Tool.toolError({message: failure.message, error: failure.cause, metadata: {code: 'MANIFEST_UNREADABLE'}})
 }
 

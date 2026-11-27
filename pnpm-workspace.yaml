@@ -202,6 +202,7 @@ catalog:
   remark-parse: '^11.0.0'
   remark-rehype: '^11.1.2'
   remend: '^1.4.0'
+  rolldown-plugin-dts: 0.28.8
   rrweb: '^2.2.0'
   rrweb-player: 2.2.0
   rrweb-snapshot: 2.2.0
@@ -212,8 +213,8 @@ catalog:
   storybook: '^10.6.5'
   storybook-solidjs-vite: '^10.7.4'
   tailwindcss: '^4.3.3'
-  tsdown: '^0.23.4'
   tsx: '^4.23.15'
+  typedoc: '^0.28.20'
   typescript: '^7.0.2'
   unified: '^11.0.5'
   unocss: '^66.13.0'
@@ -294,7 +295,6 @@ minimumReleaseAgeExclude:
   # Locked versions still inside the 48h window. Remove each once it has aged out.
   - 'lucide-react'
   - 'lucide-solid'
-  - 'tsdown'
   # remove after 2026-11-16, 2.0.3 aged out on 2026-11-14 18:15Z
   - 'encodeurl@2.0.3'
 patchedDependencies:

@@ -2,6 +2,7 @@ import * as NodeServices from '@effect/platform-node/NodeServices'
 import type {PlopTypes} from '@turbo/gen'
 import {Effect, FileSystem, Path, Schema} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
+import {generatorErrors} from './errors.ts'
 
 const KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 const ONE_LINE = /^[^\n]*\S[^\n]*$/
@@ -31,12 +32,6 @@ const WorkspacePackages = Schema.fromJsonString(
     packages: Schema.Struct({items: Schema.Array(Schema.Struct({name: Schema.String, path: Schema.String}))}),
   }),
 )
-
-const CommandFailed = Schema.TaggedStruct('CommandFailed', {command: Schema.String, exitCode: Schema.Number})
-
-const ListNotFound = Schema.TaggedStruct('ListNotFound', {path: Schema.String, marker: Schema.String})
-
-const PackageExists = Schema.TaggedStruct('PackageExists', {reason: Schema.String})
 
 type Spec = Omit<typeof Answers.Type, 'turbo'>
 
@@ -132,12 +127,12 @@ function publishedManifest(spec: Spec, version: string): object {
     exports: {'.': {types: `./dist/${spec.name}.d.ts`, import: `./dist/${spec.name}.js`}},
     publishConfig: {access: 'public'},
     scripts: {
-      build: 'tsdown && tsc -p tsconfig.build.json',
+      build: 'vite build',
       typecheck: 'tsc -p tsconfig.json --noEmit',
       publint: 'publint',
       attw: 'attw --pack . --profile esm-only',
     },
-    devDependencies: devDependencies(spec, {tsdown: 'catalog:'}),
+    devDependencies: devDependencies(spec, {'@internal/vite-config': 'workspace:*'}),
   }
 }
 
@@ -156,12 +151,7 @@ function templatedFiles(spec: Spec): Array<[string, string]> {
     ['vite.config.ts', 'vite.config.ts'],
     ['README.md', 'README.md'],
   ]
-  switch (spec.kind) {
-    case 'internal':
-      return shared
-    case 'published':
-      return [...shared, ['tsdown.config.ts', 'tsdown.config.ts']]
-  }
+  return shared
 }
 
 function jsonFiles(spec: Spec, version: string): Array<[string, object]> {
@@ -222,10 +212,12 @@ const assertNewPackage = Effect.fn('assertNewPackage')(function* (context: Gener
   const {packages} = yield* Schema.decodeUnknownEffect(WorkspacePackages)(listing)
   const owner = packages.items.find((item) => item.name === packageName(spec))
   if (owner) {
-    return yield* Effect.fail(PackageExists.make({reason: `${packageName(spec)} is already declared by ${owner.path}`}))
+    return yield* Effect.fail(
+      generatorErrors.PACKAGE_EXISTS({reason: `${packageName(spec)} is already declared by ${owner.path}`}),
+    )
   }
   if (yield* fs.exists(paths.join(context.root, directory(spec)))) {
-    return yield* Effect.fail(PackageExists.make({reason: `${directory(spec)} already exists`}))
+    return yield* Effect.fail(generatorErrors.PACKAGE_EXISTS({reason: `${directory(spec)} already exists`}))
   }
 })
 
@@ -253,7 +245,7 @@ const appendToList = Effect.fn('appendToList')(function* (path: string, marker: 
   const fs = yield* FileSystem.FileSystem
   const source = yield* fs.readFileString(path)
   const start = source.indexOf(marker)
-  if (start === -1) return yield* Effect.fail(ListNotFound.make({path, marker}))
+  if (start === -1) return yield* Effect.fail(generatorErrors.LIST_NOT_FOUND({path, marker}))
   const end = source.lastIndexOf('\n', source.indexOf(']', start))
   yield* fs.writeFileString(path, `${source.slice(0, end)}${item}${source.slice(end)}`)
 })
@@ -290,7 +282,8 @@ const run = Effect.fn('run')(function* (root: string, command: string, args: str
   const exitCode = yield* spawner.exitCode(
     ChildProcess.make(command, args, {cwd: root, extendEnv: true, stdout: 'inherit', stderr: 'inherit'}),
   )
-  if (exitCode !== 0) return yield* Effect.fail(CommandFailed.make({command: [command, ...args].join(' '), exitCode}))
+  if (exitCode !== 0)
+    return yield* Effect.fail(generatorErrors.COMMAND_FAILED({command: [command, ...args].join(' '), exitCode}))
 })
 
 const installAndFormat = Effect.fn('installAndFormat')(function* (context: GeneratorContext, spec: Spec) {
@@ -306,7 +299,7 @@ type Step<Failure> = (
 ) => Effect.Effect<string, Failure, NodeServices.NodeServices>
 
 function describeFailure(failure: unknown): Error {
-  return failure instanceof Error ? failure : new Error(JSON.stringify(failure))
+  return failure instanceof Error ? failure : generatorErrors.GENERATOR_FAILED({failure: JSON.stringify(failure)})
 }
 
 function action<Failure>(step: Step<Failure>): PlopTypes.CustomActionFunction {

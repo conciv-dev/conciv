@@ -1,6 +1,6 @@
 import type {ManagedRuntime} from 'effect'
 import * as Identifier from '@conciv/protocol/schema/identifier'
-import {Effect, Layer, Schema} from 'effect'
+import {Effect, Layer} from 'effect'
 import {clamp} from 'es-toolkit'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {
@@ -10,8 +10,9 @@ import {
   type ReasoningEffort,
   type SessionRecord,
 } from '@conciv/types/chat-types'
-import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/backend-app-api'
+import {Agent, type Bus, type KV, Session} from '@conciv/backend-app-api'
 import type * as Job from '@conciv/backend-app-api/core/job'
+import {causeFrom, sessionErrors} from '@conciv/errors'
 import {SessionInbox, SessionSynthetic} from '../../backend-defaults.js'
 import * as Model from '@conciv/protocol/schema/model'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
@@ -39,10 +40,6 @@ type Compaction = Effect.Success<ReturnType<Session.Interface['compact']>>
 const DEFAULT_PAGE_SIZE = 30
 const MAX_PAGE_SIZE = 100
 
-const HarnessReadError = Schema.TaggedStruct('ConcivCore.HarnessReadError', {
-  sessionId: Schema.String,
-  cause: Schema.Defect(),
-})
 const given = <Value>(value: Value | null | undefined): Value | undefined => value ?? undefined
 
 const NO_USAGE = {
@@ -119,12 +116,12 @@ const createdModel = Effect.fn('core.sessions.chooseCreatedModel')(function* (
   yield* Effect.annotateCurrentSpan({sessionId})
   const agent = given(input.agent) ?? Agent.defaultId
   if (agent !== Agent.defaultId) {
-    return yield* Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)}))
+    return yield* Effect.fail(sessionErrors.AGENT_NOT_FOUND({agent, internal: {sessionId}}))
   }
   const model = given(input.model)
   if (model === undefined) return null
   const choice = yield* modelChoice(chat.defaultHarness, model, chat.signal)
-  if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+  if (choice === null) return yield* Effect.fail(sessionErrors.NOT_FOUND({sessionId, internal: {sessionId}}))
   return choice
 })
 
@@ -144,7 +141,7 @@ async function describeCreated(
 const readCursor = (cursor: string) =>
   Effect.try({
     try: () => HarnessListCursorSchema.parse(JSON.parse(cursor)),
-    catch: () => SessionErrors.makeInvalidListCursorError(),
+    catch: (cause) => sessionErrors.INVALID_LIST_CURSOR(causeFrom(cause)),
   })
 
 const metadataSchema = SessionRecordSchema.shape.metadata.unwrap().unwrap()
@@ -154,7 +151,8 @@ export function provideSessions(started: () => SessionKeyDeps) {
   const found = Effect.fn('core.sessions.find')(function* (sessionId: SessionId) {
     yield* Effect.annotateCurrentSpan({sessionId})
     const row = yield* Effect.promise(() => rowById(started().chat.db, sessionId))
-    if (row === null || row.deletedAt !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+    if (row === null || row.deletedAt !== null)
+      return yield* Effect.fail(sessionErrors.NOT_FOUND({sessionId, internal: {sessionId}}))
     return row
   })
   const get = Effect.fn('core.sessions.get')(function* (sessionId: SessionId) {
@@ -192,14 +190,17 @@ export function provideSessions(started: () => SessionKeyDeps) {
           const supplied = input.id
           const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
           if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
-          if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
+          if (recorded !== null)
+            return yield* Effect.fail(
+              sessionErrors.NOT_FOUND({sessionId: recorded.id, internal: {sessionId: recorded.id}}),
+            )
           const sessionId = supplied ?? SessionId.create(ids)
           yield* Effect.annotateCurrentSpan({sessionId})
           const choice = yield* createdModel(chat, input, sessionId)
           yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
           yield* Effect.promise(() => describeCreated({db: chat.db, search, pluginHost}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
-            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+            return yield* Effect.fail(sessionErrors.NOT_FOUND({sessionId, internal: {sessionId}}))
           }
           return yield* get(sessionId)
         }),
@@ -218,9 +219,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
               input.agent === Agent.defaultId
                 ? Effect.void
                 : Effect.fail(
-                    SessionErrors.makeAgentNotFoundError({
-                      sessionId: input.sessionId,
-                      agent: Agent.Id.make(input.agent),
+                    sessionErrors.AGENT_NOT_FOUND({
+                      agent: input.agent,
+                      internal: {sessionId: input.sessionId},
                     }),
                   ),
             ),
@@ -231,11 +232,17 @@ export function provideSessions(started: () => SessionKeyDeps) {
           yield* found(input.sessionId)
           const harness = yield* Effect.tryPromise({
             try: () => chat.harnessFor(input.sessionId),
-            catch: (cause) => HarnessReadError.make({sessionId: input.sessionId, cause}),
+            catch: (cause) =>
+              sessionErrors.HARNESS_READ_FAILED({
+                sessionId: input.sessionId,
+                ...causeFrom(cause),
+              }),
           }).pipe(Effect.orDie)
           const choice = yield* modelChoice(harness, input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
-            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+            return yield* Effect.fail(
+              sessionErrors.NOT_FOUND({sessionId: input.sessionId, internal: {sessionId: input.sessionId}}),
+            )
           }
         }),
         rename: (input) =>
@@ -248,7 +255,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
             }),
             Effect.flatMap((outcome) =>
               outcome === 'missing'
-                ? Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+                ? Effect.fail(
+                    sessionErrors.NOT_FOUND({sessionId: input.sessionId, internal: {sessionId: input.sessionId}}),
+                  )
                 : Effect.void,
             ),
           ),

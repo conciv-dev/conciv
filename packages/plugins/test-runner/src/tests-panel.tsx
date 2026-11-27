@@ -13,6 +13,7 @@ import {
   testFiles,
   type FileGroup,
 } from './view.js'
+import {testRunnerErrors} from './errors/errors.js'
 import {selectEndedFiles, selectSummary, selectTests, type RunView, type RunViewStatus} from './run-state.js'
 
 type TestsPanelProps = {
@@ -163,6 +164,7 @@ export function TestsPanel(props: TestsPanelProps): JSX.Element {
               The project's test runner could not start
             </div>
             <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{view().reason}</p>
+            <p class="text-chat-xs text-chat-text-2">{testRunnerErrors.RUNNER_UNAVAILABLE.fix}</p>
           </div>
         )}
       </Show>

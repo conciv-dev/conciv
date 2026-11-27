@@ -1,4 +1,4 @@
-import {clientErrors} from '../connection/client-errors.js'
+import {clientErrors} from '@conciv/errors'
 
 export type SelectedEvent<A extends {readonly type: string}, Type extends string> = A extends unknown
   ? [Extract<Type, A['type']>] extends [never]

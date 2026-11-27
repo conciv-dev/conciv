@@ -28,6 +28,7 @@ import {
 } from './island-model.js'
 import type {CanvasBackground} from './stores.js'
 import {useWhiteboardRuntime} from './solid-runtime.js'
+import {canvasErrors} from './errors/canvas-errors.js'
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_REMOVE_RETRY_MS = 100
@@ -159,7 +160,7 @@ export function Island(props: {
 
   const renderExcalidraw = (): void => {
     if (!container || !container.isConnected) {
-      return reportMountError(new Error('the canvas container never attached to the document'))
+      return reportMountError(canvasErrors.CONTAINER_DETACHED())
     }
     const root = createRoot(container)
     runtime.runSync(

@@ -17,7 +17,9 @@ import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcess
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
-import type {BundlerCode, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import {causeFrom, pluginHostErrors} from '@conciv/errors'
+import {EvlogError} from 'evlog'
+import type {BundlerCode} from '@conciv/backend-plugin-api/effect/plugin'
 import {
   Cause,
   Context,
@@ -27,7 +29,6 @@ import {
   Layer,
   Logger,
   Option,
-  Predicate,
   PubSub,
   Queue,
   References,
@@ -38,7 +39,6 @@ import {
 import * as Bus from './bus.js'
 import * as PluginHost from './plugin/host.js'
 import {
-  BundlerHookFailed,
   type BundlerHook,
   type BundlerRegistration,
   type BundlerRegistry,
@@ -50,14 +50,7 @@ import {
 } from './plugin/service.js'
 import * as State from './state.js'
 
-export {
-  awaitActivation,
-  type BundlerHookFailed,
-  type Failure,
-  type Generation,
-  type Interface,
-  Service,
-} from './plugin/service.js'
+export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
 
 export const layer = Layer.effect(
   Service,
@@ -201,8 +194,8 @@ export const layer = Layer.effect(
       )
       if (activation.failure || Exit.isSuccess(exit)) return {activation} as const
       const tagged = Cause.findErrorOption(exit.cause).pipe(
-        Option.filter(isTaggedError),
-        Option.map(describeTaggedError),
+        Option.filter((failure) => failure instanceof Error),
+        Option.map(describeLoadFailure),
       )
       yield* Effect.logWarning(
         Option.getOrElse(tagged, () => 'failed to load plugin'),
@@ -221,7 +214,7 @@ export const layer = Layer.effect(
       const definitions = plugins.map((plugin) => ({...plugin, id: Plugin.Id.make(plugin.id)}))
       const ids = new Set<Plugin.Id>()
       for (const definition of definitions) {
-        if (ids.has(definition.id)) yield* Effect.die(new Error(`Duplicate plugin ID: ${definition.id}`))
+        if (ids.has(definition.id)) yield* Effect.die(pluginHostErrors.DUPLICATE_ID({id: definition.id}))
         ids.add(definition.id)
       }
 
@@ -446,14 +439,10 @@ function slotInfo(slot: Slot): Plugin.Info {
   }
 }
 
-function isTaggedError(error: unknown): error is TaggedError {
-  return Predicate.hasProperty(error, '_tag') && Predicate.isString(error._tag)
-}
-
-function describeTaggedError(error: TaggedError) {
-  if (Predicate.isString(error.message) && error.message.length > 0)
-    return `failed to load plugin: ${error._tag}: ${error.message}`
-  return `failed to load plugin: ${error._tag}`
+function describeLoadFailure(error: Error) {
+  if (!EvlogError.isEvlogError(error)) return `failed to load plugin: ${error.name}: ${error.message}`
+  const failure = `failed to load plugin: ${error.code}: ${error.message}`
+  return error.fix === undefined ? failure : `${failure} (${error.fix})`
 }
 
 type TransformChain = {readonly result: TransformedCode | undefined; readonly changes: number}
@@ -469,11 +458,12 @@ function runHook<Answer>(hook: BundlerHook, plugin: string, module: string, run:
       const failure = Cause.squash(cause)
       const reason = failure instanceof Error ? failure.message : String(failure)
       return Effect.fail(
-        BundlerHookFailed.make({
+        pluginHostErrors.BUNDLER_HOOK_FAILED({
           hook,
           plugin,
           module,
-          message: `conciv: the ${hook} hook of plugin ${plugin} failed on ${module}: ${reason}`,
+          reason,
+          ...causeFrom(failure),
         }),
       )
     }),
@@ -482,7 +472,7 @@ function runHook<Answer>(hook: BundlerHook, plugin: string, module: string, run:
 
 function firstAnswer<Answer>(
   registrations: readonly BundlerRegistration[],
-  ask: (registration: BundlerRegistration) => Effect.Effect<Answer | null | undefined, BundlerHookFailed>,
+  ask: (registration: BundlerRegistration) => Effect.Effect<Answer | null | undefined, EvlogError>,
 ) {
   return Effect.reduce(
     registrations,

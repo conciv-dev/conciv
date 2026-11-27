@@ -1,9 +1,9 @@
 import {Effect} from 'effect'
 import {z} from 'zod'
-import type {SourceUnreadable} from './anchor-confine.js'
+import type {EvlogError} from 'evlog'
 import type {AnchorResolver} from './anchor-resolver.js'
 
-export type LoadResolver = Effect.Effect<AnchorResolver, SourceUnreadable>
+export type LoadResolver = Effect.Effect<AnchorResolver, EvlogError>
 
 const PickAnchor = z.looseObject({
   source: z.object({file: z.string(), line: z.number(), column: z.number().nullable().optional()}),
@@ -47,6 +47,6 @@ export const enrichAnchor = Effect.fn('whiteboard.anchor.enrich')(function* (res
       component: captured.source.component,
       hash: captured.source.hash,
     })),
-    Effect.catchTag('SourceUnreadable', () => Effect.succeed(fallback)),
+    Effect.catch(() => Effect.succeed(fallback)),
   )
 })

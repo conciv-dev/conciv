@@ -43,7 +43,7 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     if (trust.isTrusted() && rpcErrorCode(props.error) === 'UNAUTHORIZED') void retry()
     onCleanup(trust.subscribe(onTrustChange))
   })
-  return <ErrorScreen message={classification().message} onRetry={() => void retry()} />
+  return <ErrorScreen message={classification().message} detail={classification().fix} onRetry={() => void retry()} />
 }
 
 const PaneParamsSchema = z.object({sessionId: z.string()})

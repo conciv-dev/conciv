@@ -5,7 +5,8 @@ import {RPCHandler} from '@orpc/server/websocket'
 import {Effect, Queue, type Scope} from 'effect'
 import {WebSocketServer, type WebSocket} from 'ws'
 import {answerCatalogErrors, contractError} from '@conciv/protocol'
-import {SIMULATION_ERROR_STATUS, simulationErrors} from '@conciv/protocol/simulation'
+import {SIMULATION_ERROR_STATUS} from '@conciv/protocol/simulation'
+import {causeFrom, simulationErrors} from '@conciv/errors'
 
 const MAX_OUTBOUND_BYTES = 64 * 1024 * 1024
 
@@ -129,7 +130,7 @@ export function start(options: StartOptions): Effect.Effect<Server, Error, Scope
         simulationErrors.LISTEN_FAILED({
           label: options.label,
           href: options.endpoint.href,
-          ...(cause instanceof Error ? {cause} : {}),
+          ...causeFrom(cause),
         }),
     }),
     (server) =>

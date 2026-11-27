@@ -1,6 +1,7 @@
 import {createContext, useContext} from 'react'
 import type {CurveStyle, MascotPartProps, MascotService} from '@conciv/mascot'
 import type {MascotPartName} from '@conciv/mascot/adapter'
+import {mascotErrors} from '@conciv/errors'
 
 export type {MascotPartName}
 
@@ -30,6 +31,6 @@ export const MascotProvider = MascotContext.Provider
 
 export function useMascotContext(): MascotContextValue {
   const context = useContext(MascotContext)
-  if (context === undefined) throw new Error('a mascot part can only render inside <Mascot />')
+  if (context === undefined) throw mascotErrors.OUTSIDE_MASCOT()
   return context
 }

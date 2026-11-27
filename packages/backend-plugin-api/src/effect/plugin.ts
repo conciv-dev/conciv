@@ -58,16 +58,11 @@ export interface BrowserTabDomain {
 
 export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 
-export interface TaggedError {
-  readonly _tag: string
-  readonly message?: string
-}
-
-export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
+export interface Plugin<R = Scope.Scope, E extends Error = never> {
   readonly id: string
   readonly effect: (context: Context) => Effect.Effect<void, E, R>
 }
 
-export function define<R = Scope.Scope, E extends TaggedError = never>(plugin: Plugin<R, E>) {
+export function define<R = Scope.Scope, E extends Error = never>(plugin: Plugin<R, E>) {
   return plugin
 }

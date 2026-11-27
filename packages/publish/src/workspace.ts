@@ -4,6 +4,7 @@ import {chunk} from 'es-toolkit'
 import {load} from 'js-yaml'
 import {minimatch} from 'minimatch'
 import {z} from 'zod'
+import {causeFrom, publishErrors} from './errors/errors.ts'
 
 const manifestSchema = z.object({
   name: z.string().optional(),
@@ -17,6 +18,7 @@ const manifestSchema = z.object({
   optionalDependencies: z.record(z.string(), z.string()).optional(),
   peerDependencies: z.record(z.string(), z.string()).optional(),
   conciv: z.object({builtin: z.boolean().optional()}).optional(),
+  engines: z.object({node: z.string().optional()}).optional(),
 })
 
 export type Manifest = z.infer<typeof manifestSchema>
@@ -24,7 +26,7 @@ export type Manifest = z.infer<typeof manifestSchema>
 export function parseManifest(raw: unknown, manifestPath: string): Manifest {
   const result = manifestSchema.safeParse(raw)
   if (!result.success) {
-    throw new Error(`${manifestPath}: invalid package manifest - ${result.error.message}`)
+    throw publishErrors.INVALID_MANIFEST({path: manifestPath, reason: result.error.message})
   }
   return result.data
 }
@@ -47,10 +49,10 @@ function readWorkspaceGlobs(cwd: string): string[] {
   const content = readFileSync(manifestPath, 'utf8')
   const parsed: unknown = load(content)
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`${manifestPath}: expected a YAML mapping with a "packages" list`)
+    throw publishErrors.WORKSPACE_NOT_MAPPING({path: manifestPath})
   }
   if (!('packages' in parsed) || !isStringArray(parsed.packages)) {
-    throw new Error(`${manifestPath}: "packages" must be a list of glob strings`)
+    throw publishErrors.WORKSPACE_PACKAGES_NOT_GLOBS({path: manifestPath})
   }
   return parsed.packages
 }
@@ -78,7 +80,7 @@ function readManifestAt(packageJsonPath: string): Manifest {
   try {
     raw = JSON.parse(content)
   } catch (error: unknown) {
-    throw new Error(`${packageJsonPath}: invalid JSON`, {cause: error})
+    throw publishErrors.INVALID_JSON({path: packageJsonPath, ...causeFrom(error)})
   }
   return parseManifest(raw, packageJsonPath)
 }

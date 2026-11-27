@@ -9,6 +9,7 @@ import {
 } from 'solid-js'
 import {createKeyed, Server, type ServerEntry} from '@conciv/frontend-plugin-api'
 import {usePluginHost} from './host'
+import {widgetPluginErrors} from '@conciv/errors'
 
 type PluginServer = {readonly key: string; readonly plugin: string; readonly entry: ServerEntry}
 
@@ -19,7 +20,7 @@ const ServersContext = createContext<ReturnType<typeof createPluginServers>>()
 export function usePluginServers() {
   const value = useContext(ServersContext)
 
-  if (!value) throw new Error('Plugin servers are unavailable')
+  if (!value) throw widgetPluginErrors.SERVERS_UNAVAILABLE()
 
   return value
 }

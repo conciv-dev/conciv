@@ -8,8 +8,8 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 - [src/README.md](./src/README.md): the components and the highlight worker pool.
 - `exports["."]` -> `./dist/solid-diffs.js` + `./dist/solid-diffs.d.ts`; `files: ["dist"]`; peer `solid-js`; deps `@pierre/diffs` 1.6.2, `@tanstack/solid-pacer` (`package.json`).
-- `vite.config.ts`: `solidLibConfig` from `@internal/vite-config`, entry `src/solid-diffs.tsx`.
-- Scripts: `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `publint`, `attw` (`--profile esm-only`). No `test` script.
+- `vite.config.ts`: `libConfig` from `@internal/vite-config`, entry `src/solid-diffs.tsx`.
+- Scripts: `build` (`vite build`), `typecheck`, `publint`, `attw` (`--profile esm-only`). No `test` script.
 
 ## Invariants
 

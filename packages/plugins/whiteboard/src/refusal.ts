@@ -2,11 +2,8 @@ import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type * as Permission from '@conciv/protocol/schema/permission'
 import * as Tool from '@conciv/protocol/schema/tool'
 import {Effect} from 'effect'
-import type {SourceUnreadable} from './anchor-confine.js'
-import type {StoreError} from './store.js'
-import type {RenderFailed} from './preview.js'
+import {EvlogError} from 'evlog'
 
-type Failure = {code?: string; message: string; error?: unknown}
 export type Confirm = Context['permission']
 
 const CONFIRMED_TOOLS = [
@@ -39,16 +36,15 @@ export function confirmed(
   })
 }
 
-export function fail({code, ...failure}: Failure) {
-  return Effect.fail(Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}}))
-}
-
-export function toolEdge<Value>(work: Effect.Effect<Value, Tool.Error | StoreError | RenderFailed | SourceUnreadable>) {
+export function toolEdge<Value>(work: Effect.Effect<Value, Tool.Error | EvlogError>) {
   return work.pipe(
-    Effect.catchTags({
-      StoreError: (failure) => fail({message: `whiteboard state ${failure.key} is unreadable: ${failure.message}`}),
-      RenderFailed: (failure) => fail({message: failure.message}),
-      SourceUnreadable: (failure) => fail({message: failure.message}),
-    }),
+    Effect.catchIf(EvlogError.isEvlogError, (error) =>
+      Effect.fail(
+        Tool.toolError({
+          message: error.fix ? `${error.message}: ${error.fix}` : error.message,
+          ...(error.code === undefined ? {} : {metadata: {code: error.code}}),
+        }),
+      ),
+    ),
   )
 }

@@ -33,12 +33,13 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:*",
     "@hono/node-server": "catalog:",
@@ -52,10 +53,14 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@types/ws": "catalog:",
-    "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

@@ -22,20 +22,22 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
   return () => {
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
-    booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
-      const {start} = await import('@conciv/backend/start')
-      return start({
-        options,
-        root,
-        port: options.port === undefined ? undefined : {exact: options.port},
-        launchEditor: makeOpenInEditor(root),
-        widgetPageDir: builtins.widgetPageDir,
-        devEndpointDir: options.devEndpointDir,
-        homeDir: options.homeDir,
-        log: {emit: writeEngineLine},
-        childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
+    booting = Promise.resolve()
+      .then(() => installConcivBinShim(concivStateDir(stateRoot)))
+      .then(async (agentPath) => {
+        const {start} = await import('@conciv/backend/start')
+        return start({
+          options,
+          root,
+          port: options.port === undefined ? undefined : {exact: options.port},
+          launchEditor: makeOpenInEditor(root),
+          widgetPageDir: builtins.widgetPageDir,
+          devEndpointDir: options.devEndpointDir,
+          homeDir: options.homeDir,
+          log: {emit: writeEngineLine},
+          childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
+        })
       })
-    })
     return booting
   }
 }

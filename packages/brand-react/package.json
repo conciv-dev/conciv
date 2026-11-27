@@ -29,7 +29,7 @@
     }
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -37,13 +37,14 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:"
   },
   "peerDependencies": {
     "react": "^19"

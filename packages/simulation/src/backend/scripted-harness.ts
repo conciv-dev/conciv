@@ -3,7 +3,6 @@ import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
 import {pageAfter} from '@conciv/harness/page'
-import {simulationErrors} from '@conciv/protocol/simulation'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/types/chat-types'
 import type {
@@ -18,6 +17,7 @@ import type {
   TranscriptTailOptions,
 } from '@conciv/types/harness-types'
 import type {TtyCommand} from '@conciv/types/terminal-types'
+import {simulationErrors} from '@conciv/errors'
 
 const EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 

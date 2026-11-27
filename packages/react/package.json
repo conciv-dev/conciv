@@ -33,7 +33,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "sync-injected": "true",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
@@ -49,6 +49,7 @@
   "devDependencies": {
     "@conciv/backend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
@@ -58,7 +59,6 @@
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
@@ -75,6 +75,6 @@
     }
   },
   "engines": {
-    "node": ">=26.0.0"
+    "node": ">=22.16.0"
   }
 }

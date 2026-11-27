@@ -46,7 +46,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
     "@standard-schema/spec": "catalog:",
@@ -65,10 +66,10 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
@@ -86,5 +87,8 @@
     "vite-plugin-solid": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

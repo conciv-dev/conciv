@@ -45,7 +45,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -57,6 +57,7 @@
     "@conciv/types": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -68,6 +69,7 @@
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-query": "catalog:",
@@ -80,7 +82,6 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "solid-js": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
@@ -91,5 +92,8 @@
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@tanstack/react-router": ">=1.170.0"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

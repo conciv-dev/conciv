@@ -1,33 +1,32 @@
-import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import {libConfig} from '@internal/vite-config'
 
-export default defineConfig({
-  plugins: [solid()],
-  build: {
-    lib: {
-      entry: {
-        'ui-kit-chat': fileURLToPath(new URL('src/ui-kit-chat.tsx', import.meta.url)),
-        tools: fileURLToPath(new URL('src/tools.tsx', import.meta.url)),
-        'draft-storage': fileURLToPath(new URL('src/draft-storage.ts', import.meta.url)),
-        'theme/fonts': fileURLToPath(new URL('src/theme/fonts.ts', import.meta.url)),
-        'theme/code-theme': fileURLToPath(new URL('src/theme/code-theme.ts', import.meta.url)),
+export default defineConfig(
+  libConfig({
+    root: import.meta.url,
+    plugins: [solid()],
+    environments: {
+      client: {
+        entries: [
+          'src/ui-kit-chat.tsx',
+          'src/tools.tsx',
+          'src/draft-storage.ts',
+          'src/theme/fonts.ts',
+          'src/theme/code-theme.ts',
+        ],
+        external: [
+          /^solid-js/,
+          /^zod/,
+          /^mermaid/,
+          /^@tanstack\//,
+          /^@conciv\//,
+          /^@pierre\/diffs/,
+          /^shiki/,
+          /^@shikijs\//,
+        ],
+        bundle: true,
       },
-      formats: ['es'],
     },
-    rollupOptions: {
-      external: [
-        /^solid-js/,
-        /^zod/,
-        /^mermaid/,
-        /^@tanstack\//,
-        /^@conciv\//,
-        /^@pierre\/diffs/,
-        /^shiki/,
-        /^@shikijs\//,
-      ],
-    },
-    emptyOutDir: true,
-    sourcemap: true,
-  },
-})
+  }),
+)

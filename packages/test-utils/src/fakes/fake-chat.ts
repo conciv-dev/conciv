@@ -1,3 +1,4 @@
+import {testKitErrors} from '@conciv/errors'
 import {ORPCError} from '@orpc/server'
 import type {ChatHydration, SessionMeta} from '@conciv/protocol'
 import {
@@ -158,7 +159,7 @@ function outsideText(text: string, isError = false): FakeOutsideReply {
 }
 
 function noOutsideSession(): never {
-  throw new Error('an outside call needs the session it runs in: engine.outside({session})')
+  throw testKitErrors.FAKE_OUTSIDE_WITHOUT_SESSION()
 }
 
 function turnStart(history: readonly ChatMessage[], index: number): number {
@@ -266,7 +267,7 @@ export function createChat(
   })
   const next = async (): Promise<FakeReply> => {
     const held = script.shift()
-    if (held === undefined) throw new Error('the fake engine has no reply left: script one with engine.reply(...)')
+    if (held === undefined) throw testKitErrors.FAKE_NO_REPLY_LEFT()
     if ('reply' in held) return held.reply
     held.started()
     await held.gate.promise

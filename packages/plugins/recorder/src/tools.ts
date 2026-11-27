@@ -1,18 +1,24 @@
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Tool from '@conciv/protocol/schema/tool'
 import {Clock, Effect} from 'effect'
+import type {EvlogError} from 'evlog'
 import {z} from 'zod'
 import {CaptureControl} from './capture-control.js'
 import type {ClientRingsInterface} from './rings.js'
 import type {RendererCacheInterface} from './renderer-cache.js'
 import {RecordingStore} from './recordings.js'
 import {MAX_SECONDS_BACK, pullWindow, renderRecording} from './runtime.js'
+import {recorderErrors} from './errors/errors.js'
 
 const options = {namespace: 'recording', codemode: true}
 
 const START_WAIT_MS = 5000
 
 const FLUSH_WAIT_MS = 1500
+
+function toolFailure(error: EvlogError) {
+  return Effect.fail(Tool.makeError({message: error.message, error, metadata: {code: error.code, fix: error.fix}}))
+}
 
 const Keyframes = z.number().int().min(0).max(8).default(3)
 
@@ -41,11 +47,7 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
           const covered = yield* control.awaitAppendAfter(appendCursor, START_WAIT_MS)
           if (covered) return {output: {captureId, startedAt: startTs}}
           yield* control.stopCapture(captureId).pipe(Effect.ignore)
-          return yield* Effect.fail(
-            Tool.makeError({
-              message: 'no page client attached within 5s; the app page with the widget must be open to record',
-            }),
-          )
+          return yield* toolFailure(recorderErrors.NO_PAGE_CLIENT())
         }),
     })
     editor.add({
@@ -60,11 +62,7 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
           const range = yield* control.stopCapture(captureId)
           yield* control.awaitAppendAfter(range.appendCursor, FLUSH_WAIT_MS)
           return yield* pull(range.startTs, range.stopTs, keyframes)
-        }).pipe(
-          Effect.catchTag('RecorderCaptureNotFound', (missing) =>
-            Effect.fail(Tool.makeError({message: `no active capture ${missing.captureId}`})),
-          ),
-        ),
+        }).pipe(Effect.catch(toolFailure)),
     })
     editor.add({
       name: 'pull',
@@ -96,12 +94,7 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
       execute: ({recordingId, keyframes}) =>
         recordings.get(recordingId).pipe(
           Effect.flatMap((events) => renderRecording(events, keyframes).pipe(Effect.provideContext(services))),
-          Effect.catchTags({
-            RecorderRecordingExpired: () =>
-              Effect.fail(Tool.makeError({message: `the recording ${recordingId} has expired`})),
-            RecorderRecordingNotFound: () =>
-              Effect.fail(Tool.makeError({message: `there is no saved recording ${recordingId}`})),
-          }),
+          Effect.catch(toolFailure),
         ),
     })
   })

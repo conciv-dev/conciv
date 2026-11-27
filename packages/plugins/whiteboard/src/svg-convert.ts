@@ -1,5 +1,6 @@
 import {Effect} from 'effect'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
+import {svgErrors} from './errors/svg-errors.js'
 
 type ConvertOptions = {x: number; y: number; width: number; roughness: number}
 type Origin = {x: number; y: number}
@@ -260,9 +261,9 @@ const PAINT_PROPERTIES = ['fill', 'stroke', 'stroke-width', 'font-size']
 function parseInert(svgMarkup: string): Element {
   const root = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml').documentElement
   if (root.getElementsByTagName('parsererror').length) {
-    throw new Error('the svg is not well-formed')
+    throw svgErrors.MALFORMED()
   }
-  if (root.localName !== 'svg') throw new Error('no <svg> root found')
+  if (root.localName !== 'svg') throw svgErrors.ROOT_NOT_FOUND()
   return root
 }
 
@@ -297,7 +298,7 @@ function drawableCopy(source: Element): SVGElement | null {
 
 export function svgToSkeletons(svgMarkup: string, options: ConvertOptions): ExcalidrawElementSkeleton[] {
   const svg = drawableCopy(parseInert(svgMarkup))
-  if (!(svg instanceof SVGSVGElement)) throw new Error('no <svg> root found')
+  if (!(svg instanceof SVGSVGElement)) throw svgErrors.ROOT_NOT_FOUND()
   const host = document.createElement('div')
   host.style.cssText = 'position:fixed;left:-10000px;top:0;'
   host.append(svg)

@@ -10,7 +10,7 @@
 - Private to conciv and never published: its exports point at `src`, nothing builds it, and the packages that use it
   inline it into their own builds.
 {{else}}
-- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
+- `vite build` emits the JavaScript and the declarations (`libConfig` from `@internal/vite-config`, types from `tsconfig.build.json`).
 {{/if}}
 
 ## Side Effects

@@ -28,7 +28,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "gen-migrations": "node src/scripts/gen-migrations.ts",
     "publint": "publint",
@@ -36,22 +36,24 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/types": "workspace:^",
     "drizzle-orm": "catalog:",
     "env-paths": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=26.0.0"
+    "node": ">=22.16.0"
   }
 }

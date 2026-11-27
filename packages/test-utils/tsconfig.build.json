@@ -1,1 +1,0 @@
-{"extends": ["./tsconfig.json", "@internal/tsconfig/tsconfig.build.json"]}
