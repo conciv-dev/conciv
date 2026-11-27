@@ -120,7 +120,7 @@ const sidebarClass = [
   'max-md:max-w-80',
   'max-md:border-s-0',
   'max-md:shadow-none',
-  'max-md:pb-[env(safe-area-inset-bottom)]',
+  'max-md:pb-[max(--spacing(4),env(safe-area-inset-bottom))]',
   'max-md:[--fd-sidebar-drawer-offset:-100%]',
   'max-md:[&>div:first-child]:hidden',
   'max-md:[&>div:last-child]:hidden',
