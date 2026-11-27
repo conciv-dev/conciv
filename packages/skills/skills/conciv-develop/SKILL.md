@@ -281,9 +281,10 @@ like the widget.
 
 The widget's sheet holds the classes of the widget, its kits and the built-in plugins
 (`packages/app/uno.config.ts`), nothing else. Any other plugin ships its own: in this repo its
-`uno.config.ts` is `pluginSheetConfig(import.meta.url)` (`packages/uno-preset/src/uno-preset.ts:49-61`) and its
-browser part adds `virtual:uno.css?inline` with `ctx.add(Style, css)`
-(`packages/plugins/whiteboard/src/plugin-experimental.tsx:19,56`). A popover it opens keeps the fence through
+`uno.config.ts` is `pluginSheetConfig(import.meta.url)` (`packages/uno-preset/src/uno-preset.ts`), its
+`scripts/build-css.ts` (the `build:css` script, which `build` runs first) writes the sheet to `src/.generated/css.ts`
+with `buildShadowCss` (`@internal/uno-preset/build-shadow-css`), and its browser part imports `./.generated/css.js`
+and adds it with `ctx.add(Style, css)` (`packages/plugins/whiteboard/src/plugin-experimental.tsx`). A popover it opens keeps the fence through
 `LayerAreaContext` (`packages/ui-kit-system/src/layer-portal.tsx`).
 
 A mounted session's `browserTab` (`packages/frontend-plugin-api/src/host-apis.ts:213`) is the browser tab this

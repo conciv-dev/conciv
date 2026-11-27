@@ -19,6 +19,11 @@
       "types": "./src/uno-preset.ts",
       "import": "./dist/uno-preset.js",
       "default": "./dist/uno-preset.js"
+    },
+    "./build-shadow-css": {
+      "types": "./src/build-shadow-css.ts",
+      "import": "./dist/build-shadow-css.js",
+      "default": "./dist/build-shadow-css.js"
     }
   },
   "scripts": {

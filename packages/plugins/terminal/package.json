@@ -22,7 +22,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsdown",
+    "build:css": "node scripts/build-css.ts",
+    "build": "pnpm run build:css && tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -43,7 +44,6 @@
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/plugin-page": "workspace:*",
-    "@internal/build-plugins": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",

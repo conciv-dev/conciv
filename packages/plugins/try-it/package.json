@@ -31,7 +31,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build:css": "node scripts/build-css.ts",
+    "build": "pnpm run build:css && tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -50,7 +51,6 @@
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/harness": "workspace:*",
     "@effect/vitest": "catalog:",
-    "@internal/build-plugins": "workspace:*",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",

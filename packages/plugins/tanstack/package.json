@@ -45,7 +45,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build",
+    "build:css": "node scripts/build-css.ts",
+    "build": "pnpm run build:css && tsdown && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -64,7 +65,6 @@
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
-    "@internal/build-plugins": "workspace:*",
     "@internal/engine-kit": "workspace:*",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",

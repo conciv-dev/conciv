@@ -1,6 +1,5 @@
 import {defineConfig} from 'tsdown'
 import solid from 'unplugin-solid/rolldown'
-import {inlineSheet} from '@internal/build-plugins'
 
 export default defineConfig([
   {
@@ -27,6 +26,6 @@ export default defineConfig([
     dts: {emitDtsOnly: true},
     clean: false,
     fixedExtension: false,
-    plugins: [inlineSheet(import.meta.url), solid()],
+    plugins: [solid()],
   },
 ])

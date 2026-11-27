@@ -1,7 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'tsdown'
 import solid from 'unplugin-solid/rolldown'
-import {inlineSheet} from '@internal/build-plugins'
 
 const sourceDir = fileURLToPath(new URL('src/', import.meta.url))
 const clientEntry = ['src/client.ts', 'src/renderer.tsx', 'src/builtins.ts', 'src/test-utils.ts']
@@ -28,12 +27,12 @@ export default defineConfig([
     entry: clientEntry,
     dts: false,
     sourcemap: true,
-    plugins: [rpcFromPackage, inlineSheet(import.meta.url), solid()],
+    plugins: [rpcFromPackage, solid()],
   },
   ...clientEntry.map((file) => ({
     ...browser,
     entry: [file],
     dts: {emitDtsOnly: true},
-    plugins: [rpcFromPackage, inlineSheet(import.meta.url), solid()],
+    plugins: [rpcFromPackage, solid()],
   })),
 ])

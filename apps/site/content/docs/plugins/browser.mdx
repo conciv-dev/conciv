@@ -228,8 +228,9 @@ ctx.add(Command, {id: 'toggle', bind: 'mod+shift+e', title: 'Toggle', run: () =>
 ## Style it
 
 The widget's own sheet holds the classes of the widget and its UI kits, and nothing else. Every plugin, the built-ins
-page, terminal and iOS included, ships its own sheet. In this repo a plugin's `uno.config.ts` is one line, and its browser part adds the
-sheet UnoCSS builds from its `src` with `Style`:
+page, terminal and iOS included, ships its own sheet. In this repo a plugin's `uno.config.ts` is one line, its
+`build:css` script writes the sheet UnoCSS builds from its `src` to `src/.generated/css.ts`, and its browser part adds
+it with `Style`:
 
 ```ts title="packages/plugins/whiteboard/uno.config.ts"
 import {pluginSheetConfig} from '@internal/uno-preset'
@@ -238,7 +239,7 @@ export default pluginSheetConfig(import.meta.url)
 ```
 
 ```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 ```
 
 ```tsx

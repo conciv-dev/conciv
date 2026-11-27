@@ -7,7 +7,7 @@ import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
 import {follow, runInOwnerScope} from './solid-runtime.js'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 
 const RECORDING_TOOLS = ['recording_start', 'recording_stop', 'recording_pull'] as const
 

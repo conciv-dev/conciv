@@ -33,7 +33,7 @@ import {
   testFiles,
   type FileGroup,
 } from './view.js'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 
 type Actions = {
   readonly ui: InternalUi

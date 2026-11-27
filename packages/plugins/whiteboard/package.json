@@ -44,7 +44,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build",
+    "build:css": "node scripts/build-css.ts",
+    "build": "pnpm run build:css && tsdown && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -70,7 +71,6 @@
     "@conciv/unplugin": "workspace:*",
     "@excalidraw/excalidraw": "catalog:",
     "@excalidraw/mermaid-to-excalidraw": "catalog:",
-    "@internal/build-plugins": "workspace:*",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
