@@ -1,5 +1,13 @@
 # ios-example
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.24
+  - @conciv/plugin-ios@0.0.24
+
 ## 0.0.2
 
 ### Patch Changes

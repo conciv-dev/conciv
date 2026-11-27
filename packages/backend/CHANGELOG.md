@@ -1,5 +1,14 @@
 # @conciv/core
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/backend-defaults@0.0.24
+  - @conciv/plugin-page@0.0.24
+  - @conciv/simulation@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

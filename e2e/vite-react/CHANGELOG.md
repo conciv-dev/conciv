@@ -1,5 +1,13 @@
 # conciv-e2e-vite-react
 
+## 0.0.16
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/plugin-recorder@0.0.24
+  - @conciv/it@0.0.24
+
 ## 0.0.15
 
 ### Patch Changes

@@ -297,7 +297,10 @@ type DevToolsContext = {
   }
 }
 
-type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
+type DevToolsPlugin = Plugin & {
+  devtools: {setup: (context: DevToolsContext) => void}
+  api: {engine: () => Engine | undefined}
+}
 
 function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): ConcivSettingsInit | false | undefined {
   if (widget === false || !docked) return widget
@@ -324,6 +327,7 @@ export function makeViteHook(
     name: 'conciv',
     apply: 'serve',
     enforce: 'pre',
+    api: {engine: () => engines.at(-1)},
     devtools: {
       setup(context) {
         if (!docked) return

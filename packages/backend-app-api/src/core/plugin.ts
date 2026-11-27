@@ -19,10 +19,18 @@ import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
 import {pluginHostErrors} from '@conciv/errors'
 import {EvlogError} from 'evlog'
+import type {Bundler, BundlerCode} from '@conciv/backend-plugin-api/effect/plugin'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Option, Queue, References, Scope, Semaphore} from 'effect'
 import * as Bus from './bus.js'
 import * as PluginHost from './plugin/host.js'
-import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
+import {
+  type BundlerHook,
+  type Chunks,
+  type Failure,
+  type Generation,
+  type TransformedCode,
+  Service,
+} from './plugin/service.js'
 import * as State from './state.js'
 
 export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
@@ -60,6 +68,43 @@ export const layer = Layer.effect(
     )
     const list = Effect.fn('Plugin.list')(function* () {
       return inventory
+    })
+    const bundlers = () =>
+      Array.from(active.values()).flatMap((slot) => {
+        const running = slot.activation?.failure === undefined ? slot.activation?.plugin : undefined
+        return running?.bundler === undefined ? [] : [{id: running.id, bundler: running.bundler}]
+      })
+    const transform = Effect.fn('Plugin.transform')(function* (code: string, id: string) {
+      const chain = yield* Effect.reduce(
+        bundlers(),
+        (): TransformChain => ({result: undefined, changes: 0}),
+        (done: TransformChain, plugin) => {
+          const hook = plugin.bundler.transform
+          if (hook === undefined) return Effect.succeed(done)
+          return runHook('transform', plugin.id, id, () => hook(done.result?.code ?? code, id)).pipe(
+            Effect.map((answer) => {
+              const next = readCode(answer)
+              return next === undefined ? done : {result: next, changes: done.changes + 1}
+            }),
+          )
+        },
+      )
+      if (chain.result === undefined) return null
+      return chain.changes === 1 ? chain.result : {code: chain.result.code}
+    })
+    const resolveId = Effect.fn('Plugin.resolveId')(function* (id: string, importer: string | undefined) {
+      return yield* firstAnswer(bundlers(), (plugin) => {
+        const hook = plugin.bundler.resolveId
+        return hook === undefined ? Effect.succeed(null) : runHook('resolveId', plugin.id, id, () => hook(id, importer))
+      })
+    })
+    const loadModule = Effect.fn('Plugin.loadModule')(function* (id: string) {
+      return yield* firstAnswer(bundlers(), (plugin) => {
+        const hook = plugin.bundler.load
+        return hook === undefined
+          ? Effect.succeed(null)
+          : runHook('load', plugin.id, id, () => hook(id)).pipe(Effect.map(readCode))
+      })
     })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
       yield* Effect.annotateCurrentSpan({plugin: id})
@@ -300,6 +345,9 @@ export const layer = Layer.effect(
       awaitActivation: ready.await,
       hold,
       list,
+      transform,
+      resolveId,
+      load: loadModule,
       experimental,
       experimentalChunk,
     })
@@ -368,4 +416,43 @@ function slotInfo(slot: Slot): Plugin.Info {
 function describeLoadFailure(error: EvlogError) {
   const failure = `failed to load plugin: ${error.code}: ${error.message}`
   return error.fix === undefined ? failure : `${failure} (${error.fix})`
+}
+
+type RunningBundler = {readonly id: string; readonly bundler: Bundler}
+
+type TransformChain = {readonly result: TransformedCode | undefined; readonly changes: number}
+
+function readCode(answer: BundlerCode): TransformedCode | undefined {
+  if (answer === null || answer === undefined) return undefined
+  return typeof answer === 'string' ? {code: answer} : answer
+}
+
+function runHook<Answer>(hook: BundlerHook, plugin: string, module: string, run: () => Effect.Effect<Answer, unknown>) {
+  return Effect.suspend(run).pipe(
+    Effect.catchCause((cause) => {
+      const failure = Cause.squash(cause)
+      const reason = failure instanceof Error ? failure.message : String(failure)
+      return Effect.fail(
+        pluginHostErrors.BUNDLER_HOOK_FAILED({
+          hook,
+          plugin,
+          module,
+          reason,
+          cause: failure instanceof Error ? failure : undefined,
+        }),
+      )
+    }),
+  )
+}
+
+function firstAnswer<Answer>(
+  plugins: readonly RunningBundler[],
+  ask: (plugin: RunningBundler) => Effect.Effect<Answer | null | undefined, EvlogError>,
+) {
+  return Effect.reduce(
+    plugins,
+    (): Answer | null => null,
+    (found, plugin) =>
+      found === null ? ask(plugin).pipe(Effect.map((answer) => answer ?? null)) : Effect.succeed(found),
+  )
 }

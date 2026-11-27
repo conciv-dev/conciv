@@ -1,5 +1,19 @@
 # @conciv/client
 
+## 0.0.24
+
+### Patch Changes
+
+- [#1198](https://github.com/conciv-dev/conciv/pull/1198) [`9c7cf6e`](https://github.com/conciv-dev/conciv/commit/9c7cf6ed99e51b5945d98d953df2d3d098d08172) Thanks [@omridevk](https://github.com/omridevk)! - The engine, the widget and the CLI now speak oRPC 2 (2.0.0-beta.53). The oRPC 2 wire format differs from oRPC 1, so all three must run the same release: an older widget bundle cached in a host page, or an older globally installed CLI, cannot talk to a newer engine until it is upgraded.
+
+  The rpc procedures `registry.call` and `plugin.call` are now `registry.invoke` and `plugin.invoke`: an oRPC 2 client treats a property named `call` as `Function.prototype.call`, so a procedure of that name cannot be reached. The `conciv plugin call` command and a plugin's `ctx.client.rpc.call` keep their names.
+
+  Every rpc error now answers with the HTTP status of its meaning (400 for a bad call, 404 for something missing, 409 for a conflict, 503 for something unavailable) and its data may carry `why` and `fix` (both optional; a slow-consumer refusal and a masked internal error carry neither). When a rejection carries `fix`, the CLI prints it as its hint. Every rpc error shares one data schema, `ErrorDetailSchema`, with optional `why` and `fix`; the plugin rpc errors extend it with the plugin's own `{type, message, data}`.
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.24
+  - @conciv/types@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @conciv/grab
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/frontend-plugin-api@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

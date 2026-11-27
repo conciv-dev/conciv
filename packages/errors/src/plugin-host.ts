@@ -46,6 +46,13 @@ export const pluginHostErrors = defineErrorCatalog('plugin-host', {
   RPC_ERROR_RETURNED: {
     message: ({type}: {type: string}) => `RPC error ${type}`,
   },
+  BUNDLER_HOOK_FAILED: {
+    status: 500,
+    message: ({hook, plugin, module, reason}: {hook: string; plugin: string; module: string; reason: string}) =>
+      `conciv: the ${hook} hook of plugin ${plugin} failed on ${module}: ${reason}`,
+    why: "The plugin's bundler part threw or failed while the dev server ran it.",
+    fix: "Fix the plugin's bundler hook, or remove the plugin, and reload the page.",
+  },
 })
 
 declare module 'evlog' {

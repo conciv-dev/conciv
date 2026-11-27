@@ -1,5 +1,17 @@
 # conciv-storybook
 
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [[`9c7cf6e`](https://github.com/conciv-dev/conciv/commit/9c7cf6ed99e51b5945d98d953df2d3d098d08172)]:
+  - @conciv/client@0.0.24
+  - @conciv/ui-kit-chat@0.0.24
+  - @conciv/grab@0.0.24
+  - @conciv/mascot@0.0.24
+  - @conciv/solid-streamdown@0.0.24
+  - @conciv/ui-kit-system@0.0.24
+
 ## 0.0.13
 
 ### Patch Changes

@@ -54,9 +54,32 @@ export interface BrowserTabDomain {
 
 export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 
+export interface SourceMap {
+  readonly version: number
+  readonly mappings: string
+  readonly names: string[]
+  readonly sources: string[]
+  readonly sourcesContent?: (string | null)[] | undefined
+  readonly file?: string | undefined
+  readonly sourceRoot?: string | undefined
+}
+
+export type BundlerCode =
+  | string
+  | {readonly code: string; readonly map?: string | SourceMap | null | undefined}
+  | null
+  | undefined
+
+export interface Bundler {
+  readonly transform?: (code: string, id: string) => Effect.Effect<BundlerCode, unknown>
+  readonly resolveId?: (id: string, importer: string | undefined) => Effect.Effect<string | null | undefined, unknown>
+  readonly load?: (id: string) => Effect.Effect<BundlerCode, unknown>
+}
+
 export interface Plugin<R = Scope.Scope, E extends Error = never> {
   readonly id: string
   readonly effect: (context: Context) => Effect.Effect<void, E, R>
+  readonly bundler?: Bundler
 }
 
 export function define<R = Scope.Scope, E extends Error = never>(plugin: Plugin<R, E>) {

@@ -1,6 +1,6 @@
 {
   "name": "@internal/engine-kit",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "private": true,
   "description": "The harness engine engine tests share: starts the real engine through the createBackend it is given, on a scripted model, in a temp project.",
   "homepage": "https://conciv.dev",
