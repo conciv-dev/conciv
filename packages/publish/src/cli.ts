@@ -165,6 +165,18 @@ const checkPluginUiKit = defineCommand({
   },
 })
 
+const checkPublicTypes = defineCommand({
+  meta: {
+    name: 'check-public-types',
+    description:
+      'Fail when a published package declaration file in dist names a private workspace package; run it after the build',
+  },
+  async run() {
+    const {cwd} = await atRoot()
+    await assertPublicTypesPublic(cwd)
+  },
+})
+
 const check = defineCommand({
   meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
   async run() {
@@ -359,6 +371,7 @@ async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): 
   await Promise.all(names.map((name) => assertBootstrappable(cwd, name)))
   if (names.length === 0) return
   await turbo('build', 'publint', 'attw', ...names.map((name) => `--filter=${name}`))
+  await assertPublicTypesPublic(cwd, names)
 }
 
 function applyNpmActions({name, actions}: SyncPlanEntry, interactive: boolean) {
@@ -588,6 +601,7 @@ const main = defineCommand({
     'check-turbo-depends-on': checkTurboDependsOn,
     'check-dependency-loops': checkDependencyLoops,
     'check-plugin-ui-kit': checkPluginUiKit,
+    'check-public-types': checkPublicTypes,
     check,
     release,
     snapshot,
