@@ -3,89 +3,146 @@ title: Add a skill
 description: Ship instructions with your plugin, so the agent knows when and how to use its tools.
 ---
 
+This guide also imports `@conciv/protocol`, which the tutorial installed only for the Effect style.
+
+```package-install
+npm install -D @conciv/protocol
+```
+
 A skill is a page of instructions the agent reads when a task needs it. Ship one with your plugin when its tools need
-a how-to: which tool to call first, what the results mean, what to avoid.
+a how-to: which tool to call first, what the results mean, what to avoid. If you only need the instructions, with no
+new code, a skill file in your project is enough. See [Skills](/docs/skills).
 
-A skill only teaches. If you want the agent to follow your steps without running new code, a skill file in your
-project is enough. See [Skills](/docs/skills).
+## Basic
 
-## Add the skill
+Keep the instructions in a Markdown file in your plugin folder:
 
-Add skills inside `ctx.skill.transform` in your plugin's engine part:
+```md title="conciv/plugins/tickets/skill/SKILL.md"
+# Tickets
 
-<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
-<Tab value="Promise">
+Read a ticket with ticket_read before you change it.
+Never close a ticket whose id starts with SEC-: the security team closes those.
+```
 
-```ts twoslash title="conciv/plugins/tickets/server.ts"
+The engine does not find this file on its own. Your engine part reads it and adds it inside `ctx.skill.transform`:
+
+```ts twoslash title="conciv/plugins/tickets/server.ts" tab="Promise" tab-group="plugin-api"
+import {readFile} from 'node:fs/promises'
+import {fileURLToPath} from 'node:url'
 import {Plugin, Skill} from '@conciv/backend-plugin-api'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 
-const tickets: Skill.Info = {
-  id: Skill.Id.make('tickets'),
-  name: Skill.Name.make('Tickets'),
-  description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
-  path: AbsolutePath.make('skill://tickets/SKILL.md'),
-  content: [
-    '# Tickets',
-    '',
-    'Read a ticket with ticket_read before you change it.',
-    'Never close a ticket whose id starts with SEC-: the security team closes those.',
-  ].join('\n'),
-}
+const file = fileURLToPath(new URL('./skill/SKILL.md', import.meta.url))
 
 export default Plugin.define({
   id: 'tickets',
   async setup(ctx) {
-    await ctx.skill.transform((skills) => skills.add(tickets))
+    const content = await readFile(file, 'utf8')
+    await ctx.skill.transform((skills) =>
+      skills.add({
+        id: Skill.Id.make('tickets'),
+        name: Skill.Name.make('Tickets'),
+        description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
+        path: AbsolutePath.make(file), // <- the skill's folder is the one this file is in
+        content, // <- what the agent reads when it loads the skill
+      }),
+    )
   },
 })
 ```
 
-</Tab>
-<Tab value="Effect">
-
-```ts twoslash title="conciv/plugins/tickets/server.ts"
+```ts twoslash title="conciv/plugins/tickets/server.ts" tab="Effect" tab-group="plugin-api"
+import {readFile} from 'node:fs/promises'
+import {fileURLToPath} from 'node:url'
+import {Effect} from 'effect'
 import {Plugin, Skill} from '@conciv/backend-plugin-api/effect'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 
-const tickets: Skill.Info = {
-  id: Skill.Id.make('tickets'),
-  name: Skill.Name.make('Tickets'),
-  description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
-  path: AbsolutePath.make('skill://tickets/SKILL.md'),
-  content: [
-    '# Tickets',
-    '',
-    'Read a ticket with ticket_read before you change it.',
-    'Never close a ticket whose id starts with SEC-: the security team closes those.',
-  ].join('\n'),
-}
+const file = fileURLToPath(new URL('./skill/SKILL.md', import.meta.url))
 
 export default Plugin.define({
   id: 'tickets',
-  effect: (ctx) => ctx.skill.transform((skills) => skills.add(tickets)),
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const content = yield* Effect.promise(() => readFile(file, 'utf8'))
+      yield* ctx.skill.transform((skills) =>
+        skills.add({
+          id: Skill.Id.make('tickets'),
+          name: Skill.Name.make('Tickets'),
+          description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
+          path: AbsolutePath.make(file), // <- the skill's folder is the one this file is in
+          content, // <- what the agent reads when it loads the skill
+        }),
+      )
+    }),
 })
 ```
 
-</Tab>
-</Tabs>
+A few things to notice:
 
-- `id` names the skill. Keep it the same as your plugin's id, so the two are easy to match.
-- `name` is the display name of the skill.
-- `description` is what the agent always sees. It decides from this line when to load the skill, so say what the
-  skill covers and when to load it.
-- `path` is where the skill says it lives. A `skill://` path works for a skill that is not a file.
-- `content` is the instructions, in Markdown. The agent reads them only when it loads the skill.
+- `Skill.Id`, `Skill.Name` and `AbsolutePath` are branded strings. `.make` turns a plain string into one, so an id
+  cannot go where a name belongs.
+- `description` is what the agent always sees. It decides from this line when to load the skill.
+- The agent sees the files next to `SKILL.md` and can read them, such as a `reference/` folder.
+- In both tabs, a missing file stops the plugin from loading.
 
 The agent gets the skill's name and description in every turn. When it starts a ticket task, it loads the content
 and follows it.
 
-## Keep a skill out of the list
+## A skill with no file
 
-A skill with no `description` is not listed to the agent. Neither is one with `autoinvoke: false`. Use that for a
-skill the user attaches to a message on purpose.
+Write the content in code, and give the skill a `skill://` path. That path names the skill without pointing at a
+folder, so the agent sees no files beside it:
 
-## Next
+```ts twoslash title="conciv/plugins/tickets/server.ts" tab="Promise" tab-group="plugin-api"
+import {Plugin, Skill} from '@conciv/backend-plugin-api'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
 
-- [Add a tool](/docs/plugins/guides/tool): the tools your skill teaches.
-- [Skills](/docs/skills): skills written as files in your project.
+export default Plugin.define({
+  id: 'tickets',
+  async setup(ctx) {
+    await ctx.skill.transform((skills) =>
+      skills.add({
+        id: Skill.Id.make('tickets'),
+        name: Skill.Name.make('Tickets'),
+        description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
+        path: AbsolutePath.make('skill://tickets/SKILL.md'),
+        content: 'Read a ticket with ticket_read before you change it.',
+      }),
+    )
+  },
+})
+```
+
+```ts twoslash title="conciv/plugins/tickets/server.ts" tab="Effect" tab-group="plugin-api"
+import {Plugin, Skill} from '@conciv/backend-plugin-api/effect'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
+
+export default Plugin.define({
+  id: 'tickets',
+  effect: (ctx) =>
+    ctx.skill.transform((skills) =>
+      skills.add({
+        id: Skill.Id.make('tickets'),
+        name: Skill.Name.make('Tickets'),
+        description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
+        path: AbsolutePath.make('skill://tickets/SKILL.md'),
+        content: 'Read a ticket with ticket_read before you change it.',
+      }),
+    ),
+})
+```
+
+<Accordions>
+<Accordion title="How do I keep a skill out of the agent's list?">
+
+Leave out its `description`, or set `autoinvoke: false`. The agent is then not told about it. The user can still
+attach it to a message on purpose.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Add a tool](/docs/plugins/guides/tool)**: the tools your skill teaches.
+- **[Skills](/docs/skills)**: skills written as files in your project.
