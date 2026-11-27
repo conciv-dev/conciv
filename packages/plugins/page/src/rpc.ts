@@ -15,6 +15,7 @@ import {
   type PageQueueResult,
 } from './page-types.js'
 import {SourceLocSchema} from '@conciv/protocol'
+import {pageErrors} from './errors/errors.js'
 
 export const PAGE_NAMESPACE = 'page'
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -642,12 +643,12 @@ export const PAGE_ACT_TOOL_NAMES: readonly string[] = Operations.filter((operati
 
 export function pageOperation<const Name extends Method>(name: Name): NamedOperation<Name> {
   const operation = Operations.find((candidate): candidate is NamedOperation<Name> => candidate.name === name)
-  if (operation === undefined) throw new Error(`No page operation is named ${name}`)
+  if (operation === undefined) throw pageErrors.OPERATION_UNKNOWN({name})
   return operation
 }
 
 export function pageVerbOfTool(name: string): string {
-  if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
+  if (!name.startsWith(PAGE_TOOL_PREFIX)) throw pageErrors.NOT_A_PAGE_TOOL({name})
   return name.slice(PAGE_TOOL_PREFIX.length)
 }
 

@@ -21,6 +21,7 @@ import {
   type Settled,
 } from './queue-machine.js'
 import {Action, type PageChangeEntry, type Result} from './rpc.js'
+import {pageErrors} from './errors/errors.js'
 
 export type RequestSettlement =
   | {readonly ok: true; readonly result: Result}
@@ -151,7 +152,7 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
 
   const reached = Effect.fn('PageQueue.reached')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
     const entry = findQueue(machine.state, sessionId, queueId)
-    if (entry === undefined) return yield* Effect.fail(new Error(`no queue ${queueId} on this tab`))
+    if (entry === undefined) return yield* Effect.fail(pageErrors.QUEUE_NOT_FOUND({queueId}))
     if (entry.result === null && waitMs > 0) yield* Deferred.await(entry.done).pipe(Effect.timeoutOption(waitMs))
     return findQueue(machine.state, sessionId, queueId) ?? entry
   })

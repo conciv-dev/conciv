@@ -12,7 +12,6 @@ import {
   Request,
   RequestResolver,
   Schedule,
-  Schema,
   Scope,
   Semaphore,
   Stream,
@@ -20,6 +19,7 @@ import {
 import {z} from 'zod'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
+import type {EvlogError} from 'evlog'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {SessionId} from '@conciv/types/chat-types'
 import {
@@ -45,6 +45,7 @@ import {
   queueNotice,
 } from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
+import {pageErrors} from './errors/errors.js'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/backend-plugin-api/effect'
 
@@ -64,13 +65,7 @@ const PAGE_CODE = /^\[page\.([\w-]+)\]/u
 
 const Coded = z.object({code: z.string()})
 
-const TabGone = Schema.TaggedStruct('PageTabGone', {dispatched: Schema.Boolean})
-export type TabGone = typeof TabGone.Type & globalThis.Error
-
-const makeTabGone = (fields: Omit<typeof TabGone.Type, '_tag'>): TabGone =>
-  Object.assign(new globalThis.Error('The page tab went away'), TabGone.make(fields), {name: 'PageTabGone'})
-
-type PageError = Tool.Error | TabGone
+type PageError = Tool.Error | EvlogError
 
 const PageCall = Request.TaggedClass('PageCall')<
   {
@@ -98,13 +93,13 @@ export type Call = {
 
 export type Connection = Effect.Success<ReturnType<typeof make>>
 
-export function raise(error: Tool.Error): Error {
-  return Object.assign(new Error(error.message, {cause: error.error}), error)
+function goneAfterDispatch(error: PageError): boolean {
+  return !Tool.isToolError(error) && error.code === pageErrors.TAB_GONE_AFTER_DISPATCH.code
 }
 
 export function toolFailure(error: PageError): Tool.Error {
   if (Tool.isToolError(error)) return error
-  return error.dispatched ? disconnectedAfterDispatch() : disconnectedBeforeDispatch()
+  return goneAfterDispatch(error) ? disconnectedAfterDispatch() : disconnectedBeforeDispatch()
 }
 
 export function readPageCode(error: Tool.Error): string {
@@ -128,7 +123,7 @@ function settlement(exit: Exit.Exit<Result, PageError>): PageQueue.RequestSettle
     return {ok: false, error: Tool.toolError({message: `The queued action ended: ${Cause.pretty(exit.cause)}`})}
   const error = failure.value
   if (Tool.isToolError(error)) return {ok: false, error}
-  return error.dispatched
+  return goneAfterDispatch(error)
     ? {ok: false, error: disconnectedAfterDispatch(), tabClosed: true}
     : {ok: false, error: disconnectedBeforeDispatch()}
 }
@@ -268,14 +263,14 @@ export const make = Effect.fn('PageConnection.make')(function* (
       const pending = yield* RcMap.get(calls, call)
       const listed = yield* ctx.browserTabs.list(call.sessionId)
       if (!listed.tabs.some((tab) => tab.id === call.tabId) || (yield* Deferred.isDone(pending.gone)))
-        return yield* Effect.fail(makeTabGone({dispatched: false}))
+        return yield* Effect.fail(pageErrors.TAB_GONE_BEFORE_DISPATCH())
       if (yield* Deferred.isDone(pending.reply)) return yield* Effect.interrupt
       yield* registration.events
         .emit('control', {type: 'command', tabId: call.tabId, requestId: call.requestId})
         .pipe(Effect.mapError((error) => dispatchFailed(call.command.action, error)))
       const outcome = yield* Effect.raceFirst(
         Deferred.await(pending.reply),
-        Deferred.await(pending.gone).pipe(Effect.andThen(Effect.fail(makeTabGone({dispatched: true})))),
+        Deferred.await(pending.gone).pipe(Effect.andThen(Effect.fail(pageErrors.TAB_GONE_AFTER_DISPATCH()))),
       ).pipe(
         Effect.timeoutOrElse({
           duration: Duration.millis(call.command.timeoutMs),
@@ -349,11 +344,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       const deadline = Date.now() + command.timeoutMs
       const sent = deliver(target, command)
       if (!call.reading) return yield* serialized(call.sessionId, sent)
-      return yield* sent.pipe(
-        Effect.catchTag('PageTabGone', (gone) =>
-          gone.dispatched ? resent(call, command, deadline, gone) : Effect.fail(gone),
-        ),
-      )
+      return yield* sent.pipe(Effect.catchIf(goneAfterDispatch, (gone) => resent(call, command, deadline, gone)))
     })
 
   const playQueue = Effect.fn('PageConnection.playQueue')(function* (
@@ -366,7 +357,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
     },
   ) {
     const tabId = play.action.type === 'tabs.list' ? undefined : play.action.tabId
-    yield* selected(sessionId, tabId).pipe(Effect.mapError(raise))
+    yield* selected(sessionId, tabId)
     const of = play.actions.length
     const played = yield* Effect.forEach(play.actions, (action) =>
       Deferred.make<PageQueue.RequestSettlement>().pipe(Effect.map((reply) => ({action, reply}))),
@@ -503,7 +494,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
           Effect.map((result) => result.value),
           Effect.mapError((error) => {
             if (!Tool.isToolError(error))
-              return call.error('tab_gone', toolFailure(error).message, {dispatched: error.dispatched})
+              return call.error('tab_gone', toolFailure(error).message, {dispatched: goneAfterDispatch(error)})
             const raised = PageRaisedErrorSchema.safeParse(error.error)
             return call.error('failed', error.message, {
               code: readPageCode(error),

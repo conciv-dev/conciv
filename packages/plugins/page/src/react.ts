@@ -19,6 +19,7 @@ import type {RefAdder} from './snapshot.js'
 import type {RawFrame, Owner, LocateResult, SourceLoc} from '@conciv/frontend-plugin-api/page'
 import type {TreeNode, HookNode, InspectResult, TreeResult} from './page-introspect-types.js'
 import type {BaseContext} from '@conciv/frontend-plugin-api'
+import {pageErrors} from './errors/errors.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
@@ -33,7 +34,7 @@ export function installReactBridge(): void {
   try {
     instrument({})
   } catch (error) {
-    throw new Error('the react devtools hook is unavailable', {cause: error})
+    throw pageErrors.REACT_HOOK_UNAVAILABLE({cause: error instanceof Error ? error : undefined})
   }
 }
 
