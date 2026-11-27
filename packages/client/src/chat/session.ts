@@ -225,12 +225,19 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       throw failure
     }
   }
+  const runEnds = new Set<() => void>()
+  const runEnded = (): void => {
+    const waiting = [...runEnds]
+    runEnds.clear()
+    waiting.forEach((resolve) => resolve())
+  }
   const connected = options.connect({
     onLifecycle: (lifecycle) => {
       receive({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
       if (isRunPhaseTerminal(lifecycle.phase) && cardStillRunning(chat.messages()))
         void refresh().catch((error: unknown) => options.onError?.(asError(error)))
+      if (isRunPhaseTerminal(lifecycle.phase)) runEnded()
     },
     onHydrated: (hydration) => {
       receive(newerRun(run().source, hydration))
@@ -258,6 +265,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const hydrate = connected.hydrate
   const connection: ChatSessionConnection = {
     ...connected,
+    send: (messages, data, abortSignal, runContext) =>
+      connected.send(messages, data, abortSignal, runContext).finally(runEnded),
     refresh: (before) => whileHydrating(() => connected.refresh(before)),
     ...(hydrate === undefined
       ? {}
@@ -314,7 +323,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       options.onError?.(error)
     },
   })
-  onCleanup(() => connection.close())
+  onCleanup(() => {
+    connection.close()
+    runEnded()
+  })
   const stopQueued = createMemo(() => {
     const current = run()
     return current.phase === 'stop-queued' && chatBusy(chat) && current.runId === chat.runId()
@@ -345,6 +357,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const stopRun = async (): Promise<void> => {
     const runIds = seenRunIds()
     setRunSource(stoppingRun)
+    const ended = chat.isLoading() ? new Promise<void>((resolve) => runEnds.add(resolve)) : Promise.resolve()
     try {
       await options.stop(runIds)
     } catch (error) {
@@ -353,6 +366,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     } finally {
       setRunSource(stoppedRun)
     }
+    await ended
     const shown = shownIds()
     const window = await latestWindow().finally(() => chat.stop())
     showWindow(window, shown)
