@@ -7,7 +7,7 @@ import {TypeTable} from 'fumadocs-ui/components/type-table'
 import {Accordion, Accordions} from 'fumadocs-ui/components/accordion'
 import {ImageZoom} from 'fumadocs-ui/components/image-zoom'
 import {Callout} from './docs-callout'
-import {CodeBlockPre, CodeBlockTabs, PopupContent} from './docs-code'
+import {CodeBlockPre, CodeBlockTab, CodeBlockTabs, CodeBlockTabsList, PopupContent} from './docs-code'
 import {Mermaid} from './mermaid'
 import {Playground} from './playground'
 import {ConfigOptions, TestRunnerOptions} from './config-options'
@@ -24,6 +24,8 @@ function getMDXComponents(components?: MDXComponents) {
     PopupContent,
     pre: CodeBlockPre,
     CodeBlockTabs,
+    CodeBlockTabsList,
+    CodeBlockTab,
     Callout,
     Step,
     Steps,

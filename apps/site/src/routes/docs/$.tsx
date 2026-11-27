@@ -81,6 +81,17 @@ const clientLoader = browserCollections.docs.createClientLoader({
   },
 })
 
+const sidebarClass = [
+  'border-e',
+  '[&_:is(a[data-active],button[aria-expanded])]:py-1.5',
+  '[&_:is(a[data-active],button[aria-expanded])]:bg-transparent',
+  '[&_:is(a[data-active=false],button[aria-expanded]):hover]:text-fd-foreground',
+  '[&_a[data-active=true]]:font-medium',
+  '[&_a[data-active=true]]:text-fd-primary',
+  '[&_a[data-active]:has([data-docs-icon])]:gap-2.5',
+  '[&_a[data-active]:has([data-docs-icon])]:py-1',
+].join(' ')
+
 function Page() {
   const {path, pageTree, markdownUrl} = useFumadocsLoader(Route.useLoaderData())
   const {header} = Route.useSearch()
@@ -93,7 +104,7 @@ function Page() {
       nav={{...base.nav, mode: 'top', children: <DocsHeaderNav variant={variant} />}}
       links={docsHeaderMenuLinks(variant)}
       githubUrl={repoUrl}
-      sidebar={{collapsible: false, className: 'border-e', components: {Separator: DocsSidebarSeparator}}}
+      sidebar={{collapsible: false, className: sidebarClass, components: {Separator: DocsSidebarSeparator}}}
       tree={pageTree}
     >
       <Suspense>{clientLoader.useContent(path, {markdownUrl, path})}</Suspense>
