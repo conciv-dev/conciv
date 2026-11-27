@@ -1,28 +1,8 @@
-import {fileURLToPath} from 'node:url'
-import {defineConfig, type Plugin} from 'vite'
+import {defineConfig, mergeConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
+import {libConfig} from '@internal/vite-config'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {widgetErrors} from '@conciv/errors'
-
-const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
-
-const INLINED_PREFIXES = [
-  '@conciv/plugin-page/builtins',
-  '@internal/frontend-defaults',
-  '@internal/plugin-terminal/builtins',
-]
-
-const isExternal = (id: string): boolean => {
-  if (id.endsWith('?inline')) return false
-  if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false
-  return id === 'solid-js' || id === 'effect' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
-}
-
-const widgetEntries = {
-  'conciv-widget': fileURLToPath(new URL('src/global-entry.ts', import.meta.url)),
-  'conciv-widget-native': fileURLToPath(new URL('src/native-entry.ts', import.meta.url)),
-}
 
 function classicScriptLoaders(): Plugin {
   return {
@@ -41,50 +21,29 @@ function classicScriptLoaders(): Plugin {
   }
 }
 
-export default defineConfig({
-  plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest({browser: true})],
-
-  define: {'define.amd': 'false'},
-  server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}},
-  build: {cssCodeSplit: false},
-  environments: {
-    client: {
-      build: {
-        lib: {
-          entry: fileURLToPath(new URL('src/mount.ts', import.meta.url)),
-          formats: ['es'],
-          fileName: () => 'mount.js',
+export default defineConfig(
+  mergeConfig(
+    libConfig({
+      root: import.meta.url,
+      plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest({browser: true})],
+      environments: {
+        client: {
+          entries: ['src/mount.ts'],
+          external: [
+            /^solid-js(\/|$)(?!.*\?inline)/,
+            /^effect(\/|$)(?!.*\?inline)/,
+            /^@ark-ui\/(?!.*\?inline)/,
+            /^@conciv\/(?!plugin-page\/builtins)(?!.*\?inline)/,
+          ],
         },
-        emptyOutDir: true,
-        sourcemap: true,
-        rollupOptions: {external: isExternal},
-      },
-    },
-    widget: {
-      consumer: 'client',
-      define: {'process.env.NODE_ENV': '"production"'},
-      build: {
-        lib: {entry: widgetEntries, formats: ['es']},
-        emptyOutDir: false,
-        sourcemap: false,
-        rollupOptions: {
-          output: {
-            entryFileNames: 'widget/[name]-[hash].js',
-            chunkFileNames: 'widget/[name]-[hash].js',
-            assetFileNames: 'widget/[name]-[hash][extname]',
-            minify: true,
-          },
+        widget: {
+          consumer: 'client',
+          entries: {'conciv-widget': 'src/global-entry.ts', 'conciv-widget-native': 'src/native-entry.ts'},
+          define: {'process.env.NODE_ENV': '"production"'},
+          bundleDir: 'widget',
         },
       },
-    },
-  },
-  builder: {
-    buildApp: async (builder) => {
-      for (const name of ['client', 'widget']) {
-        const environment = builder.environments[name]
-        if (!environment) throw widgetErrors.NO_ENVIRONMENT({name})
-        await builder.build(environment)
-      }
-    },
-  },
-})
+    }),
+    {define: {'define.amd': 'false'}, server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}}},
+  ),
+)

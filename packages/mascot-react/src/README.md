@@ -2,7 +2,7 @@
 
 ## Overview
 
-The React compound component over the core service (`mascot-react.ts`): `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots. Built to `dist` by `tsdown.config.ts`.
+The React compound component over the core service (`mascot-react.ts`): `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots. Built to `dist` by `vite.config.ts`.
 
 ## Invariants
 

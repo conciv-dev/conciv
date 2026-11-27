@@ -30,7 +30,7 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Invariants
 
-- `tsdown.config.ts` keeps `@conciv/*`, `preact` and `preact/hooks` external.
+- `vite.config.ts` keeps `@conciv/*`, `preact` and `preact/hooks` external.
 - Remount rules (`configKey` value comparison) are in [src/README.md](./src/README.md#invariants).
 
 ## Side Effects

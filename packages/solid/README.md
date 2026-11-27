@@ -30,7 +30,7 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Invariants
 
-- `tsdown.config.ts` keeps `@conciv/*`, `solid-js` and `solid-js/web` external, so the host's one `solid-js` copy is
+- `vite.config.ts` keeps `@conciv/*`, `solid-js` and `solid-js/web` external, so the host's one `solid-js` copy is
   the widget's.
 
 ## Side Effects

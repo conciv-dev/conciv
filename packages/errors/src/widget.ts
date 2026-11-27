@@ -58,10 +58,6 @@ export const widgetErrors = defineErrorCatalog('widget', {
     message: 'the session preview is read-only',
     fix: 'Open the session to write in it.',
   },
-  NO_ENVIRONMENT: {
-    message: ({name}: {name: string}) => `the embed build has no ${name} environment`,
-    fix: 'Declare the environment in the vite config environments.',
-  },
 })
 
 declare module 'evlog' {

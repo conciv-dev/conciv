@@ -586,7 +586,7 @@
     },
     {
       "file": "packages/backend-app-api/src/core/image.ts",
-      "exports": ["Editor"]
+      "exports": ["Editor", "Content"]
     },
     {
       "file": "packages/backend-defaults/src/core/image/photon-normalize.ts",

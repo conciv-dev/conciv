@@ -6,7 +6,7 @@ The error catalogs conciv throws from: one place for every core error code, mess
 
 ## Invariants
 
-- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
+- `vite build` emits the JavaScript and the declarations (`vite.config.ts`, `libConfig` from `@internal/vite-config`).
 
 ## Side Effects
 

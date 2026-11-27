@@ -67,7 +67,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsdown -c tsdown.types.config.ts",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -92,12 +92,12 @@
     "@conciv/client": "workspace:^",
     "@conciv/protocol": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/devtools": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
