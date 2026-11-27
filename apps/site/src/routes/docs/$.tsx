@@ -65,7 +65,12 @@ const clientLoader = browserCollections.docs.createClientLoader({
     )
 
     return (
-      <DocsPage toc={toc} tableOfContent={{footer: actions}} tableOfContentPopover={{footer: actions}}>
+      <DocsPage
+        toc={toc}
+        className="*:max-w-175"
+        tableOfContent={{footer: actions}}
+        tableOfContentPopover={{footer: actions}}
+      >
         <DocsTitle className="od-display text-5xl leading-tight font-extrabold">{frontmatter.title}</DocsTitle>
         <DocsDescription className="text-xl">{frontmatter.description}</DocsDescription>
         <DocsBody>
