@@ -4,7 +4,7 @@ import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode} from 'react'
 import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
-import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/select'
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from '@/components/ui/select'
 import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
@@ -136,24 +136,31 @@ function FrameworkSelect() {
         </span>
       </SelectTrigger>
       <SelectContent position="popper" className="w-(--radix-select-trigger-width) font-mono text-[12.5px]">
-        {snippets.map((snippet) => (
-          <SelectItem key={snippet.id} value={snippet.id} disabled={snippet.soon} className="min-h-11 gap-2 font-mono">
-            <span className="flex items-center gap-2">
-              <img src={snippet.icon} alt="" className="size-[15px]" />
-              {snippet.label}
-              {snippet.soon && (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
-                  soon
-                </span>
-              )}
-              {snippet.alpha && (
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
-                  alpha
-                </span>
-              )}
-            </span>
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {snippets.map((snippet) => (
+            <SelectItem
+              key={snippet.id}
+              value={snippet.id}
+              disabled={snippet.soon}
+              className="min-h-11 gap-2 font-mono"
+            >
+              <span className="flex items-center gap-2">
+                <img src={snippet.icon} alt="" className="size-[15px]" />
+                {snippet.label}
+                {snippet.soon && (
+                  <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
+                    soon
+                  </span>
+                )}
+                {snippet.alpha && (
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
+                    alpha
+                  </span>
+                )}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

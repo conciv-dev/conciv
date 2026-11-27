@@ -1,7 +1,7 @@
 import {Check, Copy} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 
 type FrameworkId = 'vite' | 'nextjs' | 'tanstack-start' | 'webpack' | 'rspack' | 'ios'
 
@@ -136,12 +136,14 @@ export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper">
-            {FRAMEWORKS.map((entry) => (
-              <SelectItem key={entry.id} value={entry.id}>
-                <img src={entry.icon} alt="" className="size-4" />
-                {entry.label}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {FRAMEWORKS.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id}>
+                  <img src={entry.icon} alt="" className="size-4" />
+                  {entry.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <CopyPromptButton text={prompt} />
