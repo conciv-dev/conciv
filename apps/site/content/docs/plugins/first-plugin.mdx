@@ -361,7 +361,6 @@ export default defineConfig({
 })
 ```
 
-
 Build it from your project folder:
 
 ```bash title="terminal"
@@ -401,8 +400,13 @@ export function App() {
 
 `<ConcivWidget>` mounts the widget itself, so turn off the widget the bundler plugin adds. Set `widget: false`:
 
-```ts title="vite.config.ts"
-conciv({widget: false}), // [!code ++]
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({widget: false})], // <- keep your framework's plugin next to it
+})
 ```
 
 A card drawn outside a `<ConcivWidget>` throws. Use the engine part's id, here `project-version`.
@@ -438,8 +442,13 @@ export function App() {
 
 `<ConcivWidget>` mounts the widget itself, so turn off the widget the bundler plugin adds. Set `widget: false`:
 
-```ts title="vite.config.ts"
-conciv({widget: false}), // [!code ++]
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({widget: false})], // <- keep your framework's plugin next to it
+})
 ```
 
 A card drawn outside a `<ConcivWidget>` throws. Use the engine part's id, here `project-version`.
@@ -460,7 +469,6 @@ export default defineConfig({
   plugins: [experimental({entry: 'plugin-experimental.ts', outFile: 'plugin-experimental.cjs'})],
 })
 ```
-
 
 Build it from your project folder:
 

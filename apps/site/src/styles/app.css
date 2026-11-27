@@ -286,6 +286,19 @@ html > body[data-scroll-locked] {
   }
 }
 
+figure.twoslash .twoslash-hover {
+  text-decoration: underline dotted transparent 1px;
+  text-underline-offset: 3px;
+}
+@media (hover: hover) {
+  figure.twoslash:hover .twoslash-hover {
+    text-decoration-color: currentColor;
+  }
+}
+figure.twoslash:has(:focus-visible) .twoslash-hover {
+  text-decoration-color: currentColor;
+}
+
 .fd-twoslash-popover {
   max-width: min(420px, calc(100vw - 1.5rem));
   max-height: min(24rem, var(--available-height, 24rem));
