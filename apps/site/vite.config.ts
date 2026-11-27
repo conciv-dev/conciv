@@ -46,14 +46,14 @@ export default defineConfig(({mode}) => ({
     conciv({widget: false}),
     concivTest(),
   ],
+  optimizeDeps: {
+    include: ['fumadocs-ui > react-remove-scroll > tslib'],
+  },
   ssr: {
     noExternal: ['gsap', '@gsap/react'],
   },
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      tslib: 'tslib/tslib.es6.js',
-      ...brandAssetsAlias,
-    },
+    alias: [{find: /^tslib$/, replacement: 'tslib/tslib.es6.js'}, brandAssetsAlias],
   },
 }))

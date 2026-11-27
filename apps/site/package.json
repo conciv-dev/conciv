@@ -11,7 +11,7 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "dev": "node scripts/build-playground-shell.mjs && vite dev --port 3001",
+    "dev": "fumadocs-mdx && node scripts/build-playground-shell.mjs && vite dev --port 3001",
     "build": "node scripts/build-source-manifest.mjs && node scripts/build-playground-shell.mjs && vite build",
     "start": "vite preview",
     "preview": "vite preview",
