@@ -414,6 +414,8 @@
   },
   "overrides": [],
   "ignoreDependencies": [
+    "@conciv/backend-test-utils",
+    "@internal/frontend-test-utils",
     "@internal/test-utils",
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",
