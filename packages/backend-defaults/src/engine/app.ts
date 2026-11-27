@@ -1048,24 +1048,27 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await inSpan(tracer, 'Engine.ensureConfiguredRows', {}, () => ensureConfiguredRows(rows, opts.cfg, pluginHost))
-    .then(() => inSpan(tracer, 'Engine.supervisePlugins', {}, plugins.supervise))
-    .then(() =>
-      pluginHost.runPromise(
-        Effect.logInfo('conciv: the engine started').pipe(
+  await pluginHost
+    .runPromise(
+      Effect.gen(function* () {
+        yield* Effect.tryPromise({
+          try: () => ensureConfiguredRows(rows, opts.cfg, pluginHost),
+          catch: (error) => error,
+        }).pipe(Effect.withSpan('Engine.ensureConfiguredRows'))
+        yield* Effect.tryPromise({try: plugins.supervise, catch: (error) => error}).pipe(
+          Effect.withSpan('Engine.supervisePlugins'),
+        )
+        yield* Effect.logInfo('conciv: the engine started').pipe(
           Effect.annotateLogs({engineId, harness: harness.id, cwd: opts.cwd}),
-        ),
-      ),
-    )
-    .then(() => {
-      pluginHost.runFork(
-        Plugin.awaitActivation.pipe(
+        )
+        yield* Plugin.awaitActivation.pipe(
           Effect.andThen(
             Effect.forEach(listings, (listing) => listing.refresh, {concurrency: 'unbounded', discard: true}),
           ),
-        ),
-      )
-    })
+          Effect.forkIn(pluginHost.scope),
+        )
+      }),
+    )
     .catch(async (error: unknown) => {
       await dispose().catch((failure: unknown) =>
         earlyRuntime.runFork(Effect.logError('[core] disposing after a failed start also failed', {failure})),
