@@ -84,9 +84,13 @@ The command looks for an engine in this order:
 3. The engine that started last on this machine.
 4. Port 5173 on `127.0.0.1`, when no engine was ever registered.
 
-An engine that is registered but silent prints `no conciv dev server answered`, with a hint. A dev server still
-starting answers once it is ready, so run the command again. The call runs outside any session, so it takes no
-`--tab`.
+Two messages mean no engine answered:
+
+- `No conciv dev server on <host>.` prints when the engine at the chosen port does not answer.
+- `no conciv dev server answered: ...` prints when the command tried the registered engines and none answered.
+
+See [Troubleshooting](/docs/reference/troubleshooting#no-dev-server) for both. The call runs outside any
+session, so it takes no `--tab`.
 
 </Accordion>
 </Accordions>
