@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-tanstack",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "The conciv TanStack plugin: build errors, the route manifest and server-function traces of a TanStack Router or Start app, read from the dev server by code-mode tools.",
   "keywords": [
     "conciv",

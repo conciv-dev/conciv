@@ -1,5 +1,23 @@
 # @conciv/solid-streamdown
 
+## 0.0.23
+
+### Patch Changes
+
+- [#885](https://github.com/conciv-dev/conciv/pull/885) [`bf9bac4`](https://github.com/conciv-dev/conciv/commit/bf9bac4966a6425d51a0367af435906cad9d857f) Thanks [@omridevk](https://github.com/omridevk)! - A file path in a chat message that the host confirmed exists now shows in opencode's code-path blue (`#2c47c8` in light mode, `#c3d4fd` in dark mode, the new `--chat-code-path` token), fading into it once the check answers (no fade under reduced motion). When the host can open files, the path shows a pointer and underlines on hover with opencode's underline (the path's blue at 40%, offset 2px) and shows the kit's accent focus ring on keyboard focus, and a local file link shows a pointer. `@conciv/solid-streamdown`'s `styles.css` no longer styles local links or confirmed paths; the chat theme does.
+
+- [#885](https://github.com/conciv-dev/conciv/pull/885) [`bf9bac4`](https://github.com/conciv-dev/conciv/commit/bf9bac4966a6425d51a0367af435906cad9d857f) Thanks [@omridevk](https://github.com/omridevk)! - A fence view gets a `fallback()`: calling it, or throwing while it renders, shows that fence as plain code until the fence's code changes.
+
+  A `highlightCode` result can be a `FencedView` (`{view, fallback}`), so a fence whose view falls back shows the highlighted code or another view in its place.
+
+- [#1136](https://github.com/conciv-dev/conciv/pull/1136) [`6664a1e`](https://github.com/conciv-dev/conciv/commit/6664a1e59b7e11930cd783b8c77e777a9f56b811) Thanks [@omridevk](https://github.com/omridevk)! - Inline code holding a control character is no longer offered as a file link.
+
+- [#885](https://github.com/conciv-dev/conciv/pull/885) [`bf9bac4`](https://github.com/conciv-dev/conciv/commit/bf9bac4966a6425d51a0367af435906cad9d857f) Thanks [@omridevk](https://github.com/omridevk)! - `Streamdown` takes two optional props for links to local files. `openLocalFile(path)` turns a markdown link to a file on disk (`[app](src/app.ts:42)`, `./notes.md`, `file:///tmp/a.txt`) into a link that calls it with the path, here `src/app.ts#L42`, instead of a blocked link. `localFileExists(path)` is asked about inline code that looks like a path, such as `` `src/app.ts` ``; when it answers yes, a click on that code opens the file too. Without either prop, markdown renders exactly as before.
+
+- [#885](https://github.com/conciv-dev/conciv/pull/885) [`bf9bac4`](https://github.com/conciv-dev/conciv/commit/bf9bac4966a6425d51a0367af435906cad9d857f) Thanks [@omridevk](https://github.com/omridevk)! - An inline-code path the host confirmed through `localFileExists` is now a tab stop with link semantics when `openLocalFile` is set: Tab reaches it, and Enter or Space opens it through `openLocalFile` exactly as a click does. With `localFileExists` alone the path is marked as before and is not focusable.
+
+- [#885](https://github.com/conciv-dev/conciv/pull/885) [`bf9bac4`](https://github.com/conciv-dev/conciv/commit/bf9bac4966a6425d51a0367af435906cad9d857f) Thanks [@omridevk](https://github.com/omridevk)! - `localFileExists` is no longer asked about the inline-code paths of the block still streaming when `animated` is `false`: the last block counts as streaming while `isAnimating` is true, whatever `animated` is, and its paths are asked once streaming ends.
+
 ## 0.0.22
 
 ### Patch Changes
