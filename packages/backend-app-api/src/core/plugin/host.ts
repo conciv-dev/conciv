@@ -8,6 +8,7 @@ import * as SessionMessage from '@conciv/protocol/schema/session-message'
 import * as App from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
 import type {Servers} from '@conciv/client'
+import type {BundlerHooks} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Agent from '../agent.js'
 import * as Bus from '../bus.js'
 import * as KV from '../kv.js'
@@ -39,6 +40,13 @@ const isRpcType = (type: string): type is RpcEvent['type'] => type.startsWith('r
 const isRpcEvent = (event: Event.Payload): event is RpcEvent => isRpcType(event.type)
 const isPublicEvent = (event: Event.Payload): event is EventManifest.ServerEvent | RpcEvent =>
   EventManifest.isServer(event) || isRpcEvent(event)
+
+const hook = <Hook>() => Schema.optional(Schema.declare<Hook>((input): input is Hook => typeof input === 'function'))
+const BundlerPart = Schema.Struct({
+  transform: hook<NonNullable<BundlerHooks['transform']>>(),
+  resolveId: hook<NonNullable<BundlerHooks['resolveId']>>(),
+  load: hook<NonNullable<BundlerHooks['load']>>(),
+})
 
 export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
 export const BundlerSource = Context.Service<Bundler.BundlerBridge | undefined>('@conciv/BundlerSource')
@@ -112,7 +120,7 @@ export const make = Effect.fn('PluginHost.make')(function* (
     bundler: {
       transform: (callback) =>
         plugin.bundler((editor) => {
-          callback({add: (part) => editor.add(part, pluginId)})
+          callback({add: (part) => editor.add(Schema.decodeUnknownSync(BundlerPart)(part), pluginId)})
         }),
     },
     model: {
