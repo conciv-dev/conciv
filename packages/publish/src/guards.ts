@@ -348,7 +348,7 @@ async function readDeclarationFiles(dir: string): Promise<string[]> {
   }
 }
 
-export async function assertPublicTypesPublic(cwd: string): Promise<void> {
+export async function assertPublicTypesPublic(cwd: string, only?: readonly string[]): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
   const privateNames = packages
     .filter((pkg) => pkg.manifest.private)
@@ -359,6 +359,9 @@ export async function assertPublicTypesPublic(cwd: string): Promise<void> {
   const violations = await Promise.all(
     packages
       .filter((pkg) => !pkg.manifest.private)
+      .filter(
+        (pkg) => only === undefined || (typeof pkg.manifest.name === 'string' && only.includes(pkg.manifest.name)),
+      )
       .map(async (pkg) => {
         const files = await readDeclarationFiles(pkg.dir)
         const found = await Promise.all(
