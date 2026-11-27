@@ -48,7 +48,7 @@ export type Mount<P> = (element: HTMLElement, props: MountProps<P>) => Cleanup
 export function mountRender<P extends object>(mount: Mount<P>): (props: P) => JSX.Element {
   return (props) => {
     const element = document.createElement('div')
-    element.className = 'contents'
+    element.style.display = 'contents'
     const current = createMemo(() => ({...props}))
     const changes = observable(current)
     const subscribe = (listener: () => void): Cleanup => {
