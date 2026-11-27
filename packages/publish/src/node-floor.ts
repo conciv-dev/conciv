@@ -9,6 +9,7 @@ import {COMPILER_LIMIT, mapInChunks, readWorkspacePackages, type WorkspacePackag
 
 const NOT_NODE_ENTRIES: readonly string[] = [
   '@conciv/backend-test-utils',
+  '@conciv/plugin-design/plugin-experimental',
   '@conciv/plugin-ios/builtins',
   '@conciv/plugin-page/builtins',
   '@conciv/plugin-page/client',
