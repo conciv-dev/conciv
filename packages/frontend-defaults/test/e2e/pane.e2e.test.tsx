@@ -632,7 +632,7 @@ describe('the user stops while the agent asks', () => {
     expect(await screen.findByText('Tool execution interrupted')).toBeVisible()
     const wipTrace = async () =>
       (await wipClient.logs.query({text: '[wip-stop]', limit: 200})).events.map((e) => `${e.message} ${e.data ?? ''}`)
-    await expect.poll(wipTrace, {timeout: 10_000}).toContainEqual(expect.stringContaining('[wip-stop] stop refresh'))
+    await expect.poll(wipTrace, {timeout: 10_000}).toContainEqual(expect.stringContaining('[wip-stop] refreshed'))
     expect({redShown: screen.queryByRole('button', {name: 'Red'}) !== null, trace: await wipTrace()}).toEqual({})
     expect(screen.queryByRole('button', {name: 'Red'})).not.toBeInTheDocument()
     expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
