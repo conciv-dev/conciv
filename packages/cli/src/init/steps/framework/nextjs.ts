@@ -1,7 +1,7 @@
 import {writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
+import {join, posix} from 'node:path'
 import type {Detected} from '../../detect.js'
-import {captureFile, readOptionalText} from '../../interrupt.js'
+import {captureFile, pathExists, readOptionalText} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
@@ -44,6 +44,19 @@ function quickStartCard(): ManualCard {
 
 type FileState = 'missing' | 'wired' | 'foreign'
 
+type InstrumentationFiles = {instrumentation: string; client: string}
+
+async function someExist(cwd: string, names: readonly string[]): Promise<boolean> {
+  const found = await Promise.all(names.map((name) => pathExists(join(cwd, name))))
+  return found.includes(true)
+}
+
+async function readInstrumentationFiles(cwd: string): Promise<InstrumentationFiles> {
+  const inSrc = !(await someExist(cwd, ['app', 'pages'])) && (await someExist(cwd, ['src/app', 'src/pages']))
+  const folder = inSrc ? 'src' : ''
+  return {instrumentation: posix.join(folder, instrumentationName), client: posix.join(folder, clientName)}
+}
+
 async function fileState(cwd: string, name: string, line: string): Promise<FileState> {
   const content = await readOptionalText(join(cwd, name))
   if (content === null) return 'missing'
@@ -58,10 +71,11 @@ async function configWired(cwd: string, configFile: string | null): Promise<bool
 }
 
 async function allWired(cwd: string, configFile: string | null): Promise<boolean> {
+  const files = await readInstrumentationFiles(cwd)
   return (
     (await configWired(cwd, configFile)) &&
-    (await fileState(cwd, instrumentationName, instrumentationLine)) === 'wired' &&
-    (await fileState(cwd, clientName, clientLine)) === 'wired'
+    (await fileState(cwd, files.instrumentation, instrumentationLine)) === 'wired' &&
+    (await fileState(cwd, files.client, clientLine)) === 'wired'
   )
 }
 
@@ -93,15 +107,23 @@ export function nextjsStep(detected: Detected): InitStep {
     running: 'Wiring next.js…',
     completed: 'Wired next.js',
     detect: async (ctx) => ((await allWired(ctx.cwd, detected.configFile)) ? 'present' : 'missing'),
-    plan: async () => ({
-      summary: `wrap ${detected.configFile ?? 'your next config'} with withConciv and create ${instrumentationName} + ${clientName}`,
-      wouldEdit: [...(detected.configFile === null ? [] : [detected.configFile]), instrumentationName, clientName],
-    }),
+    plan: async (ctx) => {
+      const files = await readInstrumentationFiles(ctx.cwd)
+      return {
+        summary: `wrap ${detected.configFile ?? 'your next config'} with withConciv and create ${files.instrumentation} + ${files.client}`,
+        wouldEdit: [
+          ...(detected.configFile === null ? [] : [detected.configFile]),
+          files.instrumentation,
+          files.client,
+        ],
+      }
+    },
     apply: async (ctx) => {
+      const files = await readInstrumentationFiles(ctx.cwd)
       const cards = [
         await wireConfig(ctx, detected.configFile),
-        await wireFile(ctx, instrumentationName, instrumentationLine),
-        await wireFile(ctx, clientName, clientLine),
+        await wireFile(ctx, files.instrumentation, instrumentationLine),
+        await wireFile(ctx, files.client, clientLine),
       ].filter((card) => card !== null)
       if (cards.length > 0) return {status: 'manual', cards}
       return {status: 'done'}

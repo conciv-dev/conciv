@@ -14,7 +14,7 @@ describe('the saved model list', () => {
     const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
     const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
     const signedOut = () => Promise.reject(new Error('the CLI is signed out'))
-    const unlogged = () => {}
+    const unlogged = {runFork: () => undefined}
 
     const first = await withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(first.harness, {signal})).resolves.toEqual(listed)
@@ -40,7 +40,9 @@ describe('the saved model list', () => {
       return listing.promise
     }
 
-    const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, () => {})
+    const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, {
+      runFork: () => undefined,
+    })
     expect(started).toEqual(['listing'])
 
     const asked = resolveHarnessModels(warmed.harness, {signal})

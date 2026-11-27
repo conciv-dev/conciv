@@ -100,6 +100,9 @@ jobs:
     name: build + test (${{ matrix.shard }})
     needs: plan
     runs-on: ubuntu-latest
+    # A hung suite must fail in minutes, not hold the runner for hours. Shard
+    # jobs took at most 9 minutes over the last 60 completed runs (285 jobs).
+    timeout-minutes: 20
     # Browsers and their OS deps come baked into the official Playwright image
     # (playwright.dev/docs/ci#via-containers), so no job downloads or apt-installs
     # them. The tag must equal the lockfile's playwright version or Playwright
@@ -172,7 +175,6 @@ jobs:
           name: failure-screenshots-${{ matrix.shard }}
           path: |
             packages/frontend-defaults/.vitest/attachments/failure-screenshots/
-            packages/ai/.vitest/attachments/failure-screenshots/
             packages/app/.vitest/attachments/failure-screenshots/
             packages/plugins/recorder/.vitest/attachments/failure-screenshots/
             packages/plugins/test-runner/.vitest/attachments/failure-screenshots/

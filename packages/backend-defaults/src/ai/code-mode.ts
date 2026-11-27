@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {Effect} from 'effect'
 import {uniq} from 'es-toolkit'
 import {
   CapabilityRegistry,
@@ -24,6 +25,7 @@ import {ChatContentPartSchema, type ChatContentPart} from '@conciv/types/chat-ty
 import type {ChatTool} from '@conciv/types/chat-tool-types'
 import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/types/chat-types'
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
+import type {EngineRuntime} from '../engine/lib/logging.js'
 import {isApprovalDenied} from './approval-denied.js'
 import {inSpan, type Tracer} from './spans.js'
 
@@ -31,28 +33,30 @@ const QUICKJS_MEMORY_LIMIT_MB = 256
 
 const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
 
-type Log = (message: string) => void
-
-export function loadIsolateDriver(log: Log): CodeDriver | null {
+export function loadIsolateDriver(runtime: EngineRuntime): CodeDriver | null {
   try {
     return quickJSThreadDriver(
       {timeout: CODE_MODE_TIMEOUT_MS, memoryLimit: QUICKJS_MEMORY_LIMIT_MB, maxStackSize: QUICKJS_MAX_STACK_BYTES},
-      log,
+      runtime,
     )
   } catch (error) {
-    log(`[ai] the code mode driver @tanstack/ai-isolate-quickjs failed to start: ${String(error)}`)
+    runtime.runFork(
+      Effect.logError('[ai] the code mode driver failed to start', {driver: '@tanstack/ai-isolate-quickjs', error}),
+    )
     return null
   }
 }
 
-export function stoppedWith(driver: IsolateDriver, signal: AbortSignal, log: Log): IsolateDriver {
+export function stoppedWith(driver: IsolateDriver, signal: AbortSignal, runtime: EngineRuntime): IsolateDriver {
   return {
     createContext: async (config) => {
       const context = await driver.createContext(config)
       const stop = () =>
         void context
           .dispose()
-          .catch((error: unknown) => log(`[ai] stopping a code mode program failed: ${String(error)}`))
+          .catch((error: unknown) =>
+            runtime.runFork(Effect.logError('[ai] stopping a code mode program failed', {error})),
+          )
       signal.addEventListener('abort', stop, {once: true})
       if (signal.aborted) stop()
       return {

@@ -43,6 +43,7 @@
     "@changesets/cli": "^3.0.3",
     "@j178/prek": "^0.5.7",
     "@oxlint/plugins": "catalog:",
+    "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
     "@unocss/eslint-plugin": "66.13.0",
     "@vitest/coverage-v8": "catalog:",

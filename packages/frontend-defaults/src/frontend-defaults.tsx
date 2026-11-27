@@ -1,7 +1,14 @@
+import {log} from 'evlog'
 import {Show, createMemo, createRoot, getOwner, on, onCleanup, untrack, type Accessor, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {makeEngineRpcClient, normalizeApiBase, type EngineConnection, type EngineClient} from '@conciv/client'
+import {
+  makeEngineRpcClient,
+  normalizeApiBase,
+  startWidgetLog,
+  type EngineConnection,
+  type EngineClient,
+} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/types/config-types'
 import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig, type ConcivTimings} from './router.js'
@@ -58,7 +65,7 @@ function runDisposers(disposers: ReadonlyArray<() => void>): void {
     try {
       dispose()
     } catch (error) {
-      console.error('[conciv] teardown step failed', error)
+      log.error({action: 'widget', message: 'teardown step failed', error})
     }
   }
 }
@@ -114,9 +121,19 @@ function readRebindApiBase(apiBase: string): string | undefined {
   try {
     return normalizeApiBase(apiBase)
   } catch (error) {
-    console.error(`[conciv] the rebind names no engine base: ${apiBase}`, error)
+    log.error({action: 'rebind', message: 'the rebind names no engine base', apiBase, error})
     return undefined
   }
+}
+
+function followWidgetLog(
+  client: EngineClient,
+  connection: EngineConnection | undefined,
+  timings: ConcivTimings | undefined,
+): void {
+  const logs = new AbortController()
+  startWidgetLog(client, connection, logs.signal, {batchIntervalMs: timings?.logBatchMs})
+  onCleanup(() => logs.abort())
 }
 
 function boundEngine(platform: Platform): Accessor<EngineBinding | undefined> {
@@ -135,6 +152,7 @@ function BoundApp(props: AppParts & {binding: EngineBinding}): JSX.Element {
   const connection = (): EngineConnection => binding().connection
   const session = {read: (): string | null => null}
   const client = makeEngineRpcClient(connection, () => session.read())
+  followWidgetLog(client, connection(), platform.timings)
   const login = createEngineLogin(connection)
   startEngineLogin(login)
   const connectionGeneration = createMemo(
@@ -166,15 +184,15 @@ function BoundApp(props: AppParts & {binding: EngineBinding}): JSX.Element {
     const nextApiBase = readRebindApiBase(asked)
     if (nextApiBase === undefined || nextApiBase === apiBase()) return
     if (platform.connect === undefined) {
-      console.error(`[conciv] this host cannot rebind the widget to ${nextApiBase}`)
+      log.error({action: 'rebind', message: 'this host cannot rebind the widget', apiBase: nextApiBase})
       return
     }
     platform.connect(nextApiBase, undefined)
     router.options.context.queryClient.resetQueries().catch((error: unknown) => {
-      console.error('[conciv] the queries did not reset after a rebind', error)
+      log.error({action: 'rebind', message: 'the queries did not reset after a rebind', error})
     })
     const trusted = login.requestTrust().catch((error: unknown) => {
-      console.error('[conciv] the trust check after a rebind failed', error)
+      log.error({action: 'rebind', message: 'the trust check after a rebind failed', error})
     })
     event.detail?.waitUntil?.(trusted)
     const followed = router
@@ -184,7 +202,11 @@ function BoundApp(props: AppParts & {binding: EngineBinding}): JSX.Element {
         replace: true,
       })
       .catch((error: unknown) => {
-        console.error('[conciv] the widget did not leave the other engine’s session after a rebind', error)
+        log.error({
+          action: 'rebind',
+          message: 'the widget did not leave the other engine’s session after a rebind',
+          error,
+        })
       })
     event.detail?.waitUntil?.(followed)
   })
@@ -197,6 +219,7 @@ function ServersApp(props: AppParts): JSX.Element {
   const connection = (): EngineConnection | undefined => binding()?.connection
   const session = {read: (): string | null => null}
   const client = makeEngineRpcClient(connection, () => session.read())
+  followWidgetLog(client, connection(), platform.timings)
   const router = createConcivRouter({
     ...routerConfig(
       {

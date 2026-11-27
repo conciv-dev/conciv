@@ -19,6 +19,7 @@ const TIMINGS: NonNullable<Platform['timings']> = {
   engine: {offlineGraceMs: 10},
   queryRetryDelayMs: 10,
   picker: {searchWaitMs: 0, previewWaitMs: 0},
+  logBatchMs: 1,
 }
 
 export function shellEngine(engine: FakeEngine = createFakeEngine()): FakeEngine {

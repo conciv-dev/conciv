@@ -9,7 +9,6 @@ export default defineConfig({
   deps: {
     neverBundle: [
       /^@conciv\/harness(?!\/init)(\/|$)/,
-      /^@conciv\/extension(\/|-|$)/,
       /^@anthropic-ai\/claude-agent-sdk/,
       /^@opencode-ai\/sdk/,
       /^@agentclientprotocol\/sdk/,

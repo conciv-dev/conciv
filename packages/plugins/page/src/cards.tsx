@@ -4,7 +4,19 @@ import {PageSessionCard} from './session-card.js'
 import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
 import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
 import {Show, type JSX, For, Match, Switch} from 'solid-js'
-import {DANGER_TEXT_CLASS, JsonTree, SUNKEN_SURFACE, ResultImage, CodeBlock, Chip} from '@conciv/ui-kit-chat/tools'
+import {
+  DANGER_TEXT_CLASS,
+  JsonTree,
+  SUNKEN_SURFACE,
+  ResultImage,
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  Chip,
+} from '@conciv/ui-kit-chat/tools'
 import {
   ELEMENT_TARGET_KEYS,
   PageTool,
@@ -419,13 +431,18 @@ export function EditLiveCard(props: ToolProps): JSX.Element {
   return (
     <PageTool {...props} skip={isCode() ? CODE_INPUT_KEYS : undefined} hasContent={isCode()}>
       <Show when={isCode()}>
-        <CodeBlock
-          file={{
-            name: codeFileName(verb()),
-            lang: codeLanguage(verb()),
-            contents: codeContents(props.input),
-          }}
-        />
+        <CodeBlock label={codeFileName(verb())} text={codeContents(props.input)}>
+          <CodeBlockActions>
+            <CodeBlockCopyButton />
+          </CodeBlockActions>
+          <CodeBlockContent
+            file={{
+              name: codeFileName(verb()),
+              lang: codeLanguage(verb()),
+              contents: codeContents(props.input),
+            }}
+          />
+        </CodeBlock>
       </Show>
     </PageTool>
   )
@@ -463,12 +480,15 @@ export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
 
 export function PageHtmlBlock(props: {markup: string}): JSX.Element {
   return (
-    <CodeBlock
-      class={HTML_CLASS}
-      maxHeight="log"
-      chrome="file"
-      file={{name: 'page.html', lang: 'html', contents: formatHtml(props.markup)}}
-    />
+    <CodeBlock class={HTML_CLASS} maxHeight="log" label="page.html" text={formatHtml(props.markup)}>
+      <CodeBlockHeader>
+        <CodeBlockTitle>page.html</CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton />
+        </CodeBlockActions>
+      </CodeBlockHeader>
+      <CodeBlockContent lineNumbers file={{name: 'page.html', lang: 'html', contents: formatHtml(props.markup)}} />
+    </CodeBlock>
   )
 }
 

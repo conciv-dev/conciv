@@ -10,7 +10,7 @@ export type EnvelopeError = {
   stack?: string
 }
 
-const BUG_HINT = 'this looks like a bug — please report it at https://github.com/conciv-dev/conciv/issues'
+const BUG_HINT = 'this looks like a bug: please report it at https://github.com/conciv-dev/conciv/issues'
 
 const TaggedSchema = z.object({
   concivFailure: z.object({

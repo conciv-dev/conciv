@@ -4,12 +4,13 @@ import type {SourceInfo} from 'react-grab'
 import {capturePreview} from './grab-preview.js'
 import {framesForElement, sourceFromAttr} from './react.js'
 import type {SourceLoc} from '@conciv/frontend-plugin-api/page'
+import type {BaseContext} from '@conciv/frontend-plugin-api'
 
 export type ReactGrab = {api: GrabActions; dispose: () => void}
 
 type PendingPick = {resolve: (grab: Grab | null | Promise<Grab>) => void; grab: Promise<Grab> | null}
 
-export function createReactGrab(): ReactGrab {
+export function createReactGrab(log: BaseContext['log']): ReactGrab {
   const [picking, setPickingSignal] = createSignal(false)
   const state: {
     cancel: (() => void) | null
@@ -45,7 +46,7 @@ export function createReactGrab(): ReactGrab {
   }
 
   const getReactGrabAdapter = (): Promise<ReactGrabAdapter> => {
-    state.adapter ??= loadReactGrab().then((rg) => createAdapter(rg, setPicking, setCancelPick))
+    state.adapter ??= loadReactGrab().then((rg) => createAdapter(rg, setPicking, setCancelPick, log))
     return state.adapter
   }
 
@@ -61,7 +62,7 @@ export function createReactGrab(): ReactGrab {
             pick.grab = grab
           }),
         (cause: unknown) => {
-          console.error('[page] the element picker did not start', cause)
+          log.error({action: 'page', message: 'the element picker did not start', error: cause})
           if (state.pending !== pick) return
           state.pending = null
           resolve(null)
@@ -113,17 +114,21 @@ function fromSourceLoc(source: SourceLoc): ElementSource {
   return {componentName: null, filePath: source.file, lineNumber: source.line}
 }
 
-async function grabFrames(element: Element): Promise<GrabFrame[]> {
-  const frames = await framesForElement(element)
+async function grabFrames(element: Element, log: BaseContext['log']): Promise<GrabFrame[]> {
+  const frames = await framesForElement(element, log)
   return frames.flatMap((frame) => {
     if (!frame.fileName || typeof frame.line !== 'number') return []
     return [{fileName: frame.fileName, line: frame.line, ...(frame.column === undefined ? {} : {column: frame.column})}]
   })
 }
 
-async function unresolvedFrames(element: Element, source: SourceLoc | null): Promise<{frames?: GrabFrame[]}> {
+async function unresolvedFrames(
+  element: Element,
+  source: SourceLoc | null,
+  log: BaseContext['log'],
+): Promise<{frames?: GrabFrame[]}> {
   if (source) return {}
-  const frames = await grabFrames(element)
+  const frames = await grabFrames(element, log)
   return frames.length > 0 ? {frames} : {}
 }
 
@@ -139,6 +144,7 @@ async function createAdapter(
   rg: typeof import('react-grab'),
   setPicking: (active: boolean) => void,
   setCancelPick: (fn: (() => void) | null) => void,
+  log: BaseContext['log'],
 ): Promise<ReactGrabAdapter> {
   const api = rg.init({telemetry: false})
 
@@ -149,7 +155,7 @@ async function createAdapter(
     const box = element.getBoundingClientRect()
     const [preview, info] = await Promise.all([capturePreview(element), api.getSource(element)])
     const {snippet, source, text} = groundGrabText(element, fallback)
-    const unresolved = await unresolvedFrames(element, source)
+    const unresolved = await unresolvedFrames(element, source, log)
     return {
       text,
       preview,

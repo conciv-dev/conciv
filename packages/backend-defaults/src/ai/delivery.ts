@@ -11,6 +11,8 @@ import {withEventMeta} from '@orpc/server'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/types/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/types/chat-message-types'
 import {z} from 'zod'
+import {Effect} from 'effect'
+import type {EngineRuntime} from '../engine/lib/logging.js'
 
 export type Turn =
   | {threadId: string; runId: string; kind: 'chat'; delivered: readonly string[]}
@@ -34,7 +36,7 @@ type DeliveryDeps = {
   ) => AsyncIterable<ChatEvent>
   seenRun: (runId: string) => Promise<boolean>
   debug: DebugConfig
-  log: (message: string) => void
+  runtime: EngineRuntime
 }
 
 const LIVE_BATCH = 1
@@ -71,7 +73,7 @@ async function* finishLast(stream: AsyncIterable<ChatEvent>): AsyncGenerator<Cha
   }
 }
 
-export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDelivery {
+export function createDelivery({run, seenRun, debug, runtime}: DeliveryDeps): ChatDelivery {
   const drive = async (turn: Turn, messages: Array<ChatMessage | ModelMessage>): Promise<void> => {
     IdentifiedMessagesSchema.parse(messages)
     const durability = memoryStream({runId: turn.runId})
@@ -105,7 +107,9 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
       drive(
         {threadId: params.threadId, runId: params.runId, kind: 'chat', delivered: request.delivered ?? []},
         params.messages,
-      ).catch((error: unknown) => log(`[ai] run ${params.runId} failed outside its stream: ${String(error)}`))
+      ).catch((error: unknown) =>
+        runtime.runFork(Effect.logError('[ai] a run failed outside its stream', {runId: params.runId, error})),
+      )
     })
     yield* join(request, signal)
   }

@@ -15,7 +15,8 @@ const provided: readonly string[] = [...pluginSharedModules, ...pluginWindowModu
  * Builds a plugin's `./plugin-experimental` bundle with Vite: compiles Solid JSX, writes a CommonJS entry plus one
  * chunk per dynamic `import()`, which the app loads on demand over its engine socket, with Vite's manifest beside the
  * entry, and keeps the modules the app provides external, with Node built-ins. Another module of Effect, Solid or
- * conciv fails the build: the app does not provide it, and a bundled copy would not share the app's instance.
+ * conciv fails the build: the app does not provide it, and a bundled copy would not share the app's instance. The app
+ * evaluates the bundle as a function body with no module URL, so `import.meta` is an empty object.
  *
  * @param options - The entry and the bundle to write.
  * @returns The Vite plugins.
@@ -45,7 +46,10 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
             formats: ['cjs'],
             fileName: () => path.basename(outFile),
           },
-          rollupOptions: {output: {exports: 'named', chunkFileNames: '[name]-[hash].cjs'}},
+          rolldownOptions: {
+            transform: {define: {'import.meta': '{}'}},
+            output: {exports: 'named', chunkFileNames: '[name]-[hash].cjs'},
+          },
         },
       }),
       generateBundle() {

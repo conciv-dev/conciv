@@ -19,7 +19,7 @@ export function opencode(provider: ConfigProvider.ConfigProvider) {
     displayName: 'OpenCode',
     capabilities: {
       resume: true,
-      permissionGate: 'callback',
+      permissionGate: 'none',
       transcriptHistory: true,
       compaction: false,
       systemPrompt: 'flag',

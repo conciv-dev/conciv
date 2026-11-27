@@ -45,7 +45,7 @@
   --shiki-token-function: light-dark(#7a4a1f, #d8b48a);
   --shiki-token-string: light-dark(#1f6b45, #8fb48c);
   --shiki-token-string-expression: light-dark(#1f6b45, #8fb48c);
-  --shiki-token-constant: light-dark(#7a4a1f, #cbaa76);
+  --shiki-token-constant: light-dark(#1f5a85, #9fb8d0);
   --shiki-token-parameter: light-dark(#26303f, #b9b2b0);
   --shiki-token-comment: light-dark(#5b6675, #8a8482);
   --shiki-token-punctuation: light-dark(#5b6675, #8a8588);

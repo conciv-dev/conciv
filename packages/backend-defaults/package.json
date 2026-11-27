@@ -1,7 +1,7 @@
 {
   "name": "@conciv/backend-defaults",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv chat plane: turns, hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores, built on @conciv/ai.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine with no plugin in it: its HTTP, rpc, MCP and login surface, and the chat plane (turns through TanStack AI's chat(), hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores).",
   "keywords": [
     "ai",
     "chat",
@@ -95,6 +95,7 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "fuzzysort": "catalog:",
     "hono": "catalog:",
     "js-yaml": "catalog:",

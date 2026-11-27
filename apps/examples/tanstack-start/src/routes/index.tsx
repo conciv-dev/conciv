@@ -32,7 +32,7 @@ function App() {
             </h1>
             <p className="lede mb-8">
               A deliberately light starter: a handful of routes, a clean structure, and the essentials you need to build
-              from scratch — with a live agent panel already wired in.
+              from scratch, with a live agent panel already wired in.
             </p>
             <div className="flex flex-wrap gap-2.5">
               <a href="/about" className="btn btn-primary btn-round no-underline">
@@ -53,7 +53,7 @@ function App() {
             <p className="island-kicker mb-3">Take the tour</p>
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {[
-                ['/', 'Home', 'This page — layout, tokens, and type scale.'],
+                ['/', 'Home', 'This page: layout, tokens, and type scale.'],
                 ['/about', 'About', 'What the template ships with.'],
                 ['/form', 'Form', 'Every native control, with live state.'],
               ].map(([href, name, desc]) => (

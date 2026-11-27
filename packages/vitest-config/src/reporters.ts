@@ -5,12 +5,6 @@ export function ciReporters(): CiReporterEntry[] {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
-export const TANSTACK_AI_SOLID_DEPS = [
-  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
-  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/byok',
-  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/devtools',
-]
-
 export function browserOptimizeDeps(alsoInclude: string[] = []): {
   include: string[]
 } {

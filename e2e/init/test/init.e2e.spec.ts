@@ -100,7 +100,7 @@ test.describe('conciv init on a real project', () => {
 
       expect(output).toContain('Detected: vite (vite.config.ts) · npm · harnesses: claude')
       expect(output).toContain('Installing @conciv/it with npm')
-      expect(output).toContain('needs a manual step: spawn npm ENOENT')
+      expect(output).toContain('needs a manual step (spawn npm ENOENT)')
       expect(output).toContain('The automatic install failed. Run this in your project:')
       expect(output).toMatch(/^│ +npm install --save-dev @conciv\/it +│$/m)
       expect(readFileSync(join(project, 'package.json'), 'utf8')).toBe(manifest)

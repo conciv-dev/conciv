@@ -33,8 +33,8 @@ async function runPluginCall(options: PluginCallOptions): Promise<CliOutcome> {
 const callCommand = command(
   name('call'),
   description("Call a plugin's RPC method on the running conciv engine and print its output."),
-  argument(name('rpcId'), description('the RPC id the plugin registered, for example embedded'), schema(z.string())),
-  argument(name('method'), description('the method to call, for example ping'), schema(z.string())),
+  argument(name('rpcId'), description('the RPC id the plugin registered, for example test-runner'), schema(z.string())),
+  argument(name('method'), description('the method to call, for example status'), schema(z.string())),
   option(
     name('data'),
     cli(['--data', '-d']),

@@ -1,6 +1,6 @@
 {
   "@internal/frontend-defaults": 123,
-  "@conciv/backend-defaults": 129,
+  "@conciv/backend-defaults": 125,
   "@conciv/cli": 15,
   "@conciv/home": 2,
   "@conciv/app": 3,
@@ -18,7 +18,7 @@
   "@conciv/plugin-test-runner": 9,
   "@conciv/plugin-try-it": 3,
   "@internal/plugin-whiteboard": 19,
-  "@internal/publish": 10,
+  "@internal/publish": 11,
   "@conciv/solid-streamdown": 4,
   "@conciv/try": 1,
   "@conciv/ui-kit-chat-tools": 3,
@@ -42,5 +42,7 @@
   "@internal/frontend-app-api": 2,
   "@conciv/client": 9,
   "@conciv/frontend-plugin-api": 4,
-  "@conciv/protocol": 3
+  "@conciv/protocol": 3,
+  "@conciv/react": 1,
+  "@conciv/preact": 1
 }

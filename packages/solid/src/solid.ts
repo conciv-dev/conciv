@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createEffect, onCleanup, type JSX} from 'solid-js'
 import {isServer} from 'solid-js/web'
 import {createConciv, type ConcivHandle, type ConcivInit} from '@conciv/app'
@@ -17,10 +18,13 @@ export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
       plugins: props.plugins,
       grabProvider: props.grabProvider,
       engineToken: props.engineToken,
+      logLevel: props.logLevel,
     }
     handle?.unmount()
     handle = createConciv(init)
-    void handle.mount(el).catch(() => undefined)
+    handle
+      .mount(el)
+      .catch((error: unknown) => log.error({action: 'widget', message: 'the widget failed to mount', error}))
   })
   onCleanup(() => handle?.unmount())
   return el

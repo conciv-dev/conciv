@@ -1,5 +1,6 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {ConcivClient} from '@conciv/client'
+import type {Log} from 'evlog'
 
 import type {Json} from '@conciv/types/json'
 
@@ -127,6 +128,16 @@ export interface BaseContext {
    * ```
    */
   readonly signal: AbortSignal
+  /**
+   * The widget's logger: off unless the engine's `logs.level` turns it on, and drained to the engine with the widget's
+   * own events. Log with an object whose `action` names the area and `message` says what happened.
+   *
+   * @example
+   * ```ts
+   * ctx.log.error({ action: 'search', message: 'the search failed', error })
+   * ```
+   */
+  readonly log: Log
   /**
    * Contributes an item that follows reactive state: the window re-runs the function when what it reads changes.
    * Return undefined to withdraw the item until it returns one again. The host withdraws it with the current owner

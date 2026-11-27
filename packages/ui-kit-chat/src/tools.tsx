@@ -6,7 +6,6 @@ export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './tools/primitives/tool-fallback.js'
 export {Permission, usePermission} from './tools/primitives/permission.js'
-export {PermissionCard} from './tools/styled/permission-card.js'
 export {
   defineToolkit,
   type ToolBodyPredicate,
@@ -70,7 +69,17 @@ export {TraceActionRow} from './styled/trace/action-row.js'
 export {TracePermissionBlock} from './styled/trace/permission-block.js'
 export {Trace, type TraceBranch, type TraceItem} from './styled/trace/trace.js'
 export {Chip, ChipRow, ChipGroup, CHIP} from './tools/styled/chip.js'
-export {CodeBlock, DiffBlock, diffBlockClass, SUNKEN_SURFACE} from './tools/styled/code-block.js'
+export {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  DiffBlock,
+  diffBlockClass,
+  SUNKEN_SURFACE,
+} from './tools/styled/code-block.js'
 export {ErrorBlock} from './tools/styled/error-block.js'
 export {parseResultMedia} from './tools/primitives/result-media.js'
 export {ResultImage} from './tools/styled/result-image.js'

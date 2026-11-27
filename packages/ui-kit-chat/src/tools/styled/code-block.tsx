@@ -1,4 +1,4 @@
-import {createMemo, Show, splitProps, type JSX} from 'solid-js'
+import {createContext, createMemo, Show, splitProps, useContext, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
@@ -6,13 +6,7 @@ import ChevronsDownUp from 'lucide-solid/icons/chevrons-down-up'
 import ChevronsUpDown from 'lucide-solid/icons/chevrons-up-down'
 import {Button, ClipboardCopyButton, TooltipIconButton, type ClipboardCopyLabels} from '@conciv/ui-kit-system'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
-import {
-  codeBlockOptions,
-  codeBlockFileChromeOptions,
-  codeBlockTitledOptions,
-  codeLineOptions,
-  FILE_HEADER_CSS,
-} from '../primitives/tool-presentation.js'
+import {codeContentOptions, FILE_HEADER_CSS} from '../primitives/tool-presentation.js'
 import {countLabel} from '../primitives/tool-row.js'
 import {CLAMP_LINES, ClampFade, createClamp, type Clamp, type TraceClampSize} from '../../styled/trace/clamp.js'
 import {codeTheme} from '../../theme/code-theme.js'
@@ -31,13 +25,19 @@ export const SUNKEN_SURFACE = 'bg-chat-sunken border border-chat-line-soft round
 
 const PAINTLESS_HIGHLIGHT = '[--shiki-background:transparent]'
 
+const NO_GAPS = '[--diffs-gap-block:0px] [--diffs-gap-inline:0px]'
+const HEADED_GAP = '[--diffs-gap-block:0.5rem]'
+
 const BOX =
   'relative block w-full min-w-0 overflow-hidden bg-chat-sunken border rounded-chat-sm [--clamp-fade-from:var(--chat-sunken)]'
+const ROOM_FOR_CORNER = '[&>[data-code-corner]~[data-code-viewport]]:pe-14'
+const GAPS_UNDER_HEADER =
+  '[&>[data-code-header]~[data-code-viewport]]:[--diffs-gap-block:0.5rem] [&>[data-code-header]~[data-code-viewport]]:[--diffs-gap-inline:0.5rem]'
 const BOX_TONE: Record<CodeBlockTone, string> = {
   normal: 'border-chat-line-soft',
   error: 'border-chat-danger-line',
 }
-const VIEWPORT = 'relative min-w-0 overflow-hidden'
+const VIEWPORT = `relative min-w-0 overflow-hidden ${NO_GAPS}`
 const CORNER_ACTIONS = 'absolute top-1 end-1 z-2 flex items-center gap-0.5'
 const HEADER_ACTIONS = 'flex flex-none items-center gap-0.5'
 const ACTION_BUTTON = 'size-6 shrink-0'
@@ -49,6 +49,9 @@ const HEADER_TEXT: Record<CodeBlockTone, string> = {
   normal: 'flex-1 min-w-0 truncate text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-text-2',
   error: 'flex-1 min-w-0 truncate text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-danger',
 }
+const TITLE_ROW = 'flex flex-1 min-w-0 items-center gap-1.5 text-chat-text-3'
+const CODE_CONTENT = `block w-full min-w-0 ${PAINTLESS_HIGHLIGHT} [font-family:var(--chat-mono)]`
+const STANDALONE_LINE = `overflow-auto whitespace-nowrap ${NO_GAPS}`
 
 const TEXT_SIZE = {
   xs: 'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)]',
@@ -62,39 +65,40 @@ const CAP: Record<'headed' | 'plain', Record<TraceClampSize, string>> = {
 
 type CodeBlockTone = 'normal' | 'error'
 
-type CodeChrome = 'plain' | 'file' | 'titled' | 'line'
+type CodeSize = 'xs' | 'sm'
 
 type HeightCap = 'result' | 'log' | 'none'
 
+type CodeFile = {name: string; lang?: string; contents: string}
+
+type OverflowLabel = (hiddenLines: number) => string
+
 const CLAMP_SIZE: Record<Exclude<HeightCap, 'none'>, TraceClampSize> = {result: 'default', log: 'tall'}
-
-const HEADED_GAP = '[--diffs-gap-block:0.5rem]'
-
-const codeBlock = cva(`block w-full min-w-0 ${PAINTLESS_HIGHLIGHT} [font-family:var(--chat-mono)]`, {
-  variants: {
-    size: TEXT_SIZE,
-    chrome: {
-      plain: 'pe-14 [--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
-      file: HEADED_GAP,
-      titled: HEADED_GAP,
-      line: 'overflow-auto whitespace-nowrap [--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
-    },
-  },
-  defaultVariants: {size: 'xs', chrome: 'plain'},
-})
 
 const diffBlock = cva(`block w-full min-w-0 ${PAINTLESS_HIGHLIGHT} ${HEADED_GAP} [font-family:var(--chat-mono)]`, {
   variants: {size: TEXT_SIZE},
   defaultVariants: {size: 'xs'},
 })
 
-type CodeCopy = {
-  labels?: Partial<ClipboardCopyLabels>
-  resetMs?: number
-  writeText?: (text: string) => Promise<void>
+type CodeBlockContextValue = {
+  clamp: Clamp
+  text: () => string
+  tone: () => CodeBlockTone
+  size: () => CodeSize
+  cap: () => HeightCap
+  clampSize: () => TraceClampSize
+  overflowLabel: () => OverflowLabel | undefined
 }
 
-type OverflowLabel = (hiddenLines: number) => string
+const CodeBlockContext = createContext<CodeBlockContextValue>()
+
+const HeaderPlacement = createContext(false)
+
+function useCodeBlock(): CodeBlockContextValue {
+  const block = useContext(CodeBlockContext)
+  if (!block) throw new Error('A CodeBlock part renders inside a CodeBlock')
+  return block
+}
 
 function linesLabel(hiddenLines: number): string {
   return countLabel(hiddenLines, 'more line', 'more lines')
@@ -136,178 +140,188 @@ function CornerExpand(props: {clamp: Clamp}): JSX.Element {
   )
 }
 
-function BlockActions(props: {
-  clamp: Clamp
+export type CodeBlockProps = {
   text: string
-  corner: boolean
-  copy?: CodeCopy
+  label: string
+  lines?: number
+  maxHeight?: HeightCap
+  tone?: CodeBlockTone
+  size?: CodeSize
   overflowLabel?: OverflowLabel
-  extra?: JSX.Element
-}): JSX.Element {
+  class?: string
+  children: JSX.Element
+}
+
+export function CodeBlock(props: CodeBlockProps): JSX.Element {
+  const [local] = splitProps(props, [
+    'text',
+    'label',
+    'lines',
+    'maxHeight',
+    'tone',
+    'size',
+    'overflowLabel',
+    'class',
+    'children',
+  ])
+  const cap = (): HeightCap => local.maxHeight ?? 'result'
+  const clampSize = (): TraceClampSize => {
+    const current = cap()
+    return current === 'none' ? 'default' : CLAMP_SIZE[current]
+  }
+  const clamp = createClamp({
+    lines: () => (cap() === 'none' ? 0 : (local.lines ?? local.text.split('\n').length)),
+    shownLines: () => CLAMP_LINES[clampSize()],
+  })
+  const block: CodeBlockContextValue = {
+    clamp,
+    text: () => local.text,
+    tone: () => local.tone ?? 'normal',
+    size: () => local.size ?? 'xs',
+    cap,
+    clampSize,
+    overflowLabel: () => local.overflowLabel,
+  }
   return (
-    <div class={props.corner ? CORNER_ACTIONS : HEADER_ACTIONS}>
-      <Show when={props.clamp.overflowing() || props.clamp.expanded()}>
-        <Show when={props.corner} fallback={<HeaderExpand clamp={props.clamp} overflowLabel={props.overflowLabel} />}>
-          <CornerExpand clamp={props.clamp} />
-        </Show>
-      </Show>
-      <ClipboardCopyButton
-        text={props.text}
-        class={ACTION_BUTTON}
-        labels={props.copy?.labels}
-        resetMs={props.copy?.resetMs}
-        writeText={props.copy?.writeText}
-      />
-      {props.extra}
-    </div>
+    <CodeBlockContext.Provider value={block}>
+      <div
+        class={`${BOX}  ${ROOM_FOR_CORNER}  ${GAPS_UNDER_HEADER}  ${BOX_TONE[block.tone()]}  ${TEXT_SIZE[block.size()]}  ${local.class ?? ''}`}
+        role="group"
+        aria-label={local.label}
+        data-code-surface=""
+      >
+        {local.children}
+      </div>
+    </CodeBlockContext.Provider>
   )
 }
 
-export function CodeHeader(props: {title: string; tone?: CodeBlockTone; children: JSX.Element}): JSX.Element {
+export function CodeBlockHeader(props: {children: JSX.Element}): JSX.Element {
   return (
-    <div class={HEADER_ROW}>
-      <span class={HEADER_TEXT[props.tone ?? 'normal']}>{props.title}</span>
+    <HeaderPlacement.Provider value={true}>
+      <div class={HEADER_ROW} data-code-header="">
+        {props.children}
+      </div>
+    </HeaderPlacement.Provider>
+  )
+}
+
+export function CodeBlockTitle(props: {icon?: JSX.Element; children: JSX.Element}): JSX.Element {
+  const block = useCodeBlock()
+  return (
+    <span class={TITLE_ROW}>
+      {props.icon}
+      <span class={HEADER_TEXT[block.tone()]}>{props.children}</span>
+    </span>
+  )
+}
+
+export function CodeBlockActions(props: {children?: JSX.Element}): JSX.Element {
+  const block = useCodeBlock()
+  const inHeader = useContext(HeaderPlacement)
+  return (
+    <div class={inHeader ? HEADER_ACTIONS : CORNER_ACTIONS} data-code-corner={inHeader ? undefined : ''}>
+      <Show when={block.clamp.overflowing() || block.clamp.expanded()}>
+        <Show when={inHeader} fallback={<CornerExpand clamp={block.clamp} />}>
+          <HeaderExpand clamp={block.clamp} overflowLabel={block.overflowLabel()} />
+        </Show>
+      </Show>
       {props.children}
     </div>
   )
 }
 
-export function CodeFrame(props: {
-  label: string
-  text: string
-  lines?: number
-  cap: HeightCap
-  headed: boolean
-  tone?: CodeBlockTone
-  size?: 'xs' | 'sm'
-  copy?: CodeCopy
-  overflowLabel?: OverflowLabel
-  extraActions?: JSX.Element
-  class?: string
-  children: (actions: () => JSX.Element) => JSX.Element
+export function CodeBlockCopyButton(props: {
+  labels?: Partial<ClipboardCopyLabels>
+  resetMs?: number
+  writeText?: (text: string) => Promise<void>
 }): JSX.Element {
-  const size = (): TraceClampSize => (props.cap === 'none' ? 'default' : CLAMP_SIZE[props.cap])
-  const clamp = createClamp({
-    lines: () => (props.cap === 'none' ? 0 : (props.lines ?? props.text.split('\n').length)),
-    shownLines: () => CLAMP_LINES[size()],
-  })
-  const capClass = () => CAP[props.headed ? 'headed' : 'plain'][size()]
-  const viewportClass = () => (props.cap === 'none' || clamp.expanded() ? VIEWPORT : `${VIEWPORT} ${capClass()}`)
-  const actions = (): JSX.Element => (
-    <BlockActions
-      clamp={clamp}
-      text={props.text}
-      corner={!props.headed}
-      copy={props.copy}
-      overflowLabel={props.overflowLabel}
-      extra={props.extraActions}
+  const block = useCodeBlock()
+  return (
+    <ClipboardCopyButton
+      text={block.text()}
+      class={ACTION_BUTTON}
+      labels={props.labels}
+      resetMs={props.resetMs}
+      writeText={props.writeText}
     />
   )
+}
+
+export function CodeBlockViewport(props: {headed?: boolean; children: JSX.Element}): JSX.Element {
+  const block = useCodeBlock()
+  const capClass = () => CAP[props.headed === true ? 'headed' : 'plain'][block.clampSize()]
+  const viewportClass = () =>
+    block.cap() === 'none' || block.clamp.expanded() ? VIEWPORT : `${VIEWPORT} ${capClass()}`
   return (
-    <div
-      class={`${BOX}  ${BOX_TONE[props.tone ?? 'normal']}  ${TEXT_SIZE[props.size ?? 'xs']}  ${props.class ?? ''}`}
-      role="group"
-      aria-label={props.label}
-      data-code-surface=""
-    >
-      <Show when={!props.headed}>{actions()}</Show>
-      <div ref={clamp.mountViewport} class={viewportClass()}>
-        <div ref={clamp.observeContent} class="min-w-0">
-          {props.children(actions)}
-        </div>
-        <ClampFade clamp={clamp} />
+    <div ref={block.clamp.mountViewport} class={viewportClass()} data-code-viewport="">
+      <div ref={block.clamp.observeContent} class="min-w-0">
+        {props.children}
       </div>
+      <ClampFade clamp={block.clamp} />
     </div>
   )
 }
 
-export function CodeBlock(props: {
-  file: {name: string; lang?: string; contents: string}
-  size?: 'xs' | 'sm'
-  maxHeight?: HeightCap
-  chrome?: 'plain' | 'file' | 'line'
-  title?: string
-  tone?: CodeBlockTone
-  label?: string
-  class?: string
-}): JSX.Element {
-  const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'title', 'tone', 'label', 'class'])
-  const chrome = (): CodeChrome => {
-    const requested = local.chrome ?? 'plain'
-    return requested === 'plain' && local.title !== undefined ? 'titled' : requested
-  }
-  const codeClass = (): string => codeBlock({size: local.size ?? 'xs', chrome: chrome()})
-  const options = createMemo(() => {
-    if (chrome() === 'line') return codeLineOptions()
-    if (chrome() === 'titled') return codeBlockTitledOptions()
-    return chrome() === 'plain' ? codeBlockOptions() : codeBlockFileChromeOptions()
-  })
+export function CodeBlockContent(props: {file: CodeFile; wrap?: boolean; lineNumbers?: boolean}): JSX.Element {
+  const block = useContext(CodeBlockContext)
+  const options = createMemo(() =>
+    codeContentOptions({wrap: props.wrap ?? true, lineNumbers: props.lineNumbers ?? false}),
+  )
   return (
     <Show
-      when={chrome() !== 'line'}
-      fallback={<SolidCodeBlock class={`${codeClass()}  ${local.class ?? ''}`} options={options()} file={local.file} />}
+      when={block}
+      fallback={
+        <SolidCodeBlock
+          class={`${CODE_CONTENT}  ${TEXT_SIZE.xs}  ${STANDALONE_LINE}`}
+          options={options()}
+          file={props.file}
+        />
+      }
     >
-      <CodeFrame
-        label={local.label ?? local.title ?? local.file.name}
-        text={local.file.contents}
-        cap={local.maxHeight ?? 'result'}
-        headed={chrome() !== 'plain'}
-        tone={local.tone}
-        size={local.size}
-        class={local.class}
-      >
-        {(actions) => (
+      {(current) => (
+        <CodeBlockViewport>
           <SolidCodeBlock
-            class={codeClass()}
+            class={`${CODE_CONTENT}  ${TEXT_SIZE[current().size()]}`}
             options={options()}
-            file={local.file}
-            headerMetadata={chrome() === 'file' ? actions() : undefined}
-            customHeader={
-              chrome() === 'titled' ? (
-                <CodeHeader title={local.title ?? ''} tone={local.tone}>
-                  {actions()}
-                </CodeHeader>
-              ) : undefined
-            }
+            file={props.file}
           />
-        )}
-      </CodeFrame>
+        </CodeBlockViewport>
+      )}
     </Show>
   )
 }
 
-export function diffBlockClass(size: 'xs' | 'sm' = 'xs', class_?: string): string {
+export function diffBlockClass(size: CodeSize = 'xs', class_?: string): string {
   return `${diffBlock({size})} max-h-80 overflow-auto ${SUNKEN_SURFACE} ${class_ ?? ''}`
 }
 
 export function DiffBlock(props: {
   file: {name: string; before: string; after: string; lang?: string}
-  size?: 'xs' | 'sm'
+  size?: CodeSize
   class?: string
 }): JSX.Element {
   const [local] = splitProps(props, ['file', 'size', 'class'])
   const diffOptions = createMemo(blessedDiffOptions)
-  const oldFile = (): {name: string; contents: string; lang?: string} => ({
-    name: local.file.name,
-    contents: local.file.before,
-    lang: local.file.lang,
-  })
-  const newFile = (): {name: string; contents: string; lang?: string} => ({
-    name: local.file.name,
-    contents: local.file.after,
-    lang: local.file.lang,
-  })
+  const oldFile = (): CodeFile => ({name: local.file.name, contents: local.file.before, lang: local.file.lang})
+  const newFile = (): CodeFile => ({name: local.file.name, contents: local.file.after, lang: local.file.lang})
   return (
-    <CodeFrame label={local.file.name} text={local.file.after} cap="log" headed size={local.size} class={local.class}>
-      {(actions) => (
+    <CodeBlock label={local.file.name} text={local.file.after} maxHeight="log" size={local.size} class={local.class}>
+      <CodeBlockViewport headed>
         <SolidFileDiff
           class={diffBlock({size: local.size ?? 'xs'})}
           options={diffOptions()}
           oldFile={oldFile()}
           newFile={newFile()}
-          headerMetadata={actions()}
+          headerMetadata={
+            <HeaderPlacement.Provider value={true}>
+              <CodeBlockActions>
+                <CodeBlockCopyButton />
+              </CodeBlockActions>
+            </HeaderPlacement.Provider>
+          }
         />
-      )}
-    </CodeFrame>
+      </CodeBlockViewport>
+    </CodeBlock>
   )
 }

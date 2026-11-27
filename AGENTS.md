@@ -59,8 +59,9 @@ Rules that hold the layout:
   Backstage's own `plugin-app` dev-depends on `frontend-test-utils`, a dev loop; ours may not.
 - Turbo order comes from real dependencies alone: every package task depends on `^build`, with no cross-package
   `pkg#task`, no `build:types` and no `kit-runtime` task. A build-order problem is fixed by a real dependency, never
-  by a turbo edge. The root package depends on no workspace package: root scripts run a tool by its file
-  (`pnpm conciv-publish`, `pnpm conciv-ci-shards`, `pnpm conciv-bundle-size`), so editing a tool selects only it.
+  by a turbo edge (`conciv-publish check-turbo-depends-on`, CI repo checks). The root package depends on no workspace
+  package: root scripts run a tool by its file (`pnpm conciv-publish`, `pnpm conciv-ci-shards`,
+  `pnpm conciv-bundle-size`), so editing a tool selects only it.
 - No module-level state anywhere, product or test code: no module-level `Map`/`Set`/`WeakMap`/`WeakSet`, no
   module-level `let`, no module-level engine, connection, store, queue or registry, no `globalThis` writes
   (`conciv/no-module-state`). State is created by its owner and passed in: an id maker made once at engine start
@@ -91,6 +92,7 @@ Rules that hold the layout:
   nothing: the `unocss/order` rule reads the one root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`),
   which loads the preset from its source, and the order the preset gives is the same in every package. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with tsdown and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
@@ -105,9 +107,9 @@ Rules that hold the layout:
   `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
   inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
   and no dependent and no build, and a `src` edit reruns every dependent through `^build`. A UnoCSS config scans
-  only its own package and packages it depends on (the app: its kits and the built-in plugins page, terminal and
-  ios); any other plugin builds its own utilities-only sheet (`presetConciv({sheet: 'plugin'})`) and adds it with
-  `ctx.add(Style, css)`. That holds only while every task `test` and `typecheck` depend on (`build`) excludes tests,
+  only its own package and packages it depends on (the app: its kits); no package scans a plugin's source, and every
+  plugin, the built-ins page, terminal and ios included, builds its own utilities-only sheet
+  (`presetConciv({sheet: 'plugin'})`) and adds it with `ctx.add(Style, css)`. That holds only while every task `test` and `typecheck` depend on (`build`) excludes tests,
   specs and stories from its `inputs`, as the `content.filesystem` globs do. `apps/storybook` keeps one root input:
   the story files it reads, which no build reads. `--filter=...[ref]` ignores the flag and
   still selects whole packages plus manifest dependents.
@@ -187,8 +189,8 @@ Rules that hold the layout:
 
 ## Testing
 
-Tests are laid out as Backstage's and run as opencode's. The plan and its rules are
-`docs/specs/test-rewrite-after-port.md`.
+Tests are laid out as Backstage's and run as opencode's. The rules are this section; where the old tests are and the
+rulings the rewrite still carries are in `docs/specs/test-rewrite-after-port.md`.
 
 ### Where a test lives
 
@@ -207,8 +209,10 @@ Tests are laid out as Backstage's and run as opencode's. The plan and its rules 
   package's internals.
 - A behaviour lives in the cheapest place that proves it, and only there: unit, then it, then e2e (browser mode), then
   the root `e2e/` host app. Happy-dom is for code that mounts nothing, as opencode (`_ref/opencode/packages/app/happydom.ts`).
-- Only `packages/cli`'s own tests spawn the CLI, as opencode's `packages/cli`. No other package depends on `@conciv/cli`.
-- The site (`apps/site`) is the one exception: it lists `@conciv/cli` as a devDependency and reads its command tree (`@conciv/cli/commands`) at build for the generated CLI reference.
+- Only `packages/cli`'s own tests and the root `e2e/init` suite spawn the CLI, as opencode's `packages/cli`. The one
+  package that depends on `@conciv/cli` is `@conciv/unplugin`, and it never runs it: `bin-shim.ts` links the CLI's bin
+  into the engine's `PATH` so the agent the engine starts can run `conciv`.
+- The site (`apps/site`) also lists `@conciv/cli`, as a devDependency, and reads its command tree (`@conciv/cli/commands`) at build for the generated CLI reference.
 - A framework app under `e2e/` holds ONE test: the user signs in and the widget opens with no error in that framework.
   It gets a second test only for something that broke in that framework, named in its title. Behaviour that needs the
   real built widget in a real browser but is not about a framework (reload, real windows and downloads, the file

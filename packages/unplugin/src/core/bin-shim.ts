@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {access, mkdir, rm, symlink} from 'node:fs/promises'
 import {join, delimiter} from 'node:path'
 import {createConcivStateDir} from '@conciv/types/state-types'
@@ -18,7 +19,7 @@ export async function installConcivBinShim(stateDir: string): Promise<string> {
     await mkdir(binDir, {recursive: true})
     await linkConcivBin(binDir)
   } catch (error) {
-    console.error('conciv: could not link the conciv command into', binDir, error)
+    log.error({action: 'unplugin', message: 'could not link the conciv command', path: binDir, error})
   }
   return `${binDir}${delimiter}${process.env.PATH ?? ''}`
 }

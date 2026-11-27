@@ -10,6 +10,9 @@ import {
   CardHeadline,
   Chip,
   CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
   CollapsibleSection,
   ErrorBlock,
   parseInput,
@@ -303,7 +306,14 @@ export function SessionCard(props: GroupRenderProps): JSX.Element {
                 <div class="flex flex-col gap-2 min-w-0">
                   <Index each={thinking()}>{(part) => <ReasoningText text={part().content} />}</Index>
                   <Index each={scripts()}>
-                    {(script) => <CodeBlock file={{name: 'session.ts', lang: 'ts', contents: script()}} />}
+                    {(script) => (
+                      <CodeBlock label="session.ts" text={script()}>
+                        <CodeBlockActions>
+                          <CodeBlockCopyButton />
+                        </CodeBlockActions>
+                        <CodeBlockContent file={{name: 'session.ts', lang: 'ts', contents: script()}} />
+                      </CodeBlock>
+                    )}
                   </Index>
                 </div>
               </CollapsibleSection>

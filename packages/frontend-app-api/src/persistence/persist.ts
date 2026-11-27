@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {AsyncStorage, PersistenceSyncAPI, SyncStorage} from '@solid-primitives/storage'
 import {batch, createMemo, createSignal, getOwner, onCleanup, untrack} from 'solid-js'
 import {reconcile, type SetStoreFunction, type Store} from 'solid-js/store'
@@ -95,7 +96,7 @@ export function persistStore<T extends object>(input: {
     if (!(result instanceof Promise)) return settled()
 
     result.then(settled, (error: unknown) => {
-      console.error(`[persistence] write failed for ${input.name}`, error)
+      log.error({action: 'persistence', message: 'write failed', name: input.name, error})
       failed()
     })
   }

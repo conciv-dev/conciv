@@ -127,6 +127,7 @@
     "@tanstack/ai-sandbox": "catalog:",
     "@tanstack/ai-sandbox-local-process": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "smol-toml": "catalog:",
     "zod": "catalog:"
   },

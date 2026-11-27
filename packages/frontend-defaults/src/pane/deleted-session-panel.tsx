@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createResource, Show, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import {Button} from '@conciv/ui-kit-system'
@@ -19,14 +20,14 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
     () => props.sessionId,
     (sessionId) =>
       readMovedDraft(appData, keepDraft, sessionId).catch((error: unknown): MovedDraft | undefined => {
-        console.error('[conciv] could not read the deleted session draft', error)
+        log.error({action: 'drafts', message: 'could not read the deleted session draft', sessionId, error})
         return undefined
       }),
   )
 
   const logMoveFailure = <T,>(work: Promise<T>): Promise<T> =>
     work.catch((error: unknown) => {
-      console.error('[conciv] could not move to a new session', error)
+      log.error({action: 'sessions', message: 'could not move to a new session', sessionId: props.sessionId, error})
       throw error
     })
 

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   batch,
   createMemo,
@@ -197,7 +198,9 @@ export function createHostApis() {
 
       if (effect.type === 'drop') return effect.items.forEach((item) => item.onDrop?.())
 
-      void Promise.try(() => effect.run(effect.attached)).catch((cause: unknown) => console.error('[plugin]', cause))
+      void Promise.try(() => effect.run(effect.attached)).catch((cause: unknown) =>
+        log.error({action: 'plugin', message: 'a drop effect failed', error: cause}),
+      )
     })
 
     return next.queued
@@ -386,7 +389,10 @@ export function createHostApis() {
           persist: options.persistent,
           actions: options.actions?.map((action) => ({
             label: action.label,
-            run: () => void Promise.try(() => action.run()).catch((cause: unknown) => console.error('[plugin]', cause)),
+            run: () =>
+              void Promise.try(() => action.run()).catch((cause: unknown) =>
+                log.error({action: 'plugin', message: 'a notice action failed', error: cause}),
+              ),
           })),
         })
 
@@ -618,15 +624,17 @@ export function createPluginAttachment(apis: HostApis) {
       .ensureQueryData(appData.utils.meta.project.queryOptions())
       .then(async (listed) => {
         if (input.server !== engine.id || input.directory !== listed.root)
-          return console.error(
-            `[plugin] ${plugin}: a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
-          )
+          return log.error({
+            action: 'plugin',
+            message: `a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
+            plugin,
+          })
         const {sessionId} = await rpc.sessions.create(undefined)
         settleKeptSave(appData, keepDraft, sessionId, await appendDraft(appData, keepDraft, sessionId, input.prompt))
         void appData.invalidateSession(sessionId)
         await router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })
-      .catch((cause: unknown) => console.error(`[plugin] ${plugin}: the draft did not open`, cause))
+      .catch((cause: unknown) => log.error({action: 'plugin', message: 'the draft did not open', plugin, error: cause}))
 
   const mounted: Omit<Attached, 'directory'> = {
     sessions,
@@ -652,7 +660,9 @@ export function createPluginAttachment(apis: HostApis) {
             params: {sessionId, page: panelKey(plugin, requested)},
           })
 
-      void navigated.catch((cause: unknown) => console.error(`[plugin] ${plugin}: settings did not open`, cause))
+      void navigated.catch((cause: unknown) =>
+        log.error({action: 'plugin', message: 'settings did not open', plugin, error: cause}),
+      )
     },
     layout: {
       open,
@@ -676,7 +686,9 @@ export function createPluginAttachment(apis: HostApis) {
       .flatMap((match) => (match.routeId === '/panel/$sessionId/$view' ? [match.params.view] : []))
 
     if (!views.some(isPluginView)) return
-    void router.invalidate().catch((cause: unknown) => console.error('[plugin] Route check failed', cause))
+    void router
+      .invalidate()
+      .catch((cause: unknown) => log.error({action: 'plugin', message: 'Route check failed', error: cause}))
   }
 
   return {

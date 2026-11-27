@@ -44,6 +44,7 @@ import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCo
 import {screenshot} from './screenshot.js'
 import {redactedUrl} from './redacted-url.js'
 import {isHtml, type Beat, type Simulator} from './simulator.js'
+import type {BaseContext} from '@conciv/frontend-plugin-api'
 
 type Locator = Omit<Extract<Action, {type: 'dom'}>, 'type' | 'tabId'>
 
@@ -668,7 +669,11 @@ type CaptureCollector = {
   entries: () => readonly PendingBundleEntry[]
 }
 
-function makeCaptureCollector(operation: string, snapshot: () => SnapshotLibrary | null): CaptureCollector {
+function makeCaptureCollector(
+  operation: string,
+  snapshot: () => SnapshotLibrary | null,
+  log: BaseContext['log'],
+): CaptureCollector {
   const entries: PendingBundleEntry[] = []
   const seen = new Set<ElementCaptureKind>()
   return {
@@ -680,7 +685,7 @@ function makeCaptureCollector(operation: string, snapshot: () => SnapshotLibrary
         seen.add(kind)
         entries.push({kind, capture: taken.capture, pendingCss: taken.pendingCss})
       } catch (error) {
-        console.error(`[conciv] page ${operation} ${kind} capture failed`, error)
+        log.error({action: 'page', message: 'page capture failed', operation, kind, error})
       }
     },
     entries: () => entries,
@@ -707,11 +712,12 @@ async function buildCaptureBundle(entries: readonly PendingBundleEntry[]): Promi
 async function tryBuildCaptureBundle(
   entries: readonly PendingBundleEntry[],
   operation: string,
+  log: BaseContext['log'],
 ): Promise<PageCaptureBundle | undefined> {
   try {
     return await buildCaptureBundle(entries)
   } catch (error) {
-    console.error(`[conciv] page ${operation} capture bundle failed`, error)
+    log.error({action: 'page', message: 'page capture bundle failed', operation, error})
     return undefined
   }
 }
@@ -748,6 +754,7 @@ export function makePageOperations(
   simulator: Simulator,
   tracker: Tracker,
   notify: (message: string) => void,
+  log: BaseContext['log'],
 ): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
   const scope = Scope.makeUnsafe()
@@ -762,7 +769,7 @@ export function makePageOperations(
     const {action} = command
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
-    const captures = makeCaptureCollector(action.type, snapshots.loaded)
+    const captures = makeCaptureCollector(action.type, snapshots.loaded, log)
     const call = callCtx(simulator, tracker, command.agentId, refs, consoleBuf, slot, command.queued, signal, () =>
       Effect.runPromise(snapdom),
     )
@@ -775,7 +782,7 @@ export function makePageOperations(
       return yield* Effect.fail(pageFailure('handler-error', `${action.type} returned a non-serializable result`))
     }
     if (mode !== 'none' && command.queued === undefined) captures.take('after', slot.el)
-    const capture = yield* Effect.promise(() => tryBuildCaptureBundle(captures.entries(), action.type))
+    const capture = yield* Effect.promise(() => tryBuildCaptureBundle(captures.entries(), action.type, log))
     const value = yield* Effect.try({try: () => z.json().parse(record), catch: toPageFailure})
     const outcome: Outcome = {
       type: 'success',

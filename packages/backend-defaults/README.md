@@ -25,10 +25,20 @@ The engine's Effect spans (`Effect.fn` and `Effect.withSpan`) and Effect logs ar
 - `OTEL_EXPORTER_OTLP_HEADERS`: `key=value` pairs, comma separated, sent with every export (for example an auth header).
 - `OTEL_RESOURCE_ATTRIBUTES`: `key=value` pairs, comma separated and URI encoded, added to the resource. The `conciv.*` and `service.instance.id` attributes cannot be overridden.
 
-Every engine Effect log line is written to a log file, whether or not an endpoint is set (`src/util/observability/logging.ts`); nothing is printed to the terminal. The file is `<conciv home>/log/conciv-local.log` (by default the conciv home is `~/Library/Application Support/conciv` on macOS, or `CONCIV_HOME`). Every engine process on the machine appends to the same file, each line tagged with its `run`; once an hour the file is trimmed in place to its last 25 MB when it has grown past 50 MB.
+Engine logs are off by default. The level is set once at start and can change while the engine runs
+(`src/util/observability/log-level.ts`); a line below it is dropped before it is formatted. At any level other than
+`off`, every engine Effect log line, and every widget event the widget sends through `logs.write` (`source: 'client'`,
+redacted in the widget), is stored in the engine database's `log_events` table (`src/util/observability/log-store.ts`,
+shaped as `@evlog/nuxthub`'s `evlog_events`, batched by evlog's drain pipeline into one insert, retried on
+`SQLITE_BUSY`); it also goes to the host's `log.emit` sink when the host gave one (the dev server and `conciv-try`
+print warnings and errors from it), or to stderr when it gave none, and to OTLP when an endpoint is set. An insert that
+still fails is dropped and counted (`logs.level` answers `dropped`), never logged. Stored events older than
+`logRetention` (config, `7d` by default, `<n>d`, `<n>h` or `<n>m`) are deleted once at start and then every half of the
+window. Agents read them with `logs.query` and `logs.tail`, run the cleanup with `logs.cleanup`, and the CLI has
+`conciv logs` (`--level`, `--since`, `--grep`, `--follow`) and `conciv logs cleanup`. The login code a browser asks for
+is not a log: it always reaches the host sink.
 
-- `CONCIV_PRINT_LOGS=1`: also print every log line to stderr.
-- `CONCIV_LOG_LEVEL`: the lowest level kept, `DEBUG`, `INFO` (the default), `WARN` or `ERROR`.
+- `CONCIV_LOG_LEVEL`: `off` (the default), `error`, `warn`, `info`, `debug` or `trace`, in any case.
 
 To look at a slow turn locally, run a viewer that accepts OTLP over HTTP, for example Jaeger:
 

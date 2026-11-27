@@ -4,7 +4,8 @@ import {readFile} from 'node:fs/promises'
 import {join, resolve} from 'node:path'
 import getPort from 'get-port'
 import {z} from 'zod'
-import {ConcivConfigSchema, type ConcivConfig} from '@conciv/types/config-types'
+import {ConcivConfigSchema, readLogLevel, type ConcivConfig} from '@conciv/types/config-types'
+import {startHostLog} from './host-log.js'
 import {concivStateDir} from '@conciv/types/state-types'
 import type * as Boot from './boot.js'
 
@@ -12,6 +13,8 @@ export const CONCIV_DEFAULT_PORT = 24170
 
 export const WIDGET_START_SPECIFIER = '@conciv/widget-start'
 const WIDGET_PORT_KEY = 'NEXT_PUBLIC_CONCIV_PORT'
+
+const WIDGET_LOG_LEVEL_KEY = 'NEXT_PUBLIC_CONCIV_LOG_LEVEL'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
 type WebpackEntry = () => Promise<Record<string, unknown>>
@@ -99,7 +102,8 @@ export async function withConciv<T extends object>(
   const port = loadedEnginePort() ?? (await chooseEnginePort(options.port, options.stateRoot ?? process.cwd()))
   const resolved: ConcivConfig = {...options, port}
   const widgetOff = options.widget === false
-  const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port)}
+  const logLevel = readLogLevel({env: process.env.CONCIV_LOG_LEVEL, config: options.logLevel})
+  const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port), [WIDGET_LOG_LEVEL_KEY]: logLevel}
   const concivEnv = {...widgetEnv, CONCIV_OPTIONS: JSON.stringify(resolved)}
   const userEnv = widgetOff
     ? Object.fromEntries(Object.entries(baseEnv).filter(([key]) => key !== WIDGET_PORT_KEY))
@@ -132,6 +136,7 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const options = readConcivOptions(process.env.CONCIV_OPTIONS ?? '{}')
   if (options.enabled === false) return
+  startHostLog(options.logLevel)
   const boot: typeof Boot = await importBesideEntry(BOOT_FILE)
   await boot.makeEngineBooter(options, process.cwd(), {})()
 }

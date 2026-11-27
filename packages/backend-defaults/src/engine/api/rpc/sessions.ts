@@ -35,7 +35,7 @@ import {
   switchRowHarness,
   type NativePage,
 } from '../../sessions/session-rows.js'
-import type {Log} from '../../lib/logging.js'
+import type {EngineRuntime} from '../../lib/logging.js'
 import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
@@ -54,7 +54,7 @@ async function loadNativePage(
     )
     return {harnessKind: harness.id, page: listed}
   } catch (error) {
-    chat.log(
+    chat.runtime.runFork(
       Effect.logError('[core] listing the native sessions failed, its sessions list from their rows', {
         harness: harness.id,
         error,
@@ -74,7 +74,9 @@ async function loadNativeMeta(chat: ChatContext, row: SessionRecord): Promise<Ha
     )
     return meta ?? undefined
   } catch (error) {
-    chat.log(Effect.logError('[core] reading a native session failed', {harness: row.harnessKind, nativeId, error}))
+    chat.runtime.runFork(
+      Effect.logError('[core] reading a native session failed', {harness: row.harnessKind, nativeId, error}),
+    )
     return undefined
   }
 }
@@ -96,7 +98,9 @@ async function loadTranscriptTail(
     )
   } catch (error) {
     if (options.signal?.aborted) throw error
-    chat.log(Effect.logError('[core] previewing a native session failed', {harness: harnessKind, nativeId, error}))
+    chat.runtime.runFork(
+      Effect.logError('[core] previewing a native session failed', {harness: harnessKind, nativeId, error}),
+    )
     return null
   }
 }
@@ -146,7 +150,7 @@ async function sessionPage(
     search,
     running: await chat.plane.running(),
     includeHidden: input.includeHidden ?? false,
-    log: chat.log,
+    runtime: chat.runtime,
   })
   const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
   if (counted.length >= input.limit || listed.next === null) return {sessions: counted, next: listed.next}
@@ -179,12 +183,17 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log): Promise<HarnessLoginStatus> {
+function readHarnessLogin(
+  harness: HarnessAdapter,
+  signal: AbortSignal,
+  runtime: EngineRuntime,
+): Promise<HarnessLoginStatus> {
   return resolveHarnessLogin(harness, {
     signal,
     refresh: true,
     onError: (error) => {
-      if (!signal.aborted) log(Effect.logError('[core] checking the login failed', {harness: harness.id, error}))
+      if (!signal.aborted)
+        runtime.runFork(Effect.logError('[core] checking the login failed', {harness: harness.id, error}))
     },
   })
 }
@@ -192,13 +201,14 @@ function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log
 async function listMenuModels(
   harness: HarnessAdapter,
   signal: AbortSignal,
-  log: Log,
+  runtime: EngineRuntime,
 ): Promise<Pick<HarnessMenuEntry, 'models' | 'defaultModel' | 'modelsFailed'>> {
   try {
     const models = await resolveHarnessModels(harness, {signal})
     return {models, defaultModel: (await harness.defaultModel?.()) ?? models[0]?.id ?? null, modelsFailed: false}
   } catch (error) {
-    if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
+    if (!signal.aborted)
+      runtime.runFork(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
     return {models: [], defaultModel: (await harness.defaultModel?.()) ?? null, modelsFailed: true}
   }
 }
@@ -206,11 +216,11 @@ async function listMenuModels(
 export async function buildHarnessMenuEntry(
   harness: HarnessAdapter,
   signal: AbortSignal,
-  log: Log,
+  runtime: EngineRuntime,
 ): Promise<HarnessMenuEntry> {
   const [listed, login] = await Promise.all([
-    listMenuModels(harness, signal, log),
-    readHarnessLogin(harness, signal, log),
+    listMenuModels(harness, signal, runtime),
+    readHarnessLogin(harness, signal, runtime),
   ])
   return {...buildHarnessMeta(harness), ...listed, login}
 }

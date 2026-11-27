@@ -1,0 +1,7 @@
+{
+  "name": "next-src-shop",
+  "private": true,
+  "dependencies": {
+    "next": "^16.0.0"
+  }
+}

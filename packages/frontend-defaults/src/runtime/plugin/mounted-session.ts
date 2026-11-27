@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   batch,
   createEffect,
@@ -161,7 +162,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
       writes.state = next.state
       next.effects.forEach((effect) =>
         Promise.try(() => runWrite(effect)).catch((cause: unknown) =>
-          console.error('[plugin] Composer write failed', cause),
+          log.error({action: 'plugin', message: 'Composer write failed', sessionId: session.id(), error: cause}),
         ),
       )
     } finally {
@@ -192,7 +193,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
         (cause: unknown) => dispatchWrite({type: 'failed', target: effect.target, cause}),
       )
 
-    console.error('[plugin] Composer draft load failed', effect.cause)
+    log.error({action: 'plugin', message: 'Composer draft load failed', sessionId: session.id(), error: effect.cause})
   }
 
   onCleanup(() => dispatchWrite({type: 'disposed'}))
@@ -221,7 +222,12 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     setVariant: () => false,
     attach(part) {
       if (part.type !== 'note') {
-        console.error('[plugin] Composer.attach is not implemented yet', part.type)
+        log.error({
+          action: 'plugin',
+          message: 'Composer.attach is not implemented yet',
+          part: part.type,
+          sessionId: session.id(),
+        })
         return
       }
 

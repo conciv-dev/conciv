@@ -1,0 +1,29 @@
+# {{packageName}}
+
+## Overview
+
+{{{description}}}
+
+## Invariants
+
+{{#if sourceOnly}}
+- Private to conciv and never published: its exports point at `src`, nothing builds it, and the packages that use it
+  inline it into their own builds.
+{{else}}
+- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
+{{/if}}
+
+## Side Effects
+
+{{#if sourceOnly}}
+- None: the package root holds configs and the manifest only.
+{{else}}
+- `build` script (`package.json`): writes dist/
+{{/if}}
+
+## Verification
+
+- Typecheck and lint: run the `typecheck` script in `{{directory}}`, then `pnpm lint` at the repo root.
+- Tests: the package has no `test` script yet, because `vitest run` with no test file fails. Add
+  `"test": "vitest run"` to `package.json` with the first test. `vite.config.ts` runs `test/unit/**/*.unit.test.ts`
+  and `test/it/**/*.it.test.ts`{{#if browserTests}}, and `test/e2e/**/*.e2e.test.tsx` in browser mode{{/if}}.

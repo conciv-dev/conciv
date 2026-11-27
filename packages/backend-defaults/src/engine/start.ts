@@ -19,7 +19,8 @@ import type {EngineStaleness} from '@conciv/protocol'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {EngineId} from './lib/engine-id.js'
 import {makeMaker, type Maker} from '@conciv/protocol/schema/identifier'
-import {logOnContext, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
+import type {EngineRuntime} from './lib/logging.js'
+import type {LogEntry, LogOptions} from '../util/observability/host-sink.js'
 import {inSpan, type Tracer} from '../ai.js'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
 import {engineMcpUrl} from './engine-login.js'
@@ -177,11 +178,15 @@ async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string)
   return serveHono({fetch: fetchHandler, port: 0})
 }
 
-async function servePreferredPort(fetchHandler: FetchHandler, preferred: number, log: Log): Promise<Served> {
+async function servePreferredPort(
+  fetchHandler: FetchHandler,
+  preferred: number,
+  runtime: EngineRuntime,
+): Promise<Served> {
   const reserved = await reservePort(fetchHandler, preferred)
   if (reserved) return reserved
   const serving = await serveHono({fetch: fetchHandler, port: 0})
-  log(
+  runtime.runFork(
     Effect.logWarning(
       `conciv: port ${preferred} is already in use, the engine is listening on http://127.0.0.1:${serving.port} instead`,
     ).pipe(Effect.annotateLogs({preferred, port: serving.port, url: `http://127.0.0.1:${serving.port}`})),
@@ -193,35 +198,35 @@ function serveRequestedPort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   stateFile: string,
-  log: Log,
+  runtime: EngineRuntime,
 ): Promise<Served> {
   if (request === undefined) return servePersistedPort(fetchHandler, stateFile)
   if ('exact' in request) return serveHono({fetch: fetchHandler, port: request.exact})
-  return servePreferredPort(fetchHandler, request.preferred, log)
+  return servePreferredPort(fetchHandler, request.preferred, runtime)
 }
 
 async function servePort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   state: {file: string; token: string},
-  log: Log,
+  runtime: EngineRuntime,
   tracer: Tracer | undefined,
 ): Promise<Served & {restoreRecord: ShutdownStep}> {
   const serving = await inSpan(tracer, 'Engine.listen', {}, () =>
-    serveRequestedPort(fetchHandler, request, state.file, log),
+    serveRequestedPort(fetchHandler, request, state.file, runtime),
   )
   try {
     return {...serving, restoreRecord: await writePersistedPort(state.file, {port: serving.port, token: state.token})}
   } catch (error) {
-    await cleanupAfterFailedStart([serving.close], log)
+    await cleanupAfterFailedStart([serving.close], runtime)
     throw error
   }
 }
 
-function cleanupAfterFailedStart(steps: readonly ShutdownStep[], log: Log): Promise<void> {
-  return runInOrder(steps, 'conciv: stopping the engine failed').catch((failure: unknown) =>
-    log(Effect.logError('conciv: cleanup after a failed start also failed', {failure})),
-  )
+function cleanupAfterFailedStart(steps: readonly ShutdownStep[], runtime: EngineRuntime): Promise<void> {
+  return runInOrder(steps, 'conciv: stopping the engine failed').catch((failure: unknown) => {
+    runtime.runFork(Effect.logError('conciv: cleanup after a failed start also failed', {failure}))
+  })
 }
 
 function onceNotifier(callback?: () => void): () => void {
@@ -233,28 +238,28 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-async function registeredHome(home: string, row: EngineRow, log: Log): Promise<PreparedHome | null> {
+async function registeredHome(home: string, row: EngineRow, runtime: EngineRuntime): Promise<PreparedHome | null> {
   try {
     const prepared = await prepareHome(home)
     withHomeDb(prepared, (db) => registerEngine(db, row))
     return prepared
   } catch (error) {
-    log(Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error}))
+    runtime.runFork(Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error}))
     return null
   }
 }
 
-async function registerForOutsideAgents(home: string, row: EngineRow, log: Log): Promise<() => void> {
-  const registered = await registeredHome(home, row, log)
+async function registerForOutsideAgents(home: string, row: EngineRow, runtime: EngineRuntime): Promise<() => void> {
+  const registered = await registeredHome(home, row, runtime)
   if (registered === null) return () => {}
   checkEngines(home, {timeoutMs: 300}).catch((error: unknown) =>
-    log(Effect.logError('conciv: checking registered engines failed', {error})),
+    runtime.runFork(Effect.logError('conciv: checking registered engines failed', {error})),
   )
   return () => {
     try {
       withHomeDb(registered, (db) => retireEngine(db, row.id, Date.now()))
     } catch (error) {
-      log(Effect.logError('conciv: engine row not retired', {engineId: row.id, error}))
+      runtime.runFork(Effect.logError('conciv: engine row not retired', {engineId: row.id, error}))
     }
   }
 }
@@ -264,7 +269,8 @@ export async function createBackend(opts: BackendOptions): Promise<Engine> {
   const configProvider = opts.configProvider ?? defaultConfigProvider()
   const cfg = resolveConfig(opts.options, opts.root, configProvider)
   const registry = harnessRegistry(configProvider)
-  if (!opts.harness && !opts.simulation) requireHarness(registry, cfg.harness)
+  const simulation = cfg.simulate ? opts.simulation : undefined
+  if (!opts.harness && !simulation) requireHarness(registry, cfg.harness)
   const paths = statePaths(cfg.stateRoot)
   await createConcivStateDir(paths.dir)
 
@@ -284,6 +290,8 @@ export async function createBackend(opts: BackendOptions): Promise<Engine> {
     configProvider,
     engineId,
     log: opts.log,
+    logLevel: cfg.logLevel,
+    logRetention: cfg.logRetention,
   })
   return inSpan(
     observability.tracer,
@@ -291,7 +299,7 @@ export async function createBackend(opts: BackendOptions): Promise<Engine> {
     {'conciv.engine.id': engineId, 'conciv.harness.id': cfg.harness},
     () =>
       startEngine({
-        opts,
+        opts: {...opts, simulation},
         cfg,
         configProvider,
         registry,
@@ -346,7 +354,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     4000,
     () => Date.now(),
   )
-  const earlyLog = logOnContext(observability.context)
+  const earlyRuntime: EngineRuntime = {runFork: Effect.runForkWith(observability.context)}
   const portRef = {port: 0}
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
     const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : env), CONCIV_TOKEN: agentToken}
@@ -395,6 +403,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     staleness: opts.staleness,
     app: opts.app,
     observability,
+    log: opts.log,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})
@@ -402,15 +411,15 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     (request, env) => madeApp.promise.then((made) => made.fetch(request, env)),
     opts.port,
     {file: paths.server, token: agentToken},
-    earlyLog,
+    earlyRuntime,
     tracer,
   ).catch(async (error: unknown) => {
-    await cleanupAfterFailedStart([closeSimulation], earlyLog)
+    await cleanupAfterFailedStart([closeSimulation], earlyRuntime)
     throw error
   })
   portRef.port = port
   const abandonStart = (steps: readonly ShutdownStep[]): Promise<void> =>
-    cleanupAfterFailedStart([close, ...steps, restoreRecord, closeSimulation], earlyLog)
+    cleanupAfterFailedStart([close, ...steps, restoreRecord, closeSimulation], earlyRuntime)
   const made = await inSpan(tracer, 'Engine.makeApp', {}, () => makeApp(appOpts)).catch(async (error: unknown) => {
     madeApp.reject(error)
     await abandonStart([])
@@ -418,8 +427,6 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
   })
   madeApp.resolve(made)
   const {dispose, trustBrowser, awaitActivation} = made
-  const log = logOnRuntime(made.pluginHost)
-
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const origin = boundOrigin()
   try {
@@ -444,7 +451,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
           apiBase: origin,
           token: agentToken,
         },
-        log,
+        made.pluginHost,
       )
     : () => {}
   const clearEndpoint = async (): Promise<void> => {
@@ -452,7 +459,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     try {
       await removeDevEndpoint(endpointDir, process.pid)
     } catch (error) {
-      log(Effect.logError('conciv: failed to remove the dev endpoint file', {endpointDir, error}))
+      made.pluginHost.runFork(Effect.logError('conciv: failed to remove the dev endpoint file', {endpointDir, error}))
     }
   }
   try {

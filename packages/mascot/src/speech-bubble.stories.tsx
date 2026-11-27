@@ -69,7 +69,7 @@ function SpeechBubbleStage(props: StageProps): JSX.Element {
 
 const COMPONENT_DOCS = `
 \`speechBubbleEffect\` mounts a comic speech bubble (paper box, tail, three dots) at the antenna tip.
-The dots flash in sequence — opacity 0.18 to 1, 0.26s each, 0.16s stagger, \`steps(1)\` easing, looping —
+The dots flash in sequence (opacity 0.18 to 1, 0.26s each, 0.16s stagger, \`steps(1)\` easing, looping),
 to read as a typing indicator. Ported mechanically from the \`TypingBubble\` story prototype ("Speech
 bubble typing"): same box/tail geometry and dot timing, scaled to the antenna's box size the way
 \`binaryEffect\` scales its digits. Toggle **working** to see the bubble enter from the tip, loop, and

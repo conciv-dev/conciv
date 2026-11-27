@@ -1,7 +1,7 @@
 import {Effect, Fiber, Stream, type ManagedRuntime} from 'effect'
 import {getEventMeta} from '@orpc/client'
 import type {TerminalListener, TerminalTransport} from '@conciv/ui-kit-terminal'
-import type {ServerRef} from '@conciv/frontend-plugin-api'
+import type {BaseContext, ServerRef} from '@conciv/frontend-plugin-api'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
 
 export type PtyClient = ServerRef['client']['experimental']['persistentPty']
@@ -16,8 +16,9 @@ function caught(cause: unknown) {
   return cause
 }
 
-function reportFailure(cause: unknown): void {
-  console.error('[terminal] a terminal call failed', cause)
+function reportFailure(log: BaseContext['log'], ptyId: string) {
+  return (cause: unknown): void =>
+    log.error({action: 'terminal', message: 'a terminal call failed', ptyId, error: cause})
 }
 
 function relayItem(item: PtyOutputItem, listener: TerminalListener): void {
@@ -69,11 +70,12 @@ export function rpcTerminalTransport(
   runtime: ManagedRuntime.ManagedRuntime<never, never>,
   terminal: PtyClient,
   pty: HeldPty,
+  log: BaseContext['log'],
 ): TerminalTransport {
   return (_xterm, listener) => {
     const relay = runtime.runFork(relayOutput(terminal, pty, listener))
     const sent = (call: Promise<unknown>): void => {
-      call.catch(reportFailure)
+      call.catch(reportFailure(log, pty.ptyId))
     }
     return {
       write: (data) => sent(terminal.write({ptyId: pty.ptyId, data}, ONCE)),

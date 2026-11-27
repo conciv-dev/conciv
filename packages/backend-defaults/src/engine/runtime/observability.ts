@@ -5,26 +5,34 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, type Context} from 'effect'
 import corePackage from '../../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'
-import {layer as hostLogs, type LogOptions} from '../lib/logging.js'
+import type {LogLevel, Retention} from '@conciv/types/config-types'
+import type {LogOptions} from '../../util/observability/host-sink.js'
+import type {Interface as LogLevelInterface} from '../../util/observability/log-level.js'
+import type {Interface as LogStoreInterface} from '../../util/observability/log-store.js'
 
 const OtlpExporterConfig = Config.all({
   endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
   headers: Config.option(Config.String('OTEL_EXPORTER_OTLP_HEADERS')),
 })
 
-function provideObservability(configProvider: ConfigProvider.ConfigProvider, engineId: string) {
+function provideObservability(input: ObservabilityInput) {
   return Layer.unwrap(
     OtlpExporterConfig.pipe(
       Effect.map(({endpoint, headers}) =>
-        Observability.layer({
-          endpoint: Option.getOrUndefined(endpoint),
-          headers: Option.getOrUndefined(headers),
-          version: corePackage.version,
-          instance: engineId,
-        }),
+        Observability.layer(
+          {
+            endpoint: Option.getOrUndefined(endpoint),
+            headers: Option.getOrUndefined(headers),
+            version: corePackage.version,
+            instance: input.engineId,
+            level: input.logLevel,
+          },
+          input.log?.emit,
+          input.logRetention,
+        ),
       ),
     ),
-  ).pipe(Layer.provide(ConfigProvider.layer(configProvider)), Layer.orDie)
+  ).pipe(Layer.provide(ConfigProvider.layer(input.configProvider)), Layer.orDie)
 }
 
 function machineRoots(home: string, fallback: string) {
@@ -47,17 +55,16 @@ export type ObservabilityInput = {
   configProvider: ConfigProvider.ConfigProvider
   engineId: string
   log?: LogOptions
+  logLevel?: LogLevel
+  logRetention?: Retention
 }
 
-function observabilityLayer(input: ObservabilityInput): Layer.Layer<Global.Interface> {
-  return hostLogs(input.log).pipe(
-    Layer.provideMerge(provideObservability(input.configProvider, input.engineId)),
-    Layer.provideMerge(machineRoots(input.home, input.fallbackRoots)),
-  )
+function observabilityLayer(input: ObservabilityInput) {
+  return provideObservability(input).pipe(Layer.provideMerge(machineRoots(input.home, input.fallbackRoots)))
 }
 
 export type EngineObservability = {
-  context: Context.Context<Global.Interface>
+  context: Context.Context<Global.Interface | LogLevelInterface | LogStoreInterface>
   tracer: Tracer | undefined
   dispose: () => Promise<void>
 }

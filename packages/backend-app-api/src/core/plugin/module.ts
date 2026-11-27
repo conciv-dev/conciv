@@ -36,7 +36,7 @@ export const make = Effect.fn('PluginModule.make')(function* () {
   })
   const watch = (file: string) => Effect.scoped(RcMap.get(watches, file))
   const sources = yield* Effect.acquireRelease(
-    Effect.sync(() => createPluginSources((file) => runPromise(watch(file)))),
+    Effect.sync(() => createPluginSources(runPromise, watch)),
     (created) => Effect.sync(() => created.dispose()),
   )
   return {

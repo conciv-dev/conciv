@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
 import type {ComposerDraft} from './composer-context.js'
@@ -22,5 +23,5 @@ export function useComposerHandlers(): ComposerHandlers {
 }
 
 export function reportUnsent(error: unknown): void {
-  console.error('[conciv] the message could not be sent', error)
+  log.error({action: 'composer', message: 'the message could not be sent', error})
 }

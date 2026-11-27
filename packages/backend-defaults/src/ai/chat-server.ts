@@ -54,6 +54,8 @@ import {guardedAdapter} from './run-guard.js'
 import {GROUP_EXIT_TIMEOUT_MS, localSandbox} from '@conciv/harness/local-sandbox'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
 import {formatLoggedError} from './logged-error.js'
+import {Effect} from 'effect'
+import type {EngineRuntime} from '../engine/lib/logging.js'
 import {cloneDeepWith, isPlainObject, takeWhile} from 'es-toolkit'
 import {inSpan, streamInSpan, type SpanAttributes, type Tracer} from './spans.js'
 
@@ -234,7 +236,7 @@ export type ChatServerConfig = {
   codeModeResult: (value: unknown) => unknown
   startTimeoutMs: number
   firstOutputTimeoutMs: number
-  log: (message: string) => void
+  runtime: EngineRuntime
   driver: CodeDriver | null
   askPermission: AskPermission
   tracer: Tracer | undefined
@@ -584,8 +586,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const debug = silentCategories({
     debug: () => undefined,
     info: () => undefined,
-    warn: (message) => config.log(`[ai] ${message}`),
-    error: (message, meta) => config.log(formatLoggedError(message, meta?.error)),
+    warn: (message) => config.runtime.runFork(Effect.logWarning(`[ai] ${message}`)),
+    error: (message, meta) => config.runtime.runFork(Effect.logError(formatLoggedError(message, meta?.error))),
   })
   const sandbox = defineSandbox({
     id: 'conciv',
@@ -685,7 +687,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       savingShown(turn.threadId, () =>
         saveShown(stores.messages, turn.threadId, shown, finish, [], lastToolResults),
       ).catch((error: unknown) => {
-        config.log(`[ai] saving the reply so far of run ${turn.runId} failed: ${String(error)}`)
+        config.runtime.runFork(
+          Effect.logError('[ai] saving the reply so far of a run failed', {runId: turn.runId, error}),
+        )
       })
     const settle = async (): Promise<void> => {
       try {
@@ -694,7 +698,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           if (lifecycle !== null) await hooks.end(turn, lifecycle)
         })
       } catch (error) {
-        config.log(`[ai] ending run ${turn.runId} failed: ${String(error)}`)
+        config.runtime.runFork(Effect.logError('[ai] ending a run failed', {runId: turn.runId, error}))
       } finally {
         live.delete(turn.runId)
         entry.settled.resolve()
@@ -780,7 +784,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         entry.interrupted = await inSpan(tracer, 'ChatServer.saveStoppedTurn', turnAttributes(turn), () =>
           savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown, config.ids)),
         ).catch((error: unknown) => {
-          config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`)
+          config.runtime.runFork(
+            Effect.logError('[ai] saving the stopped turn of a run failed', {runId: turn.runId, error}),
+          )
           return []
         })
         if (failure.message !== null) {
@@ -859,7 +865,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     entry: LiveRun,
     plan: TurnPlan,
   ) {
-    const coding = driver === null ? null : stoppedWith(tracedDriver(driver, tracer), controller.signal, config.log)
+    const coding = driver === null ? null : stoppedWith(tracedDriver(driver, tracer), controller.signal, config.runtime)
     const offered = async (): Promise<OfferedTools> => {
       const tools = await plan.tools()
       const coded =
@@ -886,7 +892,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         onNotStarted: () => failed(`the agent did not start within ${seconds(config.startTimeoutMs)}s`),
         onSilence: () => failed(`the agent produced no output within ${seconds(config.firstOutputTimeoutMs)}s`),
         stop: () => controller.abort(RUN_CANCEL_REASON),
-        log: config.log,
+        runtime: config.runtime,
       }),
       messages,
       threadId: turn.threadId,
@@ -906,7 +912,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         defineChatMiddleware({
           name: 'conciv-image-tools',
           provides: [ToolBridgeProvisionerCapability],
-          setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission, tracer)),
+          setup: (ctx) =>
+            provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission, tracer, config.runtime)),
         }),
         withPersistence(persistence),
         withLocks(locks),
@@ -946,7 +953,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       run,
       seenRun: async (runId) => live.has(runId) || (await stores.runs.known(runId)),
       debug,
-      log: config.log,
+      runtime: config.runtime,
     }),
     stop: (threadId, runIds) =>
       inSpan(tracer, 'ChatServer.stop', {'conciv.session.id': threadId}, () => stopRuns(threadId, runIds)),

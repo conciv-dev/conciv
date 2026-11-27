@@ -22,6 +22,7 @@ import {
   type SimulatorEffect,
   type SimulatorEvent,
 } from './simulator-machine.js'
+import type {BaseContext} from '@conciv/frontend-plugin-api'
 
 const TASK_TIMEOUT_MS = 60_000
 const MOVE_MS = 300
@@ -83,6 +84,7 @@ type SimulatorOptions = {
   onStop: (sessionId: string) => void
   running: (sessionId: string) => boolean
   taskTimeoutMs: () => number | undefined
+  log: BaseContext['log']
 }
 
 export type Simulator = {
@@ -103,9 +105,11 @@ export type Simulator = {
   simulateFill: (options: {element: HTMLInputElement | HTMLTextAreaElement; value: string; agent: string}) => void
 }
 
-function warnUnlessCanceled(reason: unknown): void {
-  if (reason === GLOW_CANCELED) return
-  console.warn('[conciv] agent glow fade failed', reason)
+function warnUnlessCanceled(log: BaseContext['log']) {
+  return (reason: unknown): void => {
+    if (reason === GLOW_CANCELED) return
+    log.warn({action: 'page', message: 'agent glow fade failed', error: reason})
+  }
 }
 
 export function isHtml(element: Element): element is HTMLElement {
@@ -139,7 +143,7 @@ function interrupt<Key>(fibers: FiberMap.FiberMap<Key>, key: Key): void {
   Option.getOrUndefined(FiberMap.getUnsafe(fibers, key))?.interruptUnsafe()
 }
 
-function mountRun(options: {root: ParentNode; cursors: Cursors; onClick: () => void}): Run {
+function mountRun(options: {root: ParentNode; cursors: Cursors; onClick: () => void; log: BaseContext['log']}): Run {
   const style = document.createElement('style')
   style.textContent = SIMULATOR_CSS
   const layer = div(MASK_CLASS)
@@ -149,7 +153,7 @@ function mountRun(options: {root: ParentNode; cursors: Cursors; onClick: () => v
   layer.addEventListener('click', options.onClick)
   options.root.prepend(style, layer)
   const dispose = render(() => createComponent(AimedCursors, {look: CursorLook.AGENT, cursors: options.cursors}), layer)
-  return {style, layer, glow: createGlow(layer), dispose, cursors: new Set()}
+  return {style, layer, glow: createGlow(layer, options.log), dispose, cursors: new Set()}
 }
 
 function unmountRun(options: {run: Run; cursors: Cursors}): void {
@@ -161,7 +165,7 @@ function unmountRun(options: {run: Run; cursors: Cursors}): void {
   run.style.remove()
 }
 
-function createGlow(layer: HTMLElement): Motion | null {
+function createGlow(layer: HTMLElement, log: BaseContext['log']): Motion | null {
   if (prefersReducedMotion()) return null
   try {
     const glow = new Motion({
@@ -174,7 +178,7 @@ function createGlow(layer: HTMLElement): Motion | null {
     glow.autoResize(layer)
     return glow
   } catch (error) {
-    console.warn('[conciv] agent glow unavailable', error)
+    log.warn({action: 'page', message: 'agent glow unavailable', error})
     return null
   }
 }
@@ -226,11 +230,12 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
       if (!root) return
       handles.cursor = agent
       interrupt(timers, 'hide')
-      const run = handles.run ?? mountRun({root, cursors, onClick: () => dispatch({type: 'mask.clicked'})})
+      const run =
+        handles.run ?? mountRun({root, cursors, onClick: () => dispatch({type: 'mask.clicked'}), log: options.log})
       handles.run = run
       if (!prefersReducedMotion()) {
         run.glow?.start()
-        run.glow?.fadeIn().catch(warnUnlessCanceled)
+        run.glow?.fadeIn().catch(warnUnlessCanceled(options.log))
       }
       run.layer.classList.add(VISIBLE_CLASS)
       aimAtCenter({run, cursors, agent})
@@ -244,7 +249,7 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
     const hide = (): void => {
       const run = handles.run
       if (!run) return
-      run.glow?.fadeOut().catch(warnUnlessCanceled)
+      run.glow?.fadeOut().catch(warnUnlessCanceled(options.log))
       run.glow?.pause()
       if (cannotAnimate()) return dispatch({type: 'hide.done'})
       later('hide', HIDE_MS, {type: 'hide.done'})

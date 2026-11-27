@@ -18,7 +18,8 @@ export async function createConcivStateDir(stateDir: string): Promise<string> {
   try {
     await writeFile(ignoreFile, CONCIV_STATE_GITIGNORE, {flag: 'wx'})
   } catch (error) {
-    if (!ExistingFileErrorSchema.safeParse(error).success) console.error('conciv: could not write', ignoreFile, error)
+    if (!ExistingFileErrorSchema.safeParse(error).success)
+      throw new Error(`conciv: could not write ${ignoreFile}`, {cause: error})
   }
   return stateDir
 }

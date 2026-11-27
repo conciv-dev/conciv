@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createSignal, onCleanup, untrack} from 'solid-js'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {EnableState, Installed, PluginChunk} from './installed'
@@ -84,7 +85,7 @@ export function createStartupGate(input: {
       return void Promise.try(() => installed?.list() ?? []).then(
         (list) => dispatch({type: 'list.resolved', list}),
         (cause: unknown) => {
-          console.error('[plugin] failed to load installed plugin list', cause)
+          log.error({action: 'plugin', message: 'failed to load installed plugin list', error: cause})
           dispatch({type: 'list.failed', error: cause instanceof Error ? cause.message : String(cause)})
         },
       )

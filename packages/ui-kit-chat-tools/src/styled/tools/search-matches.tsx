@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {groupBy} from 'es-toolkit'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CodeBlock} from '@conciv/ui-kit-chat/tools'
+import {CodeBlockContent} from '@conciv/ui-kit-chat/tools'
 
 export type SearchMatch = {file: string; line: number; snippet: string}
 
@@ -79,9 +79,8 @@ function detectLanguage(file: string): string | undefined {
 function Snippet(props: {file: string; snippet: string}): JSX.Element {
   return (
     <div class={SNIPPET}>
-      <CodeBlock
-        size="xs"
-        chrome="line"
+      <CodeBlockContent
+        wrap={false}
         file={{name: props.file, lang: detectLanguage(props.file), contents: props.snippet.trim()}}
       />
     </div>

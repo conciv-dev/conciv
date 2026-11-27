@@ -23,6 +23,7 @@ function FailureNotice(props: {message: string; onRetry: () => void}): JSX.Eleme
 }
 
 export function TerminalPanel(props: {session: MountedSession; terminal: TerminalState}): JSX.Element {
+  const ctx = usePlugin()
   const key = createMemo(() => props.terminal.key(props.session.id))
   const failure = createMemo(() => props.terminal.failure(props.session.id))
   let host: HTMLDivElement | undefined
@@ -43,7 +44,12 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
               {(current) => (
                 <ErrorBoundary
                   fallback={(cause: unknown, reset) => {
-                    console.error('[terminal] loading the session terminal failed', cause)
+                    ctx.log.error({
+                      action: 'terminal',
+                      message: 'loading the session terminal failed',
+                      sessionId: props.session.id,
+                      error: cause,
+                    })
                     return <FailureNotice message={OPEN_FAILED} onRetry={reset} />
                   }}
                 >
