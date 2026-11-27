@@ -4686,6 +4686,9 @@ importers:
       '@conciv/mascot-react':
         specifier: workspace:*
         version: link:../mascot-react
+      '@conciv/plugin-design':
+        specifier: workspace:*
+        version: link:../plugins/design
       '@conciv/plugin-ios':
         specifier: workspace:*
         version: link:../plugins/ios
