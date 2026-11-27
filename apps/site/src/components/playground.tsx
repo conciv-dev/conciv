@@ -118,7 +118,7 @@ export function Playground(props: {
             src={`/playground/${page}/${script}`}
             loading="lazy"
             className="block w-full border-0"
-            style={{height: props.height ?? 560}}
+            style={{height: props.height ?? 750}}
           />
         ) : (
           <div className="flex flex-col gap-4 p-4 text-sm">
