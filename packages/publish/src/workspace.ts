@@ -18,6 +18,7 @@ const manifestSchema = z.object({
   optionalDependencies: z.record(z.string(), z.string()).optional(),
   peerDependencies: z.record(z.string(), z.string()).optional(),
   conciv: z.object({builtin: z.boolean().optional()}).optional(),
+  engines: z.object({node: z.string().optional()}).optional(),
 })
 
 export type Manifest = z.infer<typeof manifestSchema>

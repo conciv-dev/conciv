@@ -161,6 +161,29 @@ export const publishErrors = defineErrorCatalog('publish', {
   WORKSPACE_NOT_MAPPING: {
     message: ({path}: {path: string}) => `${path}: expected a YAML mapping with a "packages" list`,
   },
+  NODE_FLOOR_MISSING: {
+    message: 'no published package declares engines.node',
+    fix: 'Set engines.node to the oldest Node the published node packages support, e.g. ">=22.16.0".',
+  },
+  NODE_FLOOR_MIXED: {
+    message: ({floors}: {floors: string}) => `published packages declare different engines.node: ${floors}`,
+    fix: 'Give every published node package the same engines.node.',
+  },
+  NODE_FLOOR_UNREADABLE: {
+    message: ({range}: {range: string}) => `engines.node ${JSON.stringify(range)} is not of the form >=X.Y.Z`,
+  },
+  NODE_BELOW_FLOOR: {
+    message: ({version, floor}: {version: string; floor: string}) =>
+      `the node given is ${version}, older than the floor ${floor}`,
+    fix: 'Pass --node a Node binary at or above the floor, the floor itself in CI.',
+  },
+  NODE_FLOOR_UNPACKED: {
+    message: ({names}: {names: string}) => `pnpm pack wrote no tarball for ${names}`,
+  },
+  NODE_FLOOR_FAILED: {
+    message: ({version, failures}: {version: string; failures: string[]}) =>
+      `the packed packages do not run on Node ${version}:\n${failures.join('\n')}`,
+  },
   WORKSPACE_PACKAGES_NOT_GLOBS: {
     message: ({path}: {path: string}) => `${path}: "packages" must be a list of glob strings`,
   },

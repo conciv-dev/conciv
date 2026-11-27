@@ -28,6 +28,7 @@ import {
   assertTypeTasksDependOnDistReads,
 } from './workspace-imports.ts'
 import {flaggedLogLevel, logFlags, publishLogs} from './log.ts'
+import {checkNodeFloor} from './node-floor.ts'
 import {buildSyncPlan, pushMissingTags, registryRecord, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
 import {
   assembleMirrorTree,
@@ -176,6 +177,21 @@ const checkPublicTypes = defineCommand({
   async run() {
     const {cwd} = await atRoot()
     await assertPublicTypesPublic(cwd)
+  },
+})
+
+const checkNodeFloorCommand = defineCommand({
+  meta: {
+    name: 'check-node-floor',
+    description:
+      'Pack the published packages, install them into a throwaway consumer and prove them on the Node binary given (the engines.node floor in CI): the cli runs, every node entry imports, the engine starts in simulation and lists a session it created; run it after the build',
+  },
+  args: {
+    node: {type: 'string', default: process.execPath, description: 'the Node binary the proofs run on'},
+  },
+  async run({args}) {
+    const {cwd} = await atRoot()
+    await checkNodeFloor(cwd, args.node)
   },
 })
 
@@ -609,6 +625,7 @@ const main = defineCommand({
     'check-dependency-loops': checkDependencyLoops,
     'check-plugin-ui-kit': checkPluginUiKit,
     'check-public-types': checkPublicTypes,
+    'check-node-floor': checkNodeFloorCommand,
     check,
     release,
     snapshot,
