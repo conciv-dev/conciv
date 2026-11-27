@@ -436,6 +436,13 @@ export const make = Effect.gen(function* () {
     return undefined
   }
 
+  const abandon = (controller: Controller) =>
+    lock
+      .withPermit(
+        Ref.update(state, (latest) => (latest.controller === controller ? withoutController(latest) : latest)),
+      )
+      .pipe(Effect.andThen(Queue.shutdown(controller.notifications)))
+
   const install: Interface['install'] = (connection, registrations) =>
     attachmentLock.withPermit(
       Effect.gen(function* () {
@@ -447,11 +454,13 @@ export const make = Effect.gen(function* () {
         const blocked = installRefusal(current, connection, sameRegistrations)
         if (blocked !== undefined) return yield* Effect.fail(blocked)
         const controller: Controller = {connection, notifications: yield* Queue.unbounded<ToolNotification>()}
-        if (sameRegistrations) yield* lock.withPermit(Ref.update(state, (latest) => ({...latest, controller})))
-        else yield* applyRegistrations(controller, registrations)
-        yield* endPrevious(owner, controller)
-        if (owner?.connection !== connection) yield* replay(controller)
-        return controller.notifications
+        return yield* Effect.gen(function* () {
+          if (sameRegistrations) yield* lock.withPermit(Ref.update(state, (latest) => ({...latest, controller})))
+          else yield* applyRegistrations(controller, registrations)
+          yield* endPrevious(owner, controller)
+          if (owner?.connection !== connection) yield* replay(controller)
+          return controller.notifications
+        }).pipe(Effect.onInterrupt(() => abandon(controller)))
       }),
     )
 
