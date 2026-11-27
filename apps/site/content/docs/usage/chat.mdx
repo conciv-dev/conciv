@@ -3,30 +3,30 @@ title: Chat
 description: Ask the agent about the page you are on, queue your next message, and switch sessions and models.
 ---
 
-Type what you want in the composer and press Enter. Say "this" or "here" and the agent reads the page you are on before
-it changes anything:
+The chat is where you ask the agent for what you want, about the page you have open.
 
-```text
+## Basic
+
+Type in the composer and press Enter. Say "this" or "here", and the agent reads the page before it changes anything:
+
+```text title="Prompt"
 Why is this list empty when I am logged out?
 ```
 
-The agent runs in your project, through your own agent CLI (Claude Code by default). See
-[Harnesses](/docs/harnesses) for the others.
-
-<ImageZoom
-  src="/screenshots/chat-thread.png"
-  alt="A chat thread with the agent reading the page and answering"
-  width={1920}
-  height={1080}
-/>
-
-## Send a message
+The agent runs in your project through your own agent CLI, Claude Code by default. Learn more in the
+[Harnesses documentation](/docs/harnesses).
 
 - **Enter** sends the message.
 - **Shift Enter** starts a new line.
 - **Escape** stops the agent while it works.
 
 Your draft is saved for each session, so it comes back after a reload.
+
+<Playground
+  page="vite-react"
+  script="chat/send-and-queue"
+  caption="Send a message, queue the next one while the agent works, and answer its card."
+/>
 
 ## Attach a file or an element
 
@@ -35,19 +35,19 @@ Click **Add an attachment** to add a file, or paste one into the composer. Image
 Click **Select an element from the page**, then click an element in your app. It is pinned to your message, with its
 source file when conciv can find it:
 
-```text
+```text title="Prompt"
 Make this button match the primary button style.
 ```
 
-See [Page control](/docs/usage/page-control) for what the agent does with it.
+Learn more in the [Page control documentation](/docs/usage/page-control).
 
 ## Use commands and mentions
 
-Type `/` to open the commands. You get conciv's own, such as `/model`, plus those of your plugins. On Claude you also
-get Claude Code's own commands.
+Type `/` to open the commands. You get conciv's own commands, plus those of your plugins. On Claude you also get
+Claude Code's own commands.
 
-Type `@` to mention something by name: a skill, an agent, a tool, another session or a file in your project. Pick it
-from the list and it joins your message.
+Type `@` to mention a skill, an agent, a tool, another session or a file. Pick it from the list and it joins your
+message.
 
 ## Send while the agent works
 
@@ -56,34 +56,16 @@ A message you send while the agent works waits in a queue under the composer. Ea
 - **Steer** sends it now, into the running turn.
 - **Remove** drops it.
 
-**Stop generating** stops the turn. The queued messages go back into your draft, unsent.
-
-<ImageZoom
-  src="/screenshots/chat-queue.png"
-  alt="A running turn with two messages queued under the composer, each with Steer and Remove"
-  width={1920}
-  height={1080}
-/>
+**Stop generating** ends the turn. The queued messages go back into your draft, unsent.
 
 ## Answer the agent's questions [#generative-ui]
 
-When the agent needs a decision, it puts a card in the thread instead of asking in plain text. A card can hold:
+When the agent needs a decision, it puts a card in the thread instead of asking in plain text. A card can hold
+options to pick from, a yes or no question, a proposed change, or a few fields to fill in.
 
-- options to pick from, one or several, with an **Other** field for your own answer
-- a yes or no question
-- a proposed change to apply
-- a few fields to fill in
-
-```text
+```text title="Prompt"
 Add a dark mode toggle. Ask me where it should go.
 ```
-
-<ImageZoom
-  src="/screenshots/chat-choices.png"
-  alt="A choices card in the thread: Where should the dark mode toggle go?, three options, a field for another answer and Submit"
-  width={1920}
-  height={1080}
-/>
 
 Answer within two minutes and the agent goes on with your answer. Later, it goes on without it, and your answer
 arrives as a new message.
@@ -96,63 +78,39 @@ Open the session picker to see your sessions under Today, Yesterday and Earlier.
 - Rest on a row, with the pointer or the arrow keys, to preview it.
 - A session from another project has **Copy resume command**, to continue it there.
 
-The list also holds sessions you started in your agent CLI, outside the browser, when the harness keeps them. Rename
-the current session with **Rename session** in the panel header.
-
-<ImageZoom
-  src="/screenshots/chat-session-picker.png"
-  alt="The session picker open under Today, listing the sessions with their titles and when each was last edited"
-  width={1920}
-  height={1080}
-/>
+The list also holds sessions you started in your agent CLI, when the harness keeps them. Learn more in the
+[Sessions documentation](/docs/sessions).
 
 ## Switch the model [#model-and-harness]
 
 Open the model menu. It lists the models of every agent CLI conciv found, and the effort levels of the current model.
 
-Picking a model of another CLI switches the session to that CLI. If the chat already has messages, conciv asks first,
-with an estimate of how much history it sends along.
-
-<ImageZoom
-  src="/screenshots/chat-model-menu.png"
-  alt="The model menu open with the Claude and Codex models and the effort levels of the current model"
-  width={1920}
-  height={1080}
-/>
+Picking a model of another CLI switches the session to that CLI. If the chat has messages, conciv asks first. It shows
+how much history it would send along.
 
 ## Shorten a long chat
 
-Click **Compress the conversation** when a chat gets long. conciv asks the agent to sum up the decisions, the current
-state and the open threads. On Claude it runs Claude Code's own `/compact` instead.
+Click **Compress the conversation** when a chat gets long. conciv asks the agent to sum up the decisions, the state
+and the open threads. On Claude it runs Claude Code's own compaction instead.
 
 ## Use the Terminal tab
 
-On Claude, the panel has a pinned **Terminal** tab. It runs Claude Code itself, in your project, for this session.
-
-The CLI starts the first time you open the tab. Press Escape in the terminal to interrupt it while it works.
-
-## Details
+On Claude, the panel has a pinned **Terminal** tab. It runs Claude Code itself, in your project, for this session. The
+CLI starts the first time you open the tab.
 
 <Accordions type="single">
-  <Accordion title="Too many attachments. Remove some and send again.">
+  <Accordion title="Too many attachments?">
     A message holds at most 16 parts, its text and its attachments together. Remove some attachments, or send them in
     two messages.
   </Accordion>
-  <Accordion title="Connect agents">
-    The **Connect agents** button shows when an agent CLI on your machine can join this tab. See [Connect your
-    agents](/docs/agents).
-  </Accordion>
-  <Accordion title="Buttons from plugins">
-    A plugin can add its own buttons beside the composer. The whiteboard plugin adds **Whiteboard** and **Comment**.
-  </Accordion>
-  <Accordion title="Only some CLIs keep past sessions">
-    Sessions you started outside the browser show only when the harness keeps a history conciv can read. See
-    [Harnesses](/docs/harnesses).
+  <Accordion title="A past session is missing from the picker?">
+    Sessions you started outside the browser show only when the harness keeps a history conciv can read. The table on
+    the [Harnesses page](/docs/harnesses) says which ones do.
   </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Page control](/docs/usage/page-control): point at an element and have it changed.
-- [Approvals](/docs/usage/approvals): what the agent asks before it acts.
-- [Quick terminal](/docs/usage/quick-terminal): the chat as a drop-down sheet with panes.
+- **[Page control](/docs/usage/page-control):** point at an element and have it changed.
+- **[Approvals](/docs/usage/approvals):** what the agent asks before it acts.
+- **[Quick terminal](/docs/usage/quick-terminal):** the chat as a drop-down sheet with panes.
