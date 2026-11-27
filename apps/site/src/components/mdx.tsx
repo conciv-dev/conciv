@@ -21,7 +21,7 @@ import {Mermaid} from './mermaid'
 import {Playground} from './playground'
 import {ConfigOptions, TestRunnerOptions} from './config-options'
 import {CliCommands, HarnessTable} from './reference-tables'
-import {AgentsHumans, CopyPrompt, SetupPrompt} from './setup-prompt'
+import {AgentPrompt, CopyPrompt, SetupPrompt} from './setup-prompt'
 import {No, Partly, Yes} from './comparison-status'
 import type {MDXComponents} from 'mdx/types'
 
@@ -54,7 +54,7 @@ function getMDXComponents(components?: MDXComponents) {
     HarnessTable,
     SetupPrompt,
     CopyPrompt,
-    AgentsHumans,
+    AgentPrompt,
     Yes,
     Partly,
     No,

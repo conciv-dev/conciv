@@ -1,8 +1,7 @@
 import {Check, Copy} from 'lucide-react'
-import {useRef, useState, type ReactNode} from 'react'
-import {Tab} from 'fumadocs-ui/components/tabs'
-import {Tabs} from './docs-tabs'
+import {useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
+import {cn} from '@/lib/utils'
 import {writeAgentPrompt, type AgentPromptId} from '@/lib/agent-prompts'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 
@@ -137,12 +136,12 @@ function PromptText({text}: {text: string}) {
   )
 }
 
-export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
+export function SetupPrompt({framework: initial, className}: {framework?: FrameworkId; className?: string}) {
   const [frameworkId, setFrameworkId] = useState<string>(initial ?? FALLBACK.id)
   const framework = FRAMEWORKS.find((entry) => entry.id === frameworkId) ?? FALLBACK
   const prompt = numbered(framework.steps)
   return (
-    <div className="not-prose my-6 overflow-hidden rounded-xl border bg-fd-card">
+    <div className={cn('not-prose my-6 overflow-hidden rounded-xl border bg-fd-card', className)}>
       <div className="flex flex-wrap items-center justify-start gap-2 border-b px-3 py-2 sm:justify-between">
         <Select value={framework.id} onValueChange={setFrameworkId}>
           <SelectTrigger aria-label="Framework" size="sm" className="gap-2">
@@ -172,7 +171,8 @@ export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
 export function CopyPrompt({text}: {text: string}) {
   return (
     <div className="not-prose my-6 overflow-hidden rounded-xl border bg-fd-card">
-      <div className="flex items-center justify-start border-b px-3 py-2 sm:justify-end">
+      <div className="flex items-center justify-between gap-2 border-b py-2 ps-4 pe-3">
+        <span className="text-sm text-fd-muted-foreground">Prompt</span>
         <CopyPromptButton text={text} />
       </div>
       <PromptText text={text} />
@@ -180,18 +180,19 @@ export function CopyPrompt({text}: {text: string}) {
   )
 }
 
-export function AgentsHumans({prompt, children}: {prompt: 'setup' | AgentPromptId; children: ReactNode}) {
+export function AgentPrompt({prompt}: {prompt: 'setup' | AgentPromptId}) {
+  if (prompt === 'setup') {
+    return (
+      <>
+        <p>Pick your framework, then copy this prompt into your agent. It runs every step on this page for you.</p>
+        <SetupPrompt />
+      </>
+    )
+  }
   return (
-    <Tabs groupId="reader" persist items={['Agents', 'Humans']} defaultIndex={1}>
-      <Tab value="Agents">
-        <p>
-          {prompt === 'setup'
-            ? 'Pick your framework, copy the prompt, and paste it into your coding agent. It runs every step on this page for you.'
-            : 'Copy this into your coding agent. It builds this in your project, from this page.'}
-        </p>
-        {prompt === 'setup' ? <SetupPrompt /> : <CopyPrompt text={writeAgentPrompt(prompt)} />}
-      </Tab>
-      <Tab value="Humans">{children}</Tab>
-    </Tabs>
+    <>
+      <p>Copy this prompt into your agent. It builds this in your project from this page.</p>
+      <CopyPrompt text={writeAgentPrompt(prompt)} />
+    </>
   )
 }

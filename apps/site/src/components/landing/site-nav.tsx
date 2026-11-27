@@ -3,6 +3,7 @@ import {ConcivLockup} from '@internal/brand-react'
 import {ThemeToggle} from './theme-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
 import {GitHubStarLink} from './github-star-link'
+import {QuickstartDialog} from '../quickstart-dialog'
 
 export function SiteNav() {
   const smoothAnchor = useSmoothAnchor()
@@ -31,7 +32,8 @@ export function SiteNav() {
       >
         Docs
       </Link>
-      <GitHubStarLink />
+      <QuickstartDialog />
+      <GitHubStarLink className="max-sm:hidden" />
       <ThemeToggle />
     </nav>
   )

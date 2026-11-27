@@ -129,14 +129,14 @@ const sidebarClass = [
   'max-md:shadow-none',
   'max-md:pb-[max(--spacing(4),env(safe-area-inset-bottom))]',
   'max-md:[--fd-sidebar-drawer-offset:-100%]',
-  '[&_:is(a[data-active],button[aria-expanded])]:py-1.5',
-  '[&_:is(a[data-active],button[aria-expanded])]:bg-transparent',
-  '[&_:is(a[data-active=false],button[aria-expanded]):hover]:text-fd-foreground',
+  '[&_:is(a[data-active],button[aria-expanded]:not([data-variant]))]:py-1.5',
+  '[&_:is(a[data-active],button[aria-expanded]:not([data-variant]))]:bg-transparent',
+  '[&_:is(a[data-active=false],button[aria-expanded]:not([data-variant])):hover]:text-fd-foreground',
   '[&_a[data-active=true]]:font-medium',
   '[&_a[data-active=true]]:text-fd-primary',
   '[&_a[data-active]:has([data-docs-icon])]:gap-2.5',
   '[&_a[data-active]:has([data-docs-icon])]:py-1',
-  'max-md:[&_:is(a[data-active],button[aria-expanded])]:py-0.75',
+  'max-md:[&_:is(a[data-active],button[aria-expanded]:not([data-variant]))]:py-0.75',
   'max-md:[&_a[data-active]:has([data-docs-icon])]:py-0.75',
 ].join(' ')
 

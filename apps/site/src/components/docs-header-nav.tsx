@@ -21,6 +21,7 @@ import {
   type MenuItemType,
 } from 'fumadocs-ui/layouts/shared'
 import {repoUrl} from '@/lib/shared'
+import {QuickstartDialog} from './quickstart-dialog'
 
 type SectionLink = MainItemType & {sections?: readonly string[]}
 
@@ -74,6 +75,8 @@ function DrawerMore() {
 
 export function docsDrawerLinks(): LinkItemType[] {
   return [
+    {type: 'custom', on: 'nav', secondary: true, children: <QuickstartDialog />},
+    {type: 'custom', on: 'menu', children: <QuickstartDialog className="mt-2 w-full" />},
     {...docs, on: 'menu'},
     {...changelog, on: 'menu'},
     {type: 'custom', on: 'menu', children: <DrawerMore />},
