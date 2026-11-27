@@ -21,7 +21,10 @@ export default defineConfig({
     remarkPlugins: [remarkMdxMermaid, [remarkAutoTypeTable, {generator}]],
     rehypeCodeOptions: {
       ...rehypeCodeDefaultOptions,
-      transformers: [...(rehypeCodeDefaultOptions.transformers ?? []), transformerTwoslash()],
+      transformers: [
+        ...(rehypeCodeDefaultOptions.transformers ?? []),
+        transformerTwoslash({twoslashOptions: {compilerOptions: {types: ['node']}}}),
+      ],
     },
   },
 })
