@@ -2,7 +2,7 @@ import path, {isAbsolute, relative, sep} from 'path'
 import {Context, Effect, FileSystem, Layer} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
 import type {EvlogError} from 'evlog'
-import {utilErrors} from './errors.js'
+import {filesystemErrors} from '@conciv/errors'
 import * as Glob from './glob.js'
 
 export namespace FSUtil {
@@ -68,7 +68,7 @@ export namespace FSUtil {
         return yield* Effect.try({
           try: () => JSON.parse(text),
           catch: (cause) =>
-            utilErrors.FILESYSTEM_FAILED({
+            filesystemErrors.FILESYSTEM_FAILED({
               method: 'readJson',
               cause: cause instanceof globalThis.Error ? cause : undefined,
             }),
@@ -88,7 +88,7 @@ export namespace FSUtil {
         return yield* Effect.tryPromise({
           try: () => Glob.scan(pattern, options),
           catch: (cause) =>
-            utilErrors.FILESYSTEM_FAILED({
+            filesystemErrors.FILESYSTEM_FAILED({
               method: 'glob',
               cause: cause instanceof globalThis.Error ? cause : undefined,
             }),

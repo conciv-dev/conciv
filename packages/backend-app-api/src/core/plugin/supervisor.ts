@@ -6,7 +6,7 @@ import * as Bus from '../bus.js'
 import * as Plugin from '../plugin.js'
 import * as InstancePlugins from './instance.js'
 import * as PluginModule from './module.js'
-import {pluginErrors} from './errors.js'
+import {pluginHostErrors} from '@conciv/errors'
 import * as SdkPlugins from './sdk.js'
 import * as PluginUpdate from './update.js'
 
@@ -21,7 +21,7 @@ export const BuiltinPlugins = Context.Service<Builtins>('@conciv/PluginSuperviso
 const noBuiltins = (): Builtins => ({pre: [], post: [], guarded: new Set()})
 
 const isLoadError = (error: unknown): error is EvlogError =>
-  EvlogError.isEvlogError(error) && pluginErrors._codes.some((code) => code === error.code)
+  EvlogError.isEvlogError(error) && pluginHostErrors._codes.some((code) => code === error.code)
 
 const resolve = Effect.fn('PluginSupervisor.resolve')(function* (
   modules: Effect.Success<ReturnType<typeof PluginModule.make>>,

@@ -18,7 +18,7 @@ import {
 import {becameTrusted} from './engine-login.js'
 import type {Notify} from '../shell/notices.js'
 import type {ConcivTimings} from '../router.js'
-import {appErrors} from './errors.js'
+import {widgetErrors} from '@conciv/errors'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -195,7 +195,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       onCleanup(() => setState('openers', (list) => list.filter((entry) => entry !== sessionId)))
       return () => {
         const entry = findChat(sessionId())
-        if (!entry) throw appErrors.NO_LIVE_CHAT({sessionId: sessionId()})
+        if (!entry) throw widgetErrors.NO_LIVE_CHAT({sessionId: sessionId()})
         return entry.chat()
       }
     },

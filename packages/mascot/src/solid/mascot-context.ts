@@ -2,7 +2,7 @@ import {createContext, useContext} from 'solid-js'
 import type {MascotPartProps, MascotService} from '../core/mascot.js'
 import type {CurveStyle} from '../core/path.js'
 import type {MascotPartName} from '../core/slot-contract.js'
-import {mascotErrors} from '../core/errors.js'
+import {mascotErrors} from '@conciv/errors'
 
 export type {MascotPartName}
 

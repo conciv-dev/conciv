@@ -1,6 +1,6 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {isEqual, isPlainObject, mapValues, omit, omitBy, uniq} from 'es-toolkit'
-import {persistenceErrors} from './errors'
+import {persistenceErrors} from '@conciv/errors'
 
 type Path = readonly PropertyKey[]
 

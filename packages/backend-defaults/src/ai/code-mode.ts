@@ -27,7 +27,7 @@ import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/types/cha
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
 import type {EngineRuntime} from '../engine/lib/logging.js'
 import {isApprovalDenied} from './approval-denied.js'
-import {aiErrors, SECRET_REFUSAL} from './errors.js'
+import {aiErrors, SECRET_REFUSAL} from '@conciv/errors'
 import {inSpan, type Tracer} from './spans.js'
 
 const QUICKJS_MEMORY_LIMIT_MB = 256

@@ -7,7 +7,7 @@ import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
 import * as Global from '@conciv/backend-app-api/util/global'
 import {which} from '../util/which.js'
-import {ripgrepErrors} from './errors.js'
+import {ripgrepErrors} from '@conciv/errors'
 
 const VERSION = '15.1.0'
 

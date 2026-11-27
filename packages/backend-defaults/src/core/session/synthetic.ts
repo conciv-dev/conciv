@@ -3,7 +3,8 @@ import {Effect} from 'effect'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
 import * as SessionMessage from '@conciv/protocol/schema/session-message'
 import type {Maker} from '@conciv/protocol/schema/identifier'
-import {sessionErrors, type NotFoundError} from '@conciv/backend-app-api/core/session/errors'
+import {sessionErrors} from '@conciv/errors'
+import type {NotFoundError} from '@conciv/backend-app-api/core/session/not-found'
 import * as SessionInbox from './inbox.js'
 
 export type Store = {readonly get: (sessionID: SessionId) => EffectType.Effect<unknown, NotFoundError>}

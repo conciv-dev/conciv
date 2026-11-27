@@ -32,7 +32,7 @@ import type {PluginHooks} from '@conciv/backend-app-api'
 import type {UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
-import {aiErrors} from './ai/errors.js'
+import {aiErrors} from '@conciv/errors'
 
 export type SessionRow = {
   model: string | null

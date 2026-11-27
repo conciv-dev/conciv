@@ -2,6 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {ClipboardCopyButton} from './clipboard-copy-button.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-system/ClipboardCopyButton'}
 export default meta
@@ -10,7 +11,7 @@ type Story = StoryObj
 const COMMAND = 'npx @conciv/try --token 4f2c9a'
 
 const accept = (): Promise<void> => Promise.resolve()
-const refuse = (): Promise<void> => Promise.reject(new Error('the document is not focused'))
+const refuse = (): Promise<void> => Promise.reject(storyErrors.SAMPLE_FAILURE({message: 'the document is not focused'}))
 
 function frame(child: JSX.Element): JSX.Element {
   return (

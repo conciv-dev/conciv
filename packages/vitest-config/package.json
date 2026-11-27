@@ -23,9 +23,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@testing-library/jest-dom": "catalog:",
     "@vitest/browser-playwright": "catalog:",
-    "evlog": "catalog:",
     "playwright": "catalog:",
     "unocss": "catalog:",
     "zod": "catalog:"

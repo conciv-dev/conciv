@@ -2,7 +2,7 @@ import {intro, log, note, outro, spinner} from '@clack/prompts'
 import {defineCommand, runCommand, runMain} from 'citty'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
 import {runConnect, type ConnectEvent} from './connect.js'
-import {formatCliError} from './errors/format.js'
+import {formatCliError} from '@conciv/errors'
 import {startTryLog} from './log.js'
 
 export function attachCommand(port: number, token: string): string {

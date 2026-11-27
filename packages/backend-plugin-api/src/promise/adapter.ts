@@ -21,7 +21,7 @@ import type {RpcDomain, RpcHandlers} from './rpc.js'
 import type {Info} from './tool.js'
 import {Effect, FiberHandle, Option, Schema, Stream} from 'effect'
 import {EvlogError} from 'evlog'
-import {pluginApiErrors} from '../util/errors.js'
+import {pluginHostErrors} from '@conciv/errors'
 import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
 import type {ToolFailures, ToolHooks} from '../effect/tool.js'
@@ -149,10 +149,10 @@ interface HostRpcCallContext {
 const Returned = Schema.Struct({type: Schema.String, data: Schema.optional(Schema.Unknown)})
 
 const makeReturnedRpcError = (type: string, message: string, data?: unknown): EvlogError =>
-  pluginApiErrors.RPC_ERROR_RETURNED({type, message, internal: {type, data}})
+  pluginHostErrors.RPC_ERROR_RETURNED({type, message, internal: {type, data}})
 
 const readReturned = (error: unknown) =>
-  EvlogError.isEvlogError(error) && error.code === pluginApiErrors.RPC_ERROR_RETURNED.code
+  EvlogError.isEvlogError(error) && error.code === pluginHostErrors.RPC_ERROR_RETURNED.code
     ? Schema.decodeUnknownOption(Returned)(error.internal).pipe(
         Option.map((returned) => ({...returned, message: error.message})),
       )

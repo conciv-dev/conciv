@@ -35,7 +35,7 @@ import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
 import {useSendFromUser} from '../thread/viewport-context.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
   attachmentAdapter?: AttachmentAdapter

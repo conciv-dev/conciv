@@ -3,7 +3,7 @@ import {dirname, isAbsolute, join, resolve} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {z} from 'zod'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
-import {engineKitErrors} from './errors/errors.js'
+import {testKitErrors} from '@conciv/errors'
 
 const ManifestNameSchema = z.object({name: z.string().optional()})
 
@@ -18,7 +18,7 @@ function installedPlugin(name: string, directory: string): string {
   const installed = join(directory, 'node_modules', name)
   if (existsSync(join(installed, 'package.json'))) return installed
   const parent = dirname(directory)
-  if (parent === directory) throw engineKitErrors.PLUGIN_NOT_INSTALLED({name})
+  if (parent === directory) throw testKitErrors.PLUGIN_NOT_INSTALLED({name})
   return installedPlugin(name, parent)
 }
 

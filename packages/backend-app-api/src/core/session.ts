@@ -10,7 +10,7 @@ import type {
   SessionListInput,
 } from '@conciv/backend-plugin-api'
 import type {EvlogError} from 'evlog'
-import type {NotFoundError} from './session/errors.js'
+import type {NotFoundError} from './session/not-found.js'
 import type * as SessionInbox from '@conciv/protocol/schema/session-inbox'
 import type {SessionId as ProtocolSessionId} from '@conciv/protocol/schema/session-id'
 import type * as SessionMessage from '@conciv/protocol/schema/session-message'

@@ -1,8 +1,8 @@
-import {libErrors} from './errors'
+import {widgetErrors} from '@conciv/errors'
 export function createStyleSheet(text: string, doc: Document = document): CSSStyleSheet {
   const view = doc.defaultView
 
-  if (!view) throw libErrors.NO_WINDOW()
+  if (!view) throw widgetErrors.NO_WINDOW()
   const sheet = new view.CSSStyleSheet()
 
   sheet.replaceSync(text)

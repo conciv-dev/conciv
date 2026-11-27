@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/mascot-react": "workspace:*",
@@ -39,7 +40,6 @@
     "@tanstack/react-start": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "^2.1.1",
-    "evlog": "catalog:",
     "fumadocs-core": "^16.19.0",
     "fumadocs-mdx": "^15.6.1",
     "fumadocs-ui": "^16.19.0",

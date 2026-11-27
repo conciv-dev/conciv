@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {ORPCError} from '@orpc/client'
 import {engineUnreachable} from '@conciv/client'
 import {classifyRpcError} from '../../src/shell/rpc-error-message.js'
-import {paneErrors} from '../../src/pane/errors.js'
+import {widgetErrors} from '@conciv/errors'
 
 describe('an error screen picks what to tell the user', () => {
   const unreachable = "conciv couldn't reach the engine. Check that the dev server is still running."
@@ -25,7 +25,7 @@ describe('an error screen picks what to tell the user', () => {
     ],
     [
       'conciv refuses with a fix the user can follow',
-      paneErrors.PREVIEW_READ_ONLY(),
+      widgetErrors.PREVIEW_READ_ONLY(),
       {message: 'the session preview is read-only', fix: 'Open the session to write in it.', transportFailure: false},
     ],
   ])('when %s', (_situation, error, shown) => {

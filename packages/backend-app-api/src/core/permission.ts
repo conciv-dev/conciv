@@ -7,10 +7,10 @@ import type * as Tool from '@conciv/protocol/schema/tool'
 import * as Bus from './bus.js'
 import * as Location from './location.js'
 import * as Agent from './agent.js'
-import * as SessionErrors from './session/errors.js'
+import * as SessionErrors from './session/not-found.js'
 import * as Wildcard from './util/wildcard.js'
 import * as PermissionSaved from './permission/saved.js'
-import {permissionErrors} from './permission/errors.js'
+import {permissionErrors} from '@conciv/errors'
 import * as PluginHooks from './plugin/hooks.js'
 
 const PermissionEffect = Permission.Effect

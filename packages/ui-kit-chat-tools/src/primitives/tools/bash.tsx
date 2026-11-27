@@ -2,7 +2,7 @@ import {createContext, createMemo, useContext, type Accessor, type JSX} from 'so
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {parseBashOutput, type BashOutput} from './bash-output.js'
-import {chatToolsErrors} from './errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 function argString(part: ToolCallPart, key: string): string {
   try {
@@ -32,7 +32,7 @@ const BashContext = createContext<BashContextValue>()
 
 export function useBash(): BashContextValue {
   const context = useContext(BashContext)
-  if (!context) throw chatToolsErrors.OUTSIDE_ROOT({tool: 'Bash'})
+  if (!context) throw chatKitErrors.OUTSIDE_ROOT({tool: 'Bash'})
   return context
 }
 

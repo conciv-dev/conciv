@@ -6,7 +6,7 @@ import {NonNegativeInt, PositiveInt, RelativePath} from '@conciv/protocol/schema
 import {Entry, Match} from '../schema/filesystem.js'
 import {collectStream, waitForAbort} from '../util/process.js'
 import * as RipgrepBinary from './ripgrep/binary.js'
-import {ripgrepErrors} from './ripgrep/errors.js'
+import {ripgrepErrors} from '@conciv/errors'
 
 const ERROR_BYTES = 8 * 1024
 const MAX_SUBMATCHES = 100

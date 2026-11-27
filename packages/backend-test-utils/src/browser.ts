@@ -11,7 +11,7 @@ import type {
   EngineSession,
   EngineStart,
 } from '@internal/engine-kit'
-import {testUtilsErrors} from './errors/errors.js'
+import {testKitErrors} from '@conciv/errors'
 
 declare module 'vitest/browser' {
   interface BrowserCommands extends EngineCommands {}
@@ -35,19 +35,19 @@ export * as TestLLM from '@conciv/simulation/test-llm'
 export type {ScriptedHarness, ScriptedSession} from '@conciv/simulation/scripted-harness'
 
 export function pluginDirectory(target: string): never {
-  throw testUtilsErrors.DISK_IN_BROWSER({target})
+  throw testKitErrors.DISK_IN_BROWSER({target})
 }
 
 function crossing(reply: Reply): Reply | 'hang' {
   if (reply === hang()) return 'hang'
-  if (typeof reply === 'function') throw testUtilsErrors.FUNCTION_REPLY_IN_BROWSER()
+  if (typeof reply === 'function') throw testKitErrors.FUNCTION_REPLY_IN_BROWSER()
   return reply
 }
 
 function crossingStart(options: EngineStart): EngineStart {
-  if (options.harness !== undefined) throw testUtilsErrors.HARNESS_IN_BROWSER()
+  if (options.harness !== undefined) throw testKitErrors.HARNESS_IN_BROWSER()
   if (options.plugins?.some((plugin) => typeof plugin !== 'string')) {
-    throw testUtilsErrors.PLUGIN_OBJECT_IN_BROWSER()
+    throw testKitErrors.PLUGIN_OBJECT_IN_BROWSER()
   }
   return options
 }

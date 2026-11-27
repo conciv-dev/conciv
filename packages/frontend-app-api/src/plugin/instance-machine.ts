@@ -2,7 +2,7 @@ import {isEqual, sortBy} from 'es-toolkit'
 import type {Cleanup} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import {EvlogError} from 'evlog'
-import {pluginErrors} from './errors'
+import {widgetPluginErrors} from '@conciv/errors'
 
 export type PluginStatus = 'loading' | 'active' | 'failed' | 'disabled'
 
@@ -226,7 +226,7 @@ export function transitionPluginHost<I>(state: PluginHostState<I>, event: Plugin
 
   if (entry.attempt !== event.attempt) return step(state)
 
-  return fail(state, event.id, entry, pluginErrors.ACTIVATION_TIMED_OUT())
+  return fail(state, event.id, entry, widgetPluginErrors.ACTIVATION_TIMED_OUT())
 }
 
 export function selectPluginStatus<I>(state: PluginHostState<I>, id: string): PluginStatus | undefined {

@@ -9,7 +9,7 @@ import * as LogLevel from './observability/log-level.js'
 import * as Logging from './observability/logging.js'
 import * as Otlp from './observability/otlp.js'
 import {makeRunId} from './observability/shared.js'
-import {observabilityErrors} from './observability/errors.js'
+import {observabilityErrors} from '@conciv/errors'
 
 export const Options = Schema.Struct({
   endpoint: Schema.optional(Schema.String),

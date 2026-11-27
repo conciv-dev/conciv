@@ -2,7 +2,7 @@ import {createContext, createMemo, useContext, type Accessor} from 'solid-js'
 import {engineOnline, sustainedEngineOffline} from '@conciv/client'
 import type {EngineConnection, EngineConnectionTimings} from '@conciv/client'
 import {engineLock, trustStatus, type EngineLock} from './engine-login.js'
-import {appErrors} from './errors.js'
+import {widgetErrors} from '@conciv/errors'
 
 export type EngineReachability = {
   online: Accessor<boolean>
@@ -30,6 +30,6 @@ export function makeEngineReachability(
 export function useEngineReachability(): EngineReachability {
   const value = useContext(EngineReachabilityContext)
   if (!value)
-    throw appErrors.OUTSIDE_PROVIDER({hook: 'useEngineReachability', provider: 'EngineReachabilityContext.Provider'})
+    throw widgetErrors.OUTSIDE_PROVIDER({hook: 'useEngineReachability', provider: 'EngineReachabilityContext.Provider'})
   return value
 }

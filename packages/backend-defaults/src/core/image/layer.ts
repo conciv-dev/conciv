@@ -1,6 +1,6 @@
 import {Effect, Layer} from 'effect'
 import {Image, State} from '@conciv/backend-app-api'
-import {imageErrors} from '@conciv/backend-app-api/core/image/errors'
+import {imageErrors} from '@conciv/errors'
 
 export const layer = Layer.effect(
   Image.Service,

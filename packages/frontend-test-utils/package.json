@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
@@ -35,7 +36,6 @@
     "@internal/test-utils": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/solid-router": "catalog:",
-    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

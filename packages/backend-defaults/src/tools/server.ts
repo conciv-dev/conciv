@@ -1,4 +1,4 @@
-import {aiErrors} from '../ai/errors.js'
+import {aiErrors} from '@conciv/errors'
 import {UiInputSchema} from '@conciv/types/ui-types'
 import type {ConcivServerTool, ConcivToolContext} from './types.js'
 import {concivUiToolDef} from './ui.js'

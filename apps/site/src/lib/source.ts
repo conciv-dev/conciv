@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {docsRoute} from './shared'
-import {siteErrors} from './errors'
+import {siteErrors} from '@conciv/errors'
 
 const docsIcons: Record<string, LucideIcon> = {
   Bot,

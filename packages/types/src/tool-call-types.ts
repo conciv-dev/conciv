@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {typesErrors} from './errors/errors.js'
+import {toolErrors} from '@conciv/errors'
 import type {SessionId} from './chat-types.js'
 
 export type ToolRequest = {
@@ -27,7 +27,7 @@ const ToolNameSchema = z.string().regex(TOOL_NAME_RULE)
 
 export function assertToolName(name: string): void {
   if (ToolNameSchema.safeParse(name).success) return
-  throw typesErrors.TOOL_NAME_INVALID({name, rule: TOOL_NAME_RULE.source})
+  throw toolErrors.TOOL_NAME_INVALID({name, rule: TOOL_NAME_RULE.source})
 }
 
 export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>

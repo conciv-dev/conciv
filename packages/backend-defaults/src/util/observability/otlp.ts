@@ -2,7 +2,7 @@ import {Effect, Layer, Scope} from 'effect'
 import {OtlpLogger} from 'effect/observability'
 import {gate, type Enabled} from './log-level.js'
 import {makeRunId} from './shared.js'
-import {observabilityErrors} from './errors.js'
+import {observabilityErrors} from '@conciv/errors'
 
 export interface Options {
   readonly endpoint?: string

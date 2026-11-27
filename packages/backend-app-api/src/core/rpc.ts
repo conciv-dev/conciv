@@ -9,7 +9,7 @@ import type {StandardSchemaV1} from '@standard-schema/spec'
 import {Context, Deferred, Effect, JsonSchema, Layer, Option, Schema, SchemaRepresentation, Stream} from 'effect'
 import {EvlogError} from 'evlog'
 import * as Bus from './bus.js'
-import {coreErrors} from './errors.js'
+import {coreErrors} from '@conciv/errors'
 import * as Location from './location.js'
 import {optional, statics} from './schema.js'
 

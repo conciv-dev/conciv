@@ -1,5 +1,5 @@
 import type {Mutable} from '@conciv/frontend-plugin-api'
-import {pluginErrors} from './errors'
+import {widgetPluginErrors} from '@conciv/errors'
 
 export type StoreWrite<T> =
   | {readonly kind: 'update'; readonly mutate: (draft: Mutable<T>) => undefined}
@@ -36,7 +36,7 @@ export function transitionStoreLoad<T>(state: StoreLoadState<T>, event: StoreLoa
   if (event.type === 'disposed') {
     if (state.status !== 'loading') return step({status: 'disposed'})
 
-    return step({status: 'disposed'}, [{type: 'reject', cause: pluginErrors.STORE_DISPOSED(), log: false}])
+    return step({status: 'disposed'}, [{type: 'reject', cause: widgetPluginErrors.STORE_DISPOSED(), log: false}])
   }
 
   if (state.status === 'ready') {

@@ -11,7 +11,7 @@ import {lastUserImages} from '../_shared/text-adapter.js'
 import {CLAUDE_BIN} from './args.js'
 import {claudePluginDir} from './plugin-dir.js'
 import {tmpdir} from 'node:os'
-import {harnessErrors} from '../_shared/errors.js'
+import {harnessErrors} from '@conciv/errors'
 
 const GIT_RISKS = [
   'push --force*',

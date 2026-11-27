@@ -1,7 +1,7 @@
 import {createContext, onCleanup, onMount, Show, untrack, useContext, type JSX} from 'solid-js'
 import type {TerminalModel} from '../model.js'
 import xtermCss from '@xterm/xterm/css/xterm.css?inline'
-import {terminalErrors} from './errors.js'
+import {terminalKitErrors} from '@conciv/errors'
 
 function injectXtermCss(root: Node): void {
   const target = root instanceof ShadowRoot ? root : document.head
@@ -18,7 +18,7 @@ const ROOT_CLASS = 'w-full min-w-0'
 
 export function useTerminal(): TerminalModel {
   const model = useContext(TerminalContext)
-  if (!model) throw terminalErrors.OUTSIDE_ROOT()
+  if (!model) throw terminalKitErrors.OUTSIDE_ROOT()
   return model
 }
 

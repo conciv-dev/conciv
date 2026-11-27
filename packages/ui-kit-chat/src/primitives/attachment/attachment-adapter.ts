@@ -1,6 +1,6 @@
 import type {SendContent} from '@conciv/types/chat-message-types'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/types/chat-types'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 type ContentParts = Exclude<SendContent['content'], string>
 

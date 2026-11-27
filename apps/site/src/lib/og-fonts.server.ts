@@ -1,5 +1,5 @@
 import {env} from 'cloudflare:workers'
-import {siteErrors} from './errors'
+import {siteErrors} from '@conciv/errors'
 
 type FontWeight = 400 | 700
 

@@ -64,6 +64,7 @@
     "solid-js": "catalog:"
   },
   "devDependencies": {
+    "@conciv/errors": "workspace:*",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-defaults": "workspace:*",
     "@internal/plugin-terminal": "workspace:*",

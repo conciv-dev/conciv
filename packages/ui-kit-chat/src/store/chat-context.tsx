@@ -4,7 +4,7 @@ import {keyArray} from '@solid-primitives/keyed'
 import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
 import {chatBusy, type ChatBusySource} from '@conciv/types/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
-import {chatKitErrors} from '../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ViewState = {
   draft: string

@@ -44,6 +44,7 @@
     "@conciv/backend-defaults": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/simulation": "workspace:^",
@@ -51,7 +52,6 @@
     "@modelcontextprotocol/sdk": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
-    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

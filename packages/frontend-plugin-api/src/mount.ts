@@ -1,6 +1,6 @@
 import {createMemo, observable, onCleanup, onMount, type JSX} from 'solid-js'
 import type {Cleanup} from './core.js'
-import {pluginApiErrors} from './errors/errors.js'
+import {widgetPluginErrors} from '@conciv/errors'
 
 /**
  * A contribution's props as a mount reads them. `current()` returns the props as they are now, the same object until a
@@ -92,7 +92,7 @@ export function requestPortal<N>(event: string, element: HTMLElement, node: N): 
   const removals: Array<() => void> = []
   const detail: PortalRequest<N> = {element, node, placed: (remove) => removals.push(remove)}
   element.dispatchEvent(new CustomEvent(event, {bubbles: true, composed: true, detail}))
-  if (removals.length === 0) throw pluginApiErrors.PORTAL_NOT_PLACED({event})
+  if (removals.length === 0) throw widgetPluginErrors.PORTAL_NOT_PLACED({event})
   return () => removals.forEach((remove) => remove())
 }
 

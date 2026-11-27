@@ -2,7 +2,7 @@ import path from 'path'
 import {createHash, randomUUID} from 'node:crypto'
 import {Clock, Effect, Schema, Context, Layer, Option, FileSystem} from 'effect'
 import type {EvlogError} from 'evlog'
-import {utilErrors} from './errors.js'
+import {filesystemErrors} from '@conciv/errors'
 import {FSUtil} from './fs-util.js'
 import * as Global from './global.js'
 import {EffectFlock} from './effect-flock.js'
@@ -12,7 +12,7 @@ const installFailed = (fields: {add?: readonly string[]; dir: string; cause?: un
   const cause = fields.cause instanceof Error ? fields.cause : undefined
   const stderr = Reflect.get(cause ?? {}, 'stderr')
   const output = typeof stderr === 'string' ? stderr.trim() : ''
-  return utilErrors.INSTALL_FAILED({
+  return filesystemErrors.INSTALL_FAILED({
     target: fields.add?.join(', ') || fields.dir,
     cause,
     why: cause && [cause.message, output].filter(Boolean).join('\n'),
@@ -357,12 +357,12 @@ export const layer = Layer.effect(
       const target = yield* Effect.promise(() => parse(pkg))
       const root = directory(pkg, target)
       if (!target)
-        return yield* Effect.fail(utilErrors.INSTALL_UNSUPPORTED_SPEC({action: 'checks', internal: {dir: root}}))
+        return yield* Effect.fail(filesystemErrors.INSTALL_UNSUPPORTED_SPEC({action: 'checks', internal: {dir: root}}))
       if (!target.mutable) return false
       const generation = yield* current(root)
       const name = yield* installedName(pkg, generation ?? root, target)
       const installed = generation ? yield* installedRevision(generation, name, target) : undefined
-      if (!installed) return yield* Effect.fail(utilErrors.PACKAGE_NOT_INSTALLED({pkg, internal: {dir: root}}))
+      if (!installed) return yield* Effect.fail(filesystemErrors.PACKAGE_NOT_INSTALLED({pkg, internal: {dir: root}}))
       const {manifest, resolve} = yield* Effect.promise(() => import('pacote'))
       const options = {
         ...(yield* NpmConfig.load(root)),
@@ -376,14 +376,16 @@ export const layer = Layer.effect(
           target.type === 'git' ? gitRevision(await resolve(pkg, options)) : (await manifest(pkg, options)).version,
         catch: (cause) => installFailed({dir: root, cause}),
       })
-      if (!available) return yield* Effect.fail(utilErrors.PACKAGE_REVISION_NOT_FOUND({pkg, internal: {dir: root}}))
+      if (!available)
+        return yield* Effect.fail(filesystemErrors.PACKAGE_REVISION_NOT_FOUND({pkg, internal: {dir: root}}))
       return installed !== available
     })
 
     const update = Effect.fn('Npm.update')(function* (pkg: string) {
       const target = yield* Effect.promise(() => parse(pkg))
       const dir = directory(pkg, target)
-      if (!target) return yield* Effect.fail(utilErrors.INSTALL_UNSUPPORTED_SPEC({action: 'updates', internal: {dir}}))
+      if (!target)
+        return yield* Effect.fail(filesystemErrors.INSTALL_UNSUPPORTED_SPEC({action: 'updates', internal: {dir}}))
       if (!target.mutable) return yield* add(pkg)
       const installed = yield* install(pkg, target, dir, true)
       yield* collect(dir)

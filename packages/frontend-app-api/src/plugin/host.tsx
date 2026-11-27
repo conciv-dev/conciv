@@ -71,7 +71,7 @@ import {
 import {createStartupGate, type InstalledSource} from './startup'
 import {assertStoreDefinition} from '../persistence/schema'
 import {createSessionStore, loadedHandle, storeName, whenLoaded, type StoreLoads} from './stores'
-import {pluginErrors} from './errors'
+import {widgetPluginErrors} from '@conciv/errors'
 
 type Contribution = {key: string; registry: string; plugin: string; value: Accessor<unknown>}
 
@@ -152,7 +152,7 @@ const HostContext = createContext<ReturnType<typeof createHost>>()
 export function usePluginHost() {
   const host = useContext(HostContext)
 
-  if (!host) throw pluginErrors.HOST_UNAVAILABLE()
+  if (!host) throw widgetPluginErrors.HOST_UNAVAILABLE()
 
   return host
 }
@@ -556,7 +556,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
           void Promise.resolve(returned).catch((cause: unknown) =>
             log.error({action: 'plugin', message: 'the window setup failed', plugin: effect.id, error: cause}),
           )
-          throw pluginErrors.SETUP_NOT_SYNCHRONOUS()
+          throw widgetPluginErrors.SETUP_NOT_SYNCHRONOUS()
         }),
       (cause) => (sync.running ? failed(cause) : queueMicrotask(() => failed(cause))),
     )
@@ -670,7 +670,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
       },
       list,
       provide<T>(token: Contract<T>, impl: T) {
-        if (!owns(plugin, token.id)) throw pluginErrors.FOREIGN_CONTRACT({plugin, contract: token.id})
+        if (!owns(plugin, token.id)) throw widgetPluginErrors.FOREIGN_CONTRACT({plugin, contract: token.id})
 
         if (late()) return () => {}
 

@@ -17,7 +17,7 @@ import {
 } from './storage-machine'
 import {assertStoreDefinition, assertStoreWrite, withInitial, type Encode} from './schema'
 import {settingsStorage} from './settings-storage'
-import {persistenceErrors} from './errors'
+import {persistenceErrors} from '@conciv/errors'
 
 type InitType = Promise<string | null> | string | null
 

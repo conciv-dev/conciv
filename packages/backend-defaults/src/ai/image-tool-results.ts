@@ -21,7 +21,7 @@ import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types
 import {inSpan, type SpanAttributes, type Tracer} from './spans.js'
 import {Effect} from 'effect'
 import type {EngineRuntime} from '../engine/lib/logging.js'
-import {aiErrors} from './errors.js'
+import {aiErrors} from '@conciv/errors'
 
 export type AskPermission = (
   threadId: string,

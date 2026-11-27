@@ -1,6 +1,6 @@
 import {createContext, useContext, type JSX, type ParentProps} from 'solid-js'
 import {createIconRegistry, type IconRegistry} from './registry.js'
-import {chatKitErrors} from '../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 const IconRegistryContext = createContext<IconRegistry>()
 

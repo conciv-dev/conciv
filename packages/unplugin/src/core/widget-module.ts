@@ -4,7 +4,7 @@ import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {WIDGET_START_SPECIFIER} from './nextjs.js'
-import {unpluginErrors} from './errors.js'
+import {unpluginErrors} from '@conciv/errors'
 
 export const WIDGET_ROUTE = '/@conciv/widget.js'
 export const WIDGET_DOCK_ROUTE = '/@conciv/widget-dock.js'

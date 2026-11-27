@@ -2,8 +2,7 @@ import {Effect, Exit, Semaphore} from 'effect'
 import type {EvlogError} from 'evlog'
 import type {Worker} from 'node:worker_threads'
 import type {Content as ImageContent, Limits} from '@conciv/backend-app-api/core/image'
-import {imageErrors as hostImageErrors} from '@conciv/backend-app-api/core/image/errors'
-import {imageErrors} from './errors.js'
+import {imageErrors} from '@conciv/errors'
 import * as PhotonNormalize from './photon-normalize.js'
 import type {Reply, Request} from './photon-worker.js'
 
@@ -95,7 +94,7 @@ export function makeWith(spawn: Effect.Effect<Worker, EvlogError>, idleMillis = 
   const inProcess = (content: PhotonNormalize.Content, limits: Readonly<Limits>) =>
     Effect.tryPromise({
       try: () => (photon ??= PhotonNormalize.load()),
-      catch: (cause) => hostImageErrors.RESIZER_UNAVAILABLE({cause: cause instanceof Error ? cause : undefined}),
+      catch: (cause) => imageErrors.RESIZER_UNAVAILABLE({cause: cause instanceof Error ? cause : undefined}),
     }).pipe(Effect.map((photon) => PhotonNormalize.normalize(photon, content, limits)))
 
   return Effect.fn('Image.Photon.normalize')(function* (
@@ -103,7 +102,7 @@ export function makeWith(spawn: Effect.Effect<Worker, EvlogError>, idleMillis = 
     content: ImageContent & {readonly encoding: 'base64'},
     limits: Readonly<Limits>,
   ) {
-    if (!PhotonNormalize.available) return yield* Effect.fail(hostImageErrors.RESIZER_UNAVAILABLE())
+    if (!PhotonNormalize.available) return yield* Effect.fail(imageErrors.RESIZER_UNAVAILABLE())
     const result = useWorker
       ? yield* inWorker(content, limits).pipe(
           Effect.catchIf(isWorkerUnavailable, (error) => {
@@ -121,10 +120,10 @@ export function makeWith(spawn: Effect.Effect<Worker, EvlogError>, idleMillis = 
       case 'Content':
         return result.content
       case 'DecodeError':
-        return yield* Effect.fail(hostImageErrors.DECODE_FAILED({resource}))
+        return yield* Effect.fail(imageErrors.DECODE_FAILED({resource}))
       case 'SizeError': {
         const {_tag, ...size} = result
-        return yield* Effect.fail(hostImageErrors.TOO_LARGE({resource, ...size}))
+        return yield* Effect.fail(imageErrors.TOO_LARGE({resource, ...size}))
       }
     }
   })

@@ -39,11 +39,11 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:*",
     "@hono/node-server": "catalog:",
     "@orpc/server": "catalog:",
-    "evlog": "catalog:",
     "hono": "catalog:",
     "semver": "catalog:",
     "ws": "catalog:",

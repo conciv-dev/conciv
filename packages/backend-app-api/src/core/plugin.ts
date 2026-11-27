@@ -17,7 +17,7 @@ import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcess
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
-import {pluginErrors} from './plugin/errors.js'
+import {pluginHostErrors} from '@conciv/errors'
 import {EvlogError} from 'evlog'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Option, Queue, References, Scope, Semaphore} from 'effect'
 import * as Bus from './bus.js'
@@ -144,7 +144,7 @@ export const layer = Layer.effect(
       const definitions = plugins.map((plugin) => ({...plugin, id: Plugin.Id.make(plugin.id)}))
       const ids = new Set<Plugin.Id>()
       for (const definition of definitions) {
-        if (ids.has(definition.id)) yield* Effect.die(pluginErrors.DUPLICATE_ID({id: definition.id}))
+        if (ids.has(definition.id)) yield* Effect.die(pluginHostErrors.DUPLICATE_ID({id: definition.id}))
         ids.add(definition.id)
       }
 

@@ -1,7 +1,7 @@
 import {createRoot} from 'solid-js'
 import {makeMediaQueryListener} from '@solid-primitives/media'
 import {isDocument, prefersReducedMotion} from '@conciv/ui-kit-system'
-import {chatKitErrors} from '../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type RegisteredIconName = `${string}:${string}`
 

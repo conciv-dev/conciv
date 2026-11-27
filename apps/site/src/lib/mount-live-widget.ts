@@ -5,7 +5,7 @@ import {panelCommands} from './panel-commands'
 import {rootSearchSchema} from './search-schemas'
 import {dismissTry, getTrySession} from './try-session.functions'
 import {shouldAutoOpen, shouldDismissOnClose} from './try-state'
-import {siteErrors} from './errors'
+import {siteErrors} from '@conciv/errors'
 
 declare global {
   interface WindowEventMap {

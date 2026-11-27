@@ -2,7 +2,7 @@ import {createContext, createMemo, useContext, type Accessor, type JSX} from 'so
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import type {ToolViewCtx} from '@conciv/types/tool-view-types'
 import {toolStatus, type ToolStatus} from './tool-status.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 function argsText(part: ToolCallPart): string {
   const raw = part.arguments?.trim() ?? ''

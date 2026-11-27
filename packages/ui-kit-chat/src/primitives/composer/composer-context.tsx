@@ -1,7 +1,7 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {DraftItem} from '@conciv/types/chat-types'
 import type {Attachment, AttachmentAdapter} from '../attachment/attachment-adapter.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: string | null; items: DraftItem[]}
 

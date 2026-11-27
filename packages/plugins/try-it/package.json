@@ -38,6 +38,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/types": "workspace:^",
     "@solid-primitives/autofocus": "catalog:",
     "effect": "catalog:",

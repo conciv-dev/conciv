@@ -2,7 +2,7 @@ import path from 'path'
 import os from 'os'
 import {randomBytes, randomUUID} from 'crypto'
 import {mkdir, readFile, rm, stat, utimes, writeFile} from 'fs/promises'
-import {utilErrors} from './errors.js'
+import {filesystemErrors} from '@conciv/errors'
 import {Hash} from './hash.js'
 
 export type FlockGlobal = {
@@ -17,7 +17,7 @@ export namespace Flock {
   }
 
   const root = () => {
-    if (!global) throw utilErrors.LOCK_GLOBAL_MISSING()
+    if (!global) throw filesystemErrors.LOCK_GLOBAL_MISSING()
     return path.join(global.state, 'locks')
   }
 
@@ -75,7 +75,7 @@ export namespace Flock {
   function sleep(ms: number, signal?: AbortSignal) {
     return new Promise<void>((resolve, reject) => {
       if (signal?.aborted) {
-        reject(signal.reason ?? utilErrors.LOCK_ABORTED())
+        reject(signal.reason ?? filesystemErrors.LOCK_ABORTED())
         return
       }
 
@@ -91,7 +91,7 @@ export namespace Flock {
           clearTimeout(timer)
         }
         signal?.removeEventListener('abort', abort)
-        reject(signal?.reason ?? utilErrors.LOCK_ABORTED())
+        reject(signal?.reason ?? filesystemErrors.LOCK_ABORTED())
       }
 
       signal?.addEventListener('abort', abort, {once: true})
@@ -209,12 +209,12 @@ export namespace Flock {
 
     await writeFile(heartbeatPath, '', {flag: 'wx'}).catch(async () => {
       await rm(lockDir, {recursive: true, force: true})
-      throw utilErrors.LOCK_COMPROMISED({detail: 'heartbeat already existed'})
+      throw filesystemErrors.LOCK_COMPROMISED({detail: 'heartbeat already existed'})
     })
 
     await writeFile(metaPath, JSON.stringify(meta, null, 2), {flag: 'wx'}).catch(async () => {
       await rm(lockDir, {recursive: true, force: true})
-      throw utilErrors.LOCK_COMPROMISED({detail: 'meta.json already existed'})
+      throw filesystemErrors.LOCK_COMPROMISED({detail: 'meta.json already existed'})
     })
 
     let timer: NodeJS.Timeout | undefined
@@ -245,15 +245,15 @@ export namespace Flock {
         .catch((err) => {
           const errCode = code(err)
           if (errCode === 'ENOENT' || errCode === 'ENOTDIR') {
-            throw utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata missing)'})
+            throw filesystemErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata missing)'})
           }
           if (err instanceof SyntaxError) {
-            throw utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata invalid)', cause: err})
+            throw filesystemErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata invalid)', cause: err})
           }
           throw err
         })
       if (current.token !== token) {
-        throw utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock token mismatch (not the owner)'})
+        throw filesystemErrors.LOCK_RELEASE_REFUSED({detail: 'lock token mismatch (not the owner)'})
       }
 
       await rm(lockDir, {recursive: true, force: true})
@@ -285,7 +285,7 @@ export namespace Flock {
       }
 
       if (mono() > stop) {
-        throw utilErrors.LOCK_TIMEOUT({key: input.key})
+        throw filesystemErrors.LOCK_TIMEOUT({key: input.key})
       }
 
       attempt += 1

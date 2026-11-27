@@ -1,5 +1,5 @@
 import {EvlogError} from 'evlog'
-import {aiErrors} from './errors.js'
+import {aiErrors} from '@conciv/errors'
 
 export function approvalDenied(name: string): EvlogError {
   return aiErrors.APPROVAL_DENIED({name})

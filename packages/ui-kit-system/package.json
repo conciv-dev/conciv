@@ -59,6 +59,7 @@
     "lucide-solid": "catalog:"
   },
   "devDependencies": {
+    "@conciv/errors": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@types/node": "catalog:",

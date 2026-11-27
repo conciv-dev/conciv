@@ -3,13 +3,14 @@ import type {Plugin} from '@conciv/frontend-plugin-api'
 import type {PluginModule, Entry} from '@conciv/frontend-plugin-api/host'
 import type {PluginChunk} from './installed'
 import type {BridgePluginExperimental} from './startup'
-import {pluginErrors} from './errors'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const modules = {
   effect: () => import('effect'),
   '@conciv/frontend-plugin-api': () => import('@conciv/frontend-plugin-api'),
   '@conciv/protocol/schema/rpc': () => import('@conciv/protocol/schema/rpc'),
   zod: () => import('zod'),
+  '@conciv/errors': () => import('@conciv/errors'),
   'solid-js': () => import('solid-js'),
   'solid-js/web': () => import('solid-js/web'),
   'solid-js/store': () => import('solid-js/store'),
@@ -49,22 +50,22 @@ export async function pluginDefinition(
 
     if (mainOnlyModule(name)) return inertModule(name)
 
-    throw pluginErrors.MODULE_NOT_SHARED({name})
+    throw widgetPluginErrors.MODULE_NOT_SHARED({name})
   }
 
   const described = (requirer: string) => (requirer === experimental.file ? 'bundle' : `chunk ${requirer}`)
 
   const unfinishedEntry = (requirer: string) => {
-    throw pluginErrors.ENTRY_NOT_EVALUATED({requirer: described(requirer), entry: experimental.file})
+    throw widgetPluginErrors.ENTRY_NOT_EVALUATED({requirer: described(requirer), entry: experimental.file})
   }
 
   const unloadedChunk = (requirer: string, file: string): Promise<object> => {
-    if (!evaluated.has(requirer)) throw pluginErrors.CHUNK_NOT_SENT({requirer: described(requirer), file})
+    if (!evaluated.has(requirer)) throw widgetPluginErrors.CHUNK_NOT_SENT({requirer: described(requirer), file})
 
     return fetchChunks(file).then((chunks) => {
       evaluate(chunks)
 
-      return evaluated.get(file) ?? Promise.reject(pluginErrors.CHUNK_MISSING({file}))
+      return evaluated.get(file) ?? Promise.reject(widgetPluginErrors.CHUNK_MISSING({file}))
     })
   }
 
@@ -196,12 +197,12 @@ function evaluatePluginBundle(code: string, host: PluginBundleHost): PluginBundl
     const decoded = BundleDefinition.safeParse(plugin)
     const problem = decoded.success ? 'it does not match' : z.prettifyError(decoded.error)
 
-    throw pluginErrors.BUNDLE_NOT_PLUGIN({problem})
+    throw widgetPluginErrors.BUNDLE_NOT_PLUGIN({problem})
   }
 
   const {setup, ...definition} = plugin
 
-  if (!setup) throw pluginErrors.BUNDLE_NO_SETUP()
+  if (!setup) throw widgetPluginErrors.BUNDLE_NO_SETUP()
 
   return {definition, setup, exports}
 }

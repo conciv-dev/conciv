@@ -1,6 +1,6 @@
 import {useRef, useState} from 'react'
 import {DEFAULT_MODEL, type ModelWorkerResponse, type RunResult} from './models'
-import {siteErrors} from '@/lib/errors'
+import {siteErrors} from '@conciv/errors'
 
 type ModelStatus = 'idle' | 'loading' | 'ready' | 'error'
 

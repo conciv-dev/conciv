@@ -3,7 +3,7 @@ import {useMutation, type MutationStatus} from '@tanstack/react-query'
 import {Check, Copy, Download, TriangleAlert} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {brandAssetUrl} from '@/lib/brand-assets'
-import {siteErrors} from '@/lib/errors'
+import {siteErrors} from '@conciv/errors'
 
 const RESET_DELAY = 1400
 

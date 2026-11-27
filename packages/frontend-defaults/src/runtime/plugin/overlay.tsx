@@ -5,7 +5,7 @@ import {createStyleSheet} from '@internal/frontend-app-api/lib/style-sheet'
 import {widgetSheet} from '../../lib/widget-styles'
 import {WIDGET_LAYER} from '../../lib/widget-layer'
 import {AdoptedStyle} from '@internal/frontend-app-api/plugin/render'
-import {runtimePluginErrors} from './errors.js'
+import {widgetPluginErrors} from '@conciv/errors'
 
 function placeHost(host: HTMLElement): void {
   host.setAttribute(PLUGIN_OVERLAY_ATTR, '')
@@ -24,8 +24,8 @@ export function mountOverlay(
     const host = <div class={themeClasses(theme())} />
     const element = <div class={`font-chat text-chat-text ${themeClasses(theme())}`} />
 
-    if (!(host instanceof HTMLElement)) throw runtimePluginErrors.OVERLAY_NOT_RENDERED({part: 'host'})
-    if (!(element instanceof HTMLElement)) throw runtimePluginErrors.OVERLAY_NOT_RENDERED({part: 'element'})
+    if (!(host instanceof HTMLElement)) throw widgetPluginErrors.OVERLAY_NOT_RENDERED({part: 'host'})
+    if (!(element instanceof HTMLElement)) throw widgetPluginErrors.OVERLAY_NOT_RENDERED({part: 'element'})
     placeHost(host)
     document.body.append(host)
     const root = host.attachShadow({mode: 'open'})

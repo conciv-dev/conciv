@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ThreadScroller = {
   atEnd: Accessor<boolean>

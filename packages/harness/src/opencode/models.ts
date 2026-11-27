@@ -4,7 +4,7 @@ import type {Readable} from 'node:stream'
 import {z} from 'zod'
 import {killLeftovers} from '../local-sandbox.js'
 import type {HarnessModel} from '@conciv/types/harness-types'
-import {harnessErrors} from '../_shared/errors.js'
+import {harnessErrors} from '@conciv/errors'
 
 const LISTING_TIMEOUT_MS = 30_000
 

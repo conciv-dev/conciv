@@ -35,10 +35,10 @@ import {
   type HostEndpoint,
   type HostEvent,
 } from './host-machine'
-import {pluginErrors} from './errors'
 import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
 import type {BridgePluginExperimental, BridgePluginExperimentals, InstalledSource} from './startup'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const text = (maximum: number) => z.string().min(1).max(maximum)
 
@@ -495,7 +495,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
 
   const setEnabled = (pluginId: string, value: boolean) =>
     Effect.gen(function* () {
-      if (!known(pluginId)) return yield* Effect.fail(pluginErrors.NOT_FOUND())
+      if (!known(pluginId)) return yield* Effect.fail(widgetPluginErrors.NOT_FOUND())
 
       yield* Deferred.await(loaded)
       const previous = enableState.rows
@@ -517,8 +517,8 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
 
   const stop = Effect.all(
     [
-      Deferred.fail(loaded, pluginErrors.SOURCE_DISPOSED()),
-      Deferred.fail(firstListing, pluginErrors.TRUST_ENDED_BEFORE_LISTING()),
+      Deferred.fail(loaded, widgetPluginErrors.SOURCE_DISPOSED()),
+      Deferred.fail(firstListing, widgetPluginErrors.TRUST_ENDED_BEFORE_LISTING()),
       dispatch({type: 'stopped'}),
     ],
     {discard: true},
@@ -546,7 +546,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
         ),
       ),
     setEnabled,
-    reload: (pluginId) => (known(pluginId) ? changed : Effect.fail(pluginErrors.NOT_FOUND())),
+    reload: (pluginId) => (known(pluginId) ? changed : Effect.fail(widgetPluginErrors.NOT_FOUND())),
     stop,
   }
 

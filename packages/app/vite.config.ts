@@ -3,20 +3,7 @@ import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {defineErrorCatalog} from 'evlog'
-
-const buildErrors = defineErrorCatalog('app.build', {
-  NO_ENVIRONMENT: {
-    message: ({name}: {name: string}) => `the embed build has no ${name} environment`,
-    fix: 'Declare the environment in the vite config environments.',
-  },
-})
-
-declare module 'evlog' {
-  interface RegisteredErrorCatalogs {
-    'app.build': typeof buildErrors
-  }
-}
+import {widgetErrors} from '@conciv/errors'
 
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
@@ -95,7 +82,7 @@ export default defineConfig({
     buildApp: async (builder) => {
       for (const name of ['client', 'widget']) {
         const environment = builder.environments[name]
-        if (!environment) throw buildErrors.NO_ENVIRONMENT({name})
+        if (!environment) throw widgetErrors.NO_ENVIRONMENT({name})
         await builder.build(environment)
       }
     },

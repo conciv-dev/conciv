@@ -2,7 +2,7 @@ import {createHash} from 'crypto'
 import * as Instruction from '@conciv/protocol/schema/instruction'
 import {Data, Effect, Option, Schema} from 'effect'
 import {canonicalJson} from '../util/canonical-json.js'
-import {instructionsErrors} from './errors.js'
+import {instructionsErrors} from '@conciv/errors'
 
 export const Key = Instruction.Key
 export type Key = Instruction.Key

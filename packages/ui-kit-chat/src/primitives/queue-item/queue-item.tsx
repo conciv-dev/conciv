@@ -4,7 +4,7 @@ import {createActionButton, type ActionButtonState} from '../util/create-action-
 import {useChatContext} from '../../store/chat-context.js'
 import {PromptPresentationSchema, type SendContent, type QueuedMessage} from '@conciv/types/chat-message-types'
 import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type {QueuedMessage} from '@conciv/types/chat-message-types'
 

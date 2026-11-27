@@ -14,8 +14,7 @@ import * as SessionSchema from '@conciv/protocol/schema/session'
 import * as State from './state.js'
 import {definition, effectiveName, execute, normalizedName, normalizeContent} from './tool/runtime.js'
 import * as Wildcard from './util/wildcard.js'
-import {imageErrors} from './image/errors.js'
-import {toolErrors} from './tool/errors.js'
+import {imageErrors, toolErrors} from '@conciv/errors'
 
 export type Registered = Tool.Info & {readonly id: string; readonly pluginId?: string}
 

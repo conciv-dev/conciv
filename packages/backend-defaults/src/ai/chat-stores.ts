@@ -6,7 +6,7 @@ import type {ChatStores} from './chat-server.js'
 import {chatMessages, chatMetadata, chatRuns} from '../db/run-schema.js'
 import {sessions} from '@conciv/backend-app-api/core/session/sql'
 import type {ConcivDb} from '../db/connection.js'
-import {aiErrors} from './errors.js'
+import {aiErrors} from '@conciv/errors'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 

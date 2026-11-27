@@ -37,13 +37,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/types": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "es-toolkit": "catalog:",
-    "evlog": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },

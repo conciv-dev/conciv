@@ -5,7 +5,7 @@ import path from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {constants, Script} from 'node:vm'
 import {z} from 'zod'
-import {pluginApiErrors} from '../errors.js'
+import {pluginHostErrors} from '@conciv/errors'
 
 export async function importModule(specifier: string) {
   const imported: unknown = await new Script(`import(${JSON.stringify(specifier)})`, {
@@ -70,7 +70,7 @@ function resolvePackage(specifier: string) {
 function resolveExisting(specifier: string) {
   const resolved = import.meta.resolve(specifier)
   if (resolved.startsWith('file:') && !statSync(new URL(resolved)).isFile())
-    throw pluginApiErrors.MODULE_FILE_MISSING({resolved})
+    throw pluginHostErrors.MODULE_FILE_MISSING({resolved})
   return resolved
 }
 
@@ -83,7 +83,7 @@ function missing(error: unknown) {
   return (
     error instanceof Error &&
     parsed.success &&
-    ['ENOENT', 'ENOTDIR', 'ERR_MODULE_NOT_FOUND', pluginApiErrors.MODULE_FILE_MISSING.code].includes(
+    ['ENOENT', 'ENOTDIR', 'ERR_MODULE_NOT_FOUND', pluginHostErrors.MODULE_FILE_MISSING.code].includes(
       String(parsed.data.code),
     )
   )

@@ -15,7 +15,7 @@ import {
 } from '@internal/frontend-defaults'
 import {pluginIdAvailable} from '@internal/frontend-app-api/plugin/installed'
 import {engineToken, testEntry, useFakeEngine, type RealEngine, type TestPlugin} from './frontend-test-utils.js'
-import {testUtilsErrors} from './errors/errors.js'
+import {testKitErrors} from '@conciv/errors'
 
 const SHELL_TIMINGS: NonNullable<Platform['timings']> = {
   engine: {offlineGraceMs: 10},
@@ -145,7 +145,7 @@ function chunkClosure(manifest: Manifest, roots: readonly string[]): readonly st
 }
 
 function missingFile(id: string, file: string): never {
-  throw testUtilsErrors.BUNDLE_FILE_MISSING({id, file})
+  throw testKitErrors.BUNDLE_FILE_MISSING({id, file})
 }
 
 export function servePluginBundle(
@@ -161,7 +161,7 @@ export function servePluginBundle(
     Object.entries(plugin.dist).map(([key, load]) => [key.slice(key.lastIndexOf('/') + 1), load] as const),
   )
   const manifestName = Object.keys(files).find((file) => file.endsWith(MANIFEST_SUFFIX))
-  if (manifestName === undefined) throw testUtilsErrors.BUNDLE_MANIFEST_MISSING({id: plugin.id})
+  if (manifestName === undefined) throw testKitErrors.BUNDLE_MANIFEST_MISSING({id: plugin.id})
   const entry = manifestName.slice(0, -MANIFEST_SUFFIX.length)
   const text = (file: string) => (files[file] ?? missingFile(plugin.id, file))()
   const manifest = text(manifestName).then((json) => ManifestSchema.parse(JSON.parse(json)))

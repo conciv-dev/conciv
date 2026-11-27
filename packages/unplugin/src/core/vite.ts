@@ -14,7 +14,7 @@ import {makeViteBridge} from './vite-bridge.js'
 import {createShutdownTracker, install as installShutdownDeadline} from './shutdown-deadline.js'
 import type {Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
-import {unpluginErrors} from './errors.js'
+import {unpluginErrors} from '@conciv/errors'
 
 const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/', 'node_modules']
 

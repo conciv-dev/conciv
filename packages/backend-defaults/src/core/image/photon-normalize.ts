@@ -1,6 +1,6 @@
 import photonWasm from './photon-wasm.node.js'
 import type {Content as ImageContent, Limits} from '@conciv/backend-app-api/core/image'
-import {imageErrors} from './errors.js'
+import {imageErrors} from '@conciv/errors'
 
 export type Photon = typeof import('@silvia-odwyer/photon-node')
 export type Content = ImageContent & {readonly encoding: 'base64'}

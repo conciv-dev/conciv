@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import {parseInput, resultText} from '@conciv/ui-kit-chat/tools'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
-import {chatToolsErrors} from './errors.js'
+import {chatKitErrors} from '@conciv/errors'
 const SearchInput = z.object({pattern: z.string().optional(), path: z.string().optional(), glob: z.string().optional()})
 
 function matchCount(result: ToolResultPart | undefined): number {
@@ -26,7 +26,7 @@ const SearchContext = createContext<SearchContextValue>()
 
 export function useSearch(): SearchContextValue {
   const context = useContext(SearchContext)
-  if (!context) throw chatToolsErrors.OUTSIDE_ROOT({tool: 'Search'})
+  if (!context) throw chatKitErrors.OUTSIDE_ROOT({tool: 'Search'})
   return context
 }
 

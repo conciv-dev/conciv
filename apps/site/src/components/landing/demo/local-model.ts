@@ -1,6 +1,6 @@
 import {pipeline, env, type TextGenerationPipeline} from '@huggingface/transformers'
 import {DEFAULT_MODEL, type CssPatch, type LoadProgress, type RunResult} from './models'
-import {siteErrors} from '@/lib/errors'
+import {siteErrors} from '@conciv/errors'
 
 env.allowLocalModels = false
 env.useBrowserCache = true

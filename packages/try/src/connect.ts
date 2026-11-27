@@ -9,7 +9,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/types/connect-ports'
 import {seedWorkspace} from './seed-workspace.js'
 import {CONNECT_SYSTEM_PROMPT} from './system-prompt.js'
-import {tryErrors} from './errors/errors.js'
+import {tryErrors} from '@conciv/errors'
 
 const DEFAULT_ORIGIN = 'https://conciv.dev'
 

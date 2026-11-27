@@ -37,7 +37,7 @@ import {createLinkCheck} from './link-check'
 import {createStyleSheet} from '../lib/style-sheet'
 import {fenceSelector} from '../lib/plugin-fence'
 import {PluginArea} from './plugin-area'
-import {pluginErrors} from './errors'
+import {widgetPluginErrors} from '@conciv/errors'
 
 export function Contribution(props: {
   plugin: string
@@ -118,7 +118,7 @@ function addSheet(root: ShadowRoot | Document, sheet: CSSStyleSheet) {
 function readView(doc: Document): Window & typeof globalThis {
   const view = doc.defaultView
 
-  if (!view) throw pluginErrors.NO_WINDOW({purpose: 'register CSS in'})
+  if (!view) throw widgetPluginErrors.NO_WINDOW({purpose: 'register CSS in'})
 
   return view
 }

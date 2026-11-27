@@ -3,7 +3,7 @@ import * as Host from '@conciv/backend-plugin-api/host'
 import {ExperimentalBundle, type Source} from '@conciv/protocol/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
 import {Hash} from '../../util/hash.js'
-import {pluginErrors} from './errors.js'
+import {pluginHostErrors} from '@conciv/errors'
 import * as Npm from '../../util/npm.js'
 import {Deferred, Duration, Effect, FiberSet, PubSub, RcMap, Schema, Stream} from 'effect'
 import path from 'path'
@@ -108,7 +108,7 @@ const load = Effect.fn('PluginModule.load')(function* (
   const entrypoint = entrypoints.server
   const found = entrypoint || entrypoints.experimental
   if (!local && options?.install === false && !found) return {pending: true as const}
-  if (!found) return yield* Effect.fail(pluginErrors.ENTRYPOINT_NOT_FOUND({target: operation.target}))
+  if (!found) return yield* Effect.fail(pluginHostErrors.ENTRYPOINT_NOT_FOUND({target: operation.target}))
   yield* Effect.log({msg: 'loading plugin', id: operation.target, entrypoint: found})
   const server = entrypoint
     ? yield* loadServer(entrypoint, local ? sources : undefined, installed?.revision)
@@ -145,14 +145,15 @@ const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
   if (watch) yield* watch(entry)
   const code = yield* Effect.tryPromise({
     try: () => readFile(entry, 'utf8'),
-    catch: (cause) => pluginErrors.EXPERIMENTAL_UNREADABLE({entry, cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) =>
+      pluginHostErrors.EXPERIMENTAL_UNREADABLE({entry, cause: cause instanceof Error ? cause : undefined}),
   })
   return {
     file,
     code,
     revision: Hash.sha256(JSON.stringify([revision, watch ? Hash.sha256(code) : undefined])),
     options: yield* Schema.decodeUnknownEffect(ExperimentalOptions)(options).pipe(
-      Effect.mapError((cause) => pluginErrors.EXPERIMENTAL_OPTIONS_NOT_JSON({cause})),
+      Effect.mapError((cause) => pluginHostErrors.EXPERIMENTAL_OPTIONS_NOT_JSON({cause})),
     ),
     chunks: yield* readChunks(entry),
   }
@@ -173,7 +174,7 @@ const Manifest = z.record(
 const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
   const manifest = `${entry}.manifest.json`
   const refusal = (problem: string, cause?: unknown) =>
-    pluginErrors.CHUNK_MANIFEST_INVALID({entry, problem, cause: cause instanceof Error ? cause : undefined})
+    pluginHostErrors.CHUNK_MANIFEST_INVALID({entry, problem, cause: cause instanceof Error ? cause : undefined})
   const text = yield* Effect.tryPromise({
     try: () =>
       readFile(manifest, 'utf8').catch((error: NodeJS.ErrnoException) => {
@@ -229,7 +230,7 @@ const loadServer = Effect.fn('PluginModule.loadServer')(function* (
     sources ? sources.read(entrypoint) : Host.load(entrypoint).then((module) => ({module, version: revision})),
   )
   const value = (yield* Schema.decodeUnknownEffect(Module)(loaded.module).pipe(
-    Effect.mapError((cause) => pluginErrors.DEFINITION_INVALID({cause})),
+    Effect.mapError((cause) => pluginHostErrors.DEFINITION_INVALID({cause})),
   )).default
   return {plugin: 'effect' in value ? value : PluginPromise.fromPromise(value), version: loaded.version}
 })

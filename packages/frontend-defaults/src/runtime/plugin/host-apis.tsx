@@ -89,7 +89,7 @@ import {
   type StoreLoads,
 } from '@internal/frontend-app-api/plugin/stores'
 import {ui} from '@internal/frontend-app-api/plugin/ui'
-import {runtimePluginErrors} from './errors.js'
+import {widgetPluginErrors} from '@conciv/errors'
 
 type Attached = {
   sessions: Accessor<readonly SessionRef[]>
@@ -157,9 +157,9 @@ export function createHostApis() {
   const client = appData.client
   const data = createServerData(appData.utils)
   const unavailable = Conciv.make(
-    createORPCClient<EngineClient>({call: () => Promise.reject(runtimePluginErrors.SERVER_UNAVAILABLE())}),
+    createORPCClient<EngineClient>({call: () => Promise.reject(widgetPluginErrors.SERVER_UNAVAILABLE())}),
     {
-      server: () => runtimePluginErrors.SERVER_UNAVAILABLE.message,
+      server: () => widgetPluginErrors.SERVER_UNAVAILABLE.message,
     },
   )
 
@@ -234,12 +234,12 @@ export function createHostApis() {
     if ('session' in scope) {
       const location = scope.session.location
 
-      if (!location) throw runtimePluginErrors.SESSION_LOCATION_MISSING()
+      if (!location) throw widgetPluginErrors.SESSION_LOCATION_MISSING()
 
       return {...Persist.session(scope.session.id, name), copyFrom: storeImports(from)}
     }
 
-    if (!connected.server(scope.server)) throw runtimePluginErrors.NAMED_SERVER_UNAVAILABLE({server: scope.server})
+    if (!connected.server(scope.server)) throw widgetPluginErrors.NAMED_SERVER_UNAVAILABLE({server: scope.server})
 
     return {...Persist.server(name), copyFrom: storeImports(from)}
   }
@@ -312,7 +312,7 @@ export function createHostApis() {
     system: () => ({
       copy: (text) =>
         writeClipboardText(text).catch((cause: unknown) =>
-          Promise.reject(runtimePluginErrors.CLIPBOARD_REFUSED({cause: cause instanceof Error ? cause : undefined})),
+          Promise.reject(widgetPluginErrors.CLIPBOARD_REFUSED({cause: cause instanceof Error ? cause : undefined})),
         ),
       async save(file) {
         const url = URL.createObjectURL(new Blob([file.content], {type: 'application/octet-stream'}))

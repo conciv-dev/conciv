@@ -34,7 +34,7 @@ import type {ConcivDb} from '../../db/connection.js'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import type {EngineRuntime} from '../lib/logging.js'
-import {engineErrors} from '../lib/errors.js'
+import {engineRuntimeErrors} from '@conciv/errors'
 
 export type RowScope = {
   db: ConcivDb
@@ -157,7 +157,7 @@ async function claimNativeRow(
   })
   await insertBorn(scope, record)
   const settled = await rowByNativeRef(scope.db, ref)
-  if (settled === null) throw engineErrors.NATIVE_ROW_VANISHED({nativeId: ref.nativeId})
+  if (settled === null) throw engineRuntimeErrors.NATIVE_ROW_VANISHED({nativeId: ref.nativeId})
   return settled
 }
 
@@ -652,7 +652,7 @@ async function materializedRow(native: NativeSession, input: SessionListInput): 
   })
   if (opened === null) return null
   const row = await rowById(input.db, opened.sessionId)
-  if (row === null) throw engineErrors.LISTED_ROW_VANISHED({sessionId: opened.sessionId})
+  if (row === null) throw engineRuntimeErrors.LISTED_ROW_VANISHED({sessionId: opened.sessionId})
   return row
 }
 

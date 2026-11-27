@@ -8,7 +8,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/
 import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
-import {siteErrors} from '@/lib/errors'
+import {siteErrors} from '@conciv/errors'
 
 type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
 

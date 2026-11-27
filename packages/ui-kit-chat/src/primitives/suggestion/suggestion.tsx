@@ -2,7 +2,7 @@ import {createContext, splitProps, useContext, type Accessor, type JSX} from 'so
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type SuggestionData = {title: string; label: string; prompt: string}
 

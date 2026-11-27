@@ -1,5 +1,5 @@
 import logos from '@internal/brand/logos.json'
-import {siteErrors} from './errors'
+import {siteErrors} from '@conciv/errors'
 
 export type BrandFile = (typeof logos.files)[number]
 

@@ -10,7 +10,7 @@ import {codeContentOptions, FILE_HEADER_CSS} from '../primitives/tool-presentati
 import {countLabel} from '../primitives/tool-row.js'
 import {CLAMP_LINES, ClampFade, createClamp, type Clamp, type TraceClampSize} from '../../styled/trace/clamp.js'
 import {codeTheme} from '../../theme/code-theme.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 function blessedDiffOptions(): FileDiffOptions<undefined, undefined> {
   return {

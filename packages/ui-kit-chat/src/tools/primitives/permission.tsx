@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCallPart} from '@conciv/types/chat-message-types'
 import type {PermissionReply} from '@conciv/types/chat-types'
 import type {ToolViewCtx} from '@conciv/types/tool-view-types'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 const PermissionMetadataSchema = z.object({permission: z.object({always: z.boolean()})})
 

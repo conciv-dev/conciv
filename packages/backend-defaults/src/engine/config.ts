@@ -15,8 +15,7 @@ import {
 } from '@conciv/types/chat-types'
 import {Config, type ConfigProvider, Effect, Option, Result} from 'effect'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
-import {engineErrors} from './lib/errors.js'
-import {observabilityErrors} from '../util/observability/errors.js'
+import {engineRuntimeErrors, observabilityErrors} from '@conciv/errors'
 
 export type {ConcivConfig} from '@conciv/types/config-types'
 export {defineConfig} from '@conciv/types/config-types'
@@ -55,7 +54,7 @@ function resolveSessionId(candidates: (string | undefined)[]): SessionId | undef
   const declared = declaredValue(candidates)
   if (declared === undefined) return undefined
   if (!isSessionId(declared)) {
-    throw engineErrors.SESSION_ID_INVALID({declared})
+    throw engineRuntimeErrors.SESSION_ID_INVALID({declared})
   }
   return declared
 }
@@ -64,7 +63,7 @@ function resolveHarnessSessionId(candidates: (string | undefined)[]): HarnessSes
   const declared = declaredValue(candidates)
   if (declared === undefined) return undefined
   if (!isHarnessSessionId(declared)) {
-    throw engineErrors.HARNESS_SESSION_ID_INVALID({declared})
+    throw engineRuntimeErrors.HARNESS_SESSION_ID_INVALID({declared})
   }
   return declared
 }

@@ -60,6 +60,7 @@
     "@conciv/backend-app-api": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/harness": "workspace:^",
     "@conciv/home": "workspace:^",
     "@conciv/protocol": "workspace:^",

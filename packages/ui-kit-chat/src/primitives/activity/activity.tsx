@@ -3,7 +3,7 @@ import type {ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/types/chat
 import {keyBy} from 'es-toolkit'
 import {coalesceTurns, type Turn} from '../../store/grouping.js'
 import {activeCallInParts} from '../../store/active-call.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ActivityLabeler = (part: ToolCallPart) => string
 

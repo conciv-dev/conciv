@@ -5,7 +5,7 @@ import {FitAddon} from '@xterm/addon-fit'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
 import type {TerminalLink, TerminalListener, TerminalTransport} from './transport.js'
-import {terminalErrors} from './primitives/errors.js'
+import {terminalKitErrors} from '@conciv/errors'
 
 const RETRY_BASE_MS = 500
 const RETRY_MAX_MS = 8000
@@ -139,7 +139,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
             resolve(true)
             return
           }
-          reject(terminalErrors.CONNECTION_DROPPED())
+          reject(terminalKitErrors.CONNECTION_DROPPED())
         },
       }
       try {

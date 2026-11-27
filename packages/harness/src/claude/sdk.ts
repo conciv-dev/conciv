@@ -12,7 +12,7 @@ import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv
 import {onPath} from '../_shared/on-path.js'
 import {CLAUDE_BIN, mcpServerConfig} from './args.js'
 import {claudePluginDir} from './plugin-dir.js'
-import {harnessErrors} from '../_shared/errors.js'
+import {harnessErrors} from '@conciv/errors'
 
 export function loadClaudeAgentSdk(): Promise<typeof ClaudeAgentSdk> {
   return import('@anthropic-ai/claude-agent-sdk')

@@ -19,7 +19,7 @@ import {
 import {CodeModeCatalog, CodeModeInstructions, InstructionState, SkillInstructions} from '../../backend-defaults.js'
 import {Effect, Layer, Option, Ref, Schema} from 'effect'
 import * as Identifier from '@conciv/protocol/schema/identifier'
-import {permissionErrors} from '@conciv/backend-app-api/core/permission/errors'
+import {permissionErrors} from '@conciv/errors'
 import {once} from 'es-toolkit'
 import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 import {loadInstructionEntries} from './instruction-entries.js'

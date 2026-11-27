@@ -10,6 +10,7 @@ import {
   type RichTextFieldTriggerItem,
   type RichTextFieldTriggerSource,
 } from './rich-text-field.js'
+import {storyErrors} from '@conciv/errors'
 
 const COMMANDS: RichTextFieldTriggerItem[] = [
   {id: 'clear', label: '/clear', group: 'Commands', description: 'Clear the transcript'},
@@ -121,7 +122,7 @@ const sourceModes: Record<Mode, ModeItems> = {
   sync: (pool, query) => filterItems(pool, query),
   delayed: (pool, query) => resolveAfter(filterItems(pool, query), 400),
   empty: () => [],
-  error: () => Promise.reject(new Error('source failed')),
+  error: () => Promise.reject(storyErrors.SAMPLE_FAILURE({message: 'source failed'})),
   manual: (pool, query, enqueue) => new Promise((resolve) => enqueue({query, resolve})),
   long: (_pool, query) => filterItems(LONG_COMMANDS, query),
   categories: (_pool, query) => filterItems(CATEGORY_COMMANDS, query),

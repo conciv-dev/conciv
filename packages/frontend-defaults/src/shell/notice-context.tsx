@@ -3,8 +3,8 @@ import {createContext, createEffect, useContext, type JSX} from 'solid-js'
 import {useEngineReachability, type EngineReachability} from '../app/reachability.js'
 import type {LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
 import {createNoticeStore, type NoticeStore} from './notices.js'
-import {appErrors} from '../app/errors.js'
 import {errorFix} from './rpc-error-message.js'
+import {widgetErrors} from '@conciv/errors'
 
 const NoticeStoreContext = createContext<NoticeStore>()
 
@@ -23,7 +23,7 @@ export function NoticeContextProvider(props: {localPersistence: LocalPersistence
 
 export function useNotices(): NoticeStore {
   const value = useContext(NoticeStoreContext)
-  if (!value) throw appErrors.OUTSIDE_PROVIDER({hook: 'useNotices', provider: 'NoticeContextProvider'})
+  if (!value) throw widgetErrors.OUTSIDE_PROVIDER({hook: 'useNotices', provider: 'NoticeContextProvider'})
   return value
 }
 

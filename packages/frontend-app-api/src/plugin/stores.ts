@@ -31,7 +31,7 @@ import {
   type StoreLoadEvent,
   type StoreWrite,
 } from './store-machine'
-import {pluginErrors} from './errors'
+import {widgetPluginErrors} from '@conciv/errors'
 
 export type StoreLoads = WeakMap<object, Promise<void>>
 
@@ -85,7 +85,7 @@ export function persistedHandle<T extends object>(
       produce((draft) => {
         const returned = write.mutate(draft as Mutable<T>)
 
-        if (returned !== undefined) throw pluginErrors.UPDATE_RETURNED_VALUE()
+        if (returned !== undefined) throw widgetPluginErrors.UPDATE_RETURNED_VALUE()
       }),
     )
   }

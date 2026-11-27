@@ -30,7 +30,7 @@ import type * as CodeModeCatalog from './core/codemode/catalog.js'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {deletedSessionError, firstUserTitle, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
-import {aiErrors} from './ai/errors.js'
+import {aiErrors} from '@conciv/errors'
 
 export {assistCapabilities, toolDomainCapabilities, type CodeCapability, type ToolDomain} from './code-mode.js'
 export type {SessionPort} from './turn.js'

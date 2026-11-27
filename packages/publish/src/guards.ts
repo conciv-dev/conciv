@@ -124,6 +124,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/preact',
   '@conciv/solid',
   '@conciv/skills',
+  '@conciv/errors',
 ]
 
 export async function assertVersioned(cwd: string): Promise<void> {

@@ -2,7 +2,7 @@ import {and, asc, eq, or} from 'drizzle-orm'
 import {Context, DateTime, Effect, Layer, Option, Schema} from 'effect'
 import {chatMessages} from '../../db/run-schema.js'
 import {EvlogError} from 'evlog'
-import {sessionErrors} from './errors.js'
+import {sessionErrors} from '@conciv/errors'
 import {
   Compaction,
   CompactionPayload,

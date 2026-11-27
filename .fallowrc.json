@@ -495,7 +495,8 @@
     "@conciv/backend-defaults",
     "@conciv/backend-test-utils",
     "@conciv/protocol",
-    "@conciv/frontend-plugin-api"
+    "@conciv/frontend-plugin-api",
+    "@conciv/errors"
   ],
   "ignoreExports": [
     {

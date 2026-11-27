@@ -1,6 +1,6 @@
 import {emptyInputJsonSchema, type ToolDefinition} from '../../ai/effect.js'
 import {isRecord} from '../../util/record.js'
-import {toolErrors} from './errors.js'
+import {toolErrors} from '@conciv/errors'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {StandardJSONSchemaV1, StandardSchemaV1} from '@standard-schema/spec'
 import {Effect, JsonPointer, JsonSchema, Result, Schema, SchemaIssue, SchemaRepresentation} from 'effect'

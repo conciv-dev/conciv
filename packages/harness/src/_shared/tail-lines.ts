@@ -1,7 +1,7 @@
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import type {TranscriptCursor, TranscriptPage} from '@conciv/types/harness-types'
 import {open} from 'node:fs/promises'
-import {harnessErrors} from './errors.js'
+import {harnessErrors} from '@conciv/errors'
 
 const CHUNK_BYTES = 262_144
 const NEWLINE = 0x0a

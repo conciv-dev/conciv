@@ -2,7 +2,7 @@ import {createContext, useContext, type JSX} from 'solid-js'
 import {Primitive} from '../util/primitive.js'
 import {useComposerContext} from '../composer/composer-context.js'
 import type {Attachment as AttachmentState} from './attachment-adapter.js'
-import {chatKitErrors} from '../../errors/errors.js'
+import {chatKitErrors} from '@conciv/errors'
 
 const AttachmentContext = createContext<AttachmentState>()
 

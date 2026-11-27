@@ -1,5 +1,5 @@
 import {createContext, createSignal, useContext} from 'solid-js'
-import {libErrors} from './errors'
+import {widgetErrors} from '@conciv/errors'
 
 type Layer = {isOpen: () => boolean; hides: () => boolean}
 
@@ -29,7 +29,7 @@ export const LayersContext = createContext<LayerStack>()
 export function useLayers(): LayerStack {
   const value = useContext(LayersContext)
 
-  if (!value) throw libErrors.LAYERS_OUTSIDE_PROVIDER()
+  if (!value) throw widgetErrors.LAYERS_OUTSIDE_PROVIDER()
 
   return value
 }

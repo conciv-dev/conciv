@@ -1,4 +1,4 @@
-import {engineKitErrors} from './errors/errors.js'
+import {testKitErrors} from '@conciv/errors'
 
 const ADVANCE_LIMIT_MS = 15_000
 
@@ -17,7 +17,7 @@ export async function advanceUntil<T>(until: Promise<T>, step: () => Promise<voi
     .catch(() => {})
   const deadline = performance.now() + ADVANCE_LIMIT_MS
   while (!watch.settled && performance.now() < deadline) await step()
-  if (!watch.settled) throw engineKitErrors.CLOCK_NEVER_SETTLED()
+  if (!watch.settled) throw testKitErrors.CLOCK_NEVER_SETTLED()
   return until
 }
 
@@ -27,5 +27,5 @@ export async function drainWith(step: () => Promise<void>): Promise<void> {
 }
 
 export async function refuseRealClock(): Promise<never> {
-  throw engineKitErrors.REAL_CLOCK()
+  throw testKitErrors.REAL_CLOCK()
 }

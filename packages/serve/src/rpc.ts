@@ -7,7 +7,7 @@ import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
 import {valid} from 'semver'
 import {z} from 'zod'
-import {serveErrors} from './errors/errors.js'
+import {serveErrors} from '@conciv/errors'
 import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
 import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/types/rpc-types'
 

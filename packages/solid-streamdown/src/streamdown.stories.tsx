@@ -2,6 +2,7 @@ import {createEffect, createSignal, onCleanup} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {Streamdown, type CaretVariant, type FenceView, type HighlightCode} from './streamdown.js'
+import {storyErrors} from '@conciv/errors'
 
 const demoHighlight: HighlightCode = (code, lang) => ({
   type: 'element',
@@ -382,7 +383,7 @@ const DecliningChart: FenceView = (props) => (
 )
 
 const ThrowingView: FenceView = () => {
-  throw new Error('the view failed')
+  throw storyErrors.SAMPLE_FAILURE({message: 'the view failed'})
 }
 
 const fallbackViews: HighlightCode = (_, lang) => {

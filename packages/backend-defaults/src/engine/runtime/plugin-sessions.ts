@@ -12,6 +12,7 @@ import {
 } from '@conciv/types/chat-types'
 import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/backend-app-api'
 import type * as Job from '@conciv/backend-app-api/core/job'
+import {sessionErrors} from '@conciv/errors'
 import {SessionInbox, SessionSynthetic} from '../../backend-defaults.js'
 import * as Model from '@conciv/protocol/schema/model'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
@@ -113,7 +114,7 @@ const createdModel = Effect.fn('core.sessions.chooseCreatedModel')(function* (
   yield* Effect.annotateCurrentSpan({sessionId})
   const agent = given(input.agent) ?? Agent.defaultId
   if (agent !== Agent.defaultId) {
-    return yield* Effect.fail(SessionErrors.sessionErrors.AGENT_NOT_FOUND({agent, internal: {sessionId}}))
+    return yield* Effect.fail(sessionErrors.AGENT_NOT_FOUND({agent, internal: {sessionId}}))
   }
   const model = given(input.model)
   if (model === undefined) return null
@@ -138,8 +139,7 @@ async function describeCreated(
 const readCursor = (cursor: string) =>
   Effect.try({
     try: () => HarnessListCursorSchema.parse(JSON.parse(cursor)),
-    catch: (cause) =>
-      SessionErrors.sessionErrors.INVALID_LIST_CURSOR({cause: cause instanceof Error ? cause : undefined}),
+    catch: (cause) => sessionErrors.INVALID_LIST_CURSOR({cause: cause instanceof Error ? cause : undefined}),
   })
 
 const metadataSchema = SessionRecordSchema.shape.metadata.unwrap().unwrap()
@@ -213,7 +213,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
               input.agent === Agent.defaultId
                 ? Effect.void
                 : Effect.fail(
-                    SessionErrors.sessionErrors.AGENT_NOT_FOUND({
+                    sessionErrors.AGENT_NOT_FOUND({
                       agent: input.agent,
                       internal: {sessionId: input.sessionId},
                     }),
@@ -227,7 +227,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
           const harness = yield* Effect.tryPromise({
             try: () => chat.harnessFor(input.sessionId),
             catch: (cause) =>
-              SessionErrors.sessionErrors.HARNESS_READ_FAILED({
+              sessionErrors.HARNESS_READ_FAILED({
                 sessionId: input.sessionId,
                 cause: cause instanceof Error ? cause : undefined,
               }),

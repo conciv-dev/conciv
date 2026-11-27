@@ -6,7 +6,7 @@ import * as Instructions from '@conciv/backend-app-api/core/instructions/instruc
 import * as SessionEvent from '@conciv/protocol/schema/session-event'
 import * as Session from '@conciv/protocol/schema/session'
 import {InstructionBlobTable, InstructionStateTable} from './sql.js'
-import {sessionErrors} from './errors.js'
+import {sessionErrors} from '@conciv/errors'
 
 type DatabaseService = Database.Interface['db']
 

@@ -11,7 +11,7 @@ import {concivStateDir} from '@conciv/types/state-types'
 import {isEnginePort} from './core/widget-start.js'
 import {widgetStarterPath} from './core/widget-module.js'
 import {startHostLog} from './core/host-log.js'
-import {unpluginErrors} from './core/errors.js'
+import {unpluginErrors} from '@conciv/errors'
 
 const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
 

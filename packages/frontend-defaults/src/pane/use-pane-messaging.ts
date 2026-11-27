@@ -11,19 +11,19 @@ import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 import {SESSION_DELETED_MESSAGE, sessionDeleted} from './run-error-row.js'
 import {errorFix, rpcErrorCode, SESSION_NOT_FOUND_MESSAGE} from '../shell/rpc-error-message.js'
-import {paneErrors} from './errors.js'
+import {widgetErrors} from '@conciv/errors'
 
 const RefusalToneSchema = z.enum(['info', 'warn']).catch('warn')
 
 function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): EvlogError {
-  if (verdict.message === null) return paneErrors.SEND_SKIPPED()
-  return paneErrors.SEND_REFUSED({message: verdict.message, internal: {tone: verdict.tone}})
+  if (verdict.message === null) return widgetErrors.SEND_SKIPPED()
+  return widgetErrors.SEND_REFUSED({message: verdict.message, internal: {tone: verdict.tone}})
 }
 
 function sendRefusal(failure: unknown): {message: string; tone: 'info' | 'warn'} | undefined {
   if (!EvlogError.isEvlogError(failure)) return undefined
-  if (failure.code === paneErrors.SEND_SKIPPED.code) return {message: '', tone: 'info'}
-  if (failure.code !== paneErrors.SEND_REFUSED.code) return undefined
+  if (failure.code === widgetErrors.SEND_SKIPPED.code) return {message: '', tone: 'info'}
+  if (failure.code !== widgetErrors.SEND_REFUSED.code) return undefined
   return {message: failure.message, tone: RefusalToneSchema.parse(failure.internal?.tone)}
 }
 
@@ -112,7 +112,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const lastRunFailure = createMemo(() => recordedFailure(deps.chat), undefined, {equals: sameFailure})
   const failureError = createMemo(() => {
     const recorded = lastRunFailure()
-    return recorded === undefined ? undefined : paneErrors.RUN_FAILED({message: recorded.message})
+    return recorded === undefined ? undefined : widgetErrors.RUN_FAILED({message: recorded.message})
   })
   const recordedError = (): Error | undefined => (deps.chat.runInProgress() ? undefined : failureError())
   const runError = (): Error | undefined => deps.chat.error() ?? recordedError()
@@ -136,7 +136,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
     await deps.chat.sendMessage(content).catch((error: unknown) => {
-      throw deps.chat.withdrawn() ? paneErrors.SEND_SKIPPED() : error
+      throw deps.chat.withdrawn() ? widgetErrors.SEND_SKIPPED() : error
     })
   }
 

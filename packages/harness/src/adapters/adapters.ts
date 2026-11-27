@@ -5,7 +5,7 @@ import {claudeCodeText, type ClaudeCodeTextConfig} from '@tanstack/ai-claude-cod
 import {codexText, CODEX_MODELS, type CodexTextConfig} from '@tanstack/ai-codex'
 import {opencodeText, type OpencodeTextConfig} from '@tanstack/ai-opencode'
 import type {ChatEvent} from '@conciv/types/chat-event-types'
-import {harnessErrors} from '../_shared/errors.js'
+import {harnessErrors} from '@conciv/errors'
 
 export type TextAdapter = AnyTextAdapter
 

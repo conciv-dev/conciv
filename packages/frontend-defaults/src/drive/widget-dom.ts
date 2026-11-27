@@ -7,7 +7,7 @@ import type {
   UiElement,
   UiState,
 } from '@conciv/protocol/simulation'
-import {driveErrors} from './errors.js'
+import {driveErrors} from '@conciv/errors'
 
 export type DriveRoot = ParentNode & DocumentOrShadowRoot
 

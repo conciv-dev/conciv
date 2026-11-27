@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import {parseInput} from '@conciv/ui-kit-chat/tools'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
-import {chatToolsErrors} from './errors.js'
+import {chatKitErrors} from '@conciv/errors'
 export type TodoItemStatus = 'pending' | 'in_progress' | 'completed'
 export type TodoItem = {content: string; status: TodoItemStatus; activeForm?: string}
 
@@ -34,7 +34,7 @@ const TodoContext = createContext<TodoContextValue>()
 
 export function useTodo(): TodoContextValue {
   const context = useContext(TodoContext)
-  if (!context) throw chatToolsErrors.OUTSIDE_ROOT({tool: 'Todo'})
+  if (!context) throw chatKitErrors.OUTSIDE_ROOT({tool: 'Todo'})
   return context
 }
 

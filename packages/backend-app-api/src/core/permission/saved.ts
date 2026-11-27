@@ -6,7 +6,7 @@ import type {EffectDrizzleQueryError} from 'drizzle-orm/effect-core/errors'
 import type * as Project from '../../schema/project.js'
 import * as Database from '../database/database.js'
 import {PermissionTable} from './sql.js'
-import {permissionErrors} from './errors.js'
+import {permissionErrors} from '@conciv/errors'
 import * as PermissionSaved from '../../schema/permission-saved.js'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 

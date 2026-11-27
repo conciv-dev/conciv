@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, inject} from 'vitest'
-import {vitestConfigErrors} from './errors/errors.ts'
+import {vitestErrors} from '@conciv/errors'
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -20,7 +20,7 @@ function failOnLeftoverBody(): void {
   if (!first) return
   const count = document.body.childElementCount
   document.body.replaceChildren()
-  throw vitestConfigErrors.LEFTOVER_BODY({count, first: describeElement(first)})
+  throw vitestErrors.LEFTOVER_BODY({count, first: describeElement(first)})
 }
 
 async function watchTheDom(): Promise<void> {

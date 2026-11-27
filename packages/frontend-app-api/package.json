@@ -38,7 +38,6 @@
     "./opaque": "./src/opaque.ts",
     "./lib/style-sheet": "./src/lib/style-sheet.ts",
     "./plugin/installed": "./src/plugin/installed.ts",
-    "./plugin/errors": "./src/plugin/errors.ts",
     "./plugin/settings-layout": "./src/plugin/settings-layout.tsx"
   },
   "scripts": {
@@ -47,6 +46,7 @@
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

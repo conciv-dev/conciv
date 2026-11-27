@@ -19,7 +19,7 @@ import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root
 import {withShellBuiltins, type BuiltinPlugins} from './runtime/plugin/builtins.js'
 import type {DraftStore} from './runtime/persistence/drafts.js'
 import {keepLastScreen, readLastScreen} from './runtime/persistence/last-screen.js'
-import {appErrors} from './app/errors.js'
+import {widgetErrors} from '@conciv/errors'
 
 export {createDraftStore, openBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 export {WIDGET_LAYER} from './lib/widget-layer.js'
@@ -238,8 +238,8 @@ function ServersApp(props: AppParts): JSX.Element {
     apiBase: () => binding()?.apiBase ?? '',
     connection,
     bindApiBase: (nextApiBase, token) => {
-      if (platform.connect === undefined) throw appErrors.CANNOT_BIND()
-      if (binding() !== undefined) throw appErrors.ALREADY_BOUND()
+      if (platform.connect === undefined) throw widgetErrors.CANNOT_BIND()
+      if (binding() !== undefined) throw widgetErrors.ALREADY_BOUND()
       platform.connect(nextApiBase, token)
     },
   })

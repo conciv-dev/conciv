@@ -3,7 +3,7 @@ import {ENTER_DURATION_S, ENTER_EASE, EXIT_DURATION_S, EXIT_EASE, TIP_SCALE} fro
 import type {EmitterAnchor, EmitterPoint} from '../path.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
 import type {EffectContext, EffectHandle} from './effect.js'
-import {mascotErrors} from '../errors.js'
+import {mascotErrors} from '@conciv/errors'
 
 function enterFromTip(element: HTMLElement): gsap.core.Tween {
   return gsap.fromTo(

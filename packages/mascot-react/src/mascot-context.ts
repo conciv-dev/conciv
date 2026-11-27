@@ -1,7 +1,7 @@
 import {createContext, useContext} from 'react'
 import type {CurveStyle, MascotPartProps, MascotService} from '@conciv/mascot'
 import type {MascotPartName} from '@conciv/mascot/adapter'
-import {mascotErrors} from '@conciv/mascot/adapter'
+import {mascotErrors} from '@conciv/errors'
 
 export type {MascotPartName}
 

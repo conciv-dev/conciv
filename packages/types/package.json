@@ -116,9 +116,9 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@tanstack/ai": "catalog:",
     "effect": "catalog:",
-    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -8,9 +8,9 @@ import {ActionRow, Group} from '@internal/frontend-app-api/plugin/settings-layou
 import {Badge} from '../../settings/settings-ui'
 import {useNotices} from '../../shell/notice-context'
 import {usePluginHost} from '@internal/frontend-app-api/plugin/host'
-import {pluginErrors} from '@internal/frontend-app-api/plugin/errors'
 import {errorFix} from '../../shell/rpc-error-message'
 import {useBuiltinPlugin, usePluginManager, useReservedPlugins} from './root'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const STATUS = 'text-chat-xs text-chat-text-2'
 const NOTE = `m-0 ${STATUS}`
@@ -202,7 +202,7 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
 }
 
 function pluginNotFound(cause: unknown): boolean {
-  return EvlogError.isEvlogError(cause) && cause.code === pluginErrors.NOT_FOUND.code
+  return EvlogError.isEvlogError(cause) && cause.code === widgetPluginErrors.NOT_FOUND.code
 }
 
 function PluginError(props: {error: string; fix: string | undefined}) {

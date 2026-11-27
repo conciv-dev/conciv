@@ -9,7 +9,7 @@ import {
   renderSizes,
   workerIsOverBudget,
 } from './measure.ts'
-import {formatCliError} from './errors/format.ts'
+import {formatCliError} from '@conciv/errors'
 
 function argValue(flag: string): string | null {
   const index = process.argv.indexOf(flag)

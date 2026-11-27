@@ -3,7 +3,7 @@ import os from 'os'
 import {randomUUID} from 'crypto'
 import {Context, Effect, Function, Layer, Option, Schedule, Schema} from 'effect'
 import type {EvlogError} from 'evlog'
-import {utilErrors} from './errors.js'
+import {filesystemErrors} from '@conciv/errors'
 import type {FileSystem, Scope} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
 import {FSUtil} from './fs-util.js'
@@ -58,7 +58,7 @@ export namespace EffectFlock {
 
   const mtimeMs = (info: FileSystem.File.Info) => Option.getOrElse(info.mtime, () => new Date(0)).getTime()
 
-  const isNotAcquired = (error: EvlogError) => error.code === utilErrors.LOCK_NOT_ACQUIRED.code
+  const isNotAcquired = (error: EvlogError) => error.code === filesystemErrors.LOCK_NOT_ACQUIRED.code
 
   const isPathGone = (e: PlatformError) => e.reason._tag === 'NotFound' || e.reason._tag === 'Unknown'
 
@@ -94,7 +94,7 @@ export namespace EffectFlock {
           Effect.catch(() =>
             Effect.gen(function* () {
               yield* forceRemove(lockDir)
-              return yield* Effect.fail(utilErrors.LOCK_COMPROMISED({detail}))
+              return yield* Effect.fail(filesystemErrors.LOCK_COMPROMISED({detail}))
             }),
           ),
         )
@@ -143,7 +143,7 @@ export namespace EffectFlock {
 
           if (!created) {
             if (!(yield* isStale(lockDir, heartbeatPath, metaPath, staleMs)))
-              return yield* Effect.fail(utilErrors.LOCK_NOT_ACQUIRED())
+              return yield* Effect.fail(filesystemErrors.LOCK_NOT_ACQUIRED())
 
             const breakerPath = lockDir + '.breaker'
 
@@ -157,7 +157,7 @@ export namespace EffectFlock {
               Effect.orDie,
             )
 
-            if (!claimed) return yield* Effect.fail(utilErrors.LOCK_NOT_ACQUIRED())
+            if (!claimed) return yield* Effect.fail(filesystemErrors.LOCK_NOT_ACQUIRED())
 
             const recreated = yield* Effect.gen(function* () {
               if (!(yield* isStale(lockDir, heartbeatPath, metaPath, staleMs))) return false
@@ -165,7 +165,7 @@ export namespace EffectFlock {
               return yield* atomicMkdir(lockDir)
             }).pipe(Effect.ensuring(forceRemove(breakerPath)))
 
-            if (!recreated) return yield* Effect.fail(utilErrors.LOCK_NOT_ACQUIRED())
+            if (!recreated) return yield* Effect.fail(filesystemErrors.LOCK_NOT_ACQUIRED())
           }
 
           yield* exclusiveWrite(heartbeatPath, '', lockDir, 'heartbeat already existed')
@@ -190,10 +190,10 @@ export namespace EffectFlock {
             while: isNotAcquired,
             schedule: retrySchedule(options.timeoutMs),
           }),
-          Effect.catchIf(isNotAcquired, () => Effect.fail(utilErrors.LOCK_TIMEOUT({key}))),
+          Effect.catchIf(isNotAcquired, () => Effect.fail(filesystemErrors.LOCK_TIMEOUT({key}))),
           Effect.timeoutOrElse({
             duration: options.timeoutMs,
-            orElse: () => Effect.fail(utilErrors.LOCK_TIMEOUT({key})),
+            orElse: () => Effect.fail(filesystemErrors.LOCK_TIMEOUT({key})),
           }),
         )
 
@@ -202,7 +202,9 @@ export namespace EffectFlock {
           const raw = yield* fs.readFileString(handle.metaPath).pipe(
             Effect.catch((err) => {
               if (isPathGone(err))
-                return Effect.die(utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata missing)'}))
+                return Effect.die(
+                  filesystemErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata missing)'}),
+                )
               return Effect.die(err)
             }),
           )
@@ -210,14 +212,16 @@ export namespace EffectFlock {
           const parsed = yield* Effect.try({
             try: () => decodeMeta(raw),
             catch: (cause) =>
-              utilErrors.LOCK_RELEASE_REFUSED({
+              filesystemErrors.LOCK_RELEASE_REFUSED({
                 detail: 'lock is compromised (metadata invalid)',
                 cause: cause instanceof Error ? cause : undefined,
               }),
           }).pipe(Effect.orDie)
 
           if (parsed.token !== handle.token)
-            return yield* Effect.die(utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock token mismatch (not the owner)'}))
+            return yield* Effect.die(
+              filesystemErrors.LOCK_RELEASE_REFUSED({detail: 'lock token mismatch (not the owner)'}),
+            )
 
           yield* forceRemove(handle.lockDir)
         })
