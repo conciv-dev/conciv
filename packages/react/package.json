@@ -37,27 +37,37 @@
     "sync-injected": "true",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/app": "workspace:^",
-    "evlog": "catalog:"
+    "@conciv/frontend-plugin-api": "workspace:^",
+    "evlog": "catalog:",
+    "solid-js": "catalog:"
   },
   "devDependencies": {
+    "@conciv/backend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "playwright": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@types/react": ">=16.8",
-    "react": ">=16.8"
+    "@types/react": ">=18",
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
     "@types/react": {
