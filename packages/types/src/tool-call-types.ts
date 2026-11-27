@@ -29,5 +29,3 @@ export function assertToolName(name: string): void {
   if (ToolNameSchema.safeParse(name).success) return
   throw toolErrors.TOOL_NAME_INVALID({name, rule: TOOL_NAME_RULE.source})
 }
-
-export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>

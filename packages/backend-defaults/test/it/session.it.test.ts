@@ -307,7 +307,7 @@ describe.concurrent('session.synthetic', () => {
       visible: true,
     })
     const widget = makeRpcClient(engine.address.apiBase, {token: engine.address.token})
-    const {sessionId} = await widget.sessions.create({})
+    const {sessionId} = await widget.sessions.create()
     await widget.sessions.rename({sessionId, title: 'Plant shelf'})
     const changes = (await widget.tabs.changes())[Symbol.asyncIterator]()
     await changes.next()
@@ -380,7 +380,7 @@ describe.concurrent('session.synthetic', () => {
     await expect(widget.tabs.list({sessionId})).resolves.toEqual({tabs: [], focusedTabId: null})
     await expect(widget.tabs.sessions()).resolves.toEqual([])
 
-    const racing = await widget.sessions.create({})
+    const racing = await widget.sessions.create()
     const [racedOpen, racedDelete] = await Promise.allSettled([
       widget.tabs.open({sessionId: racing.sessionId, connectionId: 'widget-5', tab: openTab(SECOND_TAB, true)}),
       widget.sessions.delete({sessionId: racing.sessionId}),

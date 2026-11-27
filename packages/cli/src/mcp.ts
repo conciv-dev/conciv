@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {argument, command, description, name, option, route, schema} from '@bomb.sh/router'
 import {concivHome} from '@conciv/home'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
-import {userFailure} from './failure.js'
+import {cliErrors} from './failure.js'
 import {handler} from './router/handler.js'
 import {serveArgv} from './serve-argv.js'
 import {initContributions} from '@conciv/harness/init/registry'
@@ -82,6 +82,6 @@ function settled(
   outcome: {ok: true; note?: string} | {ok: false; message: string},
   data: Record<string, string>,
 ): CliOutcome {
-  if (!outcome.ok) throw userFailure(outcome.message)
+  if (!outcome.ok) throw cliErrors.HUB_REFUSED({message: outcome.message})
   return {report: 'json', data: outcome.note === undefined ? data : {...data, note: outcome.note}}
 }

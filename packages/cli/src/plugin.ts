@@ -3,7 +3,7 @@ import {argument, cli, command, description, name, option, route, schema} from '
 import {makeRpcClient} from '@conciv/client'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {engineOrigin} from './engine-origin.js'
-import {userFailure} from './failure.js'
+import {cliErrors} from './failure.js'
 import {engineAnswer} from './request.js'
 import {handler} from './router/handler.js'
 
@@ -16,7 +16,7 @@ function parsedData(data: string | undefined): unknown {
   try {
     return JSON.parse(data)
   } catch {
-    throw userFailure(`--data is not JSON: ${data}`, {hint: `pass the method's input as JSON, for example --data '{}'`})
+    throw cliErrors.DATA_NOT_JSON({data})
   }
 }
 
@@ -26,7 +26,7 @@ async function runPluginCall(options: PluginCallOptions): Promise<CliOutcome> {
   const call = {rpcId: options.rpcId, method: options.method, ...(input === undefined ? {} : {input})}
   return {
     report: 'json',
-    data: await engineAnswer(engine.origin, makeRpcClient(engine.origin, {token: engine.token}).plugin.call(call)),
+    data: await engineAnswer(engine.origin, makeRpcClient(engine.origin, {token: engine.token}).plugin.invoke(call)),
   }
 }
 

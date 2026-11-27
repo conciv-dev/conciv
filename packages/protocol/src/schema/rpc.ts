@@ -3,6 +3,7 @@ import type {JsonSchema, Schema} from 'effect'
 import type * as Event from './event.js'
 import type * as Location from './location.js'
 import type * as Tool from './tool.js'
+import {engineErrors} from '../errors.js'
 
 export type ErrorMap = Readonly<Record<string, Tool.ValueSchema>> & {
   readonly [Name in `rpc.${string}`]?: never
@@ -53,7 +54,7 @@ export function define<const D extends Definition>(definition: D) {
   const reserved = Object.values(definition.methods)
     .flatMap((method) => Object.keys(method.errors ?? {}))
     .find((name) => name.startsWith('rpc.'))
-  if (reserved) throw new Error(`RPC error names starting with "rpc." are reserved: ${reserved}`)
+  if (reserved) throw engineErrors.RESERVED_RPC_ERROR({name: reserved})
   return definition
 }
 

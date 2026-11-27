@@ -1,5 +1,6 @@
 import {Duration, Effect, FiberHandle, Schedule, Semaphore, Stream, SubscriptionRef} from 'effect'
 import {ORPCError} from '@orpc/client'
+import {catchORPCErrorCode, createEffectClient} from '@orpc/effect'
 import type {MountedSession} from '@conciv/frontend-plugin-api'
 import {initialTerminalRun, transitionTerminal} from './terminal-machine.js'
 import type {LiveTerminal, TerminalEffect, TerminalEvent, TerminalRun} from './terminal-machine.js'
@@ -31,16 +32,12 @@ function restartMessage(cause: unknown): string {
 
 function removePty(session: MountedSession, live: LiveTerminal | null): Effect.Effect<void, unknown> {
   if (!live) return Effect.void
-  return Effect.tryPromise({
-    try: () => session.server.client.experimental.persistentPty.remove({ptyId: live.ptyId}),
-    catch: caught,
-  }).pipe(
-    Effect.asVoid,
-    Effect.catchIf(
-      (cause) => cause instanceof ORPCError && cause.code === 'PTY_NOT_FOUND',
-      () => Effect.void,
-    ),
-  )
+  return createEffectClient(session.server.client.experimental.persistentPty)
+    .remove({ptyId: live.ptyId})
+    .pipe(
+      Effect.asVoid,
+      catchORPCErrorCode('PTY_NOT_FOUND', () => Effect.void),
+    )
 }
 
 export const runTerminal = Effect.fn('terminal.run')(function* (input: TerminalDriverInput) {

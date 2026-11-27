@@ -10,7 +10,6 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
 import {FetchHttpClient, type HttpClient} from 'effect/http'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
-import {SqliteClient} from '@effect/sql-sqlite-node'
 import {
   Agent,
   Bus,
@@ -306,7 +305,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(FSUtil.layer),
     Layer.provideMerge(
       Layer.mergeAll(
-        DatabaseLayer.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
+        DatabaseLayer.configuredClient(input.db),
         NodeFileSystem.layer,
         NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
         input.httpClient ?? FetchHttpClient.layer,

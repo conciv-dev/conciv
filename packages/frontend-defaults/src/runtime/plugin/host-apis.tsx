@@ -334,7 +334,7 @@ export function createHostApis() {
     }),
     desktop: () => ({
       launch: (path, position) =>
-        rpc.plugin.call({rpcId: 'server', method: 'open', input: openInput(path, position)}).then(() => undefined),
+        rpc.plugin.invoke({rpcId: 'server', method: 'open', input: openInput(path, position)}).then(() => undefined),
       reveal: undefined,
       installed: undefined,
       pick: undefined,

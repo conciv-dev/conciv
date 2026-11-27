@@ -3,6 +3,7 @@ import {IncomingMessage, request as httpRequest} from 'node:http'
 import {text} from 'node:stream/consumers'
 import {z} from 'zod'
 import {describe, expect} from 'vitest'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
 import {test} from '../utils/engine-test.js'
 
 describe('http surface', () => {
@@ -32,6 +33,16 @@ describe('http surface', () => {
     expect(foreign.status).toBe(403)
     expect(foreign.headers.get('x-conciv-version')).toBe('9.9.9')
     expect(await foreign.text()).toBe('forbidden origin')
+
+    const rpc = new URL(`${engine.address.apiBase}/rpc/plugin/experimental`)
+    rpc.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, engine.address.token)
+    const unknownPlugin = await fetch(rpc, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({json: {id: 'no-such-plugin'}}),
+    })
+    expect(unknownPlugin.status).toBe(404)
+    expect(await unknownPlugin.json()).toMatchObject({json: {code: 'PLUGIN_NOT_FOUND'}})
 
     for (const path of ['/health', '/api/mcp']) {
       const rebound = httpRequest({

@@ -413,7 +413,7 @@ function rpcFailure(error: unknown): HarnessEngineRpcFailure {
 
 function pluginRpc(engine: Engine): HarnessEngineRpc {
   const call = (rpcId: string, method: string, input?: unknown): Promise<unknown> =>
-    engine.rpc.plugin.call({rpcId, method, input})
+    engine.rpc.plugin.invoke({rpcId, method, input})
   return {
     call,
     failure: (rpcId, method, input) =>

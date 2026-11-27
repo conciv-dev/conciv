@@ -1,14 +1,16 @@
 import {ServerResponse} from 'node:http'
 import {AsyncIteratorClass, ORPCError, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
-import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/server/websocket'
+import {RPCHandler as WebsocketRPCHandler, type WebSocketLike} from '@orpc/server/websocket'
 import type {Context, MiddlewareHandler} from 'hono'
 import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
-import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
+import type {RPCHandlerCodecOptions, StandardHandlerOptions} from '@orpc/server/standard'
+import {EvlogHandlerPlugin, getEvlogLogger, type EvlogLoggerContext} from '@orpc/evlog'
+import type {DrainContext, RequestLogger} from 'evlog'
 import {valid} from 'semver'
 import {z} from 'zod'
 import {serveErrors} from '@conciv/errors'
-import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
+import {ENGINE_ERROR_STATUS, failureText, SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
 import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/types/rpc-types'
 
 const ADAPTER_REFUSED_STATUS = 500
@@ -32,6 +34,10 @@ const ClientVersionSchema = z
   .optional()
   .catch(undefined)
 
+type ServeContext = RpcContext & EvlogLoggerContext
+
+type RpcHandlerOptions = StandardHandlerOptions<ServeContext> & RPCHandlerCodecOptions<ServeContext>
+
 const TRUST_FRAME_PREFIX = JSON.stringify({type: SOCKET_TRUST_FRAME}).slice(0, -1)
 
 export type UpgradeWebSocket = (createEvents: (c: Context) => WSEvents) => MiddlewareHandler
@@ -52,8 +58,6 @@ function rpcConnectionContext(
 ): RpcContext {
   return {origin: new URL(requestUrl).origin, callerOrigin, engineCaller, headers}
 }
-
-export type TraceRpcCall = (path: readonly string[], call: () => Promise<unknown>) => Promise<unknown>
 
 type SocketStreams = {revoked: AbortSignal; replies: Set<Promise<boolean>>; unsent: () => number}
 
@@ -98,13 +102,17 @@ function endedOnRevoke(signal: AbortSignal | undefined, streams: SocketStreams |
   return AbortSignal.any(signal === undefined ? [streams.revoked] : [signal, streams.revoked])
 }
 
-function rpcHandlerOptions(
-  traceCall: TraceRpcCall | undefined,
-  streams?: SocketStreams,
-): StandardRPCHandlerOptions<RpcContext> {
+type RpcCallContext = (logger: RequestLogger | undefined) => Promise<object>
+
+type RpcHandlerSetup = {callContext?: RpcCallContext; drain?: (event: DrainContext) => void}
+
+function rpcHandlerOptions(setup: RpcHandlerSetup, streams?: SocketStreams): RpcHandlerOptions {
+  const {callContext, drain} = setup
   return {
-    rootInterceptors: [
-      (options) =>
+    errorStatusMap: ENGINE_ERROR_STATUS,
+    plugins: drain === undefined ? [] : [new EvlogHandlerPlugin<ServeContext>({drain, logAbort: true})],
+    routingInterceptors: [
+      async (options) =>
         options.next({
           ...options,
           request: {...options.request, signal: endedOnRevoke(options.request.signal, streams)},
@@ -112,11 +120,11 @@ function rpcHandlerOptions(
             ...options.context,
             headers: {...options.context.headers, ...options.request.headers},
             clientVersion: readClientVersion(options.request.headers),
+            ...(await callContext?.(getEvlogLogger(options.context))),
           },
         }),
     ],
     clientInterceptors: [
-      ...(traceCall === undefined ? [] : [tracedCall(traceCall)]),
       (options) => {
         if (options.context.socket?.allows(options.path) === false) {
           throw new ORPCError('UNAUTHORIZED', {message: 'this connection is not trusted'})
@@ -133,12 +141,6 @@ function rpcHandlerOptions(
   }
 }
 
-function tracedCall(
-  traceCall: TraceRpcCall,
-): NonNullable<StandardRPCHandlerOptions<RpcContext>['clientInterceptors']>[number] {
-  return (options) => traceCall(options.path, () => options.next())
-}
-
 function readClientVersion(headers: RpcHeaders): string | undefined {
   const value = headers[CONCIV_VERSION_HEADER]
   return ClientVersionSchema.parse(Array.isArray(value) ? value[0] : value)
@@ -146,9 +148,9 @@ function readClientVersion(headers: RpcHeaders): string | undefined {
 
 export function rpcFetchMiddleware(
   router: AnyRouter,
-  options: {traceCall?: TraceRpcCall; engineCaller?: (c: Context) => boolean} = {},
+  options: RpcHandlerSetup & {engineCaller?: (c: Context) => boolean} = {},
 ): MiddlewareHandler {
-  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall))
+  const handler = new RPCHandler<ServeContext>(router, rpcHandlerOptions(options))
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: RPC_PREFIX,
@@ -197,20 +199,16 @@ function unsentBytes(socket: WSContext<unknown> | null): number {
   return raw.success ? raw.data.bufferedAmount : 0
 }
 
-function peerSocket(held: {socket: WSContext<unknown> | null}): MinimalWebsocket {
-  return {
-    addEventListener: () => {},
-    send: (data: string | ArrayBuffer) => held.socket?.send(data),
-  }
+function peerSocket(held: {socket: WSContext<unknown> | null}): WebSocketLike {
+  return {send: (data) => held.socket?.send(data)}
 }
 
 export function rpcWebsocketRoute(
   router: AnyRouter,
-  options: {
+  options: RpcHandlerSetup & {
     upgrade: UpgradeWebSocket
     onError?: (message: string) => void
     gate?: (c: Context) => RpcSocketGate
-    traceCall?: TraceRpcCall
   },
 ): MiddlewareHandler {
   const route = options.upgrade((c) => {
@@ -221,7 +219,7 @@ export function rpcWebsocketRoute(
       replies: new Set(),
       unsent: () => unsentBytes(held.socket),
     }
-    const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall, streams))
+    const handler = new WebsocketRPCHandler<ServeContext>(router, rpcHandlerOptions(options, streams))
     const gate = options.gate?.(c)
     const connection = rpcConnectionContext(
       c.req.url,
@@ -231,6 +229,11 @@ export function rpcWebsocketRoute(
     )
     const context = gate === undefined ? connection : {...connection, socket: gate.trust}
     const peer = peerSocket(held)
+    const closePeer = (): void => {
+      handler
+        .close(peer)
+        .catch((error: unknown) => options.onError?.(`rpc ws peer close failed: ${failureText(error)}`))
+    }
     return {
       onOpen: (_event, ws) => {
         held.socket = ws
@@ -251,19 +254,23 @@ export function rpcWebsocketRoute(
           return
         }
         const replying = Promise.withResolvers<boolean>()
+        const refuse = (reason: string): void => {
+          replying.resolve(false)
+          options.onError?.(`rpc ws frame rejected: ${reason}`)
+          closePeer()
+          ws.close(1011, 'rpc frame rejected')
+        }
         handler.message(peer, frame, {context: {...context, replied: replying.promise}}).then(
-          () => replying.resolve(ws.readyState === SOCKET_OPEN),
-          (error: unknown) => {
-            replying.resolve(false)
-            options.onError?.(`rpc ws frame rejected: ${error instanceof Error ? error.message : String(error)}`)
-            handler.close(peer)
-            ws.close(1011, 'rpc frame rejected')
+          ({matched}) => {
+            if (!matched) return refuse('not an rpc message')
+            replying.resolve(ws.readyState === SOCKET_OPEN)
           },
+          (error: unknown) => refuse(failureText(error)),
         )
       },
       onClose: () => {
         gate?.close()
-        handler.close(peer)
+        closePeer()
       },
     }
   })

@@ -27,8 +27,10 @@
     "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/effect": "catalog:",
     "@orpc/server": "catalog:",
-    "@tanstack/ai-client": "catalog:"
+    "@tanstack/ai-client": "catalog:",
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",

@@ -13,6 +13,7 @@ import {
 import type {ChatMessage, ToolCallPart} from '@conciv/types/chat-message-types'
 import {chatBusy} from '@conciv/types/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/types/chat-types'
+import {clientErrors} from '../connection/client-errors.js'
 
 export type Chat = UseChatReturn
 
@@ -37,6 +38,7 @@ export type ChatSessionCallbacks = {
   onLifecycle: (lifecycle: RunLifecycle) => void
   onHydrated: (hydration: ChatSessionHydration) => void
   onRunError: () => void
+  onRunEnded: (runId: string | undefined) => void
   onLiveAgain: () => void
   onApprovalAsk: (ask: ApprovalAsk) => void
   onApprovalSettled: (approvalId: string) => void
@@ -66,6 +68,16 @@ export type ChatSession = Omit<Chat, 'stop' | 'error'> & {
   pendingApprovals: Accessor<ApprovalAsk[]>
   readHarness: (messageId: string) => string | undefined
   decide: (approvalId: string, reply: PermissionReply) => Promise<void>
+}
+
+type RunEndWaiter = {runIds: readonly string[]; resolve: () => void}
+
+async function* endingWith<Chunk>(source: AsyncIterable<Chunk>, ended: () => void): AsyncGenerator<Chunk> {
+  try {
+    yield* source
+  } finally {
+    ended()
+  }
 }
 
 function buildAsk({approvalId, toolCallId, toolName, input, permission}: ApprovalAsk): ApprovalAsk {
@@ -166,7 +178,7 @@ function cardStillRunning(messages: readonly ChatMessage[]): boolean {
 }
 
 function asError(value: unknown): Error {
-  return value instanceof Error ? value : new Error(String(value))
+  return value instanceof Error ? value : clientErrors.FAILED({message: String(value)})
 }
 
 export function createChat(options: CreateChatOptions): Chat {
@@ -225,12 +237,19 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       throw failure
     }
   }
+  const runEnds = new Set<RunEndWaiter>()
+  const runEnded = (runId?: string): void => {
+    const waiting = [...runEnds].filter((waiter) => runId === undefined || waiter.runIds.includes(runId))
+    waiting.forEach((waiter) => runEnds.delete(waiter))
+    waiting.forEach((waiter) => waiter.resolve())
+  }
   const connected = options.connect({
     onLifecycle: (lifecycle) => {
       receive({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
       if (isRunPhaseTerminal(lifecycle.phase) && cardStillRunning(chat.messages()))
         void refresh().catch((error: unknown) => options.onError?.(asError(error)))
+      if (isRunPhaseTerminal(lifecycle.phase)) runEnded(lifecycle.runId)
     },
     onHydrated: (hydration) => {
       receive(newerRun(run().source, hydration))
@@ -241,6 +260,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       )
       setServed('harnesses', hydration.messageHarness)
     },
+    onRunEnded: runEnded,
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
@@ -256,8 +276,17 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       }),
   })
   const hydrate = connected.hydrate
+  const joinRun = connected.joinRun
   const connection: ChatSessionConnection = {
     ...connected,
+    send: (messages, data, abortSignal, runContext) =>
+      connected.send(messages, data, abortSignal, runContext).catch((error: unknown) => {
+        runEnded(runContext.runId)
+        throw error
+      }),
+    ...(joinRun === undefined
+      ? {}
+      : {joinRun: (runId, abortSignal) => endingWith(joinRun(runId, abortSignal), () => runEnded(runId))}),
     refresh: (before) => whileHydrating(() => connected.refresh(before)),
     ...(hydrate === undefined
       ? {}
@@ -314,7 +343,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       options.onError?.(error)
     },
   })
-  onCleanup(() => connection.close())
+  onCleanup(() => {
+    connection.close()
+    runEnded()
+  })
   const stopQueued = createMemo(() => {
     const current = run()
     return current.phase === 'stop-queued' && chatBusy(chat) && current.runId === chat.runId()
@@ -345,13 +377,22 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const stopRun = async (): Promise<void> => {
     const runIds = seenRunIds()
     setRunSource(stoppingRun)
+    const ended = chat.isLoading() ? new Promise<void>((resolve) => runEnds.add({runIds, resolve})) : Promise.resolve()
     try {
       await options.stop(runIds)
-    } finally {
+    } catch (error) {
       chat.stop()
+      throw error
+    } finally {
       setRunSource(stoppedRun)
     }
-    await refresh()
+    await ended
+    const stoppedRunId = chat.runId()
+    const shown = shownIds()
+    const window = await latestWindow().finally(() => {
+      if (chat.runId() === stoppedRunId) chat.stop()
+    })
+    showWindow(window, shown)
   }
   const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
   const stop = async (): Promise<void> => {
@@ -371,7 +412,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   })
   const lastLocalRunId = createMemo<string | null>((previous) => chat.runId() ?? previous, null)
   const neverLeft = (before: RunState, errorBefore: Error | undefined): Error | undefined => {
-    if (run() !== before && withdrawn()) return new Error('The message was taken back before the engine had it')
+    if (run() !== before && withdrawn()) return clientErrors.MESSAGE_WITHDRAWN()
     const refused = chat.error()
     if (refused === undefined || refused === errorBefore || answered(chat.messages())) return undefined
     if (refused instanceof StreamReconnectLimitError) return refused

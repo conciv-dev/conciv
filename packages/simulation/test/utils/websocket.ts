@@ -23,7 +23,7 @@ export async function connect(endpoint: string): Promise<RawDriver> {
     websocket.addEventListener('open', () => resolve(), {once: true})
     websocket.addEventListener('error', () => reject(new Error(`Failed to connect to ${endpoint}`)), {once: true})
   })
-  const client: DriveClient = createORPCClient(new RPCLink({websocket}))
+  const client: DriveClient = createORPCClient(new RPCLink({connect: () => websocket}))
   return {websocket, closed, client}
 }
 

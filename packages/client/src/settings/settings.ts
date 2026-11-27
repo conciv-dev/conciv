@@ -3,6 +3,7 @@ import {createDefu} from 'defu'
 import {z} from 'zod'
 import type {EngineClient} from '../connection/rpc-client.js'
 import type {SettingsScope, SettingsSnapshot} from '@conciv/protocol'
+import {clientErrors} from '../connection/client-errors.js'
 
 export type SettingsStore<T extends object = Record<string, unknown>> = {
   get: <K extends keyof T>(key: K) => Promise<T[K] | undefined>
@@ -106,7 +107,7 @@ function mirroredState(
   const follow = async (): Promise<SettingsState> => {
     const stream = await rpc.settings.changes(target, {signal})
     const first = await stream.next()
-    if (first.done === true) throw new Error(`conciv: the ${target.scope} settings of "${target.namespace}" closed`)
+    if (first.done === true) throw clientErrors.SETTINGS_CLOSED({scope: target.scope, namespace: target.namespace})
     accept(first.value)
     drain(stream, accept).then(
       () => forget(),

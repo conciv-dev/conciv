@@ -5,6 +5,7 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, type Context} from 'effect'
 import corePackage from '../../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'
+import {initLoggerLayer, loggerLayer} from 'evlog/effect'
 import type {LogLevel, Retention} from '@conciv/types/config-types'
 import type {LogOptions} from '../../util/observability/host-sink.js'
 import type {Interface as LogLevelInterface} from '../../util/observability/log-level.js'
@@ -59,8 +60,13 @@ export type ObservabilityInput = {
   logRetention?: Retention
 }
 
+const RPC_EVENTS = {silent: true, redact: false, env: {service: 'conciv'}, _suppressDrainWarning: true}
+
 function observabilityLayer(input: ObservabilityInput) {
-  return provideObservability(input).pipe(Layer.provideMerge(machineRoots(input.home, input.fallbackRoots)))
+  return Layer.mergeAll(loggerLayer(), initLoggerLayer(RPC_EVENTS)).pipe(
+    Layer.provideMerge(provideObservability(input)),
+    Layer.provideMerge(machineRoots(input.home, input.fallbackRoots)),
+  )
 }
 
 export type EngineObservability = {

@@ -12,6 +12,7 @@ import {
 } from '@conciv/home'
 import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
+import {context, ROOT_CONTEXT} from '@opentelemetry/api'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
@@ -213,7 +214,7 @@ async function servePort(
   tracer: Tracer | undefined,
 ): Promise<Served & {restoreRecord: ShutdownStep}> {
   const serving = await inSpan(tracer, 'Engine.listen', {}, () =>
-    serveRequestedPort(fetchHandler, request, state.file, runtime),
+    context.with(ROOT_CONTEXT, () => serveRequestedPort(fetchHandler, request, state.file, runtime)),
   )
   try {
     return {...serving, restoreRecord: await writePersistedPort(state.file, {port: serving.port, token: state.token})}

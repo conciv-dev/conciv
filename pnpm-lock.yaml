@@ -16,17 +16,17 @@ catalogs:
       specifier: ^1.8.1
       version: 1.8.1
     '@effect/opentelemetry':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/platform-node':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/sql-sqlite-node':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@effect/vitest':
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     '@excalidraw/excalidraw':
       specifier: ^0.18.1
       version: 0.18.1
@@ -66,6 +66,9 @@ catalogs:
     '@opentelemetry/exporter-trace-otlp-http':
       specifier: 0.219.0
       version: 0.219.0
+    '@opentelemetry/instrumentation':
+      specifier: 0.220.0
+      version: 0.220.0
     '@opentelemetry/resources':
       specifier: 2.8.0
       version: 2.8.0
@@ -85,20 +88,26 @@ catalogs:
       specifier: 3.1.18
       version: 3.1.18
     '@orpc/client':
-      specifier: 1.16.1
-      version: 1.16.1
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
     '@orpc/contract':
-      specifier: 1.16.1
-      version: 1.16.1
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
+    '@orpc/effect':
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
+    '@orpc/evlog':
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
+    '@orpc/opentelemetry':
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
     '@orpc/server':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@orpc/standard-server-peer':
-      specifier: 1.16.1
-      version: 1.16.1
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
     '@orpc/tanstack-query':
-      specifier: 1.16.1
-      version: 1.16.1
+      specifier: 2.0.0-beta.53
+      version: 2.0.0-beta.53
     '@oxlint/plugins':
       specifier: 1.90.0
       version: 1.90.0
@@ -180,6 +189,9 @@ catalogs:
     '@standard-schema/spec':
       specifier: 1.1.0
       version: 1.1.0
+    '@standard-server/peer':
+      specifier: 0.16.0
+      version: 0.16.0
     '@storybook/addon-docs':
       specifier: ^10.6.5
       version: 10.6.5
@@ -400,8 +412,8 @@ catalogs:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
     effect:
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.1.5
+      version: 4.1.5
     env-paths:
       specifier: ^3.0.0
       version: 3.0.0
@@ -1355,7 +1367,7 @@ importers:
         version: file:packages/it(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)
       '@conciv/react':
         specifier: workspace:*
-        version: file:packages/react(@tanstack/start-client-core@1.170.39)(@types/react@19.3.0)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5)
+        version: file:packages/react(@tanstack/start-client-core@1.170.39)(@types/react@19.3.0)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5)
       next:
         specifier: 'catalog:'
         version: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
@@ -1957,10 +1969,10 @@ importers:
         version: 1.170.43(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2067,10 +2079,10 @@ importers:
         version: link:../types
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)
+        version: 4.1.5(effect@4.1.5)
       '@npmcli/arborist':
         specifier: 'catalog:'
         version: 9.4.0
@@ -2088,13 +2100,13 @@ importers:
         version: 1.0.3
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       glob:
         specifier: 'catalog:'
         version: 13.0.5
@@ -2204,13 +2216,13 @@ importers:
         version: link:../types
       '@effect/opentelemetry':
         specifier: 'catalog:'
-        version: 4.1.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.0)
+        version: 4.1.5(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.5)
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)
+        version: 4.1.5(effect@4.1.5)
       '@ff-labs/fff-node':
         specifier: 'catalog:'
         version: 0.10.5
@@ -2229,6 +2241,9 @@ importers:
       '@opentelemetry/exporter-trace-otlp-http':
         specifier: 'catalog:'
         version: 0.219.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation':
+        specifier: 'catalog:'
+        version: 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources':
         specifier: 'catalog:'
         version: 2.8.0(@opentelemetry/api@1.9.1)
@@ -2249,10 +2264,16 @@ importers:
         version: 3.1.18
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
+      '@orpc/opentelemetry':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(@opentelemetry/api@1.9.1)(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@silvia-odwyer/photon-node':
         specifier: 'catalog:'
         version: 0.3.4
@@ -2282,16 +2303,16 @@ importers:
         version: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       fuzzysort:
         specifier: 'catalog:'
         version: 3.1.0
@@ -2306,7 +2327,7 @@ importers:
         version: 5.3.2
       unstorage:
         specifier: 'catalog:'
-        version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1)
+        version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)))(ioredis@5.11.1)
       which:
         specifier: 'catalog:'
         version: 6.0.1
@@ -2316,7 +2337,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../engine-kit
@@ -2334,7 +2355,7 @@ importers:
         version: 3.0.4
       drizzle-kit:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
+        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -2364,10 +2385,10 @@ importers:
         version: link:../types
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2425,7 +2446,7 @@ importers:
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2542,7 +2563,7 @@ importers:
         version: 26.6.6
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2588,7 +2609,7 @@ importers:
         version: link:../vitest-config
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@tanstack/ai-mcp':
         specifier: 'catalog:'
         version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -2603,7 +2624,7 @@ importers:
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       nypm:
         specifier: ^0.6.12
         version: 0.6.12
@@ -2636,22 +2657,25 @@ importers:
         version: link:../types
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@orpc/contract':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer':
+        version: 2.0.0-beta.53
+      '@orpc/effect':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@orpc/tanstack-query':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(@orpc/client@1.16.1(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.107.1)
+        version: 2.0.0-beta.53(@tanstack/query-core@5.107.1)(crossws@0.4.17(srvx@1.0.8))
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@solid-primitives/scheduled':
         specifier: 'catalog:'
         version: 1.5.3(solid-js@1.9.17)
+      '@standard-server/peer':
+        specifier: 'catalog:'
+        version: 0.16.0
       '@tanstack/ai-client':
         specifier: 'catalog:'
         version: 1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -2672,10 +2696,10 @@ importers:
         version: 6.1.7
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2724,7 +2748,7 @@ importers:
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2752,7 +2776,7 @@ importers:
     dependencies:
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
     devDependencies:
       '@internal/tsconfig':
         specifier: workspace:*
@@ -2792,7 +2816,7 @@ importers:
         version: link:../ui-kit-tap
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -2804,13 +2828,13 @@ importers:
         version: 1.1.0
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       fuzzysort:
         specifier: 'catalog:'
         version: 3.1.0
@@ -2889,7 +2913,10 @@ importers:
         version: link:../frontend-app-api
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@solid-primitives/active-element':
         specifier: ^2.1.6
         version: 2.1.6(solid-js@1.9.17)
@@ -2937,13 +2964,13 @@ importers:
         version: 0.6.3
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       fuzzysort:
         specifier: 'catalog:'
         version: 3.1.0
@@ -3058,10 +3085,10 @@ importers:
         version: 3.3.3
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3217,10 +3244,10 @@ importers:
         version: 1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       smol-toml:
         specifier: 'catalog:'
         version: 1.9.1
@@ -3260,13 +3287,13 @@ importers:
         version: link:../types
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+        version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       env-paths:
         specifier: 'catalog:'
         version: 3.0.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3282,7 +3309,7 @@ importers:
         version: 26.6.6
       drizzle-kit:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
+        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -3448,13 +3475,13 @@ importers:
         version: link:../../types
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3470,7 +3497,7 @@ importers:
         version: link:../../frontend-plugin-api
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../../engine-kit
@@ -3566,13 +3593,13 @@ importers:
         version: 0.6.1(react@19.3.1)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       js-beautify:
         specifier: ^2.0.3
         version: 2.0.3
@@ -3594,7 +3621,7 @@ importers:
         version: link:../../backend-test-utils
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/frontend-app-api':
         specifier: workspace:*
         version: link:../../frontend-app-api
@@ -3690,13 +3717,13 @@ importers:
         version: link:../../protocol
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       playwright-core:
         specifier: 'catalog:'
         version: 1.64.1
@@ -3793,13 +3820,13 @@ importers:
         version: link:../../types
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3899,16 +3926,19 @@ importers:
         version: link:../../ui-kit-terminal
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
@@ -3978,16 +4008,16 @@ importers:
         version: link:../../protocol
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4081,10 +4111,10 @@ importers:
         version: 0.1.5(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4154,13 +4184,13 @@ importers:
         version: 2.20.0(preact@11.1.0)(react@19.3.1)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       oxc-parser:
         specifier: 'catalog:'
         version: 0.156.0
@@ -4272,7 +4302,7 @@ importers:
         version: link:../frontend-plugin-api
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -4324,16 +4354,22 @@ importers:
         version: link:../types
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@orpc/contract':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
+      evlog:
+        specifier: 'catalog:'
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4373,7 +4409,7 @@ importers:
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       execa:
         specifier: ^10.2.1
         version: 10.2.1
@@ -4395,10 +4431,10 @@ importers:
     devDependencies:
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4413,7 +4449,7 @@ importers:
         version: 26.6.6
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4434,7 +4470,7 @@ importers:
         version: link:../frontend-plugin-api
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -4502,9 +4538,15 @@ importers:
       '@hono/node-server':
         specifier: 'catalog:'
         version: 2.1.5(hono@4.13.14)
+      '@orpc/evlog':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5))
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      evlog:
+        specifier: 'catalog:'
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -4556,16 +4598,19 @@ importers:
         version: link:../types
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+        version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@orpc/contract':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -4577,7 +4622,10 @@ importers:
         version: 1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
+      evlog:
+        specifier: 'catalog:'
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       ws:
         specifier: 'catalog:'
         version: 8.22.2
@@ -4587,7 +4635,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4638,7 +4686,7 @@ importers:
         version: link:../app
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
     devDependencies:
       '@internal/tsconfig':
         specifier: workspace:*
@@ -4712,7 +4760,7 @@ importers:
         version: 1.47.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       marked:
         specifier: 'catalog:'
         version: 18.1.2
@@ -4804,16 +4852,22 @@ importers:
         version: link:../types
       '@orpc/client':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
       '@orpc/contract':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
+        version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/ai-client':
         specifier: 'catalog:'
         version: 1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.5
     devDependencies:
       '@internal/tsconfig':
         specifier: workspace:*
@@ -4844,10 +4898,10 @@ importers:
         version: 0.2.2
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
     devDependencies:
       '@internal/tsconfig':
         specifier: workspace:*
@@ -4883,7 +4937,7 @@ importers:
         version: 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       effect:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.1.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4974,7 +5028,7 @@ importers:
         version: 1.53.0
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
@@ -5358,13 +5412,13 @@ importers:
         version: link:../types
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/devtools-bundler-core':
         specifier: 'catalog:'
         version: 0.1.3(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)
       evlog:
         specifier: 'catalog:'
-        version: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
@@ -6329,8 +6383,8 @@ packages:
     peerDependencies:
       '@noble/ciphers': ^1.0.0
 
-  '@effect/opentelemetry@4.1.0':
-    resolution: {integrity: sha512-j9bNzQaoQvcnimBFMG0i3piEW20E8HjkXAQHTJN/XqG2e4uJ9zCv53/HCNzD7+ooFn5S4nwQy/BOXeNReMIe+A==}
+  '@effect/opentelemetry@4.1.5':
+    resolution: {integrity: sha512-npD5KIkqIh754Rofno3qdKvbAyaNVfl777fTZkdgtUlZE6VycwCng+49aWK+sGpo4B4wKDSQLsbjAoDf/13Wew==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0 <2.0.0'
@@ -6342,7 +6396,7 @@ packages:
       '@opentelemetry/sdk-trace-node': '>=2.0.0 <3.0.0'
       '@opentelemetry/sdk-trace-web': '>=2.0.0 <3.0.0'
       '@opentelemetry/semantic-conventions': '>=1.33.0 <2.0.0'
-      effect: ^4.1.0
+      effect: ^4.1.5
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -6361,28 +6415,28 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/platform-node-shared@4.1.4':
-    resolution: {integrity: sha512-DWdfphHGOFJNj/mYadgpT3jIm8aRXDcPrQiGXFBH4p2H4XmA7iYMrPsI8NxVgZ7kNX0q1+FGJZJama0tINHRAg==}
+  '@effect/platform-node-shared@4.1.5':
+    resolution: {integrity: sha512-JzlrYe4uKaBFTWihBRXo2pDjkUVB39kQpKdGfXdbp7Co5sKT8hbcjOmdB5pg/WOYESdGTddd3fxD4lwlZELbZQ==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: ^4.1.4
+      effect: ^4.1.5
 
-  '@effect/platform-node@4.1.0':
-    resolution: {integrity: sha512-v+X7moGVF9k5oMVvz0slA+NgtEod+W+oygeI285MDJgSlUCW3JcqElj+cD3rlijFZtpKhC7RLkU1GuCxjGHTpA==}
+  '@effect/platform-node@4.1.5':
+    resolution: {integrity: sha512-tFnRvxF9EKc3oU17sDHj1JeLP+TL/IkaOEl3IUk2EjgMS0x7AWs0ioUXjdNKLb3Z1LdjVfMf/DxsNh9PW5FFAg==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: ^4.1.0
-      redis: '>=5.0.0 <7.0.0'
+      effect: ^4.1.5
+      redis: '>=5.1.0 <7.0.0'
 
-  '@effect/sql-sqlite-node@4.1.0':
-    resolution: {integrity: sha512-Z8PxzlVlfp5JCGYAg9CwehHkvLEwMf/NF7htdDkKy65G4vE78ARkDMUSyeIzZ1zpadMxbbCEUJ2FM9M5/0Nxgg==}
+  '@effect/sql-sqlite-node@4.1.5':
+    resolution: {integrity: sha512-eo+1W3lX/2cT3ATzjqhya/WvnhEByjG7DWfmWSPcENG04jjywV5p0eZ+COr+4nsXTMSoA9H2TdaqYWTnXNM9Qw==}
     peerDependencies:
-      effect: ^4.1.0
+      effect: ^4.1.5
 
-  '@effect/vitest@4.1.0':
-    resolution: {integrity: sha512-+APF69oTYgGj5WCewowk1/udepH74xz4ONyH7d+UfcK0SrF3osiSwsWEyODUpJvWd6MIk5F5PcFJiE4evMuG2A==}
+  '@effect/vitest@4.1.5':
+    resolution: {integrity: sha512-18u1013wkJtSelk1ZYLc/5aUnluTQyDfi2hAemkJW1GQ9qXw4mtPSiSf0AXZPhesmGCvG1Dk2C4JYD2sz+R72w==}
     peerDependencies:
-      effect: ^4.1.0
+      effect: ^4.1.5
       vitest: '>=5.0.0 <6.0.0'
 
   '@electric-sql/pglite@0.3.16':
@@ -7921,6 +7975,15 @@ packages:
     resolution: {integrity: sha512-hAX0pT/73190NLqBPPWSdBVGtbY6VOhWYK3qqHqtXQ1gK7kS2yz4+ivsN07hpJ6I3aeMtKP6J6npsEKOAzuTLA==}
     engines: {node: '>=20.0'}
 
+  '@openapi-spec/downgrader@0.8.0':
+    resolution: {integrity: sha512-QPVfSwd1LkhWrstgJbloRzoaiwyVMw6VwcCyV+ObxFBf8L3MDuPR3vvS0lfcn7r6cYrxsW9PDUh4bD6E9UFHhQ==}
+
+  '@openapi-spec/router@0.8.0':
+    resolution: {integrity: sha512-sNWnn2Nfu44Jym2nUCfRb4o/kUaoJvW/hQa2i/aPzxt7a3H2Uyy/U0GSOaKy2WFfvCWIiBYDTuqZc0i9TcdIOA==}
+
+  '@openapi-spec/types@0.8.0':
+    resolution: {integrity: sha512-MJGUd1VdG/Ty60uYObP20rnFwrObQOJIGKfBjvSKAgDzTmbKT0gzJabCupwuDu47LbphZWaFtGmZHFYv7B4huQ==}
+
   '@opencode-ai/sdk@1.19.5':
     resolution: {integrity: sha512-+bqu8gHiwmq96T9q5G34uLNHWCInIMsrE3hytCNHj1cVaxjY0AGJyNCT1rkeeZwgPU7A5TMTNwN+0XxCO2vqDg==}
 
@@ -8050,62 +8113,63 @@ packages:
     resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
     engines: {node: '>= 20.0.0'}
 
-  '@orpc/client@1.16.1':
-    resolution: {integrity: sha512-y2aEfZqD6QKAmTObFbzG0yCiMC1iP3PmCy8t+8y/u3P9iaIcB8Ur09OZdVSg+sbTWiqXfbm5smCukDaN/nmwBw==}
+  '@orpc/client@2.0.0-beta.53':
+    resolution: {integrity: sha512-JFBjBL/mXJcNPhZ7kxQO3rSIHpUoYL+II5GxfuumWr+tP2MfWQ4UEe0rploz1tu0tkEVqrWFST4O7i7tpVrOsw==}
 
-  '@orpc/contract@1.16.1':
-    resolution: {integrity: sha512-DXpRqxZxDPQ/ijMQi/PNdSskzP6CFBWJF7JC/DrBC1GeSWhSq6Ib5bS6iAq23ZwZuCaRyq7ApH6cxlIfcEJDWA==}
+  '@orpc/contract@2.0.0-beta.53':
+    resolution: {integrity: sha512-bmd93OBmOeHY/f8djDLMRazSC9NAKm+1BDb0itDCZz2GEzvZ4o64kAXjgsun7+jmpUNuynsCqhlJWd3Ga6LVOA==}
 
-  '@orpc/interop@1.16.1':
-    resolution: {integrity: sha512-wj+8oB/Mx/cVKyrnHOrU+cwYGPVG/0TuK3RGJH49TxHDtBcnvnIf85E+aQO6GYI9coHeyAs0uZxFVO56qZrVlw==}
+  '@orpc/effect@2.0.0-beta.53':
+    resolution: {integrity: sha512-5QWbBrt5F1dlT7ducBFKypsI3EJv3JBpbM7izBFQoJuuSFCWMW86obxkqyHS0UnnW5ig9EdJ5mDgEzCOLZrblg==}
+    peerDependencies:
+      effect: '>=4.0.0'
 
-  '@orpc/server@1.16.1':
-    resolution: {integrity: sha512-Jnfu1a8eMsovjSnROZQKQ4UVPsE/P6ZjMRo85K0hBvLrqZceQOct2HHSiTnVuuj0AFQosHKmK+QR4UG6DX1SoA==}
+  '@orpc/evlog@2.0.0-beta.53':
+    resolution: {integrity: sha512-yDrxVMHqbaY6ON/39S1bLCxRq5vv7tQKKrEFz2WpvnRjHW+QA2t+4C5c7uN8z7wFFepu4GKXqjSyfcW0bTi1iA==}
+    peerDependencies:
+      evlog: '>=2.18.1'
+
+  '@orpc/json-schema@2.0.0-beta.53':
+    resolution: {integrity: sha512-sSTPZI9KujHECtqCQoDRTK3/LFtnQs3Lf6pH2oeGBQ4AT2ElF6QPgoO+xuvDZZdPL55p9iNMLjm4vy7nr1mKqg==}
+
+  '@orpc/openapi@2.0.0-beta.53':
+    resolution: {integrity: sha512-jreHQkTedxIjtz6jdT3qpyYT1WBJ3OWb8896zjpVcr9JO8frCdvGADV6ANre6vDFAv3eZbLpGBQw+8jBPn0GmA==}
+    peerDependencies:
+      '@scalar/api-reference': '>=1.57.2'
+      '@types/swagger-ui': '>=5.32.0'
+      swagger-ui: '>=5.32.6'
+    peerDependenciesMeta:
+      '@scalar/api-reference':
+        optional: true
+      '@types/swagger-ui':
+        optional: true
+      swagger-ui:
+        optional: true
+
+  '@orpc/opentelemetry@2.0.0-beta.53':
+    resolution: {integrity: sha512-gwE0Iw/yoTArUm6EJhrKDT3Nn/a+rKldBYaN4je91Q6+MhBTxWHs4w0o0AK/cUIeYluWaEOCgN6re6x6PLCgOA==}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.9.0'
+      '@opentelemetry/instrumentation': '>=0.203.0'
+
+  '@orpc/server@2.0.0-beta.53':
+    resolution: {integrity: sha512-CZfbgrAYNvcpbF31iX0D65hB/GClmyYVKV0zKYhUMCnUcSDf/ldpmok1lwor8i3rP0VfLpOkppTDxN5dkcJ2Ag==}
     peerDependencies:
       crossws: '>=0.3.4'
-      ws: '>=8.18.1'
+      fastify: '>=5.6.1'
     peerDependenciesMeta:
       crossws:
         optional: true
-      ws:
-        optional: true
-
-  '@orpc/shared@1.16.1':
-    resolution: {integrity: sha512-O8WIhgMXuQXMLVbPEmfeyJgXfNGPGLFRp/2vHFmoYgXlxgTZtMmybi8OWn17tt2uT7xQt4z/vWHpn1yD7EQ65g==}
-    peerDependencies:
-      '@opentelemetry/api': '>=1.9.0'
-    peerDependenciesMeta:
-      '@opentelemetry/api':
-        optional: true
-
-  '@orpc/standard-server-aws-lambda@1.16.1':
-    resolution: {integrity: sha512-XRP2KX8FKHZqUxf3fRbUvw6WzuFBnWvj08EpiX+5P861iOHOlqycIUTK4D2C4BAkxBx2wUYmmw7wii0RMIUq7A==}
-
-  '@orpc/standard-server-fastify@1.16.1':
-    resolution: {integrity: sha512-EU+XO6H7YP9Q39ldPNrMSIb+Fvemtkp+O0WwBAmuUGuoP+thnZkg7RoLm61bOfsmFt+RtIskMy9XeU8BvB29iA==}
-    peerDependencies:
-      fastify: '>=5.6.1'
-    peerDependenciesMeta:
       fastify:
         optional: true
 
-  '@orpc/standard-server-fetch@1.16.1':
-    resolution: {integrity: sha512-UoIVjrCbQ3R8+W6fArVpX18A66wTdty6W2L/aFegCsGDd3vq7rlCeVIo3R3hRDY0lV9iY392kAHe/9ul/ProOg==}
+  '@orpc/shared@2.0.0-beta.53':
+    resolution: {integrity: sha512-Xyb5sWQnxVA4GysW03fhjM7y3NbfdlDAkfhWnQUp033FZBDOkQA5Zz1QLjz+JCR4RgMwxt0h4UB28qpOLF6FEg==}
 
-  '@orpc/standard-server-node@1.16.1':
-    resolution: {integrity: sha512-0HnD8E4s6YBT5nAauevmntj5E3yrcW/LbloVLD3lWRY/6dWNiVGKJGtsBLDlR416/eOLjljW8CvAnCOaP6Llug==}
-
-  '@orpc/standard-server-peer@1.16.1':
-    resolution: {integrity: sha512-AL9g2RxdM17APwkHbgqmqYv/9IIkuanpNSVuXw4+R27zQWx+4O2aq7ovfpmgGy3TJnoU5ZpZYh8ZBKt2fJPnUg==}
-
-  '@orpc/standard-server@1.16.1':
-    resolution: {integrity: sha512-f8Ejzey83F/EXA1kugCyuPcE0TFJyUtxopEZ3vr/aqAOFdr45tIFlQl/v1VkpZAKmt3RP9KiAZGyesv5rhJltA==}
-
-  '@orpc/tanstack-query@1.16.1':
-    resolution: {integrity: sha512-fMl+DVGqCwxqg4U1WBt6EtdVNhZ4ODQlNBaTSiCCIBcAaePJZD1pBDTJ1epMJ67zG62KHEH10frKuLIwBMngjQ==}
+  '@orpc/tanstack-query@2.0.0-beta.53':
+    resolution: {integrity: sha512-F0+HXG24l5885pDXOKZrjwCjV2ylPI3eTB1Xcq0FrK+KFoLmdMMJhdlRpDy1UzdMLg+SqxPkXbkqpwu2MTtbkA==}
     peerDependencies:
-      '@orpc/client': 1.16.1
-      '@tanstack/query-core': '>=5.80.2'
+      '@tanstack/query-core': '>=5.105.0'
 
   '@oslojs/encoding@1.1.0':
     resolution: {integrity: sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ==}
@@ -11045,6 +11109,32 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@standard-server/aws-lambda@0.16.0':
+    resolution: {integrity: sha512-UDrPHorUJbU3HkT35OCRnacJoX0YDtk0DYY6WegmZSZ6RP2X/En2OYymnYpDlVj6GM9jpWzDq+naarnoqj85KQ==}
+
+  '@standard-server/core@0.16.0':
+    resolution: {integrity: sha512-5jETsZoqjSuVZh2vV5zfQzcAsl8+6qFZK4tMngk0lm/1u3o2Az36GOjxF24z5grVxrnxSjsLrF+hc9+DwxmwAg==}
+
+  '@standard-server/fastify@0.16.0':
+    resolution: {integrity: sha512-bRzghigLkz8AqcssNHfoW8AYtzoZFiNCZfeD7cLxgclV9obj69NiyutSrekpiyHveLG3Mt+TaJK/h/NQ7PJF7Q==}
+    peerDependencies:
+      fastify: '>=5.6.1'
+    peerDependenciesMeta:
+      fastify:
+        optional: true
+
+  '@standard-server/fetch@0.16.0':
+    resolution: {integrity: sha512-oacHxCfyYsc1ooPwvaSRXSivGjm4xVuHXBN03Q1z9uVKuX583FSqmKAaRsh4VjYzIwMep8Ng8mBTZ8xQ7YusQQ==}
+
+  '@standard-server/node@0.16.0':
+    resolution: {integrity: sha512-ljI9z+3DZSUR3FcJx5w7aEA3rNroDsf8lFCV3MgG5I4Lh+ZfOiHz9/dxeGvxrlH2h+ZXSXv7Co69J5FHNre6SQ==}
+
+  '@standard-server/peer@0.16.0':
+    resolution: {integrity: sha512-EGUuLbTpa4XvRRqoncpuv09q1t02TMplejN8qGEAVvm+AmdjjAfZz5NqLifKcw+PCwxnoBVb/HOKKDDbOCfN1w==}
+
+  '@standard-server/shared@0.16.0':
+    resolution: {integrity: sha512-biBTEcL1dbAOW8ou5DorzWNPmMZyXmu9CpxHd724RbrKvqo91fpzrJrS8QoyGUIr7hbgR8xHqejL6GYM6za6Dw==}
 
   '@storybook/addon-a11y@10.6.5':
     resolution: {integrity: sha512-7dEH3OHKdE+0zakqEy50KtfhPORIm1xnhWeehyROO1Ct7Rx9s7cYcx6edUZvh0tCuX5VhDnDmkvQV+dbrPDmCA==}
@@ -14706,8 +14796,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.1.0:
-    resolution: {integrity: sha512-lGx2MJJyrXA8RZb2UpQ/0Nkb5Utaimby7oD92+18noBxLPE85IFOvptdzau8dvcxAOwfwHo9iqapbKeFzqQM/Q==}
+  effect@4.1.5:
+    resolution: {integrity: sha512-xyR20KhQI0vg2gD8ILUSQRTTESEYJ0JKdP+QD8J37xbwPTqXRxFM/l0+vUVD9fuSvoYruoTqyt33C4FZv1s4TQ==}
 
   electron-to-chromium@1.5.466:
     resolution: {integrity: sha512-WkgFvScwZjvCPupYGfQr5qlKCv/Tu+GYELGMCGcoBOQbNb6nx/TqGwJyLMwcNAAy2kKJF2agjM7KZKest538JA==}
@@ -17317,9 +17407,6 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openapi-types@12.1.3:
-    resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
-
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
@@ -17814,10 +17901,6 @@ packages:
   quickjs-emscripten@0.31.0:
     resolution: {integrity: sha512-K7Yt78aRPLjPcqv3fIuLW1jW3pvwO21B9pmFOolsjM/57ZhdVXBr51GqJpalgBlkPu9foAvhEAuuQPnvIGvLvQ==}
     engines: {node: '>=16.0.0'}
-
-  radash@12.1.1:
-    resolution: {integrity: sha512-h36JMxKRqrAxVD8201FrCpyeNuUY9Y5zZwujr20fFO77tpUtGa6EZzfKw/3WaiBX95fq7+MpsuMLNdSnORAwSA==}
-    engines: {node: '>=14.18.0'}
 
   radix-ui@1.8.1:
     resolution: {integrity: sha512-HPfpVGizO9xANlsFSauruLhRe/3+iOt3vPX0MXYle/UQi3gorQrSYtBcdiv0BZYewcl2rvL59qrIuLFMGAmUrw==}
@@ -18906,6 +18989,10 @@ packages:
     resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
     engines: {node: '>=16'}
 
+  type-fest@5.10.0:
+    resolution: {integrity: sha512-NoSdpq/WEiAg5sjmBkmV/hfxv6HJH4NqPNrqjtSO5CwRmpsDfaf4begxW34KdJykH/l1yHtwBWQkCRdoXO8mPA==}
+    engines: {node: '>=20'}
+
   type-fest@5.8.0:
     resolution: {integrity: sha512-YGYEVz3Fm5iy/AybuA0oyNFq7H4CgQNfRp/qfe8nurE1kuCeNm3/vfm9X4Mtl+qLyaKJUh5xrFZwogr41SMjYA==}
     engines: {node: '>=20'}
@@ -18987,6 +19074,10 @@ packages:
 
   undici@8.12.3:
     resolution: {integrity: sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==}
+    engines: {node: '>=22.19.0'}
+
+  undici@8.13.1:
+    resolution: {integrity: sha512-Kt7EaPjh0s93lJH/PmW3d5rhkcpUa6fS3jqZ7+YGxNd9L7Xy/i827xe4C2uhhq+pJebM4tQOl5AgHmW11G5Skg==}
     engines: {node: '>=22.19.0'}
 
   unenv@2.0.0-rc.24:
@@ -19554,6 +19645,18 @@ packages:
 
   ws@8.22.2:
     resolution: {integrity: sha512-/rEZ2ejown2N5gxVTHUu9bVVC7ttu0/Tgzf5hbTOixR3Fs7mbbXgn2DbdbcKgJOmpQMtrIUWivtYuVMnp/W/yA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -20510,11 +20613,11 @@ snapshots:
       next: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
       vite: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
-  '@conciv/react@file:packages/react(@tanstack/start-client-core@1.170.39)(@types/react@19.3.0)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5)':
+  '@conciv/react@file:packages/react(@tanstack/start-client-core@1.170.39)(@types/react@19.3.0)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5)':
     dependencies:
       '@conciv/app': link:packages/app
       '@conciv/frontend-plugin-api': link:packages/frontend-plugin-api
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+      evlog: 2.37.1(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       solid-js: 1.9.17
@@ -20687,10 +20790,10 @@ snapshots:
     dependencies:
       '@noble/ciphers': 1.3.0
 
-  '@effect/opentelemetry@4.1.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.0)':
+  '@effect/opentelemetry@4.1.5(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.1.5)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.43.0
-      effect: 4.1.0
+      effect: 4.1.5
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.219.0
@@ -20700,32 +20803,32 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-node': 2.8.0(@opentelemetry/api@1.9.1)
 
-  '@effect/platform-node-shared@4.1.4(effect@4.1.0)':
+  '@effect/platform-node-shared@4.1.5(effect@4.1.5)':
     dependencies:
       '@types/ws': 8.18.2
-      effect: 4.1.0
-      ws: 8.22.2
+      effect: 4.1.5
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))':
+  '@effect/platform-node@4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@effect/platform-node-shared': 4.1.4(effect@4.1.0)
-      effect: 4.1.0
+      '@effect/platform-node-shared': 4.1.5(effect@4.1.5)
+      effect: 4.1.5
       redis: 6.3.1(@opentelemetry/api@1.9.1)
-      undici: 8.12.3
+      undici: 8.13.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-sqlite-node@4.1.0(effect@4.1.0)':
+  '@effect/sql-sqlite-node@4.1.5(effect@4.1.5)':
     dependencies:
-      effect: 4.1.0
+      effect: 4.1.5
 
-  '@effect/vitest@4.1.0(effect@4.1.0)(vitest@5.1.0)':
+  '@effect/vitest@4.1.5(effect@4.1.5)(vitest@5.1.0)':
     dependencies:
-      effect: 4.1.0
+      effect: 4.1.5
       vitest: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   '@electric-sql/pglite@0.3.16':
@@ -21649,7 +21752,7 @@ snapshots:
   '@libsql/isomorphic-ws@0.1.5':
     dependencies:
       '@types/ws': 8.18.2
-      ws: 8.22.2
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -22204,6 +22307,14 @@ snapshots:
 
   '@oozcitak/util@10.0.0': {}
 
+  '@openapi-spec/downgrader@0.8.0':
+    dependencies:
+      '@openapi-spec/types': 0.8.0
+
+  '@openapi-spec/router@0.8.0': {}
+
+  '@openapi-spec/types@0.8.0': {}
+
   '@opencode-ai/sdk@1.19.5':
     dependencies:
       cross-spawn: 7.0.6
@@ -22215,7 +22326,6 @@ snapshots:
   '@opentelemetry/api-logs@0.220.0':
     dependencies:
       '@opentelemetry/api': 1.9.1
-    optional: true
 
   '@opentelemetry/api@1.9.1': {}
 
@@ -22256,7 +22366,6 @@ snapshots:
       require-in-the-middle: 8.0.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@opentelemetry/otlp-exporter-base@0.219.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -22344,105 +22453,109 @@ snapshots:
 
   '@orama/orama@3.1.18': {}
 
-  '@orpc/client@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/client@2.0.0-beta.53':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/peer': 0.16.0
 
-  '@orpc/contract@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/contract@2.0.0-beta.53':
     dependencies:
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/shared': 2.0.0-beta.53
       '@standard-schema/spec': 1.1.0
-      openapi-types: 12.1.3
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
 
-  '@orpc/interop@1.16.1': {}
-
-  '@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)':
+  '@orpc/effect@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)':
     dependencies:
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/interop': 1.16.1
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-aws-lambda': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fastify': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
-      cookie: 1.1.1
-    optionalDependencies:
-      crossws: 0.4.17(srvx@1.0.8)
-      ws: 8.22.2
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/json-schema': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      effect: 4.1.5
     transitivePeerDependencies:
-      - '@opentelemetry/api'
+      - crossws
       - fastify
 
-  '@orpc/shared@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/evlog@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5))':
     dependencies:
-      radash: 12.1.1
-      type-fest: 5.8.0
-    optionalDependencies:
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/core': 0.16.0
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+    transitivePeerDependencies:
+      - crossws
+      - fastify
+
+  '@orpc/json-schema@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))':
+    dependencies:
+      '@openapi-spec/types': 0.8.0
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-schema/spec': 1.1.0
+    transitivePeerDependencies:
+      - crossws
+      - fastify
+
+  '@orpc/openapi@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))':
+    dependencies:
+      '@openapi-spec/downgrader': 0.8.0
+      '@openapi-spec/router': 0.8.0
+      '@openapi-spec/types': 0.8.0
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/json-schema': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+    transitivePeerDependencies:
+      - crossws
+      - fastify
+
+  '@orpc/opentelemetry@2.0.0-beta.53(@opentelemetry/api@1.9.1)(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))':
+    dependencies:
       '@opentelemetry/api': 1.9.1
+      '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 2.0.0-beta.53
 
-  '@orpc/standard-server-aws-lambda@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/aws-lambda': 0.16.0
+      '@standard-server/core': 0.16.0
+      '@standard-server/fastify': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/node': 0.16.0
+      '@standard-server/peer': 0.16.0
+      cookie: 2.0.1
+    optionalDependencies:
+      crossws: 0.4.17(srvx@1.0.8)
 
-  '@orpc/standard-server-fastify@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/shared@2.0.0-beta.53':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
+      '@standard-server/shared': 0.16.0
+      type-fest: 5.10.0
 
-  '@orpc/standard-server-fetch@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/tanstack-query@2.0.0-beta.53(@tanstack/query-core@5.107.1)(crossws@0.4.17(srvx@1.0.8))':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/standard-server-node@1.16.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/standard-server-peer@1.16.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/standard-server@1.16.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/tanstack-query@1.16.1(@opentelemetry/api@1.9.1)(@orpc/client@1.16.1(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.107.1)':
-    dependencies:
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/openapi': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
       '@tanstack/query-core': 5.107.1
     transitivePeerDependencies:
-      - '@opentelemetry/api'
+      - '@scalar/api-reference'
+      - '@types/swagger-ui'
+      - crossws
+      - fastify
+      - swagger-ui
 
   '@oslojs/encoding@1.1.0': {}
 
@@ -24802,6 +24915,40 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@standard-server/aws-lambda@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/node': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/core@0.16.0':
+    dependencies:
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/fastify@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/node': 0.16.0
+
+  '@standard-server/fetch@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/node@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/peer@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/shared@0.16.0': {}
+
   '@storybook/addon-a11y@10.6.5(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))':
     dependencies:
       '@storybook/global': 5.0.0
@@ -26806,7 +26953,7 @@ snapshots:
       sirv: 3.0.2
       tinyrainbow: 3.2.0
       vitest: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-      ws: 8.22.2
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - msw
@@ -28323,8 +28470,7 @@ snapshots:
 
   cjs-module-lexer@1.4.3: {}
 
-  cjs-module-lexer@2.2.0:
-    optional: true
+  cjs-module-lexer@2.2.0: {}
 
   class-variance-authority@0.7.1:
     dependencies:
@@ -28783,11 +28929,11 @@ snapshots:
       '@libsql/client': 0.18.0
       drizzle-orm: 0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)
 
-  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)):
+  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.18.0
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
     optional: true
 
   debounce-fn@4.0.0:
@@ -28947,9 +29093,9 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)):
+  drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)):
     optionalDependencies:
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
 
   drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1):
     optionalDependencies:
@@ -28958,13 +29104,13 @@ snapshots:
       '@opentelemetry/api': 1.9.1
     optional: true
 
-  drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7):
+  drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7):
     optionalDependencies:
-      '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
+      '@effect/sql-sqlite-node': 4.1.5(effect@4.1.5)
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.18.0
       '@opentelemetry/api': 1.9.1
-      effect: 4.1.0
+      effect: 4.1.5
       zod: 4.6.7
 
   dset@3.1.4: {}
@@ -28999,7 +29145,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.1.0: {}
+  effect@4.1.5: {}
 
   electron-to-chromium@1.5.466: {}
 
@@ -29502,21 +29648,32 @@ snapshots:
     dependencies:
       eventsource-parser: 3.1.0
 
-  evlog@2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(effect@4.1.0)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5):
+  evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(hono@4.13.14)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5):
     optionalDependencies:
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/start-client-core': 1.170.39
-      effect: 4.1.0
+      effect: 4.1.5
       h3: 1.15.11
       hono: 4.13.14
       ofetch: 1.5.1
       react: 19.3.1
       vite: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
-  evlog@2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/start-client-core@1.170.39)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5):
+  evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5):
     optionalDependencies:
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/start-client-core': 1.170.39
+      effect: 4.1.5
+      h3: 1.15.11
+      next: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
+      ofetch: 1.5.1
+      react: 19.3.1
+      vite: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+
+  evlog@2.37.1(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5):
+    optionalDependencies:
+      '@tanstack/start-client-core': 1.170.39
+      effect: 4.1.5
       h3: 1.15.11
       next: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
       ofetch: 1.5.1
@@ -30104,7 +30261,7 @@ snapshots:
       buffer-image-size: 0.6.4
       entities: 7.0.1
       whatwg-mimetype: 3.0.0
-      ws: 8.22.2
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -30378,7 +30535,6 @@ snapshots:
       cjs-module-lexer: 2.2.0
       es-module-lexer: 2.3.2
       module-details-from-path: 1.0.4
-    optional: true
 
   import-meta-resolve@4.2.0: {}
 
@@ -31726,8 +31882,7 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.4
 
-  module-details-from-path@1.0.4:
-    optional: true
+  module-details-from-path@1.0.4: {}
 
   motion-dom@14.13.0:
     dependencies:
@@ -32179,8 +32334,6 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
-
-  openapi-types@12.1.3: {}
 
   optionator@0.9.4:
     dependencies:
@@ -32880,8 +33033,6 @@ snapshots:
       '@jitl/quickjs-wasmfile-release-sync': 0.31.0
       quickjs-emscripten-core: 0.31.0
 
-  radash@12.1.1: {}
-
   radix-ui@1.8.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@radix-ui/primitive': 1.2.0
@@ -33218,7 +33369,6 @@ snapshots:
       module-details-from-path: 1.0.4
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   resolve-from@5.0.0: {}
 
@@ -34367,6 +34517,10 @@ snapshots:
 
   type-fest@4.41.0: {}
 
+  type-fest@5.10.0:
+    dependencies:
+      tagged-tag: 1.0.0
+
   type-fest@5.8.0:
     dependencies:
       tagged-tag: 1.0.0
@@ -34488,6 +34642,8 @@ snapshots:
   undici@7.30.1: {}
 
   undici@8.12.3: {}
+
+  undici@8.13.1: {}
 
   unenv@2.0.0-rc.24:
     dependencies:
@@ -34706,7 +34862,7 @@ snapshots:
       db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1))
       ioredis: 5.11.1
 
-  unstorage@1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1):
+  unstorage@1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)))(ioredis@5.11.1):
     dependencies:
       anymatch: 3.1.3
       chokidar: 5.0.0
@@ -34718,7 +34874,7 @@ snapshots:
       ufo: 1.6.4
     optionalDependencies:
       '@netlify/blobs': 10.7.9
-      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
+      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
       ioredis: 5.11.1
 
   untun@0.1.3:
@@ -35133,6 +35289,8 @@ snapshots:
   ws@8.22.0: {}
 
   ws@8.22.2: {}
+
+  ws@8.23.0: {}
 
   wsl-utils@0.1.0:
     dependencies:
