@@ -3,10 +3,10 @@ title: opencode
 description: "Connect opencode to conciv, and what conciv runs when it is the session's agent."
 ---
 
-[opencode](https://opencode.ai) connects to conciv as an MCP server, and chats in the panel with the models
+[opencode](https://opencode.ai) connects to conciv as an MCP server. In the panel it chats with the models
 opencode can use.
 
-## Basic
+## Connect opencode
 
 Run this once, in any folder:
 
@@ -46,11 +46,11 @@ show in the session list.
 npx @conciv/cli mcp disconnect opencode
 ```
 
-This stops conciv answering opencode. The `conciv-hub` entry stays in `opencode.json`, and conciv
+This stops conciv answering opencode. The `conciv-hub` entry stays in `opencode.json`. conciv
 refuses it until you connect again.
 
 <Accordions type="single">
-  <Accordion title="opencode asked for permission, and no card showed?">
+  <Accordion title="opencode asks for permission and no card shows">
     opencode asks in its own way, and those asks do not reach conciv yet. No Permission card shows in the chat.
   </Accordion>
 </Accordions>
