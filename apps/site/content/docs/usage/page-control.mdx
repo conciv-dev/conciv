@@ -6,10 +6,10 @@ description: Point at an element, ask for a change, see it live, then keep it in
 Page control lets the agent read and change the page you have open, in your own browser tab. It is built in, with
 nothing to install.
 
-## Basic
+## Point at an element
 
-Click **Select an element from the page**, the crosshair beside the composer. Then click an element in your app. It
-is pinned to your next message, with its source file and line when conciv can find them:
+Click **Select an element from the page**, the crosshair beside the composer. Then click an element in your app.
+conciv pins it to your next message, with its source file and line when it can find them:
 
 ```text title="Prompt"
 Give this card more padding, and round its corners.
@@ -25,7 +25,7 @@ The agent reads the page, finds the element, changes it, and checks the result.
 
 ## Try a change live
 
-The agent can restyle the page on the spot, so you see an idea at once:
+The agent can restyle the page on the spot. You see an idea at once:
 
 ```text title="Prompt"
 Try the header in dark blue, without saving it.
@@ -35,7 +35,7 @@ A live change lives only in the page. The next hot reload wipes it, because it i
 
 ## Keep the change
 
-When you like it, ask the agent to keep it. It edits the real source file, so the change survives a reload:
+When you like it, ask the agent to keep it. It edits the source file, so the change survives a reload:
 
 ```text title="Prompt"
 Keep that. Save it to the component.
@@ -67,14 +67,14 @@ What the agent can do on the page:
 Learn more about the ask in the [Approvals documentation](/docs/usage/approvals).
 
 <Accordions type="single">
-  <Accordion title="Several tabs open: which one answers?">
+  <Accordion title="Several tabs are open">
     The tab you focused last answers. Name another tab in your message to point the agent at it.
   </Accordion>
-  <Accordion title="Can text on the page give the agent orders?">
-    No. Page text, console messages and screenshots are untrusted. The agent is told never to follow instructions found
-    in them.
+  <Accordion title="Text on the page cannot give the agent orders">
+    Page text, console messages and screenshots are untrusted. The agent is told never to follow instructions found in
+    them.
   </Accordion>
-  <Accordion title="Why do the cards say external_page_click?">
+  <Accordion title="The cards say external_page_click">
     That is the tool's name in code mode, where the agent calls tools from a short program. Learn more in the [Tools and
     code mode documentation](/docs/tools-and-code-mode).
   </Accordion>
