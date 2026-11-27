@@ -14,8 +14,8 @@ Every command accepts `--help` for its flags, for example `npx @conciv/cli auth 
 commands and flags is at the [end of the page](#all-commands).
 
 <Callout type="info" title="Bare conciv is for the agent">
-  The agents conciv starts have `conciv` on their `PATH`, from `.conciv/bin`. Your own shell does not, so you type
-  `npx @conciv/cli` instead.
+  The agents conciv starts have `conciv` on their `PATH`, from `.conciv/bin`. Your own shell does not, so you type `npx
+  @conciv/cli` instead.
 </Callout>
 
 `tools`, `plugin`, `auth` and `mcp connect`, `disconnect` and `list` print one JSON document:
@@ -149,8 +149,8 @@ too.
 <Accordions>
   <Accordion title="How does tools find my dev server?">
     It reads `CONCIV_PORT` first. Then it looks for `.conciv/server.json` in this folder or a parent. Then it takes the
-    most recently started engine on this machine, and last it tries 5173. With no engine running, `tools` prints the
-    "No conciv dev server" error, and so does its `--help`.
+    most recently started engine on this machine, and last it tries 5173. With no engine running, `tools` prints the "No
+    conciv dev server" error, and so does its `--help`.
   </Accordion>
 </Accordions>
 
