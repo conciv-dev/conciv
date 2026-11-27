@@ -71,9 +71,9 @@ describe.concurrent('the vite dev server', () => {
     started.push(agent)
     expect(adapterFiles(project)).toHaveLength(3)
     const stored = (text: string) => browser.rpc.logs.query({text, source: 'engine', limit: 10})
-    expect((await stored('watcher started')).events).toContainEqual(
-      expect.objectContaining({level: 'info', message: 'watcher started'}),
-    )
+    await expect
+      .poll(async () => (await stored('watcher started')).events)
+      .toContainEqual(expect.objectContaining({level: 'info', message: 'watcher started'}))
     expect((await stored('the engine started')).events).toContainEqual(
       expect.objectContaining({level: 'info', message: 'conciv: the engine started'}),
     )
