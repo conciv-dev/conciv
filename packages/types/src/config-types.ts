@@ -122,7 +122,9 @@ export const ConcivConfigSchema = z.object({
   port: z
     .number()
     .optional()
-    .describe('The engine port. Default: the port the engine used last time in this project, or a free one.'),
+    .describe(
+      'The engine port. Default: the port the engine used last time in this project. Else, on Vite, a free port; on Next.js, webpack and Rspack, one of 1000 ports from 24170 up, picked from the project folder.',
+    ),
   devEndpointDir: z
     .string()
     .optional()
