@@ -40,7 +40,7 @@ importers:
     dependencies:
       '@conciv/it':
         specifier: file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-it-0.0.22.tgz
-        version: file:../tarballs/conciv-it-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
+        version: file:../tarballs/conciv-it-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@vitejs/plugin-react':
         specifier: 6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
@@ -395,8 +395,8 @@ packages:
       vite:
         optional: true
 
-  '@effect/opentelemetry@4.1.0':
-    resolution: {integrity: sha512-j9bNzQaoQvcnimBFMG0i3piEW20E8HjkXAQHTJN/XqG2e4uJ9zCv53/HCNzD7+ooFn5S4nwQy/BOXeNReMIe+A==}
+  '@effect/opentelemetry@4.1.5':
+    resolution: {integrity: sha512-npD5KIkqIh754Rofno3qdKvbAyaNVfl777fTZkdgtUlZE6VycwCng+49aWK+sGpo4B4wKDSQLsbjAoDf/13Wew==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0 <2.0.0'
@@ -408,7 +408,7 @@ packages:
       '@opentelemetry/sdk-trace-node': '>=2.0.0 <3.0.0'
       '@opentelemetry/sdk-trace-web': '>=2.0.0 <3.0.0'
       '@opentelemetry/semantic-conventions': '>=1.33.0 <2.0.0'
-      effect: ^4.1.0
+      effect: ^4.1.5
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -427,23 +427,23 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/platform-node-shared@4.1.4':
-    resolution: {integrity: sha512-DWdfphHGOFJNj/mYadgpT3jIm8aRXDcPrQiGXFBH4p2H4XmA7iYMrPsI8NxVgZ7kNX0q1+FGJZJama0tINHRAg==}
+  '@effect/platform-node-shared@4.1.5':
+    resolution: {integrity: sha512-JzlrYe4uKaBFTWihBRXo2pDjkUVB39kQpKdGfXdbp7Co5sKT8hbcjOmdB5pg/WOYESdGTddd3fxD4lwlZELbZQ==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: ^4.1.4
+      effect: ^4.1.5
 
-  '@effect/platform-node@4.1.0':
-    resolution: {integrity: sha512-v+X7moGVF9k5oMVvz0slA+NgtEod+W+oygeI285MDJgSlUCW3JcqElj+cD3rlijFZtpKhC7RLkU1GuCxjGHTpA==}
+  '@effect/platform-node@4.1.5':
+    resolution: {integrity: sha512-tFnRvxF9EKc3oU17sDHj1JeLP+TL/IkaOEl3IUk2EjgMS0x7AWs0ioUXjdNKLb3Z1LdjVfMf/DxsNh9PW5FFAg==}
     engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: ^4.1.0
-      redis: '>=5.0.0 <7.0.0'
+      effect: ^4.1.5
+      redis: '>=5.1.0 <7.0.0'
 
-  '@effect/sql-sqlite-node@4.1.0':
-    resolution: {integrity: sha512-Z8PxzlVlfp5JCGYAg9CwehHkvLEwMf/NF7htdDkKy65G4vE78ARkDMUSyeIzZ1zpadMxbbCEUJ2FM9M5/0Nxgg==}
+  '@effect/sql-sqlite-node@4.1.5':
+    resolution: {integrity: sha512-eo+1W3lX/2cT3ATzjqhya/WvnhEByjG7DWfmWSPcENG04jjywV5p0eZ+COr+4nsXTMSoA9H2TdaqYWTnXNM9Qw==}
     peerDependencies:
-      effect: ^4.1.0
+      effect: ^4.1.5
 
   '@emnapi/core@1.11.3':
     resolution: {integrity: sha512-zLpS5asjEb7lq8jYLq37N6XKaE41DIexlY1rF/z4/tIl3wo13Sqm28fRyfIsKZD+NZ8mM5RoKkpW/rBcuoSZSg==}
@@ -834,11 +834,24 @@ packages:
   '@one-ini/wasm@0.2.1':
     resolution: {integrity: sha512-TUqERXGNTifZ9y2g3wPxQrw3HpHv/02DsW3D90T9x0hhonrL1ZqpSmNrU2XkoIq0fP1N6gZfVQzy2Fw1ZvGBNg==}
 
+  '@openapi-spec/downgrader@0.8.0':
+    resolution: {integrity: sha512-QPVfSwd1LkhWrstgJbloRzoaiwyVMw6VwcCyV+ObxFBf8L3MDuPR3vvS0lfcn7r6cYrxsW9PDUh4bD6E9UFHhQ==}
+
+  '@openapi-spec/router@0.8.0':
+    resolution: {integrity: sha512-sNWnn2Nfu44Jym2nUCfRb4o/kUaoJvW/hQa2i/aPzxt7a3H2Uyy/U0GSOaKy2WFfvCWIiBYDTuqZc0i9TcdIOA==}
+
+  '@openapi-spec/types@0.8.0':
+    resolution: {integrity: sha512-MJGUd1VdG/Ty60uYObP20rnFwrObQOJIGKfBjvSKAgDzTmbKT0gzJabCupwuDu47LbphZWaFtGmZHFYv7B4huQ==}
+
   '@opencode-ai/sdk@1.19.5':
     resolution: {integrity: sha512-+bqu8gHiwmq96T9q5G34uLNHWCInIMsrE3hytCNHj1cVaxjY0AGJyNCT1rkeeZwgPU7A5TMTNwN+0XxCO2vqDg==}
 
   '@opentelemetry/api-logs@0.219.0':
     resolution: {integrity: sha512-FFx7YnaYJlIjqWW/AG/yAZ0L/NEY724PipXXXQLdtZPbLwBGbUMTGL1i/esI56TWfTUXxhLfpgrnWJCG8aUJyg==}
+    engines: {node: '>=8.0.0'}
+
+  '@opentelemetry/api-logs@0.220.0':
+    resolution: {integrity: sha512-CmVa4ImJ+ynfrPMNaAXHET6Bhb44SwzmfyVJFq9ni2jgXJR/l7C6gfVFddNmHP+ZOkP9cf4f9DBe68qVLTHc9w==}
     engines: {node: '>=8.0.0'}
 
   '@opentelemetry/api@1.10.0':
@@ -863,6 +876,12 @@ packages:
 
   '@opentelemetry/exporter-trace-otlp-http@0.219.0':
     resolution: {integrity: sha512-9t6SvBXXBEjOBcIzgozvBbd3jWrv3Gt3ngGhl1fhdZ/zRc7oZDVOFEqbi2zlBpW9BXhgDMKv422J0DL/3iQWfw==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': ^1.3.0
+
+  '@opentelemetry/instrumentation@0.220.0':
+    resolution: {integrity: sha512-xQx3E2WxP1mDvKzxLxX+CTCtNLa560YJZ3087qYHerl2YmiKpv7AH+dAy7vmx+eVrZ5BwhfWUAVoKOoxCNHcpw==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -919,62 +938,63 @@ packages:
     resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
     engines: {node: '>= 20.0.0'}
 
-  '@orpc/client@1.16.1':
-    resolution: {integrity: sha512-y2aEfZqD6QKAmTObFbzG0yCiMC1iP3PmCy8t+8y/u3P9iaIcB8Ur09OZdVSg+sbTWiqXfbm5smCukDaN/nmwBw==}
+  '@orpc/client@2.0.0-beta.53':
+    resolution: {integrity: sha512-JFBjBL/mXJcNPhZ7kxQO3rSIHpUoYL+II5GxfuumWr+tP2MfWQ4UEe0rploz1tu0tkEVqrWFST4O7i7tpVrOsw==}
 
-  '@orpc/contract@1.16.1':
-    resolution: {integrity: sha512-DXpRqxZxDPQ/ijMQi/PNdSskzP6CFBWJF7JC/DrBC1GeSWhSq6Ib5bS6iAq23ZwZuCaRyq7ApH6cxlIfcEJDWA==}
+  '@orpc/contract@2.0.0-beta.53':
+    resolution: {integrity: sha512-bmd93OBmOeHY/f8djDLMRazSC9NAKm+1BDb0itDCZz2GEzvZ4o64kAXjgsun7+jmpUNuynsCqhlJWd3Ga6LVOA==}
 
-  '@orpc/interop@1.16.1':
-    resolution: {integrity: sha512-wj+8oB/Mx/cVKyrnHOrU+cwYGPVG/0TuK3RGJH49TxHDtBcnvnIf85E+aQO6GYI9coHeyAs0uZxFVO56qZrVlw==}
+  '@orpc/effect@2.0.0-beta.53':
+    resolution: {integrity: sha512-5QWbBrt5F1dlT7ducBFKypsI3EJv3JBpbM7izBFQoJuuSFCWMW86obxkqyHS0UnnW5ig9EdJ5mDgEzCOLZrblg==}
+    peerDependencies:
+      effect: '>=4.0.0'
 
-  '@orpc/server@1.16.1':
-    resolution: {integrity: sha512-Jnfu1a8eMsovjSnROZQKQ4UVPsE/P6ZjMRo85K0hBvLrqZceQOct2HHSiTnVuuj0AFQosHKmK+QR4UG6DX1SoA==}
+  '@orpc/evlog@2.0.0-beta.53':
+    resolution: {integrity: sha512-yDrxVMHqbaY6ON/39S1bLCxRq5vv7tQKKrEFz2WpvnRjHW+QA2t+4C5c7uN8z7wFFepu4GKXqjSyfcW0bTi1iA==}
+    peerDependencies:
+      evlog: '>=2.18.1'
+
+  '@orpc/json-schema@2.0.0-beta.53':
+    resolution: {integrity: sha512-sSTPZI9KujHECtqCQoDRTK3/LFtnQs3Lf6pH2oeGBQ4AT2ElF6QPgoO+xuvDZZdPL55p9iNMLjm4vy7nr1mKqg==}
+
+  '@orpc/openapi@2.0.0-beta.53':
+    resolution: {integrity: sha512-jreHQkTedxIjtz6jdT3qpyYT1WBJ3OWb8896zjpVcr9JO8frCdvGADV6ANre6vDFAv3eZbLpGBQw+8jBPn0GmA==}
+    peerDependencies:
+      '@scalar/api-reference': '>=1.57.2'
+      '@types/swagger-ui': '>=5.32.0'
+      swagger-ui: '>=5.32.6'
+    peerDependenciesMeta:
+      '@scalar/api-reference':
+        optional: true
+      '@types/swagger-ui':
+        optional: true
+      swagger-ui:
+        optional: true
+
+  '@orpc/opentelemetry@2.0.0-beta.53':
+    resolution: {integrity: sha512-gwE0Iw/yoTArUm6EJhrKDT3Nn/a+rKldBYaN4je91Q6+MhBTxWHs4w0o0AK/cUIeYluWaEOCgN6re6x6PLCgOA==}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.9.0'
+      '@opentelemetry/instrumentation': '>=0.203.0'
+
+  '@orpc/server@2.0.0-beta.53':
+    resolution: {integrity: sha512-CZfbgrAYNvcpbF31iX0D65hB/GClmyYVKV0zKYhUMCnUcSDf/ldpmok1lwor8i3rP0VfLpOkppTDxN5dkcJ2Ag==}
     peerDependencies:
       crossws: '>=0.3.4'
-      ws: '>=8.18.1'
+      fastify: '>=5.6.1'
     peerDependenciesMeta:
       crossws:
         optional: true
-      ws:
-        optional: true
-
-  '@orpc/shared@1.16.1':
-    resolution: {integrity: sha512-O8WIhgMXuQXMLVbPEmfeyJgXfNGPGLFRp/2vHFmoYgXlxgTZtMmybi8OWn17tt2uT7xQt4z/vWHpn1yD7EQ65g==}
-    peerDependencies:
-      '@opentelemetry/api': '>=1.9.0'
-    peerDependenciesMeta:
-      '@opentelemetry/api':
-        optional: true
-
-  '@orpc/standard-server-aws-lambda@1.16.1':
-    resolution: {integrity: sha512-XRP2KX8FKHZqUxf3fRbUvw6WzuFBnWvj08EpiX+5P861iOHOlqycIUTK4D2C4BAkxBx2wUYmmw7wii0RMIUq7A==}
-
-  '@orpc/standard-server-fastify@1.16.1':
-    resolution: {integrity: sha512-EU+XO6H7YP9Q39ldPNrMSIb+Fvemtkp+O0WwBAmuUGuoP+thnZkg7RoLm61bOfsmFt+RtIskMy9XeU8BvB29iA==}
-    peerDependencies:
-      fastify: '>=5.6.1'
-    peerDependenciesMeta:
       fastify:
         optional: true
 
-  '@orpc/standard-server-fetch@1.16.1':
-    resolution: {integrity: sha512-UoIVjrCbQ3R8+W6fArVpX18A66wTdty6W2L/aFegCsGDd3vq7rlCeVIo3R3hRDY0lV9iY392kAHe/9ul/ProOg==}
+  '@orpc/shared@2.0.0-beta.53':
+    resolution: {integrity: sha512-Xyb5sWQnxVA4GysW03fhjM7y3NbfdlDAkfhWnQUp033FZBDOkQA5Zz1QLjz+JCR4RgMwxt0h4UB28qpOLF6FEg==}
 
-  '@orpc/standard-server-node@1.16.1':
-    resolution: {integrity: sha512-0HnD8E4s6YBT5nAauevmntj5E3yrcW/LbloVLD3lWRY/6dWNiVGKJGtsBLDlR416/eOLjljW8CvAnCOaP6Llug==}
-
-  '@orpc/standard-server-peer@1.16.1':
-    resolution: {integrity: sha512-AL9g2RxdM17APwkHbgqmqYv/9IIkuanpNSVuXw4+R27zQWx+4O2aq7ovfpmgGy3TJnoU5ZpZYh8ZBKt2fJPnUg==}
-
-  '@orpc/standard-server@1.16.1':
-    resolution: {integrity: sha512-f8Ejzey83F/EXA1kugCyuPcE0TFJyUtxopEZ3vr/aqAOFdr45tIFlQl/v1VkpZAKmt3RP9KiAZGyesv5rhJltA==}
-
-  '@orpc/tanstack-query@1.16.1':
-    resolution: {integrity: sha512-fMl+DVGqCwxqg4U1WBt6EtdVNhZ4ODQlNBaTSiCCIBcAaePJZD1pBDTJ1epMJ67zG62KHEH10frKuLIwBMngjQ==}
+  '@orpc/tanstack-query@2.0.0-beta.53':
+    resolution: {integrity: sha512-F0+HXG24l5885pDXOKZrjwCjV2ylPI3eTB1Xcq0FrK+KFoLmdMMJhdlRpDy1UzdMLg+SqxPkXbkqpwu2MTtbkA==}
     peerDependencies:
-      '@orpc/client': 1.16.1
-      '@tanstack/query-core': '>=5.80.2'
+      '@tanstack/query-core': '>=5.105.0'
 
   '@oxc-parser/binding-android-arm-eabi@0.120.0':
     resolution: {integrity: sha512-WU3qtINx802wOl8RxAF1v0VvmC2O4D9M8Sv486nLeQ7iPHVmncYZrtBhB4SYyX+XZxj2PNnCcN+PW21jHgiOxg==}
@@ -1479,6 +1499,32 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@standard-server/aws-lambda@0.16.0':
+    resolution: {integrity: sha512-UDrPHorUJbU3HkT35OCRnacJoX0YDtk0DYY6WegmZSZ6RP2X/En2OYymnYpDlVj6GM9jpWzDq+naarnoqj85KQ==}
+
+  '@standard-server/core@0.16.0':
+    resolution: {integrity: sha512-5jETsZoqjSuVZh2vV5zfQzcAsl8+6qFZK4tMngk0lm/1u3o2Az36GOjxF24z5grVxrnxSjsLrF+hc9+DwxmwAg==}
+
+  '@standard-server/fastify@0.16.0':
+    resolution: {integrity: sha512-bRzghigLkz8AqcssNHfoW8AYtzoZFiNCZfeD7cLxgclV9obj69NiyutSrekpiyHveLG3Mt+TaJK/h/NQ7PJF7Q==}
+    peerDependencies:
+      fastify: '>=5.6.1'
+    peerDependenciesMeta:
+      fastify:
+        optional: true
+
+  '@standard-server/fetch@0.16.0':
+    resolution: {integrity: sha512-oacHxCfyYsc1ooPwvaSRXSivGjm4xVuHXBN03Q1z9uVKuX583FSqmKAaRsh4VjYzIwMep8Ng8mBTZ8xQ7YusQQ==}
+
+  '@standard-server/node@0.16.0':
+    resolution: {integrity: sha512-ljI9z+3DZSUR3FcJx5w7aEA3rNroDsf8lFCV3MgG5I4Lh+ZfOiHz9/dxeGvxrlH2h+ZXSXv7Co69J5FHNre6SQ==}
+
+  '@standard-server/peer@0.16.0':
+    resolution: {integrity: sha512-EGUuLbTpa4XvRRqoncpuv09q1t02TMplejN8qGEAVvm+AmdjjAfZz5NqLifKcw+PCwxnoBVb/HOKKDDbOCfN1w==}
+
+  '@standard-server/shared@0.16.0':
+    resolution: {integrity: sha512-biBTEcL1dbAOW8ou5DorzWNPmMZyXmu9CpxHd724RbrKvqo91fpzrJrS8QoyGUIr7hbgR8xHqejL6GYM6za6Dw==}
 
   '@swc/helpers@0.5.24':
     resolution: {integrity: sha512-6tcXo4kA8HgGO7AVmawB57RYi/piBPYVHVcO6dXjX+SZw8GoHmi262sp4v2Ha2kNP9Cx84qei27yT+fjS1lxgg==}
@@ -2339,6 +2385,9 @@ packages:
     resolution: {integrity: sha512-d1uM8k5UZEyPza1n/MG3ko8nKupKN0KJpFsipgPcgaCCvV+IqIfJ+NzTjetlLM+UcXZx3+cLrNr76+eAO7G1Mw==}
     engines: {node: '>=8'}
 
+  cjs-module-lexer@2.3.0:
+    resolution: {integrity: sha512-lmNyBzi6iYiqyrExTctfmjd8tInx+dHu9PBomTfH5RXS53c27JMFJgzNv5TyAnm3PgGf+MLy0+Ws41/HlVxdKQ==}
+
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
 
@@ -2410,9 +2459,9 @@ packages:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
 
-  cookie@1.1.1:
-    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
-    engines: {node: '>=18'}
+  cookie@2.0.2:
+    resolution: {integrity: sha512-SL0cVuEdETEp7pN0FuZb01toc3vnODEfVUCooxG1SJN0yIirh7JMb9X9bvfCFf0vzzbT68RdbKDHYTiWy7a7iw==}
+    engines: {node: '>=22'}
 
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
@@ -2828,8 +2877,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.1.0:
-    resolution: {integrity: sha512-lGx2MJJyrXA8RZb2UpQ/0Nkb5Utaimby7oD92+18noBxLPE85IFOvptdzau8dvcxAOwfwHo9iqapbKeFzqQM/Q==}
+  effect@4.1.5:
+    resolution: {integrity: sha512-xyR20KhQI0vg2gD8ILUSQRTTESEYJ0JKdP+QD8J37xbwPTqXRxFM/l0+vUVD9fuSvoYruoTqyt33C4FZv1s4TQ==}
 
   elkjs@0.12.1:
     resolution: {integrity: sha512-IhMYKHE4S2vtx0QrhBP3lYOIKDeIiJXBrdq9MGYkuB8ZHqhrBnHNfSUndjXFewrX1CPK8chwq+2NA0K0hliYuw==}
@@ -2857,6 +2906,9 @@ packages:
   es-errors@1.3.0:
     resolution: {integrity: sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==}
     engines: {node: '>= 0.4'}
+
+  es-module-lexer@3.0.5:
+    resolution: {integrity: sha512-RNq2lKJw53c7z9QRHeiKeA6Ez0oikOqiBGdmxQhKDxEiOX1g5QJR4IoFVwicn8uCZcRWNrXC3NZaJihgK7aEbg==}
 
   es-object-atoms@1.1.2:
     resolution: {integrity: sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==}
@@ -3147,6 +3199,10 @@ packages:
   ignore@7.0.14:
     resolution: {integrity: sha512-wCBiZ77u1tuWde6G/nfOtLaCTYcFDU5yCzARzK10y+rLhzYoL7a7yEemcopcc2Mzow7gZOIjnV2ym1NYmdiJOQ==}
     engines: {node: '>= 4'}
+
+  import-in-the-middle@3.7.0:
+    resolution: {integrity: sha512-E+eunmEgK2Bd9nHQCR0IsG52TEaVzSZqRH4RLcEmcUazGAnjoyXDYsoGnf4OnggekXiG7Zz11XFh3gH+Br04Yw==}
+    engines: {node: '>=18'}
 
   import-meta-resolve@4.2.0:
     resolution: {integrity: sha512-Iqv2fzaTQN28s/FwZAoFq0ZSs/7hMAHJVX+w8PZl3cY19Pxk6jFFalxQoIfW2826i/fDLXv8IiEZRIT0lDuWcg==}
@@ -3580,6 +3636,9 @@ packages:
     resolution: {integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==}
     engines: {node: '>= 18'}
 
+  module-details-from-path@1.0.4:
+    resolution: {integrity: sha512-EGWKgxALGMgzvxYF1UyGTy0HXX/2vHLkw6+NvDKW2jypWbHpjQuj4UMcqQWXHERJhVGKikolT06G3bcKe4fi7w==}
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -3678,9 +3737,6 @@ packages:
 
   oniguruma-to-es@4.3.6:
     resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
-
-  openapi-types@12.1.3:
-    resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
   ora@9.4.1:
     resolution: {integrity: sha512-6VlU9MLXbjVQD04AZCMX28hVtA5bUoadvUqO76MUCVA0ilwJbMiHsITRPfyVm6p/BC0Av/BXMujx39WCe1LEqw==}
@@ -3860,10 +3916,6 @@ packages:
     resolution: {integrity: sha512-K7Yt78aRPLjPcqv3fIuLW1jW3pvwO21B9pmFOolsjM/57ZhdVXBr51GqJpalgBlkPu9foAvhEAuuQPnvIGvLvQ==}
     engines: {node: '>=16.0.0'}
 
-  radash@12.1.1:
-    resolution: {integrity: sha512-h36JMxKRqrAxVD8201FrCpyeNuUY9Y5zZwujr20fFO77tpUtGa6EZzfKw/3WaiBX95fq7+MpsuMLNdSnORAwSA==}
-    engines: {node: '>=14.18.0'}
-
   radix3@1.1.2:
     resolution: {integrity: sha512-b484I/7b8rDEdSDKckSSBA8knMpcdsXudlE/LNL639wFoHKwLbEkQFZHWEYwDC0wa0FKUcCY+GAF73Z7wxNVFA==}
 
@@ -3941,6 +3993,10 @@ packages:
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
+
+  require-in-the-middle@8.0.1:
+    resolution: {integrity: sha512-QT7FVMXfWOYFbeRBF6nu+I6tr2Tf3u0q8RIEjNob/heKY/nh7drD/k7eeMFmSQgnTtCzLDcCu/XEnpW2wk4xCQ==}
+    engines: {node: '>=9.3.0 || >=8.10.0 <9.0.0'}
 
   restore-cursor@5.1.0:
     resolution: {integrity: sha512-oMA2dcrw6u0YfxJQXm342bFKX/E4sG9rbTzO9ptUcR/e8A33cHuvStiYOwH7fszkZlZ1z/ta9AAoPk2F4qIOHA==}
@@ -4440,6 +4496,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   yallist@4.0.0:
     resolution: {integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==}
 
@@ -4664,30 +4732,30 @@ snapshots:
 
   '@chevrotain/utils@13.2.0': {}
 
-  '@conciv/app@file:../tarballs/conciv-app-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/app@file:../tarballs/conciv-app-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@ark-ui/solid': 5.40.0(solid-js@1.9.18)
-      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/mascot': file:../tarballs/conciv-mascot-0.0.22.tgz(solid-js@1.9.18)
-      '@conciv/plugin-ios': file:../tarballs/conciv-plugin-ios-0.0.22.tgz(7d132cfbb27ed40b8a2982f3f430a752)
-      '@conciv/plugin-page': file:../tarballs/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/plugin-ios': file:../tarballs/conciv-plugin-ios-0.0.22.tgz(e866f4ee84764533f0fd2f1bc99bf79f)
+      '@conciv/plugin-page': file:../tarballs/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/solid-diffs': file:../tarballs/conciv-solid-diffs-0.0.22.tgz(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)
-      '@conciv/solid-streamdown': file:../tarballs/conciv-solid-streamdown-0.0.22.tgz(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/solid-streamdown': file:../tarballs/conciv-solid-streamdown-0.0.22.tgz(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/storage-history': file:../tarballs/conciv-storage-history-0.0.22.tgz
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@conciv/ui-kit-chat': file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/ui-kit-chat-tools': file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/ui-kit-chat': file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/ui-kit-chat-tools': file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/ui-kit-system': file:../tarballs/conciv-ui-kit-system-0.0.22.tgz(solid-js@1.9.18)
       '@conciv/ui-kit-tap': file:../tarballs/conciv-ui-kit-tap-0.0.22.tgz(solid-js@1.9.18)
       '@conciv/ui-kit-terminal': file:../tarballs/conciv-ui-kit-terminal-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.18)
       '@tanstack/solid-router': 1.170.43(solid-js@1.9.18)
-      effect: 4.1.0
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      effect: 4.1.5
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       solid-js: 1.9.18
     transitivePeerDependencies:
       - '@nestjs/common'
@@ -4695,10 +4763,13 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -4714,24 +4785,25 @@ snapshots:
       - react-dom
       - react-router
       - supports-color
+      - swagger-ui
       - vite
       - vite-plugin-solid
 
-  '@conciv/backend-app-api@file:../tarballs/conciv-backend-app-api-0.0.22.tgz(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/backend-app-api@file:../tarballs/conciv-backend-app-api-0.0.22.tgz(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@effect/platform-node': 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
-      '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
+      '@effect/platform-node': 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@effect/sql-sqlite-node': 4.1.5(effect@4.1.5)
       '@npmcli/arborist': 9.4.0
       '@npmcli/config': 10.8.1
       '@opentelemetry/api': 1.9.1
       '@standard-schema/spec': 1.1.0
       detect-libc: 1.0.3
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
-      effect: 4.1.0
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
+      effect: 4.1.5
       glob: 13.0.5
       npm-package-arg: 13.0.2
       pacote: 21.5.1
@@ -4770,6 +4842,7 @@ snapshots:
       - '@op-engineering/op-sqlite'
       - '@orpc/server'
       - '@planetscale/database'
+      - '@scalar/api-reference'
       - '@sinclair/typebox'
       - '@sqlitecloud/drivers'
       - '@tanstack/ai'
@@ -4784,6 +4857,7 @@ snapshots:
       - '@types/mssql'
       - '@types/pg'
       - '@types/sql.js'
+      - '@types/swagger-ui'
       - '@upstash/redis'
       - '@vercel/postgres'
       - '@xata.io/client'
@@ -4792,6 +4866,7 @@ snapshots:
       - better-sqlite3
       - bufferutil
       - bun-types
+      - crossws
       - elysia
       - eve
       - expo-sqlite
@@ -4814,39 +4889,43 @@ snapshots:
       - sql.js
       - sqlite3
       - supports-color
+      - swagger-ui
       - typebox
       - utf-8-validate
       - valibot
       - vite
 
-  '@conciv/backend-defaults@file:../tarballs/conciv-backend-defaults-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/semantic-conventions@1.45.0)(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)':
+  '@conciv/backend-defaults@file:../tarballs/conciv-backend-defaults-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/semantic-conventions@1.45.0)(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/backend-app-api': file:../tarballs/conciv-backend-app-api-0.0.22.tgz(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/harness': file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/home': file:../tarballs/conciv-home-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@conciv/serve': file:../tarballs/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))
-      '@conciv/simulation': file:../tarballs/conciv-simulation-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend-app-api': file:../tarballs/conciv-backend-app-api-0.0.22.tgz(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/harness': file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/home': file:../tarballs/conciv-home-0.0.22.tgz(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/serve': file:../tarballs/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/simulation': file:../tarballs/conciv-simulation-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@effect/opentelemetry': 4.1.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.45.0)(effect@4.1.0)
-      '@effect/platform-node': 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
-      '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
+      '@effect/opentelemetry': 4.1.5(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.45.0)(effect@4.1.5)
+      '@effect/platform-node': 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@effect/sql-sqlite-node': 4.1.5(effect@4.1.5)
       '@ff-labs/fff-node': 0.10.5
       '@lydell/node-pty': 1.1.0
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.219.0
       '@opentelemetry/context-async-hooks': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-http': 0.219.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-logs': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-metrics': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-node': 2.8.0(@opentelemetry/api@1.9.1)
       '@orama/orama': 3.1.18
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/effect': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
+      '@orpc/opentelemetry': 2.0.0-beta.53(@opentelemetry/api@1.9.1)(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@silvia-odwyer/photon-node': 0.3.4
       '@tanstack/ai': 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-code-mode': 1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
@@ -4856,10 +4935,10 @@ snapshots:
       '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       '@tanstack/pacer': 0.23.1
       devframe: 1.2.6(srvx@1.0.8)
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
-      effect: 4.1.0
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
+      effect: 4.1.5
       es-toolkit: 1.53.2
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       fuzzysort: 3.1.0
       hono: 4.13.17
       js-yaml: 5.5.0
@@ -4905,6 +4984,7 @@ snapshots:
       - '@opentelemetry/sdk-trace-web'
       - '@opentelemetry/semantic-conventions'
       - '@planetscale/database'
+      - '@scalar/api-reference'
       - '@sinclair/typebox'
       - '@sqlitecloud/drivers'
       - '@tanstack/ai-harness'
@@ -4919,6 +4999,7 @@ snapshots:
       - '@types/mssql'
       - '@types/pg'
       - '@types/sql.js'
+      - '@types/swagger-ui'
       - '@upstash/redis'
       - '@vercel/blob'
       - '@vercel/functions'
@@ -4959,20 +5040,20 @@ snapshots:
       - sqlite3
       - srvx
       - supports-color
+      - swagger-ui
       - typebox
       - uploadthing
       - utf-8-validate
       - valibot
       - vite
       - vitest
-      - ws
 
-  '@conciv/backend-plugin-api@file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/backend-plugin-api@file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      effect: 4.1.0
+      effect: 4.1.5
       zod: 4.6.7
     transitivePeerDependencies:
       - '@nestjs/common'
@@ -4980,9 +5061,12 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -4996,13 +5080,14 @@ snapshots:
       - ofetch
       - react
       - react-router
+      - swagger-ui
       - vite
 
-  '@conciv/backend@file:../tarballs/conciv-backend-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)':
+  '@conciv/backend@file:../tarballs/conciv-backend-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/backend-defaults': file:../tarballs/conciv-backend-defaults-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/semantic-conventions@1.45.0)(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
-      '@conciv/plugin-page': file:../tarballs/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/simulation': file:../tarballs/conciv-simulation-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend-defaults': file:../tarballs/conciv-backend-defaults-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/semantic-conventions@1.45.0)(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/plugin-page': file:../tarballs/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/simulation': file:../tarballs/conciv-simulation-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
     transitivePeerDependencies:
       - '@anthropic-ai/sdk'
       - '@aws-sdk/client-rds-data'
@@ -5044,6 +5129,7 @@ snapshots:
       - '@opentelemetry/semantic-conventions'
       - '@orpc/server'
       - '@planetscale/database'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@sinclair/typebox'
       - '@sqlitecloud/drivers'
@@ -5061,6 +5147,7 @@ snapshots:
       - '@types/mssql'
       - '@types/pg'
       - '@types/sql.js'
+      - '@types/swagger-ui'
       - '@upstash/redis'
       - '@vercel/blob'
       - '@vercel/functions'
@@ -5104,6 +5191,7 @@ snapshots:
       - sqlite3
       - srvx
       - supports-color
+      - swagger-ui
       - typebox
       - uploadthing
       - utf-8-validate
@@ -5111,30 +5199,30 @@ snapshots:
       - vite
       - vite-plugin-solid
       - vitest
-      - ws
 
   '@conciv/cli@file:../tarballs/conciv-cli-0.0.22.tgz':
     dependencies:
       '@ast-grep/napi': 0.51.1
 
-  '@conciv/client@file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/client@file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/tanstack-query': 1.16.1(@opentelemetry/api@1.9.1)(@orpc/client@1.16.1(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.107.1)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/effect': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
+      '@orpc/tanstack-query': 2.0.0-beta.53(@tanstack/query-core@5.107.1)(crossws@0.4.17(srvx@1.0.8))
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.18)
       '@solid-primitives/scheduled': 1.5.3(solid-js@1.9.18)
+      '@standard-server/peer': 0.16.0
       '@tanstack/ai-client': 1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-solid': 1.1.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.18)(zod@4.6.7)
       '@tanstack/pacer': 0.23.1
       '@tanstack/query-core': 5.107.1
       '@tanstack/solid-query': 5.107.1(solid-js@1.9.18)
       defu: 6.1.7
-      effect: 4.1.0
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      effect: 4.1.5
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       solid-js: 1.9.18
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5143,9 +5231,12 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -5159,18 +5250,19 @@ snapshots:
       - ofetch
       - react
       - react-router
+      - swagger-ui
       - vite
 
-  '@conciv/frontend-plugin-api@file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/frontend-plugin-api@file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
       '@standard-schema/spec': 1.1.0
       '@tanstack/solid-query': 5.107.1(solid-js@1.9.18)
       '@zumer/snapdom': 3.3.3
-      effect: 4.1.0
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      effect: 4.1.5
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       solid-js: 1.9.18
       zod: 4.6.7
     optionalDependencies:
@@ -5181,9 +5273,12 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -5197,19 +5292,23 @@ snapshots:
       - ofetch
       - react
       - react-router
+      - swagger-ui
 
-  '@conciv/grab@file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/grab@file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
     transitivePeerDependencies:
       - '@nestjs/common'
       - '@nestjs/core'
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -5224,13 +5323,14 @@ snapshots:
       - react
       - react-router
       - solid-js
+      - swagger-ui
       - vite
       - vite-plugin-solid
 
-  '@conciv/harness@file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/harness@file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@anthropic-ai/claude-agent-sdk': 0.3.321(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(zod@4.6.7)
-      '@conciv/home': file:../tarballs/conciv-home-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)
+      '@conciv/home': file:../tarballs/conciv-home-0.0.22.tgz(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
       '@tanstack/ai': 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-acp': 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
@@ -5239,8 +5339,8 @@ snapshots:
       '@tanstack/ai-opencode': 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
       '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       '@tanstack/ai-sandbox-local-process': 1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
-      effect: 4.1.0
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      effect: 4.1.5
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       smol-toml: 1.9.1
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5318,10 +5418,10 @@ snapshots:
       - vite
       - vitest
 
-  '@conciv/home@file:../tarballs/conciv-home-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)':
+  '@conciv/home@file:../tarballs/conciv-home-0.0.22.tgz(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)':
     dependencies:
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7)
       env-paths: 3.0.0
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5375,10 +5475,10 @@ snapshots:
       - typebox
       - valibot
 
-  '@conciv/it@file:../tarballs/conciv-it-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)':
+  '@conciv/it@file:../tarballs/conciv-it-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/app': file:../tarballs/conciv-app-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/unplugin': file:../tarballs/conciv-unplugin-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
+      '@conciv/app': file:../tarballs/conciv-app-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/unplugin': file:../tarballs/conciv-unplugin-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
     optionalDependencies:
       vite: 8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)
     transitivePeerDependencies:
@@ -5427,6 +5527,7 @@ snapshots:
       - '@planetscale/database'
       - '@rsbuild/core'
       - '@rspack/core'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@sinclair/typebox'
       - '@sqlitecloud/drivers'
@@ -5444,6 +5545,7 @@ snapshots:
       - '@types/mssql'
       - '@types/pg'
       - '@types/sql.js'
+      - '@types/swagger-ui'
       - '@upstash/redis'
       - '@vercel/blob'
       - '@vercel/functions'
@@ -5491,6 +5593,7 @@ snapshots:
       - sqlite3
       - srvx
       - supports-color
+      - swagger-ui
       - typebox
       - unloader
       - uploadthing
@@ -5499,7 +5602,6 @@ snapshots:
       - vite-plugin-solid
       - vitest
       - webpack
-      - ws
 
   '@conciv/mascot@file:../tarballs/conciv-mascot-0.0.22.tgz(solid-js@1.9.18)':
     dependencies:
@@ -5507,14 +5609,14 @@ snapshots:
     optionalDependencies:
       solid-js: 1.9.18
 
-  '@conciv/plugin-ios@file:../tarballs/conciv-plugin-ios-0.0.22.tgz(7d132cfbb27ed40b8a2982f3f430a752)':
+  '@conciv/plugin-ios@file:../tarballs/conciv-plugin-ios-0.0.22.tgz(e866f4ee84764533f0fd2f1bc99bf79f)':
     dependencies:
-      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      effect: 4.1.0
+      effect: 4.1.5
       es-toolkit: 1.53.2
       solid-js: 1.9.18
       zod: 4.6.7
@@ -5524,9 +5626,12 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -5540,18 +5645,19 @@ snapshots:
       - ofetch
       - react
       - react-router
+      - swagger-ui
       - vite
       - vite-plugin-solid
 
-  '@conciv/plugin-page@file:../tarballs/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/plugin-page@file:../tarballs/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/client': file:../tarballs/conciv-client-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@conciv/ui-kit-chat': file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/ui-kit-chat': file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/ui-kit-system': file:../tarballs/conciv-ui-kit-system-0.0.22.tgz(solid-js@1.9.18)
       '@jridgewell/trace-mapping': 0.3.31
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.18)
@@ -5562,7 +5668,7 @@ snapshots:
       '@zumer/snapdom': 3.3.3
       ai-motion: 0.4.8
       bippy: 0.6.1(react@19.3.1)
-      effect: 4.1.0
+      effect: 4.1.5
       es-toolkit: 1.53.2
       js-beautify: 2.0.3
       lucide-solid: 1.66.0(solid-js@1.9.18)
@@ -5576,10 +5682,13 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - elysia
       - eve
       - express
@@ -5595,52 +5704,95 @@ snapshots:
       - react-dom
       - react-router
       - supports-color
+      - swagger-ui
       - vite
       - vite-plugin-solid
 
-  '@conciv/protocol@file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)':
+  '@conciv/protocol@file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
       '@standard-schema/spec': 1.1.0
-      effect: 4.1.0
+      effect: 4.1.5
+      es-toolkit: 1.53.2
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       zod: 4.6.7
     transitivePeerDependencies:
+      - '@nestjs/common'
+      - '@nestjs/core'
+      - '@nuxt/kit'
       - '@opentelemetry/api'
+      - '@orpc/server'
+      - '@tanstack/start-client-core'
+      - ai
+      - elysia
+      - eve
+      - express
+      - fastify
+      - h3
+      - hono
+      - next
+      - nitro
+      - nitropack
+      - ofetch
+      - react
+      - react-router
+      - vite
 
-  '@conciv/serve@file:../tarballs/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))':
+  '@conciv/serve@file:../tarballs/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
       '@hono/node-server': 2.1.6(hono@4.13.17)
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@orpc/evlog': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)))
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       hono: 4.13.17
       semver: 7.8.6
       ws: 8.22.2
       zod: 4.6.7
     transitivePeerDependencies:
+      - '@nestjs/common'
+      - '@nestjs/core'
+      - '@nuxt/kit'
       - '@opentelemetry/api'
+      - '@tanstack/start-client-core'
+      - ai
       - bufferutil
       - crossws
+      - effect
+      - elysia
+      - eve
+      - express
       - fastify
+      - h3
+      - next
+      - nitro
+      - nitropack
+      - ofetch
+      - react
+      - react-router
       - utf-8-validate
+      - vite
 
-  '@conciv/simulation@file:../tarballs/conciv-simulation-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/simulation@file:../tarballs/conciv-simulation-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/backend-app-api': file:../tarballs/conciv-backend-app-api-0.0.22.tgz(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/harness': file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/backend-app-api': file:../tarballs/conciv-backend-app-api-0.0.22.tgz(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend-plugin-api': file:../tarballs/conciv-backend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/harness': file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@effect/platform-node': 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@effect/platform-node': 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/effect': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/ai': 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-client': 1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
-      effect: 4.1.0
+      effect: 4.1.5
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       ws: 8.22.2
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5671,6 +5823,7 @@ snapshots:
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
+      - '@scalar/api-reference'
       - '@sinclair/typebox'
       - '@sqlitecloud/drivers'
       - '@tanstack/ai-harness'
@@ -5686,6 +5839,7 @@ snapshots:
       - '@types/mssql'
       - '@types/pg'
       - '@types/sql.js'
+      - '@types/swagger-ui'
       - '@upstash/redis'
       - '@vercel/postgres'
       - '@xata.io/client'
@@ -5717,6 +5871,7 @@ snapshots:
       - sql.js
       - sqlite3
       - supports-color
+      - swagger-ui
       - typebox
       - utf-8-validate
       - valibot
@@ -5733,10 +5888,10 @@ snapshots:
       - react
       - react-dom
 
-  '@conciv/solid-streamdown@file:../tarballs/conciv-solid-streamdown-0.0.22.tgz(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/solid-streamdown@file:../tarballs/conciv-solid-streamdown-0.0.22.tgz(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@zag-js/highlight-word': 1.47.0
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       marked: 18.2.0
       rehype-harden: 1.1.9
       rehype-raw: 7.0.0
@@ -5777,17 +5932,17 @@ snapshots:
   '@conciv/types@file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)':
     dependencies:
       '@tanstack/ai': 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      effect: 4.1.0
+      effect: 4.1.5
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@conciv/ui-kit-chat-tools@file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/ui-kit-chat-tools@file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)
+      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/solid-diffs': file:../tarballs/conciv-solid-diffs-0.0.22.tgz(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@conciv/ui-kit-chat': file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/ui-kit-chat': file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/ui-kit-system': file:../tarballs/conciv-ui-kit-system-0.0.22.tgz(solid-js@1.9.18)
       es-toolkit: 1.53.2
       lucide-solid: 1.66.0(solid-js@1.9.18)
@@ -5799,10 +5954,13 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - effect
       - elysia
       - eve
@@ -5819,16 +5977,17 @@ snapshots:
       - react-dom
       - react-router
       - supports-color
+      - swagger-ui
       - vite
       - vite-plugin-solid
 
-  '@conciv/ui-kit-chat@file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@conciv/ui-kit-chat@file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@ark-ui/solid': 5.40.0(solid-js@1.9.18)
       '@chenglou/pretext': 1.0.0
-      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/frontend-plugin-api': file:../tarballs/conciv-frontend-plugin-api-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/solid-diffs': file:../tarballs/conciv-solid-diffs-0.0.22.tgz(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)
-      '@conciv/solid-streamdown': file:../tarballs/conciv-solid-streamdown-0.0.22.tgz(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/solid-streamdown': file:../tarballs/conciv-solid-streamdown-0.0.22.tgz(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/storage-history': file:../tarballs/conciv-storage-history-0.0.22.tgz
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
       '@conciv/ui-kit-system': file:../tarballs/conciv-ui-kit-system-0.0.22.tgz(solid-js@1.9.18)
@@ -5846,7 +6005,7 @@ snapshots:
       '@tanstack/solid-virtual': 3.13.53(solid-js@1.9.18)
       class-variance-authority: 0.7.1
       es-toolkit: 1.53.2
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       lucide-solid: 1.66.0(solid-js@1.9.18)
       mermaid: 12.3.0
       shiki: 4.6.0
@@ -5858,10 +6017,13 @@ snapshots:
       - '@nuxt/kit'
       - '@opentelemetry/api'
       - '@orpc/server'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@tanstack/ai'
       - '@tanstack/start-client-core'
+      - '@types/swagger-ui'
       - ai
+      - crossws
       - effect
       - elysia
       - eve
@@ -5878,6 +6040,7 @@ snapshots:
       - react-dom
       - react-router
       - supports-color
+      - swagger-ui
       - vite
       - vite-plugin-solid
 
@@ -5923,16 +6086,16 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@conciv/unplugin@file:../tarballs/conciv-unplugin-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)':
+  '@conciv/unplugin@file:../tarballs/conciv-unplugin-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(rolldown@1.2.18)(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
-      '@conciv/app': file:../tarballs/conciv-app-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/backend': file:../tarballs/conciv-backend-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
-      '@conciv/backend-defaults': file:../tarballs/conciv-backend-defaults-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/semantic-conventions@1.45.0)(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
+      '@conciv/app': file:../tarballs/conciv-app-0.0.22.tgz(@opentelemetry/api@1.9.1)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend': file:../tarballs/conciv-backend-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.45.0)(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@shikijs/themes@4.6.0)(@tanstack/ai-persistence@1.1.0(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)))(@tanstack/ai@1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(solid-js@1.9.18)(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@conciv/backend-defaults': file:../tarballs/conciv-backend-defaults-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/semantic-conventions@1.45.0)(crossws@0.4.17(srvx@1.0.8))(express@5.3.0)(h3@1.15.11)(ofetch@1.5.1)(react@19.3.1)(redis@6.3.1(@opentelemetry/api@1.9.1))(srvx@1.0.8)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/cli': file:../tarballs/conciv-cli-0.0.22.tgz
       '@conciv/types': file:../tarballs/conciv-types-0.0.22.tgz(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
       '@tanstack/devtools-bundler-core': 0.1.3(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
-      evlog: 2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       get-port: 7.2.0
       launch-editor: 2.14.2
       unplugin: 3.7.0(rolldown@1.2.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
@@ -5984,6 +6147,7 @@ snapshots:
       - '@planetscale/database'
       - '@rsbuild/core'
       - '@rspack/core'
+      - '@scalar/api-reference'
       - '@shikijs/themes'
       - '@sinclair/typebox'
       - '@sqlitecloud/drivers'
@@ -6001,6 +6165,7 @@ snapshots:
       - '@types/mssql'
       - '@types/pg'
       - '@types/sql.js'
+      - '@types/swagger-ui'
       - '@upstash/redis'
       - '@vercel/blob'
       - '@vercel/functions'
@@ -6048,6 +6213,7 @@ snapshots:
       - sqlite3
       - srvx
       - supports-color
+      - swagger-ui
       - typebox
       - unloader
       - uploadthing
@@ -6056,12 +6222,11 @@ snapshots:
       - vite-plugin-solid
       - vitest
       - webpack
-      - ws
 
-  '@effect/opentelemetry@4.1.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.45.0)(effect@4.1.0)':
+  '@effect/opentelemetry@4.1.5(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.45.0)(effect@4.1.5)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.45.0
-      effect: 4.1.0
+      effect: 4.1.5
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.219.0
@@ -6071,28 +6236,28 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-node': 2.8.0(@opentelemetry/api@1.9.1)
 
-  '@effect/platform-node-shared@4.1.4(effect@4.1.0)':
+  '@effect/platform-node-shared@4.1.5(effect@4.1.5)':
     dependencies:
       '@types/ws': 8.18.2
-      effect: 4.1.0
-      ws: 8.22.2
+      effect: 4.1.5
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))':
+  '@effect/platform-node@4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@effect/platform-node-shared': 4.1.4(effect@4.1.0)
-      effect: 4.1.0
+      '@effect/platform-node-shared': 4.1.5(effect@4.1.5)
+      effect: 4.1.5
       redis: 6.3.1(@opentelemetry/api@1.9.1)
       undici: 8.12.4
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-sqlite-node@4.1.0(effect@4.1.0)':
+  '@effect/sql-sqlite-node@4.1.5(effect@4.1.5)':
     dependencies:
-      effect: 4.1.0
+      effect: 4.1.5
 
   '@emnapi/core@1.11.3':
     dependencies:
@@ -6518,11 +6683,23 @@ snapshots:
 
   '@one-ini/wasm@0.2.1': {}
 
+  '@openapi-spec/downgrader@0.8.0':
+    dependencies:
+      '@openapi-spec/types': 0.8.0
+
+  '@openapi-spec/router@0.8.0': {}
+
+  '@openapi-spec/types@0.8.0': {}
+
   '@opencode-ai/sdk@1.19.5':
     dependencies:
       cross-spawn: 7.0.6
 
   '@opentelemetry/api-logs@0.219.0':
+    dependencies:
+      '@opentelemetry/api': 1.10.0
+
+  '@opentelemetry/api-logs@0.220.0':
     dependencies:
       '@opentelemetry/api': 1.10.0
 
@@ -6547,6 +6724,15 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
+
+  '@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api-logs': 0.220.0
+      import-in-the-middle: 3.7.0
+      require-in-the-middle: 8.0.1
+    transitivePeerDependencies:
+      - supports-color
 
   '@opentelemetry/otlp-exporter-base@0.219.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -6602,105 +6788,109 @@ snapshots:
 
   '@orama/orama@3.1.18': {}
 
-  '@orpc/client@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/client@2.0.0-beta.53':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/peer': 0.16.0
 
-  '@orpc/contract@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/contract@2.0.0-beta.53':
     dependencies:
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/shared': 2.0.0-beta.53
       '@standard-schema/spec': 1.1.0
-      openapi-types: 12.1.3
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
 
-  '@orpc/interop@1.16.1': {}
-
-  '@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)':
+  '@orpc/effect@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)':
     dependencies:
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/interop': 1.16.1
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-aws-lambda': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fastify': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
-      cookie: 1.1.1
-    optionalDependencies:
-      crossws: 0.4.17(srvx@1.0.8)
-      ws: 8.22.2
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/json-schema': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      effect: 4.1.5
     transitivePeerDependencies:
-      - '@opentelemetry/api'
+      - crossws
       - fastify
 
-  '@orpc/shared@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/evlog@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)))':
     dependencies:
-      radash: 12.1.1
-      type-fest: 5.10.0
-    optionalDependencies:
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/core': 0.16.0
+      evlog: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+    transitivePeerDependencies:
+      - crossws
+      - fastify
+
+  '@orpc/json-schema@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))':
+    dependencies:
+      '@openapi-spec/types': 0.8.0
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-schema/spec': 1.1.0
+    transitivePeerDependencies:
+      - crossws
+      - fastify
+
+  '@orpc/openapi@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))':
+    dependencies:
+      '@openapi-spec/downgrader': 0.8.0
+      '@openapi-spec/router': 0.8.0
+      '@openapi-spec/types': 0.8.0
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/json-schema': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+    transitivePeerDependencies:
+      - crossws
+      - fastify
+
+  '@orpc/opentelemetry@2.0.0-beta.53(@opentelemetry/api@1.9.1)(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))':
+    dependencies:
       '@opentelemetry/api': 1.9.1
+      '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 2.0.0-beta.53
 
-  '@orpc/standard-server-aws-lambda@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/shared': 2.0.0-beta.53
+      '@standard-server/aws-lambda': 0.16.0
+      '@standard-server/core': 0.16.0
+      '@standard-server/fastify': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/node': 0.16.0
+      '@standard-server/peer': 0.16.0
+      cookie: 2.0.2
+    optionalDependencies:
+      crossws: 0.4.17(srvx@1.0.8)
 
-  '@orpc/standard-server-fastify@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/shared@2.0.0-beta.53':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
+      '@standard-server/shared': 0.16.0
+      type-fest: 5.10.0
 
-  '@orpc/standard-server-fetch@1.16.1(@opentelemetry/api@1.9.1)':
+  '@orpc/tanstack-query@2.0.0-beta.53(@tanstack/query-core@5.107.1)(crossws@0.4.17(srvx@1.0.8))':
     dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/standard-server-node@1.16.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/standard-server-peer@1.16.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/standard-server@1.16.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@orpc/tanstack-query@1.16.1(@opentelemetry/api@1.9.1)(@orpc/client@1.16.1(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.107.1)':
-    dependencies:
-      '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/client': 2.0.0-beta.53
+      '@orpc/contract': 2.0.0-beta.53
+      '@orpc/openapi': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      '@orpc/shared': 2.0.0-beta.53
       '@tanstack/query-core': 5.107.1
     transitivePeerDependencies:
-      - '@opentelemetry/api'
+      - '@scalar/api-reference'
+      - '@types/swagger-ui'
+      - crossws
+      - fastify
+      - swagger-ui
 
   '@oxc-parser/binding-android-arm-eabi@0.120.0':
     optional: true
@@ -7058,6 +7248,40 @@ snapshots:
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@standard-server/aws-lambda@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/node': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/core@0.16.0':
+    dependencies:
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/fastify@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/node': 0.16.0
+
+  '@standard-server/fetch@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/node@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/fetch': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/peer@0.16.0':
+    dependencies:
+      '@standard-server/core': 0.16.0
+      '@standard-server/shared': 0.16.0
+
+  '@standard-server/shared@0.16.0': {}
 
   '@swc/helpers@0.5.24': {}
 
@@ -8240,6 +8464,8 @@ snapshots:
 
   ci-info@4.5.0: {}
 
+  cjs-module-lexer@2.3.0: {}
+
   class-variance-authority@0.7.1:
     dependencies:
       clsx: 2.1.1
@@ -8285,7 +8511,7 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  cookie@1.1.1: {}
+  cookie@2.0.2: {}
 
   cors@2.8.6:
     dependencies:
@@ -8547,11 +8773,11 @@ snapshots:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
-  drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7):
+  drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7):
     optionalDependencies:
-      '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
+      '@effect/sql-sqlite-node': 4.1.5(effect@4.1.5)
       '@opentelemetry/api': 1.9.1
-      effect: 4.1.0
+      effect: 4.1.5
       zod: 4.6.7
 
   dunder-proto@1.0.1:
@@ -8569,7 +8795,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.1.0: {}
+  effect@4.1.5: {}
 
   elkjs@0.12.1: {}
 
@@ -8584,6 +8810,8 @@ snapshots:
   es-define-property@1.0.1: {}
 
   es-errors@1.3.0: {}
+
+  es-module-lexer@3.0.5: {}
 
   es-object-atoms@1.1.2:
     dependencies:
@@ -8603,10 +8831,10 @@ snapshots:
     dependencies:
       eventsource-parser: 3.1.1
 
-  evlog@2.37.1(@orpc/server@1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2))(effect@4.1.0)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)):
+  evlog@2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(effect@4.1.5)(express@5.3.0)(h3@1.15.11)(hono@4.13.17)(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)):
     optionalDependencies:
-      '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
-      effect: 4.1.0
+      '@orpc/server': 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))
+      effect: 4.1.5
       express: 5.3.0
       h3: 1.15.11
       hono: 4.13.17
@@ -8910,6 +9138,12 @@ snapshots:
       minimatch: 10.2.6
 
   ignore@7.0.14: {}
+
+  import-in-the-middle@3.7.0:
+    dependencies:
+      cjs-module-lexer: 2.3.0
+      es-module-lexer: 3.0.5
+      module-details-from-path: 1.0.4
 
   import-meta-resolve@4.2.0: {}
 
@@ -9487,6 +9721,8 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
+  module-details-from-path@1.0.4: {}
+
   ms@2.1.3: {}
 
   mz@2.7.0:
@@ -9601,8 +9837,6 @@ snapshots:
       oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
-
-  openapi-types@12.1.3: {}
 
   ora@9.4.1:
     dependencies:
@@ -9850,8 +10084,6 @@ snapshots:
       '@jitl/quickjs-wasmfile-release-sync': 0.31.0
       quickjs-emscripten-core: 0.31.0
 
-  radash@12.1.1: {}
-
   radix3@1.1.2: {}
 
   range-parser@1.3.0: {}
@@ -9954,6 +10186,13 @@ snapshots:
   remend@1.4.0: {}
 
   require-from-string@2.0.2: {}
+
+  require-in-the-middle@8.0.1:
+    dependencies:
+      debug: 4.4.3
+      module-details-from-path: 1.0.4
+    transitivePeerDependencies:
+      - supports-color
 
   restore-cursor@5.1.0:
     dependencies:
@@ -10379,6 +10618,8 @@ snapshots:
       signal-exit: 4.1.0
 
   ws@8.22.2: {}
+
+  ws@8.23.0: {}
 
   yallist@4.0.0: {}
 
