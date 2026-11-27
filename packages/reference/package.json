@@ -29,6 +29,7 @@
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/cli": "workspace:*",
     "@conciv/client": "workspace:*",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:*",
     "@conciv/grab": "workspace:*",
     "@conciv/harness": "workspace:*",

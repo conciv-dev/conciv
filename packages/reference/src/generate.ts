@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {harnessRegistry} from '@conciv/harness'
 import {ConfigProvider} from 'effect'
-import {Application, normalizePath, ReflectionKind} from 'typedoc'
+import {Application, type DeclarationReflection, normalizePath, type ProjectReflection, ReflectionKind} from 'typedoc'
 import {z} from 'zod'
 
 const ManifestSchema = z.object({
@@ -11,6 +11,8 @@ const ManifestSchema = z.object({
   exports: z.record(z.string(), z.unknown()).optional(),
   devDependencies: z.record(z.string(), z.string()).optional(),
 })
+
+const ConditionsSchema = z.record(z.string(), z.unknown())
 
 interface Entry {
   readonly subpath: string
@@ -32,11 +34,9 @@ export interface PackageIndex {
 export type Harness = ReturnType<typeof readHarnesses>[number]
 
 function findTypes(value: unknown): string | undefined {
-  if (typeof value !== 'object' || value === null) return undefined
-  const entries = Object.entries(value)
-  const types = entries.find(([key]) => key === 'types')?.[1]
-  if (typeof types === 'string') return types
-  return entries.map(([, nested]) => findTypes(nested)).find((found) => found !== undefined)
+  const conditions = ConditionsSchema.safeParse(value).data ?? {}
+  const types = conditions['types']
+  return typeof types === 'string' ? types : Object.values(conditions).map(findTypes).find(Boolean)
 }
 
 async function readManifest(directory: string): Promise<z.infer<typeof ManifestSchema>> {
@@ -55,6 +55,17 @@ async function readWorkspace(name: string, packageDirectory: string): Promise<Wo
 
 function readFileName(name: string): string {
   return `${name.replace(/^@conciv\//, '')}.json`
+}
+
+function isFrom(module: DeclarationReflection, file: string): boolean {
+  return module.sources?.[0]?.fullFileName === file
+}
+
+function nameModules(project: ProjectReflection, entries: readonly Entry[]): void {
+  const modules = project.getChildrenByKind(ReflectionKind.Module)
+  for (const entry of entries.toReversed()) {
+    for (const module of modules.filter((candidate) => isFrom(candidate, entry.file))) module.name = entry.subpath
+  }
 }
 
 async function convert(workspace: Workspace, others: readonly Workspace[]): Promise<unknown> {
@@ -79,11 +90,7 @@ async function convert(workspace: Workspace, others: readonly Workspace[]): Prom
   )
   const project = await application.convert()
   if (project === undefined) throw new Error(`TypeDoc could not convert ${workspace.name}`)
-  for (const module of project.getChildrenByKind(ReflectionKind.Module)) {
-    const file = module.sources?.[0]?.fullFileName
-    const entry = workspace.entries.find((candidate) => candidate.file === file)
-    if (entry !== undefined) module.name = entry.subpath
-  }
+  nameModules(project, workspace.entries)
   return application.serializer.projectToObject(project, normalizePath(workspace.directory))
 }
 
