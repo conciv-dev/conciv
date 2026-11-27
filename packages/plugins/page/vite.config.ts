@@ -1,5 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig, type Plugin} from 'vite'
+import UnoCSS from 'unocss/vite'
 import solid from 'vite-plugin-solid'
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
@@ -16,7 +17,7 @@ const rpcFromPackage: Plugin = {
 }
 
 export default defineConfig({
-  plugins: [rpcFromPackage, solid(), concivTest({browser: true})],
+  plugins: [rpcFromPackage, UnoCSS(), solid(), concivTest({browser: true})],
   build: {
     lib: {
       entry: {
