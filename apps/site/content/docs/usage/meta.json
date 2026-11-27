@@ -7,6 +7,7 @@
     "quick-terminal",
     "dev-server",
     "live-tests",
+    "live-recorder",
     "approvals",
     "add-plugins",
     "whiteboard"

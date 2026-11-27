@@ -30,12 +30,14 @@ Facts about other tools are general. Check each tool's own docs for its current 
 | [Point at an element to pin it to the message](/docs/usage/page-control) | <Yes /> |     <No />     |      <No />       |    <Partly />     |
 | [Names the source file of an element](/docs/usage/page-control)          | <Yes /> |     <No />     |      <No />       |      <No />       |
 | [Reads the dev server's config and module graph](/docs/usage/dev-server) | <Yes /> |     <No />     |      <No />       |      <No />       |
+| [Replays what you just did in the page](/docs/usage/live-recorder)       | <Yes /> |     <No />     |      <No />       |    <Partly />     |
 | Works on any site, production included                                   | <No />  |     <No />     |      <Yes />      |      <Yes />      |
 | [Works in Firefox as well as Chrome](/docs/requirements)                 | <Yes /> |     <No />     |      <Yes />      |      <No />       |
 
 MCP browser tools reach your open tab only if you start them attached to your own browser. conciv names an element's
 source file when it can find it. It reads the dev server's module graph on Vite only. The widget is tested in Chromium
 and Firefox. Playwright MCP also drives Firefox and WebKit. Claude in Chrome runs in Google Chrome only.
+Playwright MCP can save a trace of the steps the agent takes, not of yours. Claude in Chrome can record a workflow you click through, in its classic side panel, so it can repeat it.
 
 ### Changing the code
 
