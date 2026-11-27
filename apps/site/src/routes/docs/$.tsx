@@ -1,4 +1,4 @@
-import {createFileRoute, notFound, retainSearchParams, stripSearchParams, useHydrated} from '@tanstack/react-router'
+import {createFileRoute, notFound, stripSearchParams, useHydrated} from '@tanstack/react-router'
 import {DocsLayout} from 'fumadocs-ui/layouts/notebook'
 import {createServerFn} from '@tanstack/react-start'
 import {slugsToMarkdownPath, source} from '@/lib/source'
@@ -17,7 +17,7 @@ import {useMDXComponents} from '@/components/mdx'
 
 export const Route = createFileRoute('/docs/$')({
   validateSearch: docsSearchSchema,
-  search: {middlewares: [retainSearchParams(['header']), stripSearchParams(docsSearchDefaults)]},
+  search: {middlewares: [stripSearchParams(docsSearchDefaults)]},
   component: Page,
   loader: async ({params}) => {
     const slugs = params._splat?.split('/') ?? []
