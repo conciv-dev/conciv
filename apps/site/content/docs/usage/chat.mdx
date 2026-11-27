@@ -5,7 +5,7 @@ description: Ask the agent about the page you are on, queue your next message, a
 
 The chat is where you ask the agent for what you want, about the page you have open.
 
-## Basic
+## Send a message
 
 Type in the composer and press Enter. Say "this" or "here", and the agent reads the page before it changes anything:
 
@@ -32,8 +32,8 @@ Your draft is saved for each session, so it comes back after a reload.
 
 Click **Add an attachment** to add a file, or paste one into the composer. Images reach the agent only on Claude.
 
-Click **Select an element from the page**, then click an element in your app. It is pinned to your message, with its
-source file when conciv can find it:
+Click **Select an element from the page**, then click an element in your app. conciv pins it to your message, with its
+source file when it can find it:
 
 ```text title="Prompt"
 Make this button match the primary button style.
@@ -46,7 +46,7 @@ Learn more in the [Page control documentation](/docs/usage/page-control).
 Type `/` to open the commands. You get conciv's own commands, plus those of your plugins. On Claude you also get
 Claude Code's own commands.
 
-Type `@` to mention a skill, an agent, a tool, another session or a file. Pick it from the list and it joins your
+Type `@` to mention a skill, an agent, a tool, another session or a file. Pick it from the list. It joins your
 message.
 
 ## Send while the agent works
@@ -99,11 +99,11 @@ On Claude, the panel has a pinned **Terminal** tab. It runs Claude Code itself, 
 CLI starts the first time you open the tab.
 
 <Accordions type="single">
-  <Accordion title="Too many attachments?">
+  <Accordion title="Too many attachments">
     A message holds at most 16 parts, its text and its attachments together. Remove some attachments, or send them in
     two messages.
   </Accordion>
-  <Accordion title="A past session is missing from the picker?">
+  <Accordion title="A past session is missing from the picker">
     Sessions you started outside the browser show only when the harness keeps a history conciv can read. The table on
     the [Harnesses page](/docs/harnesses) says which ones do.
   </Accordion>
