@@ -2,6 +2,7 @@ import path from 'path'
 import os from 'os'
 import {randomBytes, randomUUID} from 'crypto'
 import {mkdir, readFile, rm, stat, utimes, writeFile} from 'fs/promises'
+import {utilErrors} from './errors.js'
 import {Hash} from './hash.js'
 
 export type FlockGlobal = {
@@ -16,7 +17,7 @@ export namespace Flock {
   }
 
   const root = () => {
-    if (!global) throw new Error('Flock global not set')
+    if (!global) throw utilErrors.LOCK_GLOBAL_MISSING()
     return path.join(global.state, 'locks')
   }
 
@@ -74,7 +75,7 @@ export namespace Flock {
   function sleep(ms: number, signal?: AbortSignal) {
     return new Promise<void>((resolve, reject) => {
       if (signal?.aborted) {
-        reject(signal.reason ?? new Error('Aborted'))
+        reject(signal.reason ?? utilErrors.LOCK_ABORTED())
         return
       }
 
@@ -90,7 +91,7 @@ export namespace Flock {
           clearTimeout(timer)
         }
         signal?.removeEventListener('abort', abort)
-        reject(signal?.reason ?? new Error('Aborted'))
+        reject(signal?.reason ?? utilErrors.LOCK_ABORTED())
       }
 
       signal?.addEventListener('abort', abort, {once: true})
@@ -208,12 +209,12 @@ export namespace Flock {
 
     await writeFile(heartbeatPath, '', {flag: 'wx'}).catch(async () => {
       await rm(lockDir, {recursive: true, force: true})
-      throw new Error('Lock acquired but heartbeat already existed (possible compromise).')
+      throw utilErrors.LOCK_COMPROMISED({detail: 'heartbeat already existed'})
     })
 
     await writeFile(metaPath, JSON.stringify(meta, null, 2), {flag: 'wx'}).catch(async () => {
       await rm(lockDir, {recursive: true, force: true})
-      throw new Error('Lock acquired but meta.json already existed (possible compromise).')
+      throw utilErrors.LOCK_COMPROMISED({detail: 'meta.json already existed'})
     })
 
     let timer: NodeJS.Timeout | undefined
@@ -244,15 +245,15 @@ export namespace Flock {
         .catch((err) => {
           const errCode = code(err)
           if (errCode === 'ENOENT' || errCode === 'ENOTDIR') {
-            throw new Error('Refusing to release: lock is compromised (metadata missing).')
+            throw utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata missing)'})
           }
           if (err instanceof SyntaxError) {
-            throw new Error('Refusing to release: lock is compromised (metadata invalid).')
+            throw utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata invalid)', cause: err})
           }
           throw err
         })
       if (current.token !== token) {
-        throw new Error('Refusing to release: lock token mismatch (not the owner).')
+        throw utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock token mismatch (not the owner)'})
       }
 
       await rm(lockDir, {recursive: true, force: true})
@@ -284,7 +285,7 @@ export namespace Flock {
       }
 
       if (mono() > stop) {
-        throw new Error(`Timed out waiting for lock: ${input.key}`)
+        throw utilErrors.LOCK_TIMEOUT({key: input.key})
       }
 
       attempt += 1

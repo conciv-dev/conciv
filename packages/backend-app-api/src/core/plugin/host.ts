@@ -18,6 +18,7 @@ import * as Tab from '../tab.js'
 import * as Job from '../job.js'
 import * as InstructionEntry from '../session/instruction-entry.js'
 import * as Rpc from '../rpc.js'
+import {permissionErrors} from '../permission/errors.js'
 import type {DeepMutable} from '../schema.js'
 import * as Skill from '../skill.js'
 import * as Tool from '../tool.js'
@@ -83,7 +84,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
         Effect.flatMap((request) =>
           request?.sessionId === input.sessionId
             ? Effect.succeed(request)
-            : Effect.fail(new Error(`Permission request not found: ${input.requestId}`)),
+            : Effect.fail(permissionErrors.REQUEST_NOT_FOUND({requestId: input.requestId})),
         ),
       )
 

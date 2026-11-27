@@ -1,7 +1,7 @@
 import {Context, Schema, type Effect, type Scope, type Stream} from 'effect'
 import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from '@conciv/protocol/schema/browser-tab'
-import type {NotFoundError} from './session/error.js'
+import type {NotFoundError} from './session/errors.js'
 
 export const UnavailableError = Schema.TaggedStruct('Tab.UnavailableError', {
   message: Schema.String,

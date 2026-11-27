@@ -3,7 +3,8 @@ export type {Context, Metadata, Namespace, Options, Result} from '@conciv/protoc
 
 import {makeToolDefinition, ToolDefinition, type ToolCall} from '../ai/effect.js'
 import * as Tool from '@conciv/protocol/schema/tool'
-import {Context, Effect, Layer, Result, Schema, SchemaIssue, Types} from 'effect'
+import {Context, Effect, Layer, Result, SchemaIssue, Types} from 'effect'
+import type {EvlogError} from 'evlog'
 import type * as Agent from '@conciv/protocol/schema/agent'
 import * as Permission from '@conciv/protocol/schema/permission'
 import * as Image from './image.js'
@@ -13,17 +14,8 @@ import * as SessionSchema from '@conciv/protocol/schema/session'
 import * as State from './state.js'
 import {definition, effectiveName, execute, normalizedName, normalizeContent} from './tool/runtime.js'
 import * as Wildcard from './util/wildcard.js'
-
-export const RegistrationError = Schema.TaggedStruct('Tool.RegistrationError', {
-  name: Schema.String,
-  message: Schema.String,
-})
-export type RegistrationError = typeof RegistrationError.Type & globalThis.Error
-
-export const makeRegistrationError = (fields: Omit<typeof RegistrationError.Type, '_tag'>): RegistrationError =>
-  Object.assign(new globalThis.Error(fields.message), RegistrationError.make(fields), {
-    name: 'Tool.RegistrationError',
-  })
+import {imageErrors} from './image/errors.js'
+import {toolErrors} from './tool/errors.js'
 
 export type Registered = Tool.Info & {readonly id: string; readonly pluginId?: string}
 
@@ -40,7 +32,7 @@ type Data = {
   tools: Map<string, Registered>
   definitions: Map<string, ToolDefinition>
   namespaces: Map<string, Tool.Namespace>
-  errors: {kind: 'tool' | 'namespace'; name: string; namespace?: string; error: RegistrationError}[]
+  errors: {kind: 'tool' | 'namespace'; name: string; namespace?: string; error: EvlogError}[]
 }
 
 export interface Interface extends State.Transformable<Editor> {
@@ -96,9 +88,11 @@ export const layer = Layer.effect(
             uri: `data:${result.mime};base64,${result.content}`,
             mime: result.mime,
           })),
-          Effect.catchTag('Image.ResizerUnavailableError', () => Effect.succeed(item)),
-          Effect.catchTag('Image.DecodeError', () => Effect.succeed<NormalizedItem>('decode')),
-          Effect.catchTag('Image.SizeError', () => Effect.succeed<NormalizedItem>('size')),
+          Effect.catch((error) => {
+            if (error.code === imageErrors.DECODE_FAILED.code) return Effect.succeed<NormalizedItem>('decode')
+            if (error.code === imageErrors.TOO_LARGE.code) return Effect.succeed<NormalizedItem>('size')
+            return Effect.succeed(item)
+          }),
         )
       })
       const note = (reason: 'decode' | 'size', text: string): Tool.Content[] => {
@@ -329,30 +323,30 @@ function schemaMakeError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function register(tool: Tool.Info): Result.Result<ToolDefinition, RegistrationError> {
+function register(tool: Tool.Info): Result.Result<ToolDefinition, EvlogError> {
   const namespace = tool.options?.namespace
   if (namespace !== undefined) {
     const error = namespaceError(namespace)
     if (error) return Result.fail(error)
   }
   const name = normalizedName(tool)
-  if (!/^[A-Za-z0-9_]+$/.test(name))
-    return Result.fail(makeRegistrationError({name, message: `Invalid tool name: ${name}`}))
+  if (!/^[A-Za-z0-9_]+$/.test(name)) return Result.fail(toolErrors.NAME_INVALID({name}))
   const id = effectiveName(tool)
-  if (tool.options?.codemode === false && id === 'execute')
-    return Result.fail(makeRegistrationError({name: id, message: 'Tool name "execute" is reserved for CodeMode'}))
+  if (tool.options?.codemode === false && id === 'execute') return Result.fail(toolErrors.NAME_RESERVED())
   if (typeof tool.input !== 'object' && typeof tool.input !== 'function')
-    return Result.fail(
-      makeRegistrationError({name: id, message: `Invalid tool definition ${id}: input must be a schema`}),
-    )
+    return Result.fail(toolErrors.INPUT_NOT_SCHEMA({id}))
   return Result.try({
     try: () => makeToolDefinition(definition(tool)),
     catch: (error) =>
-      makeRegistrationError({name: id, message: `Invalid tool definition ${id}: ${schemaMakeError(error)}`}),
+      toolErrors.DEFINITION_INVALID({
+        id,
+        reason: schemaMakeError(error),
+        cause: error instanceof globalThis.Error ? error : undefined,
+      }),
   })
 }
 
 function namespaceError(name: string) {
   if (name.split('.').every((segment) => /^[A-Za-z0-9_]+$/.test(segment))) return
-  return makeRegistrationError({name, message: `Invalid tool namespace: ${JSON.stringify(name)}`})
+  return toolErrors.NAMESPACE_INVALID({name: JSON.stringify(name)})
 }

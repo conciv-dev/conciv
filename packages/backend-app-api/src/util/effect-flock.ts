@@ -2,6 +2,8 @@ import path from 'path'
 import os from 'os'
 import {randomUUID} from 'crypto'
 import {Context, Effect, Function, Layer, Option, Schedule, Schema} from 'effect'
+import type {EvlogError} from 'evlog'
+import {utilErrors} from './errors.js'
 import type {FileSystem, Scope} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
 import {FSUtil} from './fs-util.js'
@@ -9,39 +11,6 @@ import * as Global from './global.js'
 import {Hash} from './hash.js'
 
 export namespace EffectFlock {
-  export const LockTimeoutError = Schema.TaggedStruct('LockTimeoutError', {
-    key: Schema.String,
-  })
-  export type LockTimeoutError = typeof LockTimeoutError.Type & globalThis.Error
-  export const makeLockTimeoutError = (fields: Omit<typeof LockTimeoutError.Type, '_tag'>): LockTimeoutError =>
-    Object.assign(new globalThis.Error(''), LockTimeoutError.make(fields), {name: 'LockTimeoutError'})
-
-  export const LockCompromisedError = Schema.TaggedStruct('LockCompromisedError', {
-    detail: Schema.String,
-  })
-  export type LockCompromisedError = typeof LockCompromisedError.Type & globalThis.Error
-  export const makeLockCompromisedError = (
-    fields: Omit<typeof LockCompromisedError.Type, '_tag'>,
-  ): LockCompromisedError =>
-    Object.assign(new globalThis.Error(''), LockCompromisedError.make(fields), {name: 'LockCompromisedError'})
-
-  const ReleaseError = Schema.TaggedStruct('ReleaseError', {
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  })
-  type ReleaseError = typeof ReleaseError.Type & globalThis.Error
-  const makeReleaseError = (fields: Omit<typeof ReleaseError.Type, '_tag'>): ReleaseError =>
-    Object.assign(new globalThis.Error(fields.detail, {cause: fields.cause}), ReleaseError.make(fields), {
-      name: 'ReleaseError',
-    })
-
-  const NotAcquired = Schema.TaggedStruct('NotAcquired', {})
-  type NotAcquired = typeof NotAcquired.Type & globalThis.Error
-  const makeNotAcquired = (): NotAcquired =>
-    Object.assign(new globalThis.Error(''), NotAcquired.make({}), {name: 'NotAcquired'})
-
-  export type LockError = LockTimeoutError | LockCompromisedError
-
   export interface Options {
     readonly staleMs?: number
     readonly timeoutMs?: number
@@ -74,10 +43,10 @@ export namespace EffectFlock {
   const encodeMeta = Schema.encodeSync(LockMetaJson)
 
   export interface Interface {
-    readonly acquire: (key: string, dir?: string, options?: Options) => Effect.Effect<void, LockError, Scope.Scope>
+    readonly acquire: (key: string, dir?: string, options?: Options) => Effect.Effect<void, EvlogError, Scope.Scope>
     readonly withLock: {
-      (key: string, dir?: string): <A, E, R>(body: Effect.Effect<A, E, R>) => Effect.Effect<A, E | LockError, R>
-      <A, E, R>(body: Effect.Effect<A, E, R>, key: string, dir?: string): Effect.Effect<A, E | LockError, R>
+      (key: string, dir?: string): <A, E, R>(body: Effect.Effect<A, E, R>) => Effect.Effect<A, E | EvlogError, R>
+      <A, E, R>(body: Effect.Effect<A, E, R>, key: string, dir?: string): Effect.Effect<A, E | EvlogError, R>
     }
   }
 
@@ -88,6 +57,8 @@ export namespace EffectFlock {
   }
 
   const mtimeMs = (info: FileSystem.File.Info) => Option.getOrElse(info.mtime, () => new Date(0)).getTime()
+
+  const isNotAcquired = (error: EvlogError) => error.code === utilErrors.LOCK_NOT_ACQUIRED.code
 
   const isPathGone = (e: PlatformError) => e.reason._tag === 'NotFound' || e.reason._tag === 'Unknown'
 
@@ -123,7 +94,7 @@ export namespace EffectFlock {
           Effect.catch(() =>
             Effect.gen(function* () {
               yield* forceRemove(lockDir)
-              return yield* Effect.fail(makeLockCompromisedError({detail}))
+              return yield* Effect.fail(utilErrors.LOCK_COMPROMISED({detail}))
             }),
           ),
         )
@@ -172,7 +143,7 @@ export namespace EffectFlock {
 
           if (!created) {
             if (!(yield* isStale(lockDir, heartbeatPath, metaPath, staleMs)))
-              return yield* Effect.fail(makeNotAcquired())
+              return yield* Effect.fail(utilErrors.LOCK_NOT_ACQUIRED())
 
             const breakerPath = lockDir + '.breaker'
 
@@ -186,7 +157,7 @@ export namespace EffectFlock {
               Effect.orDie,
             )
 
-            if (!claimed) return yield* Effect.fail(makeNotAcquired())
+            if (!claimed) return yield* Effect.fail(utilErrors.LOCK_NOT_ACQUIRED())
 
             const recreated = yield* Effect.gen(function* () {
               if (!(yield* isStale(lockDir, heartbeatPath, metaPath, staleMs))) return false
@@ -194,7 +165,7 @@ export namespace EffectFlock {
               return yield* atomicMkdir(lockDir)
             }).pipe(Effect.ensuring(forceRemove(breakerPath)))
 
-            if (!recreated) return yield* Effect.fail(makeNotAcquired())
+            if (!recreated) return yield* Effect.fail(utilErrors.LOCK_NOT_ACQUIRED())
           }
 
           yield* exclusiveWrite(heartbeatPath, '', lockDir, 'heartbeat already existed')
@@ -213,16 +184,16 @@ export namespace EffectFlock {
         lockfile: string,
         key: string,
         options: {staleMs: number; timeoutMs: number},
-      ): Effect.Effect<Handle, LockError> =>
+      ): Effect.Effect<Handle, EvlogError> =>
         tryAcquireLockDir(lockfile, key, options.staleMs).pipe(
           Effect.retry({
-            while: (err) => err._tag === 'NotAcquired',
+            while: isNotAcquired,
             schedule: retrySchedule(options.timeoutMs),
           }),
-          Effect.catchTag('NotAcquired', () => Effect.fail(makeLockTimeoutError({key}))),
+          Effect.catchIf(isNotAcquired, () => Effect.fail(utilErrors.LOCK_TIMEOUT({key}))),
           Effect.timeoutOrElse({
             duration: options.timeoutMs,
-            orElse: () => Effect.fail(makeLockTimeoutError({key})),
+            orElse: () => Effect.fail(utilErrors.LOCK_TIMEOUT({key})),
           }),
         )
 
@@ -230,17 +201,23 @@ export namespace EffectFlock {
         Effect.gen(function* () {
           const raw = yield* fs.readFileString(handle.metaPath).pipe(
             Effect.catch((err) => {
-              if (isPathGone(err)) return Effect.die(makeReleaseError({detail: 'metadata missing'}))
+              if (isPathGone(err))
+                return Effect.die(utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock is compromised (metadata missing)'}))
               return Effect.die(err)
             }),
           )
 
           const parsed = yield* Effect.try({
             try: () => decodeMeta(raw),
-            catch: (cause) => makeReleaseError({detail: 'metadata invalid', cause}),
+            catch: (cause) =>
+              utilErrors.LOCK_RELEASE_REFUSED({
+                detail: 'lock is compromised (metadata invalid)',
+                cause: cause instanceof Error ? cause : undefined,
+              }),
           }).pipe(Effect.orDie)
 
-          if (parsed.token !== handle.token) return yield* Effect.die(makeReleaseError({detail: 'token mismatch'}))
+          if (parsed.token !== handle.token)
+            return yield* Effect.die(utilErrors.LOCK_RELEASE_REFUSED({detail: 'lock token mismatch (not the owner)'}))
 
           yield* forceRemove(handle.lockDir)
         })
@@ -269,7 +246,7 @@ export namespace EffectFlock {
 
       const withLock: Interface['withLock'] = Function.dual(
         (args) => Effect.isEffect(args[0]),
-        <A, E, R>(body: Effect.Effect<A, E, R>, key: string, dir?: string): Effect.Effect<A, E | LockError, R> =>
+        <A, E, R>(body: Effect.Effect<A, E, R>, key: string, dir?: string): Effect.Effect<A, E | EvlogError, R> =>
           Effect.scoped(
             Effect.gen(function* () {
               yield* acquire(key, dir)

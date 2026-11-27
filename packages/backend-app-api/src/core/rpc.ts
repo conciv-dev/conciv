@@ -6,8 +6,10 @@ import type * as Rpc from '@conciv/protocol/schema/rpc'
 import * as Event from '@conciv/protocol/schema/event'
 import type * as Tool from '@conciv/protocol/schema/tool'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {Context, Deferred, Effect, JsonSchema, Layer, Schema, SchemaRepresentation, Stream} from 'effect'
+import {Context, Deferred, Effect, JsonSchema, Layer, Option, Schema, SchemaRepresentation, Stream} from 'effect'
+import {EvlogError} from 'evlog'
 import * as Bus from './bus.js'
+import {coreErrors} from './errors.js'
 import * as Location from './location.js'
 import {optional, statics} from './schema.js'
 
@@ -20,18 +22,17 @@ export interface Interface {
 
 export const Service = Context.Service<Interface>('@conciv/Rpc')
 
-const DeclaredError = Schema.TaggedStruct('Rpc.DeclaredError', {
-  type: Schema.String,
-  message: Schema.String,
-  data: Schema.optional(Schema.Unknown),
-})
-type DeclaredError = typeof DeclaredError.Type & globalThis.Error
+const Declared = Schema.Struct({type: Schema.String, data: Schema.optional(Schema.Unknown)})
 
-const makeDeclaredError = (type: string, message: string, data?: unknown): DeclaredError =>
-  Object.assign(new globalThis.Error(message), DeclaredError.make({type, message, data}))
+const makeDeclaredError = (type: string, message: string, data?: unknown): EvlogError =>
+  coreErrors.RPC_DECLARED_ERROR({type, message, internal: {type, data}})
 
-const isDeclaredError = (error: unknown): error is DeclaredError =>
-  error instanceof globalThis.Error && Schema.is(DeclaredError)(error)
+const readDeclared = (error: unknown) =>
+  EvlogError.isEvlogError(error) && error.code === coreErrors.RPC_DECLARED_ERROR.code
+    ? Schema.decodeUnknownOption(Declared)(error.internal).pipe(
+        Option.map((declared) => ({...declared, message: error.message})),
+      )
+    : Option.none()
 
 export const layer = Layer.effect(
   Service,
@@ -91,7 +92,8 @@ export const layer = Layer.effect(
         events: {
           emit: Effect.fn('Rpc.emit')(function* (...args: Rpc.EventInput<D>) {
             const registered = events.get(args[0])
-            if (!registered) return yield* Effect.fail(new Error(`Unknown RPC event: ${definition.id}.${args[0]}`))
+            if (!registered)
+              return yield* Effect.fail(coreErrors.RPC_UNKNOWN_EVENT({event: `${definition.id}.${args[0]}`}))
             const event = registered.event
             const data = (yield* encode(event.schema, args[1])) as Readonly<Record<string, unknown>>
             return yield* bus
@@ -155,7 +157,7 @@ export const layer = Layer.effect(
         events: {
           subscribe: <Name extends keyof D['events'] & string>(name: Name) => {
             const registered = events.get(name)
-            if (!registered) return Stream.fail(new Error(`Unknown RPC event: ${definition.id}.${name}`))
+            if (!registered) return Stream.fail(coreErrors.RPC_UNKNOWN_EVENT({event: `${definition.id}.${name}`}))
             return bus.subscribe(registered.definition).pipe(
               Stream.provideService(Location.Service, location),
               Stream.mapEffect((payload) => logicalEvent(definition, name, payload, ref)),
@@ -198,7 +200,10 @@ function parse(schema: Tool.ValueSchema, value: unknown): Effect.Effect<unknown,
       const parsed = yield* Effect.try({try: () => schema['~standard'].validate(value), catch: (cause) => cause})
       const result =
         parsed instanceof Promise ? yield* Effect.tryPromise({try: () => parsed, catch: (cause) => cause}) : parsed
-      if (result.issues) return yield* Effect.fail(new Error(result.issues.map((issue) => issue.message).join('\n')))
+      if (result.issues)
+        return yield* Effect.fail(
+          coreErrors.RPC_INPUT_INVALID({issues: result.issues.map((issue) => issue.message).join('\n')}),
+        )
       return result.value
     })
   }
@@ -216,14 +221,16 @@ function encode(schema: Tool.ValueSchema, value: unknown): Effect.Effect<unknown
 }
 
 function encodeError(method: Rpc.Method, error: unknown): Effect.Effect<never, Rpc.Failure> {
-  if (!isDeclaredError(error)) return Effect.die(error)
-  const schema = method.errors?.[error.type]
-  if (!method.errors || !Object.hasOwn(method.errors, error.type) || !schema) {
-    return Effect.die(new Error(`Undeclared RPC error: ${error.type}`))
+  const declared = readDeclared(error)
+  if (Option.isNone(declared)) return Effect.die(error)
+  const {type, message, data} = declared.value
+  const schema = method.errors?.[type]
+  if (!method.errors || !Object.hasOwn(method.errors, type) || !schema) {
+    return Effect.die(coreErrors.RPC_UNDECLARED_ERROR({type}))
   }
-  return encode(schema, error.data).pipe(
+  return encode(schema, data).pipe(
     Effect.catch((cause) => Effect.die(cause)),
-    Effect.flatMap((data) => Effect.fail(failure(error.type, error.message, data))),
+    Effect.flatMap((encoded) => Effect.fail(failure(type, message, encoded))),
   )
 }
 
@@ -264,7 +271,7 @@ const logicalEvent = Effect.fn('Rpc.logicalEvent')(function* <
   ref: Location.Ref,
 ): Effect.fn.Return<Rpc.EventPayload<D, Name>, unknown> {
   const event = definition.events[name]
-  if (!event) return yield* Effect.fail(new Error(`Unknown RPC event: ${definition.id}.${name}`))
+  if (!event) return yield* Effect.fail(coreErrors.RPC_UNKNOWN_EVENT({event: `${definition.id}.${name}`}))
   const data = yield* read(event.schema, payload.data)
   return {
     ...payload,

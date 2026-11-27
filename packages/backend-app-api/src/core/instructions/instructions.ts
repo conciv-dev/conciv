@@ -2,6 +2,7 @@ import {createHash} from 'crypto'
 import * as Instruction from '@conciv/protocol/schema/instruction'
 import {Data, Effect, Option, Schema} from 'effect'
 import {canonicalJson} from '../util/canonical-json.js'
+import {instructionsErrors} from './errors.js'
 
 export const Key = Instruction.Key
 export type Key = Instruction.Key
@@ -68,16 +69,6 @@ export const makeInitializationBlocked = (
     {name: 'Instructions.InitializationBlocked'},
   )
 
-export const DuplicateKeyError = Schema.TaggedStruct('Instructions.DuplicateKeyError', {
-  key: Key,
-})
-export type DuplicateKeyError = typeof DuplicateKeyError.Type & globalThis.Error
-
-export const makeDuplicateKeyError = (fields: Omit<typeof DuplicateKeyError.Type, '_tag'>): DuplicateKeyError =>
-  Object.assign(new globalThis.Error(`Duplicate instruction key: ${fields.key}`), DuplicateKeyError.make(fields), {
-    name: 'Instructions.DuplicateKeyError',
-  })
-
 export const empty: List = []
 
 export function make<A>(source: Source.Definition<A>): List {
@@ -121,7 +112,7 @@ export function combine(values: ReadonlyArray<List>): List {
   const sources = values.flat()
   const keys = new Set<Key>()
   for (const source of sources) {
-    if (keys.has(source.key)) throw makeDuplicateKeyError({key: source.key})
+    if (keys.has(source.key)) throw instructionsErrors.DUPLICATE_KEY({key: source.key})
     keys.add(source.key)
   }
   return sources
@@ -275,6 +266,6 @@ function isRemoved(value: unknown): value is Removed {
 }
 
 function requireText(key: Key, kind: string, text: string) {
-  if (text.length === 0) throw new Error(`Instruction source ${key} rendered an empty ${kind}`)
+  if (text.length === 0) throw instructionsErrors.EMPTY_RENDER({key, kind})
   return text
 }

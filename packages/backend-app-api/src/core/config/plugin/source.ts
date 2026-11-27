@@ -8,6 +8,7 @@ import {fileURLToPath, pathToFileURL} from 'url'
 import * as Watcher from '../../filesystem/watcher.js'
 import * as Location from '../../location.js'
 import * as PluginSourceDirectory from '../../plugin/source-directory.js'
+import {pluginErrors} from '../../plugin/errors.js'
 
 export type Operation =
   | {
@@ -185,7 +186,7 @@ function parse(input: ConfigPlugin.Plugin): Operation {
     return {type: 'add', target: input[0], options: input[1]}
   }
   if (!input.startsWith('-')) return {type: 'add', target: input, options: {}}
-  if (input.length === 1) throw new Error('Plugin remove operation requires a target')
+  if (input.length === 1) throw pluginErrors.REMOVE_NEEDS_TARGET()
   return {type: 'remove', target: input.slice(1)}
 }
 

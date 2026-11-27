@@ -1,4 +1,5 @@
 import {Context, Deferred, Effect, Layer, Schema} from 'effect'
+import type {EvlogError} from 'evlog'
 import * as Permission from '@conciv/protocol/schema/permission'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import type * as Session from '@conciv/protocol/schema/session'
@@ -6,9 +7,10 @@ import type * as Tool from '@conciv/protocol/schema/tool'
 import * as Bus from './bus.js'
 import * as Location from './location.js'
 import * as Agent from './agent.js'
-import * as SessionErrors from './session/error.js'
+import * as SessionErrors from './session/errors.js'
 import * as Wildcard from './util/wildcard.js'
 import * as PermissionSaved from './permission/saved.js'
+import {permissionErrors} from './permission/errors.js'
 import * as PluginHooks from './plugin/hooks.js'
 
 const PermissionEffect = Permission.Effect
@@ -99,14 +101,6 @@ export const makeBlockedError = (fields: Omit<typeof BlockedError.Type, '_tag'>)
     {name: 'Permission.BlockedError'},
   )
 
-export const NotFoundError = Schema.TaggedStruct('Permission.NotFoundError', {
-  requestId: Id,
-})
-export type NotFoundError = typeof NotFoundError.Type & globalThis.Error
-
-export const makeNotFoundError = (fields: Omit<typeof NotFoundError.Type, '_tag'>): NotFoundError =>
-  Object.assign(new globalThis.Error(), NotFoundError.make(fields), {name: 'Permission.NotFoundError'})
-
 export type Error = BlockedError | CorrectedError
 
 export function evaluate(action: string, resource: string, ...rulesets: Permission.Ruleset[]): Permission.Rule {
@@ -131,7 +125,7 @@ export interface Interface {
   readonly assert: (input: AssertInput) => Effect.Effect<void, Error | SessionErrors.NotFoundError>
   readonly assertNotDenied: (input: AssertInput) => Effect.Effect<void, BlockedError | SessionErrors.NotFoundError>
   readonly allows: (input: AssertInput) => Effect.Effect<boolean, SessionErrors.NotFoundError>
-  readonly reply: (input: ReplyInput) => Effect.Effect<void, NotFoundError>
+  readonly reply: (input: ReplyInput) => Effect.Effect<void, EvlogError>
   readonly get: (id: Id) => Effect.Effect<Request | undefined>
   readonly forSession: (sessionId: Session.Id) => Effect.Effect<ReadonlyArray<Request>>
   readonly list: () => Effect.Effect<ReadonlyArray<Request>>
@@ -262,7 +256,7 @@ export const layer = Layer.effect(
             return item
           }
           if (pending.has(request.id))
-            return yield* Effect.die(new Error(`Duplicate pending permission ID: ${request.id}`))
+            return yield* Effect.die(permissionErrors.DUPLICATE_PENDING_ID({requestId: request.id}))
           pending.set(request.id, item)
           yield* bus
             .publish(Permission.Event.Asked, request)
@@ -334,7 +328,7 @@ export const layer = Layer.effect(
       Effect.uninterruptible(
         Effect.gen(function* () {
           const existing = pending.get(input.requestId)
-          if (!existing) return yield* Effect.fail(makeNotFoundError({requestId: input.requestId}))
+          if (!existing) return yield* Effect.fail(permissionErrors.REQUEST_NOT_FOUND({requestId: input.requestId}))
           yield* bus.publish(Permission.Event.Replied, {
             sessionId: existing.request.sessionId,
             requestId: existing.request.id,

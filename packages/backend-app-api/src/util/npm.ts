@@ -1,34 +1,24 @@
 import path from 'path'
 import {createHash, randomUUID} from 'node:crypto'
 import {Clock, Effect, Schema, Context, Layer, Option, FileSystem} from 'effect'
+import type {EvlogError} from 'evlog'
+import {utilErrors} from './errors.js'
 import {FSUtil} from './fs-util.js'
 import * as Global from './global.js'
 import {EffectFlock} from './effect-flock.js'
 import * as NpmConfig from './npm-config.js'
 
-export const InstallFailedError = Schema.TaggedStruct('NpmInstallFailedError', {
-  add: Schema.Array(Schema.String).pipe(Schema.optional),
-  dir: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-})
-export type InstallFailedError = typeof InstallFailedError.Type & globalThis.Error
-
-const installFailedMessage = (fields: Omit<typeof InstallFailedError.Type, '_tag'>) => {
-  const summary = `Failed to install ${fields.add?.join(', ') || fields.dir}`
-  if (!(fields.cause instanceof Error)) return summary
-  const stderr = 'stderr' in fields.cause && typeof fields.cause.stderr === 'string' ? fields.cause.stderr.trim() : ''
-  if (!stderr) return `${summary}: ${fields.cause.message}`
-  return `${summary}: ${fields.cause.message}\n${stderr}`
+const installFailed = (fields: {add?: readonly string[]; dir: string; cause?: unknown}): EvlogError => {
+  const cause = fields.cause instanceof Error ? fields.cause : undefined
+  const stderr = Reflect.get(cause ?? {}, 'stderr')
+  const output = typeof stderr === 'string' ? stderr.trim() : ''
+  return utilErrors.INSTALL_FAILED({
+    target: fields.add?.join(', ') || fields.dir,
+    cause,
+    why: cause && [cause.message, output].filter(Boolean).join('\n'),
+    internal: {dir: fields.dir},
+  })
 }
-
-export const makeInstallFailedError = (fields: Omit<typeof InstallFailedError.Type, '_tag'>): InstallFailedError =>
-  Object.assign(
-    new globalThis.Error(installFailedMessage(fields), {cause: fields.cause}),
-    InstallFailedError.make(fields),
-    {
-      name: 'NpmInstallFailedError',
-    },
-  )
 
 export interface Package {
   readonly directory: string
@@ -38,10 +28,10 @@ export interface Package {
 }
 
 export interface Interface {
-  readonly add: (pkg: string) => Effect.Effect<Package, InstallFailedError | EffectFlock.LockError>
+  readonly add: (pkg: string) => Effect.Effect<Package, EvlogError>
   readonly resolve: (pkg: string) => Effect.Effect<Package>
-  readonly check: (pkg: string) => Effect.Effect<boolean, InstallFailedError>
-  readonly update: (pkg: string) => Effect.Effect<Package, InstallFailedError | EffectFlock.LockError>
+  readonly check: (pkg: string) => Effect.Effect<boolean, EvlogError>
+  readonly update: (pkg: string) => Effect.Effect<Package, EvlogError>
   readonly which: (pkg: string, bin?: string) => Effect.Effect<string | undefined>
 }
 
@@ -165,13 +155,11 @@ export const layer = Layer.effect(
       return latest ? path.join(dir, latest) : undefined
     })
     const mkdir = (dir: string) =>
-      fs.makeDirectory(dir, {recursive: true}).pipe(Effect.mapError((cause) => makeInstallFailedError({dir, cause})))
+      fs.makeDirectory(dir, {recursive: true}).pipe(Effect.mapError((cause) => installFailed({dir, cause})))
     const remove = (target: string, dir: string) =>
-      fs
-        .remove(target, {recursive: true, force: true})
-        .pipe(Effect.mapError((cause) => makeInstallFailedError({dir, cause})))
+      fs.remove(target, {recursive: true, force: true}).pipe(Effect.mapError((cause) => installFailed({dir, cause})))
     const rename = (from: string, to: string, dir: string) =>
-      fs.rename(from, to).pipe(Effect.mapError((cause) => makeInstallFailedError({dir, cause})))
+      fs.rename(from, to).pipe(Effect.mapError((cause) => installFailed({dir, cause})))
     const installedName = Effect.fnUntraced(function* (pkg: string, dir: string, target?: Target) {
       if (target?.name) return target.name
       const manifest = yield* afs
@@ -246,12 +234,12 @@ export const layer = Layer.effect(
               saveType: 'prod',
             }),
           catch: (cause) =>
-            makeInstallFailedError({
+            installFailed({
               cause,
               add,
               dir: input.dir,
             }),
-        }) as Effect.Effect<ArboristTree, InstallFailedError>
+        }) as Effect.Effect<ArboristTree, EvlogError>
       }).pipe(
         Effect.withSpan('Npm.reify', {
           attributes: input,
@@ -273,7 +261,7 @@ export const layer = Layer.effect(
 
       yield* mkdir(dir)
       const startedAt = yield* Clock.currentTimeMillis
-      const root = yield* fs.realPath(dir).pipe(Effect.mapError((cause) => makeInstallFailedError({dir, cause})))
+      const root = yield* fs.realPath(dir).pipe(Effect.mapError((cause) => installFailed({dir, cause})))
       const staging = path.join(root, `.staging-${startedAt}-${randomUUID()}`)
       const staged = yield* Effect.gen(function* () {
         const tree = yield* reify({dir: staging, config: dir, add: [pkg], update})
@@ -286,7 +274,7 @@ export const layer = Layer.effect(
           target,
         )
         if (!installed && !(yield* afs.isDir(result.directory)))
-          return yield* Effect.fail(makeInstallFailedError({add: [pkg], dir: staging}))
+          return yield* Effect.fail(installFailed({add: [pkg], dir: staging}))
         const links =
           process.platform === 'win32'
             ? Array.from(tree.inventory.values()).filter(
@@ -317,7 +305,7 @@ export const layer = Layer.effect(
                 await unlink(link.path)
                 await symlink(path.join(generation, path.relative(staging, link.realpath)), link.path, 'junction')
               },
-              catch: (cause) => makeInstallFailedError({dir, cause}),
+              catch: (cause) => installFailed({dir, cause}),
             }),
           {discard: true},
         ).pipe(Effect.onError(() => remove(staging, dir).pipe(Effect.ignore)))
@@ -369,20 +357,12 @@ export const layer = Layer.effect(
       const target = yield* Effect.promise(() => parse(pkg))
       const root = directory(pkg, target)
       if (!target)
-        return yield* Effect.fail(
-          makeInstallFailedError({
-            dir: root,
-            cause: new Error('Package checks only support registry and Git package specs'),
-          }),
-        )
+        return yield* Effect.fail(utilErrors.INSTALL_UNSUPPORTED_SPEC({action: 'checks', internal: {dir: root}}))
       if (!target.mutable) return false
       const generation = yield* current(root)
       const name = yield* installedName(pkg, generation ?? root, target)
       const installed = generation ? yield* installedRevision(generation, name, target) : undefined
-      if (!installed)
-        return yield* Effect.fail(
-          makeInstallFailedError({dir: root, cause: new Error(`Package is not installed: ${pkg}`)}),
-        )
+      if (!installed) return yield* Effect.fail(utilErrors.PACKAGE_NOT_INSTALLED({pkg, internal: {dir: root}}))
       const {manifest, resolve} = yield* Effect.promise(() => import('pacote'))
       const options = {
         ...(yield* NpmConfig.load(root)),
@@ -394,25 +374,16 @@ export const layer = Layer.effect(
       const available = yield* Effect.tryPromise({
         try: async () =>
           target.type === 'git' ? gitRevision(await resolve(pkg, options)) : (await manifest(pkg, options)).version,
-        catch: (cause) => makeInstallFailedError({dir: root, cause}),
+        catch: (cause) => installFailed({dir: root, cause}),
       })
-      if (!available)
-        return yield* Effect.fail(
-          makeInstallFailedError({dir: root, cause: new Error(`Package revision not found: ${pkg}`)}),
-        )
+      if (!available) return yield* Effect.fail(utilErrors.PACKAGE_REVISION_NOT_FOUND({pkg, internal: {dir: root}}))
       return installed !== available
     })
 
     const update = Effect.fn('Npm.update')(function* (pkg: string) {
       const target = yield* Effect.promise(() => parse(pkg))
       const dir = directory(pkg, target)
-      if (!target)
-        return yield* Effect.fail(
-          makeInstallFailedError({
-            dir,
-            cause: new Error('Package updates only support registry and Git package specs'),
-          }),
-        )
+      if (!target) return yield* Effect.fail(utilErrors.INSTALL_UNSUPPORTED_SPEC({action: 'updates', internal: {dir}}))
       if (!target.mutable) return yield* add(pkg)
       const installed = yield* install(pkg, target, dir, true)
       yield* collect(dir)

@@ -19,7 +19,9 @@ import {rpcMethod, type RpcCallOptions, type RpcEventPayload} from '@conciv/clie
 import type * as Plugin from './plugin.js'
 import type {RpcDomain, RpcHandlers} from './rpc.js'
 import type {Info} from './tool.js'
-import {Effect, FiberHandle, Schema, Stream} from 'effect'
+import {Effect, FiberHandle, Option, Schema, Stream} from 'effect'
+import {EvlogError} from 'evlog'
+import {pluginApiErrors} from '../util/errors.js'
 import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
 import type {ToolFailures, ToolHooks} from '../effect/tool.js'
@@ -144,18 +146,17 @@ interface HostRpcCallContext {
   readonly error: (type: string, message: string, data?: unknown) => unknown
 }
 
-const ReturnedRpcError = Schema.TaggedStruct('ReturnedRpcError', {
-  type: Schema.String,
-  message: Schema.String,
-  data: Schema.optional(Schema.Unknown),
-})
-type ReturnedRpcError = typeof ReturnedRpcError.Type & globalThis.Error
+const Returned = Schema.Struct({type: Schema.String, data: Schema.optional(Schema.Unknown)})
 
-const makeReturnedRpcError = (type: string, message: string, data?: unknown): ReturnedRpcError =>
-  Object.assign(new globalThis.Error(message), ReturnedRpcError.make({type, message, data}))
+const makeReturnedRpcError = (type: string, message: string, data?: unknown): EvlogError =>
+  pluginApiErrors.RPC_ERROR_RETURNED({type, message, internal: {type, data}})
 
-const isReturnedRpcError = (error: unknown): error is ReturnedRpcError =>
-  error instanceof globalThis.Error && Schema.is(ReturnedRpcError)(error)
+const readReturned = (error: unknown) =>
+  EvlogError.isEvlogError(error) && error.code === pluginApiErrors.RPC_ERROR_RETURNED.code
+    ? Schema.decodeUnknownOption(Returned)(error.internal).pipe(
+        Option.map((returned) => ({...returned, message: error.message})),
+      )
+    : Option.none()
 
 const makeStreams = Effect.fn('Plugin.Event.makeStreams')(function* () {
   const context = yield* Effect.context<Scope.Scope>()
@@ -253,7 +254,9 @@ const rpcFromEffect = Effect.fn('Plugin.Rpc.fromEffect')(function* (host: HostRp
                 catch: (error) => hostRpcError(context, error),
               }).pipe(
                 Effect.flatMap((result) =>
-                  isReturnedRpcError(result) ? Effect.fail(hostRpcError(context, result)) : Effect.succeed(result),
+                  Option.isSome(readReturned(result))
+                    ? Effect.fail(hostRpcError(context, result))
+                    : Effect.succeed(result),
                 ),
               ),
           ]),
@@ -268,8 +271,9 @@ const rpcFromEffect = Effect.fn('Plugin.Rpc.fromEffect')(function* (host: HostRp
 })
 
 function hostRpcError(context: HostRpcCallContext, error: unknown) {
-  if (!isReturnedRpcError(error)) return error
-  return context.error(error.type, error.message, error.data)
+  const returned = readReturned(error)
+  if (Option.isNone(returned)) return error
+  return context.error(returned.value.type, returned.value.message, returned.value.data)
 }
 
 export function fromPromise(plugin: Plugin.Plugin) {

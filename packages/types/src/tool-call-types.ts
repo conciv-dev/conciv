@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {typesErrors} from './errors/errors.js'
 import type {SessionId} from './chat-types.js'
 
 export type ToolRequest = {
@@ -26,9 +27,7 @@ const ToolNameSchema = z.string().regex(TOOL_NAME_RULE)
 
 export function assertToolName(name: string): void {
   if (ToolNameSchema.safeParse(name).success) return
-  throw new Error(
-    `tool "${name}": a tool name is a lowercase snake_case identifier matching ${TOOL_NAME_RULE.source}, so the code-mode isolate can bind it as a JavaScript function name; write page_click, never a dotted name`,
-  )
+  throw typesErrors.TOOL_NAME_INVALID({name, rule: TOOL_NAME_RULE.source})
 }
 
 export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>

@@ -52,6 +52,7 @@
     "detect-libc": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "glob": "catalog:",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",

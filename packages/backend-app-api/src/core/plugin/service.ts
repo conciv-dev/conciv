@@ -1,5 +1,5 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
-import type {Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Plugin as PluginDefinition, Services} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, type Effect, type Exit} from 'effect'
 
 export interface Interface {
@@ -17,7 +17,7 @@ export interface Interface {
 
 export type Failure = Plugin.Info & {readonly state: Extract<Plugin.State, {readonly status: 'failed'}>}
 
-export type Generation = PluginDefinition<Services, TaggedError> & {
+export type Generation = PluginDefinition<Services, Error> & {
   readonly revision: string
   readonly source?: Plugin.Source
   readonly features?: Plugin.Features

@@ -1,10 +1,12 @@
 import {eq} from 'drizzle-orm'
-import {Cause, Context, DateTime, Effect, Layer, Schema} from 'effect'
+import {Cause, Context, DateTime, Effect, Layer} from 'effect'
+import type {EvlogError} from 'evlog'
 import {isSqlError} from 'effect/sql/SqlError'
 import type {EffectDrizzleQueryError} from 'drizzle-orm/effect-core/errors'
 import type * as Project from '../../schema/project.js'
 import * as Database from '../database/database.js'
 import {PermissionTable} from './sql.js'
+import {permissionErrors} from './errors.js'
 import * as PermissionSaved from '../../schema/permission-saved.js'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 
@@ -30,28 +32,10 @@ export interface UpdateInput {
   readonly resource?: string
 }
 
-export const NotFoundError = Schema.TaggedStruct('PermissionSaved.NotFoundError', {
-  id: Id,
-})
-export type NotFoundError = typeof NotFoundError.Type & globalThis.Error
-
-export const makeNotFoundError = (fields: Omit<typeof NotFoundError.Type, '_tag'>): NotFoundError =>
-  Object.assign(new globalThis.Error(), NotFoundError.make(fields), {name: 'PermissionSaved.NotFoundError'})
-
-export const ConflictError = Schema.TaggedStruct('PermissionSaved.ConflictError', {
-  id: Id,
-  action: Schema.String,
-  resource: Schema.String,
-})
-export type ConflictError = typeof ConflictError.Type & globalThis.Error
-
-export const makeConflictError = (fields: Omit<typeof ConflictError.Type, '_tag'>): ConflictError =>
-  Object.assign(new globalThis.Error(), ConflictError.make(fields), {name: 'PermissionSaved.ConflictError'})
-
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<ReadonlyArray<Info>>
   readonly add: (input: AddInput) => Effect.Effect<void>
-  readonly update: (input: UpdateInput) => Effect.Effect<Info, NotFoundError | ConflictError>
+  readonly update: (input: UpdateInput) => Effect.Effect<Info, EvlogError>
   readonly remove: (id: Id) => Effect.Effect<void>
 }
 
@@ -97,7 +81,7 @@ export const layer = Layer.effect(
         .where(eq(PermissionTable.id, input.id))
         .get()
         .pipe(Effect.orDie)
-      if (!current) return yield* Effect.fail(makeNotFoundError({id: input.id}))
+      if (!current) return yield* Effect.fail(permissionErrors.SAVED_NOT_FOUND({id: input.id}))
       const action = input.action ?? current.action
       const resource = input.resource ?? current.resource
       const updated = yield* db
@@ -107,10 +91,12 @@ export const layer = Layer.effect(
         .returning()
         .get()
         .pipe(
-          Effect.catchIf(isUniqueViolation, () => Effect.fail(makeConflictError({id: input.id, action, resource}))),
+          Effect.catchIf(isUniqueViolation, () =>
+            Effect.fail(permissionErrors.SAVED_CONFLICT({action, resource, internal: {id: input.id}})),
+          ),
           Effect.catchTag('EffectDrizzleQueryError', (error) => Effect.die(error)),
         )
-      if (!updated) return yield* Effect.fail(makeNotFoundError({id: input.id}))
+      if (!updated) return yield* Effect.fail(permissionErrors.SAVED_NOT_FOUND({id: input.id}))
       return info(updated)
     })
 
