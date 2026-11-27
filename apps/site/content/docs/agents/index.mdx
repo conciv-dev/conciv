@@ -1,138 +1,36 @@
 ---
-title: Connect your agents
-description: Let the coding agent in your own terminal see and drive your open conciv tabs.
+title: Agents
+description: Connect the coding agent in your terminal to conciv, and see what conciv runs when it answers in the chat.
 ---
 
-Connect the agent in your terminal to conciv. It can then find your open conciv tabs and use the same tools the chat
-in the panel uses. `conciv init` does this for every agent it finds. To connect one yourself, pick your agent:
+conciv works with an agent CLI in two ways. A connected agent runs in your own terminal and drives your open conciv
+tabs through the `conciv-hub` MCP server. The session's harness is the agent CLI that conciv itself runs to answer in
+the chat. Each page covers both for one agent.
 
-<Tabs groupId="agent" persist items={['Claude Code', 'Codex', 'Gemini CLI', 'opencode']}>
+## Agents
 
-<Tab value="Claude Code">
+- [Claude Code](/docs/agents/claude-code): connects, and gives the chat the most: cards, commands and a terminal tab.
+- [Codex](/docs/agents/codex): connects, and chats in its sandbox with no permission cards.
+- [Gemini CLI](/docs/agents/gemini-cli): connects, and chats over ACP with permission cards.
+- [opencode](/docs/agents/opencode): connects, and chats with opencode's own models.
+- [Pi](/docs/agents/pi): no connection and no chat yet; its past sessions show in the list.
 
-```bash
-npx @conciv/cli@latest mcp connect claude
-```
-
-This adds the `conciv-hub` MCP server to Claude Code for your user. It runs `claude mcp add -s user conciv-hub ...`.
-
-</Tab>
-
-<Tab value="Codex">
-
-```bash
-npx @conciv/cli@latest mcp connect codex
-```
-
-This adds the `conciv-hub` MCP server to Codex. It runs `codex mcp add conciv-hub ...`.
-
-</Tab>
-
-<Tab value="Gemini CLI">
-
-```bash
-npx @conciv/cli@latest mcp connect gemini-cli
-```
-
-This adds the `conciv-hub` MCP server to Gemini CLI for your user. It runs `gemini mcp add -s user conciv-hub ...`.
-
-</Tab>
-
-<Tab value="opencode">
-
-```bash
-npx @conciv/cli@latest mcp connect opencode
-```
-
-This adds the `conciv-hub` MCP server to opencode. It runs `opencode mcp add conciv-hub ...`.
-
-</Tab>
-
-</Tabs>
-
-On success it prints:
-
-```text
-{"ok":true,"data":{"connected":"claude"}}
-```
-
-## Try it
-
-With your dev server running and your app open, ask your agent:
-
-<CopyPrompt text="List my open conciv tabs. Then read the page in the first one and tell me what is on it." />
-
-The agent gets three tools:
+## What a connected agent gets
 
 - `list_tabs` lists the open conciv tabs of every running dev server on this machine.
 - `discover_tools` lists the tools it can call on a tab.
 - `execute_typescript` runs those tools on the tab you name.
-
-The panel shows the same connections. A **Connected agents** row sits above the composer. A **Connect agents** menu
-sits in the composer toolbar.
+- Work a call leaves running is a job. Its result comes back at the top of the next reply on that tab.
+- By default it can use any open tab with no card. Learn to make it ask in [Approvals](/docs/usage/approvals).
 
 ## What init sets up
 
-- A conciv section in `AGENTS.md`, between `<!-- conciv:start -->` and `<!-- conciv:end -->`. It tells the agent to
-  use `conciv tools page ...` for the browser, and `conciv tools --help` for the rest.
-- The same section in `CLAUDE.md`, when yours does not import `AGENTS.md`. With Claude Code and no `CLAUDE.md`, init
-  creates one that holds `@AGENTS.md`.
-- For Claude Code, the `conciv-connect` plugin in `.conciv/claude-connect`. It holds a conciv skill and an MCP bridge,
-  for this project only.
-- The `conciv-hub` MCP server in each agent you picked.
+- conciv's init connects every agent it finds on your machine.
+- It writes a conciv section to `AGENTS.md`, and the same section to CLAUDE.md when that file does not import it.
+- For Claude Code it also installs a project plugin with a conciv skill. See [Claude Code](/docs/agents/claude-code).
+- Re-running init updates the section in place.
 
-Re-running init updates the section in place.
+## Learn more
 
-## Edge cases
-
-<Accordions>
-<Accordion id="commands" title="The other mcp commands">
-
-- `conciv mcp disconnect <agent>` stops conciv answering that agent, and removes it from the agent's config.
-- `conciv mcp list` lists the connected agents.
-- `conciv mcp serve --agent <agent>` is the server the agent runs. connect registers it for you. You do not run it
-  yourself.
-
-</Accordion>
-<Accordion id="opencode-disconnect" title="Disconnecting opencode">
-
-The `conciv-hub` entry stays in `opencode.json`. conciv refuses it until you connect again.
-
-</Accordion>
-<Accordion id="claude-plugin" title="The Claude Code plugin failed to install">
-
-init prints the commands to run yourself:
-
-```bash
-claude plugin marketplace add .conciv/claude-connect
-claude plugin install conciv-connect@conciv --scope local
-claude plugin update conciv-connect@conciv --scope local
-```
-
-The plugin's bridge reads the engine address from `.conciv/mcp-endpoint.json`. The engine writes it when it starts.
-
-</Accordion>
-<Accordion id="agents-md" title="init could not write AGENTS.md">
-
-When the file has a start marker with no end marker, init does not edit it. It prints the section as a card to paste.
-
-</Accordion>
-<Accordion id="jobs" title="Long running work">
-
-Work a call leaves running, such as a queue of page actions, is a job on the engine. Its result comes back once, at
-the top of the next `execute_typescript` reply on that tab. An agent whose MCP client supports tasks gets a task
-instead. The task completes when the job ends.
-
-</Accordion>
-<Accordion id="access" title="Asking before an agent uses a tab">
-
-A connected agent can use any open tab with no question. Set `hubAccess: 'project'` to have the tab ask first. See
-[Configuration](/docs/reference/configuration) and [Approvals](/docs/usage/approvals).
-
-</Accordion>
-</Accordions>
-
-## Next
-
-- [Usage](/docs/usage): what the agent can do in your app.
-- [CLI](/docs/reference/cli): every conciv command.
+- [Harnesses](/docs/harnesses): pick the harness a new chat starts with, and compare what each can do.
+- [CLI](/docs/reference/cli): every `mcp` command.
