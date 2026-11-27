@@ -55,7 +55,7 @@ function selectActiveLink(links: HeaderLink[], pathname: string) {
 }
 
 const linkClass =
-  'relative inline-flex h-14 items-center text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground data-[active=true]:text-fd-primary data-[active=true]:after:absolute data-[active=true]:after:inset-x-0 data-[active=true]:after:bottom-0 data-[active=true]:after:h-0.5 data-[active=true]:after:bg-fd-primary'
+  'relative inline-flex h-14 items-center text-sm whitespace-nowrap text-fd-muted-foreground transition-colors hover:text-fd-foreground data-[active=true]:text-fd-primary data-[active=true]:after:absolute data-[active=true]:after:inset-x-0 data-[active=true]:after:bottom-0 data-[active=true]:after:h-0.5 data-[active=true]:after:bg-fd-primary'
 
 function MoreMenu({link}: {link: MenuItemType}) {
   return (

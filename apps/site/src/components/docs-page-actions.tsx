@@ -29,7 +29,7 @@ export function DocsPageActions({markdownUrl, githubUrl}: {markdownUrl: string; 
       </a>
       <MarkdownCopyButton
         markdownUrl={markdownUrl}
-        className={`${rowClass} h-auto justify-start rounded-none border-0 bg-transparent px-0 hover:bg-transparent`}
+        className={`${rowClass} h-auto justify-start rounded-none border-0 bg-transparent px-0 font-normal hover:bg-transparent`}
       >
         Copy as Markdown
       </MarkdownCopyButton>
