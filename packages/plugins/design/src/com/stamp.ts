@@ -1,4 +1,4 @@
-import {isAbsolute, relative} from 'node:path'
+import {isAbsolute, relative, sep} from 'node:path'
 import {Effect, FileSystem} from 'effect'
 import MagicString from 'magic-string'
 import type {JSXOpeningElement} from 'oxc-parser'
@@ -94,5 +94,5 @@ function readDisk(file: string, expected: number) {
 
 function inside(root: string, file: string): boolean {
   const path = relative(root, file)
-  return path !== '' && !path.startsWith('..') && !isAbsolute(path)
+  return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path)
 }
