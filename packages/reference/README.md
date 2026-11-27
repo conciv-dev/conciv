@@ -15,6 +15,9 @@ BUILT `.d.ts`, one file per package, plus the CLI command tree and the harness l
   project's children.
 - Types that come from another workspace package or from `node_modules` are kept as references and never expanded
   (`excludeExternals` with `externalPattern`), so each package's file holds only its own API.
+- TypeDoc drops a re-export whose declaration is external. The generator adds each one back to the module that
+  exports it, so every public export is present: a declaration with `flags.isExternal`, the target's kind, no
+  children, and a `type` that is a reference to the original symbol (`type.package`, `type.target.qualifiedName`).
 - TypeDoc supports TypeScript 6 at most, so this package alone is on `catalog:ts6`.
 
 ## Side Effects
