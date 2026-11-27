@@ -4,8 +4,8 @@ description: 'Every live playground on one page, and how to run an example app y
 icon: Joystick
 ---
 
-A playground is the real conciv panel, playing a scripted session in your browser. Nothing runs on a server, and no
-agent CLI is needed. Each one also sits on the page that explains it.
+A playground is the real conciv panel, playing a scripted session in your browser. Nothing runs on a server. You need no
+agent CLI. Each one also sits on the page that explains it.
 
 ## Available playgrounds
 
@@ -35,7 +35,7 @@ Pin an element with the crosshair, then ask for a change to it.
 
 ### Allow once
 
-A risky action asks first, and the card answers it once.
+A risky action asks first. Allow once answers it for this call only.
 
 <Playground page="vite-react" script="approvals/allow-once" caption="A permission card, answered with Allow once." />
 
@@ -103,7 +103,7 @@ Then start an example:
 pnpm turbo run dev --filter=tanstack-start-example # <- or --filter=nextjs-app
 ```
 
-- The repo pins its pnpm version, and needs Node 26 or newer.
+- The repo pins its pnpm version. It needs Node 26 or newer.
 - The first run builds the conciv packages the example uses. It then prints the address to open.
 - These examples run a real agent CLI, so it must be installed and logged in.
 
