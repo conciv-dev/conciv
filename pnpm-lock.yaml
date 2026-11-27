@@ -4025,6 +4025,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:*
         version: link:../../harness
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/frontend-app-api':
         specifier: workspace:*
         version: link:../../frontend-app-api
