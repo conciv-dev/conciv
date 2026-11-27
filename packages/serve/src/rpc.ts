@@ -7,6 +7,7 @@ import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
 import {valid} from 'semver'
 import {z} from 'zod'
+import {serveErrors} from './errors/errors.js'
 import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
 import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/types/rpc-types'
 
@@ -203,12 +204,6 @@ function peerSocket(held: {socket: WSContext<unknown> | null}): MinimalWebsocket
   }
 }
 
-function splitAdapterError(): Error {
-  return new Error(
-    'the rpc websocket upgrade was refused by the hono node-server adapter: the upgradeWebSocket passed to rpcWebsocketRoute comes from a different @hono/node-server module instance than the running server. Import it from @conciv/serve so both come from one instance.',
-  )
-}
-
 export function rpcWebsocketRoute(
   router: AnyRouter,
   options: {
@@ -260,7 +255,7 @@ export function rpcWebsocketRoute(
           () => replying.resolve(ws.readyState === SOCKET_OPEN),
           (error: unknown) => {
             replying.resolve(false)
-            options.onError?.(`rpc ws frame rejected: ${String(error)}`)
+            options.onError?.(`rpc ws frame rejected: ${error instanceof Error ? error.message : String(error)}`)
             handler.close(peer)
             ws.close(1011, 'rpc frame rejected')
           },
@@ -281,8 +276,8 @@ export function rpcWebsocketRoute(
     const upgrading = c.req.header('upgrade')?.toLowerCase() === 'websocket'
     const refused = response instanceof Response && response.status === ADAPTER_REFUSED_STATUS
     if (adapted.handled || !upgrading || !refused) return response
-    const failure = splitAdapterError()
-    options.onError?.(failure.message)
+    const failure = serveErrors.SPLIT_ADAPTER()
+    options.onError?.(`${failure.message} ${failure.fix}`)
     throw failure
   }
 }

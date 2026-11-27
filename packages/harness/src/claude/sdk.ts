@@ -12,6 +12,7 @@ import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv
 import {onPath} from '../_shared/on-path.js'
 import {CLAUDE_BIN, mcpServerConfig} from './args.js'
 import {claudePluginDir} from './plugin-dir.js'
+import {harnessErrors} from '../_shared/errors.js'
 
 export function loadClaudeAgentSdk(): Promise<typeof ClaudeAgentSdk> {
   return import('@anthropic-ai/claude-agent-sdk')
@@ -47,14 +48,12 @@ function toHarnessCommand(command: SlashCommand): HarnessCommand {
 
 const PROBE_START_TIMEOUT_MS = 30_000
 
-const NOT_INSTALLED = 'Claude Code is not installed. Install it, then run `claude auth login`.'
-
 async function claudeInstalled(env: ClaudeProbeEnv, cwd: string): Promise<boolean> {
   return onPath(env.PATH ?? '', CLAUDE_BIN, cwd)
 }
 
 async function probe(options: Options & {env: ClaudeProbeEnv}): Promise<SDKControlInitializeResponse> {
-  if (!(await claudeInstalled(options.env, options.cwd ?? process.cwd()))) throw new Error(NOT_INSTALLED)
+  if (!(await claudeInstalled(options.env, options.cwd ?? process.cwd()))) throw harnessErrors.CLAUDE_NOT_INSTALLED()
   const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
   const abortController = followSignal(AbortSignal.timeout(PROBE_START_TIMEOUT_MS))
@@ -115,7 +114,7 @@ function toHarnessModels(models: ModelInfo[]): HarnessModel[] {
 
 function listedModels(models: ModelInfo[]): HarnessModel[] {
   const listed = toHarnessModels(models)
-  if (listed.length === 0) throw new Error('the Agent SDK listed no Claude models')
+  if (listed.length === 0) throw harnessErrors.CLAUDE_NO_MODELS()
   return listed
 }
 
@@ -197,7 +196,8 @@ export async function claudeSdkLogin({
   refresh,
   ...context
 }: ProbeContext & {refresh: boolean}): Promise<HarnessLoginStatus> {
-  if (!(await claudeInstalled(context.env, process.cwd()))) return {loggedIn: false, message: NOT_INSTALLED}
+  if (!(await claudeInstalled(context.env, process.cwd())))
+    return {loggedIn: false, message: harnessErrors.CLAUDE_NOT_INSTALLED.message}
   const current = probeState.current
   if (current.type !== 'held') return readLogin(await probed(context))
   const login = readLogin(current.init)

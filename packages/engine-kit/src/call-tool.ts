@@ -3,6 +3,7 @@ import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/st
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
+import {engineKitErrors} from './errors/errors.js'
 
 const DEADLINE_MS = 60_000
 
@@ -56,12 +57,12 @@ function readText(content: Reply): string {
 
 function readReply(name: string, raw: unknown, decode: Decode): unknown {
   const result = CallResultSchema.parse(raw)
-  if (result.isError === true) throw new Error(readText(result.content))
+  if (result.isError === true) throw engineKitErrors.TOOL_FAILED({text: readText(result.content)})
   const content = withoutNotes(result.content, decode)
   const only = content[0]
   const reply = content.length === 1 && only?.text !== undefined ? decode.value(only.text) : content
   const truncated = TruncatedReplySchema.safeParse(reply)
-  if (truncated.success) throw new Error(`the reply for tool "${name}" was truncated (${truncated.data.reason})`)
+  if (truncated.success) throw engineKitErrors.TOOL_REPLY_TRUNCATED({name, reason: truncated.data.reason})
   return reply
 }
 
@@ -69,9 +70,7 @@ const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 export function externalCallProgram(name: string, input: unknown): string {
   if (!PLAIN_IDENTIFIER.test(name)) {
-    throw new Error(
-      `the tool name "${name}" is not a plain identifier (letters, digits and _, not starting with a digit), so code mode cannot call it as external_${name}`,
-    )
+    throw engineKitErrors.TOOL_NAME_NOT_IDENTIFIER({name})
   }
   return `return await external_${name}(${JSON.stringify(input ?? {})})`
 }
@@ -131,7 +130,7 @@ export function toolClients(apiBase: string, token: string): ToolClients {
         : {name: 'execute_typescript', arguments: {typescriptCode: externalCallProgram(name, input)}}
       const raw = await open.client.callTool(call, undefined, {signal: deadline}).catch((error: unknown) => {
         if (!deadline.aborted) throw error
-        throw new Error(`the tool ${name} gave no reply within ${DEADLINE_MS}ms`, {cause: error})
+        throw engineKitErrors.TOOL_NO_REPLY({name, ms: DEADLINE_MS, cause: error instanceof Error ? error : undefined})
       })
       return readReply(name, raw, direct ? directReply : executeReply)
     },

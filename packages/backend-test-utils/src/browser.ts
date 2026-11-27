@@ -11,6 +11,7 @@ import type {
   EngineSession,
   EngineStart,
 } from '@internal/engine-kit'
+import {testUtilsErrors} from './errors/errors.js'
 
 declare module 'vitest/browser' {
   interface BrowserCommands extends EngineCommands {}
@@ -34,19 +35,19 @@ export * as TestLLM from '@conciv/simulation/test-llm'
 export type {ScriptedHarness, ScriptedSession} from '@conciv/simulation/scripted-harness'
 
 export function pluginDirectory(target: string): never {
-  throw new Error(`pluginDirectory(${target}) reads the disk: call it in a node test, not in browser mode`)
+  throw testUtilsErrors.DISK_IN_BROWSER({target})
 }
 
 function crossing(reply: Reply): Reply | 'hang' {
   if (reply === hang()) return 'hang'
-  if (typeof reply === 'function') throw new Error('a function reply cannot cross to the engine in browser mode')
+  if (typeof reply === 'function') throw testUtilsErrors.FUNCTION_REPLY_IN_BROWSER()
   return reply
 }
 
 function crossingStart(options: EngineStart): EngineStart {
-  if (options.harness !== undefined) throw new Error('a harness adapter cannot cross to the engine in browser mode')
+  if (options.harness !== undefined) throw testUtilsErrors.HARNESS_IN_BROWSER()
   if (options.plugins?.some((plugin) => typeof plugin !== 'string')) {
-    throw new Error('in browser mode start.plugins names each plugin by its package name')
+    throw testUtilsErrors.PLUGIN_OBJECT_IN_BROWSER()
   }
   return options
 }
