@@ -5,9 +5,9 @@ import {repoUrl} from '@/lib/shared'
 
 const PRODUCT = [
   {label: 'Docs', splat: ''},
-  {label: 'Quick start', splat: 'quick-start'},
-  {label: 'Configuration', splat: 'configuration'},
-  {label: 'Troubleshooting', splat: 'troubleshooting'},
+  {label: 'Getting started', splat: 'getting-started'},
+  {label: 'Configuration', splat: 'reference/configuration'},
+  {label: 'Troubleshooting', splat: 'reference/troubleshooting'},
 ]
 
 const COMMUNITY = [
