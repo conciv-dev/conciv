@@ -1,0 +1,72 @@
+{
+  "name": "@conciv/plugin-design",
+  "version": "0.0.24",
+  "description": "The conciv design plugin: joins the Figma design, the page's DOM and CSSOM and the source into one id tree.",
+  "keywords": [
+    "conciv",
+    "conciv-plugin",
+    "design",
+    "figma",
+    "plugin"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugins/design"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/design.d.ts",
+      "import": "./dist/design.js"
+    },
+    "./server": {
+      "types": "./dist/design.d.ts",
+      "import": "./dist/design.js"
+    },
+    "./plugin-experimental": {
+      "types": "./dist/plugin-experimental.d.cts",
+      "default": "./dist/plugin-experimental.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/backend-test-utils": "workspace:*",
+    "@conciv/frontend-plugin-api": "workspace:^",
+    "@internal/engine-kit": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^"
+  }
+}

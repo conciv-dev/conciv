@@ -102,6 +102,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/backend-plugin-api',
   '@conciv/frontend-plugin-api',
   '@conciv/backend-app-api',
+  '@conciv/plugin-design',
   '@conciv/plugin-ios',
   '@conciv/plugin-page',
   '@conciv/plugin-recorder',

@@ -475,6 +475,7 @@
     "@conciv/unplugin",
     "@conciv/backend-plugin-api",
     "@conciv/backend-app-api",
+    "@conciv/plugin-design",
     "@conciv/plugin-ios",
     "@conciv/plugin-page",
     "@conciv/plugin-recorder",

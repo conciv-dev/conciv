@@ -1,0 +1,6 @@
+{
+  "extends": "@internal/tsconfig/tsconfig.solid.json",
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}
