@@ -1,6 +1,6 @@
 {
   "name": "@conciv/frontend-plugin-api",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "The conciv browser plugin API: Plugin.define for a plugin's browser part, its slots, hooks and the rpc client types a plugin author imports.",
   "keywords": [
     "conciv",

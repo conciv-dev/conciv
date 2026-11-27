@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-recorder",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "The conciv recorder plugin: a sliding window of the page's rrweb recording on the engine, agent tools returning a distilled action log plus keyframes, and the recorder RPC.",
   "keywords": [
     "conciv",

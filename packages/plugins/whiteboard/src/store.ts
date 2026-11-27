@@ -294,6 +294,6 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
 
 export type Store = Effect.Success<ReturnType<typeof makeWhiteboardStore>>
 
-export const WhiteboardStore = Context.Service<Store>('@internal/plugin-whiteboard/WhiteboardStore')
+export const WhiteboardStore = Context.Service<Store>('@conciv/plugin-whiteboard/WhiteboardStore')
 
 export const layer = (storage: PluginContext['storage']) => Layer.effect(WhiteboardStore, makeWhiteboardStore(storage))
