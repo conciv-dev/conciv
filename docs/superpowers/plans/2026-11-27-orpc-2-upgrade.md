@@ -383,7 +383,7 @@ The orchestrator runs these. Agents do not.
    - **Plugin rpc both ways:** a page plugin tool call from the agent runs in the tab (engine to page), and a plugin panel read goes widget to engine.
    - **Terminal:** open the terminal, type, restart the CLI.
    - **Hub:** `conciv` CLI hub lists the open tabs and runs a tool. An outside agent call that needs permission waits for the card.
-   - **Error status:** `curl -i -X POST .../rpc/plugin/call` with an unknown plugin answers 404, and `curl -i -X GET .../rpc/...` answers 405 or 400 (GET now refused; nothing of ours sends GET).
+   - **Error status:** `curl -i -X POST .../rpc/plugin/experimental` with the engine token and an unknown plugin id answers 404 with `PLUGIN_NOT_FOUND` in the body (not a missing-route 404), and `curl -i -X GET .../rpc/...` answers 405 or 400 (GET now refused; nothing of ours sends GET).
 
 ## 7. Risks and fallback
 
