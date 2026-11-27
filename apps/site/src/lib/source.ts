@@ -1,10 +1,39 @@
 import {createElement} from 'react'
 import {loader} from 'fumadocs-core/source'
 import {docs} from 'collections/server'
-import {BookMarked, Cpu, FolderGit2, Info, Joystick, Rocket, Scale, type LucideIcon} from 'lucide-react'
+import {
+  BookMarked,
+  BookOpen,
+  Cpu,
+  FolderGit2,
+  Info,
+  Joystick,
+  MessagesSquare,
+  Plug,
+  Rocket,
+  Scale,
+  ShieldCheck,
+  Workflow,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
 import {docsRoute} from './shared'
 
-const docsIcons: Record<string, LucideIcon> = {BookMarked, Cpu, FolderGit2, Info, Joystick, Rocket, Scale}
+const docsIcons: Record<string, LucideIcon> = {
+  BookMarked,
+  BookOpen,
+  Cpu,
+  FolderGit2,
+  Info,
+  Joystick,
+  MessagesSquare,
+  Plug,
+  Rocket,
+  Scale,
+  ShieldCheck,
+  Workflow,
+  Wrench,
+}
 
 function docsIcon(name: string | undefined) {
   if (name === undefined) return undefined
@@ -26,6 +55,18 @@ export const source = loader({
   source: docs.toFumadocsSource(),
   baseUrl: docsRoute,
   icon: docsIcon,
+  pageTree: {
+    transformers: [
+      {
+        file(node, filePath) {
+          if (filePath === undefined) return node
+          const file = this.storage.read(filePath)
+          if (file?.format !== 'page' || file.data.label === undefined) return node
+          return {...node, name: file.data.label}
+        },
+      },
+    ],
+  },
 })
 
 export function markdownPathToSlugs(segs: string[]) {
