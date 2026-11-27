@@ -15,9 +15,9 @@ This guide takes the shortest path:
 4. Build the card, and see it in the chat.
 
 <Callout type="idea" title="Promise or Effect?">
-  You write the engine part in one of two styles, and both can do the same things. **Promise** is plain `async` and
-  `await`. **Effect** is for code that already uses [Effect](https://effect.website): typed errors, and work that stops
-  when the user stops the turn. Every engine example has a tab for each, and your choice is remembered.
+  You write the engine part in one of two styles. Both can do the same things. **Promise** is plain `async` and `await`.
+  **Effect** is for code that already uses [Effect](https://effect.website): typed errors, and work that stops when the
+  user stops the turn. Every engine example has a tab for each. The site remembers your choice.
 </Callout>
 
 ## Installation
@@ -37,7 +37,7 @@ npm install -D effect @conciv/protocol
 
 ## Write the tool
 
-A plugin is a folder in `conciv/plugins`, and `server.ts` is its engine part. Make the folder and the file:
+A plugin is a folder in `conciv/plugins`. Its engine part is `server.ts`. Make the folder and the file:
 
 <Files>
   <Folder name="conciv" defaultOpen>
@@ -116,7 +116,7 @@ export default Plugin.define({
 A few things to notice:
 
 - `setup` (Promise) or `effect` (Effect) runs once, when the engine loads the plugin. `ctx` is what the engine
-  gives it, and `ctx.location.directory` is your project folder.
+  gives it. `ctx.location.directory` is your project folder.
 - `input` and `output` are zod schemas. The engine checks the agent's input before your code runs.
 - Both tabs fail the same way. A missing file or a bad shape fails the call with one `Tool.toolError` message.
 - `codemode: false` makes it a direct tool. Learn more in the
@@ -124,7 +124,7 @@ A few things to notice:
 
 ## Ask the agent
 
-The engine watches `conciv/plugins`. A new folder loads, and a saved change loads again, with no restart. Open your
+The engine watches `conciv/plugins`. A new folder loads with no restart. So does a saved change. Open your
 app and ask in the chat:
 
 ```text title="chat"
@@ -139,7 +139,7 @@ A folder elsewhere, such as one shared across projects, loads through the `plugi
 
 ## Draw the card
 
-The browser part draws a tool's calls as your own card. It is written with Solid components and plain async
+The browser part draws a tool's calls as your own card. You write it with Solid components and plain async
 functions. Install what it is built with:
 
 ```package-install
@@ -191,15 +191,15 @@ export default Plugin.define({
 A few things to notice:
 
 - The browser part's `Plugin.define` has no `id`. It takes the engine part's.
-- `render` draws one call, and runs again as the call moves on. `props.output` is empty until the call ends.
-- `ctx.ui.Icon` draws an icon from the widget's set. The names are [lucide](https://lucide.dev/icons) names, and
-  your editor completes the ones the widget has.
+- `render` draws one call. It runs again as the call moves on. `props.output` is empty until the call ends.
+- `ctx.ui.Icon` draws an icon from the widget's set. The names are [lucide](https://lucide.dev/icons) names.
+  Your editor completes the ones the widget has.
 - A failed call draws the error card, not `render`.
 
 ## Build the browser part
 
 The engine looks for exactly `plugin-experimental.cjs` (or `.js`) in the plugin folder. The name says
-"experimental" because the browser API may still change. Add a Vite config that builds it:
+"experimental" because the browser API can still change. Add a Vite config that builds it:
 
 ```ts twoslash title="conciv/plugins/project-version/vite.config.ts"
 import {defineConfig} from 'vite'
