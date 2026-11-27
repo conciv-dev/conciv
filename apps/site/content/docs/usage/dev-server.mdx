@@ -6,7 +6,7 @@ description: Ask the agent how your dev server sees your code, and have it resta
 The dev server tools let the agent ask your running Vite dev server about your code, instead of guessing from config
 files. They are built in, with nothing to install.
 
-## Basic
+## Ask about a build problem
 
 Ask about your dev server when a build question comes up:
 
@@ -14,11 +14,11 @@ Ask about your dev server when a build question comes up:
 Why does @/components/Header resolve to the wrong file from src/routes/index.tsx?
 ```
 
-The agent asks the server how the import resolves from that file, and answers from what the server says.
+The agent asks the server how the import resolves from that file. It answers from what the server says.
 
 <Callout type="info" title="Vite only">
-  The tools need a Vite dev server, which includes TanStack Start and Astro. On Next.js, webpack and Rspack they answer
-  that no dev server is attached.
+  The tools need a Vite dev server. TanStack Start and Astro count, since they run on Vite. On Next.js, webpack and
+  Rspack they answer that no dev server is attached.
 </Callout>
 
 ## Ask how the server is set up
@@ -96,15 +96,15 @@ npx @conciv/cli plugin call server open --data '{"file":"src/routes/index.tsx","
 A restart is not on this list. It always goes through the agent, so you get the card first.
 
 <Accordions type="single">
-  <Accordion title="The answer says no dev server is attached to conciv?">
+  <Accordion title="The answer says no dev server is attached to conciv">
     The engine has no Vite dev server to ask. It runs on another bundler, or on its own. Opening a file in your editor
     still works.
   </Accordion>
-  <Accordion title="The dev server failed the request?">
+  <Accordion title="The dev server fails the request">
     The dev server itself refused the question, for example a transform that throws. From the terminal, the error's
     `data.message` holds the dev server's own message.
   </Accordion>
-  <Accordion title="Why do the cards say external_server_resolve?">
+  <Accordion title="The cards say external_server_resolve">
     That is the tool's name in code mode, where the agent calls tools from a short program. Learn more in the [Tools and
     code mode documentation](/docs/tools-and-code-mode).
   </Accordion>
