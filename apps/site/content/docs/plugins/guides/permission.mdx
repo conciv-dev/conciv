@@ -167,8 +167,17 @@ export default Plugin.define({
 <Accordions>
 <Accordion title="An ask rule alone does not ask every time">
 
-The last rule that matches wins. The engine reads them in this order: the agent's rules, the session's, then saved
-answers. An `ask` rule you push onto an agent with `ctx.agent.transform` beats the catch-all rules before it. A saved
+The last rule that matches wins. The engine reads them in this order:
+
+1. the agent profile's rules, including your config rules and the rules plugins add;
+2. the tool's fallback;
+3. the session's own rules;
+4. saved answers.
+
+A `deny` among the first three always wins. Learn more in the [Agents and permissions
+documentation](/docs/agents-and-permissions).
+
+An `ask` rule you push onto an agent with `ctx.agent.transform` beats the catch-all rules before it. A saved
 Allow always answer still wins, because it comes after. Leaving out `save` is the way to ask on every call.
 
 </Accordion>
