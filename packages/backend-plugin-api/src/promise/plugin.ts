@@ -1,11 +1,11 @@
 import type {ExperimentalGenerateApi} from './generate.js'
-import type {BundlerCode} from '../effect/plugin.js'
 import type {RpcCallOptions} from '@conciv/client'
 import type {PluginInfo} from '@conciv/client'
 import type {App} from '../app.js'
 import type {PluginOptions} from '@conciv/protocol/options'
 import type {Info, PublicRef} from '@conciv/protocol/schema/location'
 import type {AgentDomain} from './agent.js'
+import type {BundlerDomain} from './bundler.js'
 import type {EventDomain} from './event.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
@@ -16,7 +16,6 @@ import type {JobDomain} from './job.js'
 import type {SkillDomain} from './skill.js'
 import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
-import type {Transform} from './registration.js'
 import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
@@ -57,25 +56,6 @@ export interface Plugin {
   readonly id: string
   readonly setup: (context: Context) => Promise<Cleanup | void> | Cleanup | void
 }
-
-export interface BundlerHooks {
-  readonly transform?: (code: string, id: string) => BundlerCode | Promise<BundlerCode>
-  readonly resolveId?: (
-    id: string,
-    importer: string | undefined,
-  ) => string | null | undefined | Promise<string | null | undefined>
-  readonly load?: (id: string) => BundlerCode | Promise<BundlerCode>
-}
-
-export interface BundlerEditor {
-  add(hooks: BundlerHooks): void
-}
-
-export interface BundlerDomain {
-  readonly transform: Transform<BundlerEditor>
-}
-
-export type {BundlerCode, SourceMap} from '../effect/plugin.js'
 
 export function define(plugin: Plugin): Plugin {
   return plugin

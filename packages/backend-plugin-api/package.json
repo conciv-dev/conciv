@@ -32,6 +32,10 @@
       "types": "./dist/effect/effect.d.ts",
       "import": "./dist/effect/effect.js"
     },
+    "./effect/bundler": {
+      "types": "./dist/effect/bundler.d.ts",
+      "import": "./dist/effect/bundler.js"
+    },
     "./effect/permission": {
       "types": "./dist/effect/permission.d.ts",
       "import": "./dist/effect/permission.js"

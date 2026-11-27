@@ -19,6 +19,7 @@ import {rpcMethod, type RpcCallOptions, type RpcEventPayload} from '@conciv/clie
 import type * as Plugin from './plugin.js'
 import type {RpcDomain, RpcHandlers} from './rpc.js'
 import type {Info} from './tool.js'
+import type {BundlerHooks} from './bundler.js'
 import {Effect, FiberHandle, Schema, Stream} from 'effect'
 import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
@@ -496,7 +497,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
 const hookCall = <Answer>(run: () => Answer | Promise<Answer>) =>
   Effect.tryPromise({try: () => Promise.resolve(run()), catch: (cause) => cause})
 
-const adaptBundler = ({transform, resolveId, load}: Plugin.BundlerHooks) => ({
+const adaptBundler = ({transform, resolveId, load}: BundlerHooks) => ({
   ...(transform === undefined ? {} : {transform: (code: string, id: string) => hookCall(() => transform(code, id))}),
   ...(resolveId === undefined
     ? {}

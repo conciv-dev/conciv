@@ -17,7 +17,8 @@ import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcess
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
-import type {BundlerCode, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {BundlerCode} from '@conciv/backend-plugin-api/effect/bundler'
+import type {TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import {
   Cause,
   Context,

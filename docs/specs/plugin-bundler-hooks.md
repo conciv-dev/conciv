@@ -40,7 +40,8 @@ reach the host's bundler; only `@conciv/unplugin` does, and it holds no plugin c
 ## Shape
 
 - `@conciv/backend-plugin-api`: `Context` (effect and promise entries, `src/effect/plugin.ts` and the promise twin
-  `src/promise/plugin.ts`) gains `readonly bundler: BundlerDomain`, with
+  `src/promise/plugin.ts`) gains `readonly bundler: BundlerDomain`, typed in `src/effect/bundler.ts` and
+  `src/promise/bundler.ts` as every other domain (subpath `./effect/bundler`), with
   `BundlerDomain = {transform: Transform<BundlerEditor>}` and `BundlerEditor = {add(hooks: BundlerHooks): void}`.
   `BundlerHooks` is a plain object of the three hooks, typed in this package without importing `unplugin` types into
   the public API. On the Effect entry every hook returns an Effect with an `unknown` error channel, as opencode's

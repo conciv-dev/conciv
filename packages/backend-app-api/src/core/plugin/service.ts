@@ -1,11 +1,6 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
-import type {
-  BundlerCode,
-  BundlerHooks,
-  Plugin as PluginDefinition,
-  Services,
-  TaggedError,
-} from '@conciv/backend-plugin-api/effect/plugin'
+import type {BundlerCode, BundlerHooks} from '@conciv/backend-plugin-api/effect/bundler'
+import type {Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, type Effect, type Exit, Schema} from 'effect'
 
 export interface Interface {
