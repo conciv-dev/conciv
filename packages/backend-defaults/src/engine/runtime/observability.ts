@@ -5,9 +5,10 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, type Context} from 'effect'
 import corePackage from '../../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'
-import type {LogLevel} from '@conciv/types/config-types'
+import type {LogLevel, Retention} from '@conciv/types/config-types'
 import type {LogOptions} from '../../util/observability/host-sink.js'
 import type {Interface as LogLevelInterface} from '../../util/observability/log-level.js'
+import type {Interface as LogStoreInterface} from '../../util/observability/log-store.js'
 
 const OtlpExporterConfig = Config.all({
   endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
@@ -27,6 +28,7 @@ function provideObservability(input: ObservabilityInput) {
             level: input.logLevel,
           },
           input.log?.emit,
+          input.logRetention,
         ),
       ),
     ),
@@ -54,6 +56,7 @@ export type ObservabilityInput = {
   engineId: string
   log?: LogOptions
   logLevel?: LogLevel
+  logRetention?: Retention
 }
 
 function observabilityLayer(input: ObservabilityInput) {
@@ -61,7 +64,7 @@ function observabilityLayer(input: ObservabilityInput) {
 }
 
 export type EngineObservability = {
-  context: Context.Context<Global.Interface | LogLevelInterface>
+  context: Context.Context<Global.Interface | LogLevelInterface | LogStoreInterface>
   tracer: Tracer | undefined
   dispose: () => Promise<void>
 }

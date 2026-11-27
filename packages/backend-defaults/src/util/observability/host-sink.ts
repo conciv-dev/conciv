@@ -1,5 +1,6 @@
 import {Formatter, Logger} from 'effect'
 import {invert} from 'es-toolkit'
+import type {WideEvent} from 'evlog'
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
@@ -70,6 +71,30 @@ function emitSafely(emit: LogWriter, entry: LogEntry): void {
   } catch {
     return
   }
+}
+
+function describeError(value: unknown): unknown {
+  return value instanceof Error ? `${value.name}: ${value.message}${value.stack ? `\n${value.stack}` : ''}` : value
+}
+
+export function storeLogger(drain: (event: WideEvent) => void, environment: string) {
+  return Logger.make((options) => {
+    const level = levelNames[options.logLevel]
+    if (!level) return
+    const entry = readEntry(options, level)
+    const {error, ...attributes} = entry.attributes ?? {}
+    const failure = error ?? entry.cause
+    drain({
+      timestamp: options.date.toISOString(),
+      level,
+      service: 'conciv-engine',
+      environment,
+      source: 'engine',
+      message: entry.message,
+      ...attributes,
+      ...(failure === undefined ? {} : {error: describeError(failure)}),
+    })
+  })
 }
 
 export function hostLogger(emit: LogWriter) {

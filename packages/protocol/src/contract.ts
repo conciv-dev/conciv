@@ -25,7 +25,16 @@ import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} fr
 import {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from './schema/browser-tab.js'
 import {Schema as EffectSchema} from 'effect'
 import * as Job from './schema/job.js'
-import {LogLevels, LogsWriteInput, SetLogLevelInput} from './schema/logs.js'
+import {
+  LogEvent,
+  LogLevels,
+  LogsCleanupOutput,
+  LogsQueryInput,
+  LogsQueryOutput,
+  LogsTailInput,
+  LogsWriteInput,
+  SetLogLevelInput,
+} from './schema/logs.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -625,6 +634,9 @@ export const contract = {
     level: oc.output(eventIterator(LogLevels)),
     setLevel: oc.input(SetLogLevelInput).output(LogLevels),
     write: oc.input(LogsWriteInput).output(Ok),
+    query: oc.input(LogsQueryInput).output(LogsQueryOutput),
+    tail: oc.input(LogsTailInput).output(eventIterator(LogEvent)),
+    cleanup: oc.output(LogsCleanupOutput),
   },
   event: {
     subscribe: oc

@@ -290,6 +290,7 @@ export async function createBackend(opts: BackendOptions): Promise<Engine> {
     engineId,
     log: opts.log,
     logLevel: cfg.logLevel,
+    logRetention: cfg.logRetention,
   })
   return inSpan(
     observability.tracer,

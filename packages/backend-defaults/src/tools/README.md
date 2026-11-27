@@ -2,9 +2,9 @@
 
 ## Overview
 
-The engine's own agent tools, `conciv_ui` and `set_log_level`. `conciv_ui`: its definition (`ui.ts`, from `@conciv/types/chat-tool-types` with `UiInputSchema` and `UiAnswerSchema` from `@conciv/types/ui-types`) and its sandbox server tool (`server.ts`), exported through the package's `./tools` entry (`../tools.ts`).
+The engine's own agent tools, `conciv_ui`, `set_log_level` and `logs_query`. `conciv_ui`: its definition (`ui.ts`, from `@conciv/types/chat-tool-types` with `UiInputSchema` and `UiAnswerSchema` from `@conciv/types/ui-types`) and its sandbox server tool (`server.ts`), exported through the package's `./tools` entry (`../tools.ts`).
 
-`set_log_level` (`log-level.ts`) sets the engine's or the widget's log level through `ConcivToolContext.setLogLevel` and answers the levels now in force.
+`set_log_level` (`log-level.ts`) sets the engine's or the widget's log level through `ConcivToolContext.setLogLevel` and answers the levels now in force. `logs_query` (`log-level.ts`) reads the stored logs through `ConcivToolContext.queryLogs` (code mode calls it `external_logs_query`); it asks nothing, and with the engine level `off` it answers no events and the level.
 
 ## Invariants
 

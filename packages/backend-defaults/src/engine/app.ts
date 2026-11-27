@@ -125,6 +125,7 @@ import {writePrivateFile} from './lib/dev-endpoint.js'
 import type {EngineRuntime} from './lib/logging.js'
 import type {LogOptions} from '../util/observability/host-sink.js'
 import * as LogLevel from '../util/observability/log-level.js'
+import * as LogStore from '../util/observability/log-store.js'
 import type {SimulationParts} from './lib/simulation.js'
 
 type ServeBindings = Parameters<ServeFetch>[1]
@@ -522,6 +523,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       log: opts.log,
       logLevel: opts.cfg.logLevel,
+      logRetention: opts.cfg.logRetention,
     }))
   const releaseObservability = (): Promise<void> | undefined =>
     givenObservability === undefined ? observability.dispose() : undefined
@@ -588,6 +590,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const db = await inSpan(tracer, 'Engine.openDatabase', {}, () =>
     Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))),
   ).catch(failedStart([]))
+  await Effect.runPromiseWith(observability.context)(LogStore.Service.use((store) => store.bind(db)))
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
@@ -710,6 +713,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         LogLevel.Service.use((levels) => levels.set(input.level, input.scope).pipe(Effect.andThen(levels.get))),
       )
     },
+    queryLogs: (input) =>
+      pluginHost.runPromise(
+        Effect.gen(function* () {
+          const {engine} = yield* LogLevel.Service.use((levels) => levels.get)
+          if (engine === 'off') return {level: engine, events: []}
+          return {level: engine, events: yield* LogStore.Service.use((store) => store.query(input))}
+        }),
+      ),
   })
 
   const startPlugins = (): PluginRuntime => {

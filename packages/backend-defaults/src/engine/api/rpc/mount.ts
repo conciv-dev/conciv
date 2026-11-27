@@ -45,6 +45,7 @@ import type * as EventFeed from '../../event-feed.js'
 import type {PersistentPtys} from '../../pty/persistent-ptys.js'
 import type {EngineRuntime} from '../../lib/logging.js'
 import type * as LogLevel from '../../../util/observability/log-level.js'
+import type * as LogStore from '../../../util/observability/log-store.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -69,6 +70,7 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tab.Interface
   | Job.Interface
   | LogLevel.Interface
+  | LogStore.Interface
   | Identifier.Maker,
   never
 >

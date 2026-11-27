@@ -28,3 +28,31 @@ export function setLogLevelTool(ctx: ConcivToolContext): ConcivServerTool {
     execute: async (input) => ctx.setLogLevel(SetLogLevelInput.parse(input)),
   }
 }
+
+export const LOGS_QUERY = 'logs_query'
+
+const LogsQueryInput = z.object({
+  since: z.string().max(64).optional().describe('ISO time; only events at or after it'),
+  until: z.string().max(64).optional().describe('ISO time; only events at or before it'),
+  level: z
+    .array(z.enum(['error', 'warn', 'info', 'debug', 'trace', 'fatal']))
+    .max(6)
+    .optional()
+    .describe('only these levels'),
+  source: z.enum(['engine', 'client']).optional().describe('engine logs or the widget (client) logs'),
+  text: z.string().max(1024).optional().describe('matches the message and the other fields'),
+  sessionId: z.string().max(256).optional().describe('only the events of this session'),
+  limit: z.number().int().min(1).max(2000).default(200),
+})
+
+export type LogsQueryInput = z.infer<typeof LogsQueryInput>
+
+export function logsQueryTool(ctx: ConcivToolContext): ConcivServerTool {
+  return {
+    name: LOGS_QUERY,
+    description:
+      'Read the conciv engine and widget logs the engine stored, newest first. Answers the engine log level and the events; when the level is off nothing is stored, so raise it with set_log_level first.',
+    inputSchema: LogsQueryInput,
+    execute: async (input) => ctx.queryLogs(LogsQueryInput.parse(input)),
+  }
+}
