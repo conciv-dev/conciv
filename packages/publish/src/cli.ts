@@ -240,11 +240,7 @@ async function wireTrust(run: Run, name: string): Promise<void> {
   await run(
     'npx',
     npmTrust('github', name, '--repo', REPOSITORY, '--file', RELEASE_WORKFLOW, '--allow-publish', '--yes'),
-  ).catch(async (error: unknown) => {
-    if (await trustAlreadySetUp(name)) {
-      console.log(`${name}: trust already set up`)
-      return
-    }
+  ).catch((error: unknown) => {
     console.log(
       `${name}: trust setup failed. npm trust needs a real terminal, an "npm login" browser session, and 2FA on the account (bypass-2FA tokens are rejected). If a config already exists, verify with: npx npm@^11.15.0 trust list ${name}`,
     )
@@ -256,7 +252,13 @@ type Run = Awaited<ReturnType<typeof atRoot>>['run']
 type Turbo = Awaited<ReturnType<typeof atRoot>>['turbo']
 
 async function gatherSyncStates(): Promise<SyncPackageState[]> {
-  return Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, ...(await registryRecord(name))})))
+  const records = await Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, ...(await registryRecord(name))})))
+  const states: SyncPackageState[] = []
+  for (const record of records) {
+    const wired = record.state === 'untrusted' && (await trustAlreadySetUp(record.name))
+    states.push(wired ? {...record, state: 'trusted'} : record)
+  }
+  return states
 }
 
 function printSyncPlan(states: SyncPackageState[], plan: SyncPlanEntry[], json: boolean): void {
@@ -278,7 +280,6 @@ async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): 
 }
 
 async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, plan: SyncPlanEntry[]): Promise<void> {
-  await run('npm', ['whoami'])
   await buildFirstPublishes(
     cwd,
     turbo,
@@ -316,6 +317,7 @@ const sync = defineCommand({
   async run({args}) {
     const {cwd, run, turbo} = await atRoot()
     await assertPublicDepsPublic(cwd)
+    await run('npm', ['whoami'])
     const states = await gatherSyncStates()
     const plan = await buildSyncPlan(cwd, states)
     printSyncPlan(states, plan, args.json)
