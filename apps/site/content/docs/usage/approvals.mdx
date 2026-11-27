@@ -5,7 +5,7 @@ description: Allow or deny a risky action when its Permission card shows in the 
 
 A Permission card is how the agent asks you before a risky action. The action waits until you answer.
 
-## Basic
+## Answer a card
 
 This prompt makes the agent ask before code runs in your page:
 
@@ -33,7 +33,7 @@ Two things can ask you: your agent CLI, and some of conciv's own tools.
 
 Your agent CLI decides for itself what it asks about:
 
-- **Claude Code** runs in its `auto` mode and asks when it judges a step risky. conciv adds rules so a few commands
+- **Claude Code** runs in its `auto` mode. It asks when it judges a step risky. conciv adds rules so a few commands
   always ask: a forced or deleting git push, a hard git reset, git clean, a recursive rm, and sudo.
 - **Codex** never asks. Its `workspace-write` sandbox limits what it can touch.
 - **Gemini CLI** asks by its own rules. Each ask shows as a card.
@@ -123,11 +123,11 @@ Now the first call from an outside agent shows a Permission card in the tab. **A
 **Allow always** lets that agent in for this project from now on.
 
 <Accordions type="single">
-  <Accordion title="Can an outside agent answer a card for me?">
-    No. An agent connected from your terminal can never answer a Permission card. It cannot connect or disconnect agents
+  <Accordion title="An outside agent cannot answer a card for you">
+    An agent connected from your terminal can never answer a Permission card. It cannot connect or disconnect agents
     either. You do that in the tab.
   </Accordion>
-  <Accordion title="A card disappeared before I answered?">
+  <Accordion title="A card disappears before you answer">
     An ask from your agent CLI lives only as long as its turn. When you stop the turn, or the CLI gives up on the call,
     the card goes.
   </Accordion>
