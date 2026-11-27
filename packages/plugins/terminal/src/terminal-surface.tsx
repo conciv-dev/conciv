@@ -2,7 +2,8 @@ import {onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/frontend-plugin-api'
-import {OPEN_FAILED, PANEL_KEY, type TerminalState} from './terminal-state.js'
+import {causeFrom, terminalErrors} from './errors/errors.js'
+import {PANEL_KEY, type TerminalState} from './terminal-state.js'
 import type {HeldPty} from './terminal-transport.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
@@ -89,9 +90,10 @@ export default function TerminalSurface(props: {
       const request = {sessionId, size, model: untrack(() => props.terminal.spawnModel(sessionId))}
       const ptyId = await openPty(server, request).catch((cause: unknown) => {
         ctx.log.error({action: 'terminal', message: 'opening the session terminal failed', sessionId, error: cause})
-        ctx.toast.show({title: OPEN_FAILED, variant: 'error'})
-        props.terminal.fail(terminalKey, OPEN_FAILED)
-        throw new Error(OPEN_FAILED, {cause})
+        const error = terminalErrors.OPEN_FAILED(causeFrom(cause))
+        ctx.toast.show({title: error.message, description: error.fix, variant: 'error'})
+        props.terminal.fail(terminalKey, error)
+        throw error
       })
       if (held.ptyId !== ptyId) Object.assign(held, {ptyId, cursor: undefined})
       props.terminal.opened({key: terminalKey, ptyId, model: request.model, busy: model.busy})

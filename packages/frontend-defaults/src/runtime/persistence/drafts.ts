@@ -13,6 +13,7 @@ import {
   transitionDraftRetention,
   type DraftRetentionEvent,
 } from './drafts-machine'
+import {persistenceErrors} from '@conciv/errors'
 
 const StoredDocumentSchema = z
   .string()
@@ -507,7 +508,7 @@ function createBrowserDraftStore(writable: () => boolean): DraftStore {
   const writeTransaction = async (stores: string | string[]) => {
     const database = await db
 
-    if (!writable()) throw new Error('the draft store takes no writes while the engine does not trust this browser')
+    if (!writable()) throw persistenceErrors.NOT_WRITABLE()
 
     return database.transaction(stores, 'readwrite')
   }

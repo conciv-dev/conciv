@@ -1,10 +1,10 @@
 import {z} from 'zod'
 import {command, description, name, toggle} from '@bomb.sh/router'
 import type {CliOutcome} from './envelope.js'
-import {cliErrors} from './failure.js'
 import {handler} from './router/handler.js'
 import type {InitOptions, InitResult, InitRuntime} from './init/pipeline.js'
 import type {InitOutput} from './init/wizard.js'
+import {cliErrors} from '@conciv/errors'
 
 function silentOutput(): InitOutput {
   const quiet = () => {}

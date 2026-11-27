@@ -3,14 +3,14 @@ import type {SettingsScope} from '@conciv/protocol'
 import type {ConcivClient} from '@conciv/client'
 import type {EnableState} from './installed'
 import {readEnableState} from './enable-state'
-import {pluginError} from './error'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugin-enable'}
 
 export function createManager(client: ConcivClient, builtins: readonly string[]) {
   return {
     async setEnabled(id: string, enabled: boolean) {
-      if (builtins.includes(id)) throw pluginError('builtin')
+      if (builtins.includes(id)) throw widgetPluginErrors.BUILTIN()
       await client.settings.set({...WHERE, key: id, value: enabled})
     },
     on(listener: (state: readonly EnableState[]) => void, failed?: (cause: unknown) => void) {
@@ -30,5 +30,5 @@ async function follow(client: ConcivClient, signal: AbortSignal, listener: (stat
 
   for await (const snapshot of stream) listener(readEnableState(snapshot))
 
-  throw new Error('the plugin enable state stream ended')
+  throw widgetPluginErrors.ENABLE_STREAM_ENDED()
 }

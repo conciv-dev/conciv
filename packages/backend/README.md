@@ -10,7 +10,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Invariants
 
-- Exports `.` and `./start` (`package.json`), both `dist/start.js`; `src/start.ts` is the one tsdown entry.
+- Exports `.` and `./start` (`package.json`), both `dist/start.js`; `src/start.ts` is the one build entry (`vite.config.ts`).
 - The plugin list lives in one place, `src/start.ts`; `@conciv/backend-test-utils` starts the same engine through
   `createBackend` without this package.
 

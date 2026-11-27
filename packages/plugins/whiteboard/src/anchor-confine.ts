@@ -1,24 +1,23 @@
 import {readFile, realpath} from 'node:fs/promises'
 import {resolve, sep} from 'node:path'
-import {Effect, Schema} from 'effect'
+import {Effect} from 'effect'
+import {sourceErrors} from './errors/source-errors.js'
+import {causeFrom} from './errors/cause.js'
 
 const SNIPPET_LIMIT = 2_048
 
-export const SourceUnreadable = Schema.TaggedStruct('SourceUnreadable', {file: Schema.String, message: Schema.String})
-export type SourceUnreadable = typeof SourceUnreadable.Type
-
 export const unreadable = (file: string) => (error: unknown) =>
-  SourceUnreadable.make({file, message: error instanceof Error ? error.message : String(error)})
+  sourceErrors.UNREADABLE({file, reason: error instanceof Error ? error.message : String(error), ...causeFrom(error)})
 
 const realPath = (path: string, file: string) => Effect.tryPromise({try: () => realpath(path), catch: unreadable(file)})
 
 const confineToRoot = Effect.fn('whiteboard.anchor.confineToRoot')(function* (root: string, file: string) {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(file) || file.startsWith('file:'))
-    return yield* Effect.fail(SourceUnreadable.make({file, message: `refusing non-filesystem path: ${file}`}))
+    return yield* Effect.fail(sourceErrors.NOT_A_FILE({file}))
   const realRoot = yield* realPath(root, file)
   const real = yield* realPath(resolve(realRoot, file), file)
   if (real !== realRoot && !real.startsWith(realRoot + sep))
-    return yield* Effect.fail(SourceUnreadable.make({file, message: `path escapes project root: ${file}`}))
+    return yield* Effect.fail(sourceErrors.OUTSIDE_PROJECT({file}))
   return real
 })
 

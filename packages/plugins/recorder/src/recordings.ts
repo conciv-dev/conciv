@@ -1,7 +1,9 @@
 export * as RecordingStoreModel from './recordings.js'
-import {Clock, Context, Effect, FileSystem, Layer, Path, Ref, Semaphore, Schema} from 'effect'
+import {Clock, Context, Effect, FileSystem, Layer, Path, Ref, Semaphore} from 'effect'
+import type {EvlogError} from 'evlog'
 import {z} from 'zod'
 import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './rpc.js'
+import {recorderErrors} from './errors/errors.js'
 
 const StoredRecording = z.object({events: z.array(RrwebEventSchema)})
 const MAX_RECORDINGS = 50
@@ -16,16 +18,10 @@ type SaveResult =
   | {saved: true; recordingId: string; events: RrwebEvent[]}
   | {saved: false; error: 'too-large' | 'empty' | 'io-error'}
 
-const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound', {id: Schema.String})
-type RecordingNotFound = typeof RecordingNotFound.Type
-
-const RecordingExpired = Schema.TaggedStruct('RecorderRecordingExpired', {id: Schema.String})
-type RecordingExpired = typeof RecordingExpired.Type
-
 type RecordingStoreInterface = {
   readonly save: (events: RrwebEvent[]) => Effect.Effect<SaveResult>
-  readonly get: (id: string) => Effect.Effect<RrwebEvent[], RecordingNotFound | RecordingExpired>
-  readonly videoFile: (id: string) => Effect.Effect<string, RecordingNotFound>
+  readonly get: (id: string) => Effect.Effect<RrwebEvent[], EvlogError>
+  readonly videoFile: (id: string) => Effect.Effect<string, EvlogError>
   readonly sweep: Effect.Effect<void>
 }
 
@@ -140,23 +136,23 @@ export function recordingStoreLayer(directory: string) {
         },
         get: (id) =>
           Effect.gen(function* () {
-            if (!RECORDING_ID.test(id)) return yield* Effect.fail(RecordingNotFound.make({id}))
+            if (!RECORDING_ID.test(id)) return yield* Effect.fail(recorderErrors.RECORDING_NOT_FOUND({id}))
             if (isPastRetention(id, yield* Clock.currentTimeMillis))
-              return yield* Effect.fail(RecordingExpired.make({id}))
+              return yield* Effect.fail(recorderErrors.RECORDING_EXPIRED({id}))
             const raw = yield* fs
               .readFileString(path.join(directory, `${id}.json`))
-              .pipe(Effect.mapError(() => RecordingNotFound.make({id})))
+              .pipe(Effect.mapError((cause) => recorderErrors.RECORDING_NOT_FOUND({id, cause})))
             const events = yield* Effect.try({
               try: () => decodeRecording(raw),
-              catch: () => RecordingNotFound.make({id}),
+              catch: () => recorderErrors.RECORDING_NOT_FOUND({id, why: 'The saved recording file is not valid.'}),
             })
-            if (!events) return yield* Effect.fail(RecordingNotFound.make({id}))
+            if (!events) return yield* Effect.fail(recorderErrors.RECORDING_NOT_FOUND({id}))
             return events
           }),
         videoFile: (id) =>
           RECORDING_ID.test(id)
             ? Effect.succeed(path.join(directory, `${id}.webm`))
-            : Effect.fail(RecordingNotFound.make({id})),
+            : Effect.fail(recorderErrors.RECORDING_NOT_FOUND({id})),
         sweep: changes.withPermits(1)(
           sweep.pipe(Effect.catch((error) => Effect.logError('sweeping old recordings failed', error))),
         ),

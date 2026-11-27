@@ -11,7 +11,7 @@ is `@internal/test-utils`. It ships `dist` and `skills`.
 
 - `exports` (`package.json`): `.` (the client, connection, rpc client, query utils, chat connection, reachability)
   and `./chat` (the Solid chat session over `@tanstack/ai-solid`). No bin.
-- `tsdown.config.ts`: bundles `@tanstack/ai`, `@tanstack/ai-solid`, `@tanstack/solid-query`, `@tanstack/query-core`
+- `vite.config.ts`: bundles `@tanstack/ai`, `@tanstack/ai-solid`, `@tanstack/solid-query`, `@tanstack/query-core`
   and `@orpc/tanstack-query` into `.`; `./chat` inlines `@tanstack/ai-client` and `@tanstack/ai-solid`.
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - connection, chat connection, reachability

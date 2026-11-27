@@ -1,6 +1,10 @@
 import {defineConfig} from 'vite'
+{{#unless sourceOnly}}
+import {libConfig} from '@internal/vite-config'
+{{/unless}}
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
+{{#if sourceOnly}}
 export default defineConfig({
 {{#if browserTests}}
   plugins: [concivTest({browser: true})],
@@ -8,3 +12,16 @@ export default defineConfig({
   plugins: [concivTest()],
 {{/if}}
 })
+{{else}}
+export default defineConfig(
+  libConfig({
+    root: import.meta.url,
+{{#if browserTests}}
+    plugins: [concivTest({browser: true})],
+{{else}}
+    plugins: [concivTest()],
+{{/if}}
+    environments: {server: {entries: ['src/{{name}}.ts']}},
+  }),
+)
+{{/if}}

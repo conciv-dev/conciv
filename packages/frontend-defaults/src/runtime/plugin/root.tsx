@@ -35,6 +35,7 @@ import {HostApisProvider, useHostApis} from './host-apis-context'
 import {PluginServersProvider} from '@internal/frontend-app-api/plugin/servers'
 import {PluginStyles} from '@internal/frontend-app-api/plugin/render'
 import {createContext, useContext} from 'solid-js'
+import {widgetPluginErrors} from '@conciv/errors'
 
 const PluginsContext = createContext<{
   source: () => PluginExperimentalSource | undefined
@@ -93,7 +94,7 @@ export function reserveComposedPlugins(
   builtins: BuiltinPlugins,
 ): readonly ComposedPlugin[] {
   composed.reduce<readonly Entry[]>((taken, [plugin]) => {
-    if (!pluginIdAvailable(plugin.id, taken)) throw new Error(`The plugin id "${plugin.id}" is already taken`)
+    if (!pluginIdAvailable(plugin.id, taken)) throw widgetPluginErrors.ID_TAKEN({id: plugin.id})
 
     return [...taken, plugin]
   }, builtins.entries)

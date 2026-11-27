@@ -48,12 +48,12 @@ import type {ChatTool} from '@conciv/types/chat-tool-types'
 import {askingToolProvisioner, type AskPermission} from './image-tool-results.js'
 import {childCards, withoutHiddenCalls} from './child-cards.js'
 import {codeModeTools, readSecretRefusal, stoppedWith, tracedDriver} from './code-mode.js'
+import {aiErrors} from '@conciv/errors'
 import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {GROUP_EXIT_TIMEOUT_MS, localSandbox} from '@conciv/harness/local-sandbox'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
-import {formatLoggedError} from './logged-error.js'
 import {Effect} from 'effect'
 import type {EngineRuntime} from '../engine/lib/logging.js'
 import {cloneDeepWith, isPlainObject, takeWhile} from 'es-toolkit'
@@ -587,7 +587,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     debug: () => undefined,
     info: () => undefined,
     warn: (message) => config.runtime.runFork(Effect.logWarning(`[ai] ${message}`)),
-    error: (message, meta) => config.runtime.runFork(Effect.logError(formatLoggedError(message, meta?.error))),
+    error: (message, meta) => config.runtime.runFork(Effect.logError(`[ai] ${message}`, {cause: meta?.error})),
   })
   const sandbox = defineSandbox({
     id: 'conciv',
@@ -988,7 +988,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         run: async (code, emit, signal) => {
           const result: unknown = await execute({typescriptCode: code}, {emitCustomEvent: emit, abortSignal: signal})
           const refusal = readSecretRefusal(result)
-          if (refusal !== null) throw new Error(refusal)
+          if (refusal !== null) throw aiErrors.SECRET_REFUSED({message: refusal})
           return result
         },
         discover: buildDiscovery(coded.discover),

@@ -1,10 +1,8 @@
-import {Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
+import {Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {RrwebEvent} from './rpc.js'
 import {RecorderFlusherMachine} from './flusher-machine.js'
 import {makeMachineDriver, type MachineDriver} from './machine-driver.js'
-
-export const FlushFailed = Schema.TaggedStruct('RecorderFlushFailed', {cause: Schema.Defect()})
-export type FlushFailed = typeof FlushFailed.Type
 
 export type Flusher = {
   readonly state: SubscriptionRef.SubscriptionRef<RecorderFlusherMachine.FlusherState>
@@ -23,7 +21,7 @@ function isSettled(state: RecorderFlusherMachine.FlusherState): boolean {
 }
 
 export const makeFlusher = Effect.fn('recorder.flusher')(function* (options: {
-  readonly send: (events: readonly RrwebEvent[]) => Effect.Effect<void, FlushFailed>
+  readonly send: (events: readonly RrwebEvent[]) => Effect.Effect<void, EvlogError>
   readonly idle?: Duration.Input
   readonly live?: Duration.Input
 }): Effect.fn.Return<Flusher, never, Scope.Scope> {
@@ -37,7 +35,7 @@ export const makeFlusher = Effect.fn('recorder.flusher')(function* (options: {
     driver: FlusherDriver,
   ) =>
     options.send(command.events).pipe(
-      Effect.tapError((error) => Effect.logWarning('recorder: a flush failed', error.cause)),
+      Effect.tapError((error) => Effect.logWarning('recorder: a flush failed', error)),
       Effect.retry({
         schedule: FLUSH_RETRY,
         while: () =>

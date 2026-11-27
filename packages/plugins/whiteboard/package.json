@@ -44,7 +44,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json && vite build",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -56,6 +56,7 @@
     "@takumi-rs/helpers": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "oxc-parser": "catalog:",
     "zod": "catalog:"
   },
@@ -73,6 +74,7 @@
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solid-primitives/event-listener": "catalog:",
     "@solidjs/testing-library": "catalog:",
@@ -85,7 +87,6 @@
     "react-dom": "catalog:",
     "react-error-boundary": "catalog:",
     "solid-js": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",

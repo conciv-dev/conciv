@@ -1,18 +1,16 @@
-import {Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef, Schema} from 'effect'
+import {Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {RecorderConfig, RecorderControl} from './rpc.js'
 import {RecorderCaptureSessionMachine} from './capture-session-machine.js'
 import type {Flusher} from './flusher.js'
 import {makeMachineDriver} from './machine-driver.js'
 import {runVisibilityPause} from './visibility-pause.js'
 
-export const ConfigReloadFailed = Schema.TaggedStruct('RecorderConfigReloadFailed', {cause: Schema.Defect()})
-export type ConfigReloadFailed = typeof ConfigReloadFailed.Type
-
 export const openCaptureSession = Effect.fn('recorder.captureSession')(function* (options: {
   readonly config: RecorderConfig
   readonly record: (config: RecorderConfig) => Effect.Effect<void, never, Scope.Scope>
   readonly takeSnapshot: Effect.Effect<void>
-  readonly reloadConfig: Effect.Effect<RecorderConfig, ConfigReloadFailed>
+  readonly reloadConfig: Effect.Effect<RecorderConfig, EvlogError>
   readonly flusher: Flusher
   readonly controls: Stream.Stream<RecorderControl>
   readonly flushCues: Stream.Stream<unknown>

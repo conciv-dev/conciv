@@ -2,6 +2,7 @@ import {createContext, splitProps, useContext, type Accessor, type JSX} from 'so
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type SuggestionData = {title: string; label: string; prompt: string}
 
@@ -11,7 +12,7 @@ export const SuggestionProvider = SuggestionContext.Provider
 
 export function useSuggestion(): Accessor<SuggestionData> {
   const context = useContext(SuggestionContext)
-  if (!context) throw new Error('Suggestion.* must be used within a Thread.Suggestions item')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'Suggestion.*', provider: 'a Thread.Suggestions item'})
   return context
 }
 

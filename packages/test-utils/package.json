@@ -12,17 +12,14 @@
   },
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/test-utils.d.ts",
-      "default": "./src/test-utils.ts"
-    }
+    ".": "./src/test-utils.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",

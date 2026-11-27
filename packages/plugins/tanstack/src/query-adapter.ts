@@ -1,11 +1,10 @@
 import type {Mutation, Query, QueryClient} from '@tanstack/react-query'
 import type {ReactFiber, ReactTree} from '@conciv/frontend-plugin-api/page'
-import {Effect, Predicate, Schema} from 'effect'
+import {Effect, Predicate} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {CacheEntry, CacheEntryState} from './rpc.js'
 import {callFailed, errorMessage, findInFibers} from './router-adapter.js'
-
-const QueryClientNotFound = Schema.TaggedStruct('Tanstack.QueryClientNotFound', {})
-export type QueryClientNotFound = typeof QueryClientNotFound.Type
+import {tanstackErrors} from './errors/errors.js'
 
 function isQueryClient(candidate: unknown): candidate is QueryClient {
   return Predicate.isObject(candidate) && Predicate.isFunction(candidate.getQueryCache)
@@ -23,9 +22,9 @@ function findQueryClient(tree: ReactTree): QueryClient | null {
   return findInFibers(tree, clientFromFiber)
 }
 
-function requireQueryClient(tree: ReactTree): Effect.Effect<QueryClient, QueryClientNotFound> {
+function requireQueryClient(tree: ReactTree): Effect.Effect<QueryClient, EvlogError> {
   const client = findQueryClient(tree)
-  return client ? Effect.succeed(client) : Effect.fail(QueryClientNotFound.make({}))
+  return client ? Effect.succeed(client) : Effect.fail(tanstackErrors.QUERY_CLIENT_NOT_FOUND())
 }
 
 function queryState(query: Query): CacheEntryState {

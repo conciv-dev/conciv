@@ -5,9 +5,10 @@ import {execa} from 'execa'
 import {z} from 'zod'
 import {typecheckProjects} from './typecheck-coverage.ts'
 import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
+import {causeFrom, publishErrors} from './errors/errors.ts'
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]s|[jt]sx)$/
-const BUILD_CONFIG = /^(?:tsdown|vite)\.config\.[cm]?[jt]s$/
+const BUILD_CONFIG = /^vite\.config\.[cm]?[jt]s$/
 const NON_BUILD_FILE = /(?:^|\/)(?:test|__tests__)\/|\.(?:test|spec|stories|fixtures)\.[^/]+$/
 const WORKSPACE_IMPORT =
   /(?:\bfrom|\bimport|\bimport\.meta\.resolve\(|\bimport\(|\brequire\()\s*['"](@conciv\/[a-z0-9-]+)(?:\/[^'"]*)?['"]/g
@@ -53,9 +54,7 @@ export async function assertTasksDependOnUpstreamBuilds(cwd: string): Promise<vo
   )
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
-  throw new Error(
-    `every package task waits on its dependencies' builds through "^build", never through a "<package>#<task>" edge:\n${messages.join('\n')}`,
-  )
+  throw publishErrors.TURBO_TASK_EDGES({violations: messages})
 }
 
 function readName(pkg: WorkspacePackage): string {
@@ -65,7 +64,7 @@ function readName(pkg: WorkspacePackage): string {
 async function readTurboConfig(path: string): Promise<z.infer<typeof turboSchema>> {
   const text = await readFile(path, 'utf8')
   const result = turboSchema.safeParse(parseJson(path, text))
-  if (!result.success) throw new Error(`${path}: invalid turbo.json\n${result.error.message}`)
+  if (!result.success) throw publishErrors.INVALID_TURBO_CONFIG({path, reason: result.error.message})
   return result.data
 }
 
@@ -73,7 +72,7 @@ function parseJson(path: string, text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error: unknown) {
-    throw new Error(`${path}: invalid JSON`, {cause: error})
+    throw publishErrors.INVALID_JSON({path, ...causeFrom(error)})
   }
 }
 
@@ -128,16 +127,14 @@ export async function assertTypeTasksDependOnDistReads(cwd: string): Promise<voi
   })
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
-  throw new Error(
-    `a typecheck depends on the build of every workspace package whose dist its program reads, directly or through a package it reads from source:\n${messages.join('\n')}`,
-  )
+  throw publishErrors.TYPECHECK_MISSES_BUILD({violations: messages})
 }
 
 async function readTaskOrder(root: string, taskName: string): Promise<Map<string, Set<string>>> {
   const command = `turbo run ${taskName} --dry=json`
   const {stdout} = await execa('turbo', ['run', taskName, '--dry=json'], {cwd: root, preferLocal: true})
   const result = turboDryRunSchema.safeParse(parseJson(command, stdout))
-  if (!result.success) throw new Error(`${command}: invalid output\n${result.error.message}`)
+  if (!result.success) throw publishErrors.INVALID_COMMAND_OUTPUT({command, reason: result.error.message})
   const direct = new Map(result.data.tasks.map((task) => [task.taskId, task.dependencies]))
   return new Map([...direct.keys()].map((task) => [task, collectDependencies(direct, task)]))
 }
@@ -224,7 +221,5 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   )
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
-  throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${builtIns.join(' and ')} ("conciv": {"builtin": true} in package.json) draw with the kit directly:\n${messages.join('\n')}`,
-  )
+  throw publishErrors.PLUGIN_USES_UI_KIT({builtIns, violations: messages})
 }

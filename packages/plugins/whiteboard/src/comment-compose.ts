@@ -1,10 +1,8 @@
-import {Deferred, Duration, Effect, FiberHandle, Schema, Stream, SubscriptionRef} from 'effect'
+import {Deferred, Duration, Effect, FiberHandle, Stream, SubscriptionRef} from 'effect'
 import type {ElementRect, Grab} from '@conciv/frontend-plugin-api/grab'
 import type {ChatCover, ComposeTarget} from './comments-model.js'
 import {WhiteboardComposeMachine} from './comment-compose-machine.js'
-
-const CommentsUnbound = Schema.TaggedStruct('Whiteboard.CommentsUnbound', {})
-type CommentsUnbound = typeof CommentsUnbound.Type
+import {canvasErrors} from './errors/canvas-errors.js'
 
 type ComposeSteps = {
   readonly pick: () => Promise<Grab | null>
@@ -22,7 +20,7 @@ function readComposeTarget(anchor: ElementRect, grab: Grab): ComposeTarget {
   }
 }
 
-const commentsUnbound = (): CommentsUnbound => CommentsUnbound.make({})
+const commentsUnbound = () => canvasErrors.COMMENTS_UNBOUND()
 
 export const makeCommentCompose = (bindDeadlineMs: number) =>
   Effect.gen(function* () {
@@ -68,10 +66,12 @@ export const makeCommentCompose = (bindDeadlineMs: number) =>
         bound.addComment(target, text, reveal)
         if (!reveal) steps.added()
       }).pipe(
-        Effect.catchTag('Whiteboard.CommentsUnbound', (error) =>
-          Effect.logWarning('[whiteboard] the comments never bound, the comment was not added', error).pipe(
-            Effect.andThen(Effect.sync(steps.unbound)),
-          ),
+        Effect.catchIf(
+          (error) => error.code === canvasErrors.COMMENTS_UNBOUND.code,
+          (error) =>
+            Effect.logWarning('[whiteboard] the comments never bound, the comment was not added', error).pipe(
+              Effect.andThen(Effect.sync(steps.unbound)),
+            ),
         ),
         Effect.ensuring(step({type: 'finished'})),
       )

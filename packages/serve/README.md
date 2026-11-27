@@ -7,7 +7,7 @@ The engine's HTTP and WebSocket server: a `@hono/node-server` `serve()` wrapper 
 ## Invariants
 
 - The server binds `127.0.0.1` only; there is no option to bind another interface.
-- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
+- `vite build` emits the JavaScript and the declarations (`vite.config.ts`).
 
 ## Side Effects
 

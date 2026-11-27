@@ -10,6 +10,7 @@ import {
   type ApplyPatchBlock,
   type ApplyPatchInfo,
 } from './apply-patch-text.js'
+import {chatKitErrors} from '@conciv/errors'
 
 type ApplyPatchContextValue = {
   name: Accessor<string>
@@ -23,7 +24,7 @@ const ApplyPatchContext = createContext<ApplyPatchContextValue>()
 
 export function useApplyPatch(): ApplyPatchContextValue {
   const context = useContext(ApplyPatchContext)
-  if (!context) throw new Error('ApplyPatch sub-components must be used within ApplyPatch.Root')
+  if (!context) throw chatKitErrors.OUTSIDE_ROOT({tool: 'ApplyPatch'})
   return context
 }
 

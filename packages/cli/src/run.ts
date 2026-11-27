@@ -5,11 +5,12 @@ import {SessionId} from '@conciv/types/chat-types'
 import {readLogLevel, type LogLevel} from '@conciv/types/config-types'
 import {routeFailure} from './arguments.js'
 import {writeFailure, writeOutcome} from './envelope.js'
-import {cliErrors, readFailure} from './failure.js'
+import {readFailure} from './failure.js'
 import {startCliLog} from './log.js'
 import {readHandler} from './router/handler.js'
 import type {main} from './main.js'
 import {runRpc, type CliTarget} from './request.js'
+import {cliErrors} from '@conciv/errors'
 
 const ModelSchema = z.record(z.string(), z.unknown())
 

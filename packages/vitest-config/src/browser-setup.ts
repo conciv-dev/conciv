@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import {afterEach, beforeEach, inject} from 'vitest'
 import {page, server} from 'vitest/browser'
 import {cleanup, configure} from '@solidjs/testing-library'
+import {vitestErrors} from '@conciv/errors'
 
 configure({asyncUtilTimeout: inject('concivPollTimeoutMs')})
 
@@ -9,7 +10,7 @@ function deleted(name: string): Promise<void> {
   const request = indexedDB.deleteDatabase(name)
   return new Promise((resolve, reject) => {
     request.addEventListener('success', () => resolve())
-    request.addEventListener('error', () => reject(request.error ?? new Error(`could not delete the database ${name}`)))
+    request.addEventListener('error', () => reject(request.error ?? vitestErrors.DATABASE_NOT_DELETED({name})))
   })
 }
 

@@ -3,6 +3,7 @@ import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:f
 import {tmpdir} from 'node:os'
 import {join, relative} from 'node:path'
 import {gzipSync} from 'node:zlib'
+import {bundleSizeErrors} from './errors/errors.ts'
 
 export type PackageSize = {name: string; raw: number; gzip: number; files: number}
 
@@ -128,14 +129,12 @@ const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 export function parseWorkerSize(wranglerOutput: string): {raw: number; gzip: number} {
   const matches = [...wranglerOutput.replace(ANSI, '').matchAll(KIB_TOTALS)]
   if (matches.length !== 1) {
-    throw new Error(
-      `expected exactly one wrangler size line, found ${matches.length}. Could not read the worker size from wrangler output`,
-    )
+    throw bundleSizeErrors.WORKER_SIZE_LINE_COUNT({found: matches.length})
   }
   const raw = Number(matches[0]?.[1])
   const gzip = Number(matches[0]?.[2])
   if (!Number.isFinite(raw) || !Number.isFinite(gzip)) {
-    throw new Error('could not read the worker size from wrangler output')
+    throw bundleSizeErrors.WORKER_SIZE_UNREADABLE()
   }
   return {raw: Math.round(raw * 1024), gzip: Math.round(gzip * 1024)}
 }
@@ -150,9 +149,7 @@ export function workerIsBuilt(root: string): boolean {
 
 export function measureWorker(root: string): WorkerReport {
   if (!workerIsBuilt(root)) {
-    throw new Error(
-      `${SITE_WORKER_CONFIG_FROM_ROOT} is missing, so the worker size cannot be measured. Build it first: pnpm exec turbo run build --filter=site`,
-    )
+    throw bundleSizeErrors.WORKER_NOT_BUILT({config: SITE_WORKER_CONFIG_FROM_ROOT})
   }
   const outputDirectory = mkdtempSync(join(tmpdir(), 'conciv-worker-size-'))
   try {

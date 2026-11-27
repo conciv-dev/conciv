@@ -1,3 +1,4 @@
+import type {EvlogError} from 'evlog'
 import {randomUUID} from 'node:crypto'
 import {setTimeout} from 'node:timers/promises'
 import {serveHono, type ServeFetch} from '@conciv/serve'
@@ -10,7 +11,7 @@ import {
   type EngineRow,
   type PreparedHome,
 } from '@conciv/home'
-import {type ConfigProvider, Effect, type Layer} from 'effect'
+import {type ConfigProvider, Effect, type Layer, Stream} from 'effect'
 import {z} from 'zod'
 import {context, ROOT_CONTEXT} from '@opentelemetry/api'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
@@ -42,6 +43,7 @@ import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserRequester} from '@conciv/types/engine-trust'
 import {mkdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
+import {engineRuntimeErrors} from '@conciv/errors'
 
 const serverStateSchema = z.object({port: z.number().int().min(1).max(65535)})
 
@@ -142,10 +144,22 @@ type PluginBundlerHooks = Pick<PluginRegistry.Interface, 'transform' | 'resolveI
 
 function runBundlerHook<Answer>(
   made: MadeApp,
-  run: (plugins: PluginRegistry.Interface) => Effect.Effect<Answer, PluginRegistry.BundlerHookFailed>,
+  run: (plugins: PluginRegistry.Interface) => Effect.Effect<Answer, EvlogError>,
 ) {
-  return made.pluginHost.runPromise(
-    PluginRegistry.Service.use(run).pipe(Effect.mapError((failure) => new Error(failure.message, {cause: failure}))),
+  return made.pluginHost.runPromise(PluginRegistry.Service.use(run))
+}
+
+function watchBundlerChanges(made: MadeApp, listener: () => void) {
+  made.pluginHost.runFork(
+    PluginRegistry.Service.use((plugins) =>
+      plugins.bundlerChanges.pipe(
+        Stream.runForEach(() =>
+          Effect.try({try: listener, catch: (error) => error}).pipe(
+            Effect.catch((error) => Effect.logError('conciv: a bundler change listener failed', {error})),
+          ),
+        ),
+      ),
+    ),
   )
 }
 
@@ -158,7 +172,7 @@ export type Engine = {
     [Hook in keyof PluginBundlerHooks]: (
       ...input: Parameters<PluginBundlerHooks[Hook]>
     ) => Promise<Effect.Success<ReturnType<PluginBundlerHooks[Hook]>>>
-  }
+  } & {changes: (listener: () => void) => void}
   cfg: ResolvedConcivConfig
 } & EngineRouterBrand
 
@@ -169,12 +183,11 @@ type FetchHandler = ServeFetch
 
 const PERSISTED_PORT_ATTEMPTS = 4
 const PERSISTED_PORT_RETRY_MS = 300
-const accessTokenMessage = 'conciv: accessToken must be a UUID pairing token'
-const AccessTokenSchema = z.uuid(accessTokenMessage).optional()
+const AccessTokenSchema = z.uuid().optional()
 
 function assertAccessToken(accessToken: string | undefined): void {
   const parsed = AccessTokenSchema.safeParse(accessToken)
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? accessTokenMessage)
+  if (!parsed.success) throw engineRuntimeErrors.ACCESS_TOKEN_INVALID()
 }
 
 async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Served | undefined> {
@@ -499,6 +512,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
         resolveId: (id: string, importer: string | undefined) =>
           runBundlerHook(made, (plugins) => plugins.resolveId(id, importer)),
         load: (id: string) => runBundlerHook(made, (plugins) => plugins.load(id)),
+        changes: (listener: () => void) => watchBundlerChanges(made, listener),
       },
       stop: async () => {
         try {

@@ -10,6 +10,7 @@ import {codeContentOptions, FILE_HEADER_CSS} from '../primitives/tool-presentati
 import {countLabel} from '../primitives/tool-row.js'
 import {CLAMP_LINES, ClampFade, createClamp, type Clamp, type TraceClampSize} from '../../styled/trace/clamp.js'
 import {codeTheme} from '../../theme/code-theme.js'
+import {chatKitErrors} from '@conciv/errors'
 
 function blessedDiffOptions(): FileDiffOptions<undefined, undefined> {
   return {
@@ -96,7 +97,7 @@ const HeaderPlacement = createContext(false)
 
 function useCodeBlock(): CodeBlockContextValue {
   const block = useContext(CodeBlockContext)
-  if (!block) throw new Error('A CodeBlock part renders inside a CodeBlock')
+  if (!block) throw chatKitErrors.CODE_BLOCK_OUTSIDE()
   return block
 }
 

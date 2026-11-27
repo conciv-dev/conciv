@@ -1,5 +1,4 @@
 import {join} from 'node:path'
-import {Schema} from 'effect'
 import {z} from 'zod'
 
 const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
@@ -40,8 +39,6 @@ function emptyToUndefined(raw: unknown): unknown {
   if (raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 0) return undefined
   return raw
 }
-
-export const InvalidOptions = Schema.TaggedStruct('InvalidOptions', {message: Schema.String})
 
 export const IosConfigSchema = z.preprocess(emptyToUndefined, FullIosConfigSchema.optional())
 

@@ -6,8 +6,9 @@ import * as Event from '@conciv/protocol/schema/event'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import * as SessionMessage from '@conciv/protocol/schema/session-message'
 import * as App from '../app.js'
-import {Context, Effect, Schema, Stream} from 'effect'
+import {Context, Effect, Option, Schema, Stream} from 'effect'
 import type {Servers} from '@conciv/client'
+import type {BundlerHooks} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Agent from '../agent.js'
 import * as Bus from '../bus.js'
 import * as KV from '../kv.js'
@@ -18,6 +19,7 @@ import * as Tab from '../tab.js'
 import * as Job from '../job.js'
 import * as InstructionEntry from '../session/instruction-entry.js'
 import * as Rpc from '../rpc.js'
+import {permissionErrors, pluginHostErrors} from '@conciv/errors'
 import type {DeepMutable} from '../schema.js'
 import * as Skill from '../skill.js'
 import * as Tool from '../tool.js'
@@ -26,6 +28,8 @@ import * as PluginHooks from './hooks.js'
 import * as Global from '../../util/global.js'
 import {FSUtil} from '../../util/fs-util.js'
 import type {Interface} from '../plugin.js'
+import type {BundlerRegistry} from './service.js'
+import type * as State from '../state.js'
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
 type RpcEvent = Event.Payload & {
@@ -38,12 +42,28 @@ const isRpcEvent = (event: Event.Payload): event is RpcEvent => isRpcType(event.
 const isPublicEvent = (event: Event.Payload): event is EventManifest.ServerEvent | RpcEvent =>
   EventManifest.isServer(event) || isRpcEvent(event)
 
+const hook = <Hook>() => Schema.optional(Schema.declare<Hook>((input): input is Hook => typeof input === 'function'))
+const BundlerPart = Schema.Struct({
+  transform: hook<NonNullable<BundlerHooks['transform']>>(),
+  resolveId: hook<NonNullable<BundlerHooks['resolveId']>>(),
+  load: hook<NonNullable<BundlerHooks['load']>>(),
+})
+
+function decodeBundlerPart(part: unknown, plugin: string): typeof BundlerPart.Type {
+  return Option.getOrThrowWith(Schema.decodeUnknownOption(BundlerPart)(part), () =>
+    pluginHostErrors.BUNDLER_HOOKS_INVALID({plugin}),
+  )
+}
+
 export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
 export const BundlerSource = Context.Service<Bundler.BundlerBridge | undefined>('@conciv/BundlerSource')
 export const EditorSource =
   Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')
 
-export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interface, 'list'>, pluginId: string) {
+export const make = Effect.fn('PluginHost.make')(function* (
+  plugin: Pick<Interface, 'list'> & {readonly bundler: State.Transform<BundlerRegistry>},
+  pluginId: string,
+) {
   yield* Effect.annotateCurrentSpan({plugin: pluginId})
   const app = yield* App.Service
   const agents = yield* Agent.Service
@@ -83,7 +103,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
         Effect.flatMap((request) =>
           request?.sessionId === input.sessionId
             ? Effect.succeed(request)
-            : Effect.fail(new Error(`Permission request not found: ${input.requestId}`)),
+            : Effect.fail(permissionErrors.REQUEST_NOT_FOUND({requestId: input.requestId})),
         ),
       )
 
@@ -102,6 +122,12 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
             update: (id, update) => editor.update(Agent.Id.make(id), update),
             remove: (id) => editor.remove(Agent.Id.make(id)),
           })
+        }),
+    },
+    bundler: {
+      transform: (callback) =>
+        plugin.bundler((editor) => {
+          callback({add: (part) => editor.add(decodeBundlerPart(part, pluginId), pluginId)})
         }),
     },
     model: {
@@ -146,14 +172,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
           ),
         ),
       assert: (input) =>
-        permission.assert(input).pipe(
-          Effect.catchTags({
-            'Permission.BlockedError': (error) => Effect.fail(Tool.makeError({message: error.message, error})),
-            'Permission.CorrectedError': (error) => Effect.fail(Tool.makeError({message: error.feedback, error})),
-            'Session.NotFoundError': (error) =>
-              Effect.fail(Tool.makeError({message: `Session not found: ${error.sessionId}`, error})),
-          }),
-        ),
+        permission.assert(input).pipe(Effect.mapError((error) => Tool.makeError({message: error.message, error}))),
     },
     plugin: {
       list: () => response(plugin.list()),

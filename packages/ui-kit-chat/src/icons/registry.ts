@@ -1,6 +1,7 @@
 import {createRoot} from 'solid-js'
 import {makeMediaQueryListener} from '@solid-primitives/media'
 import {isDocument, prefersReducedMotion} from '@conciv/ui-kit-system'
+import {chatKitErrors} from '@conciv/errors'
 
 export type RegisteredIconName = `${string}:${string}`
 
@@ -175,7 +176,7 @@ function parse(name: string, source: string): Artwork {
   const root = new DOMParser().parseFromString(source, 'image/svg+xml').documentElement
 
   if (root.localName !== 'svg' || root.getElementsByTagName('parsererror').length > 0)
-    throw new Error(`Icon "${name}" is not an SVG document`)
+    throw chatKitErrors.ICON_NOT_SVG({name})
 
   const content = document.createDocumentFragment()
 
@@ -196,5 +197,5 @@ function frame(name: string, root: Element) {
 
   if (width > 0 && height > 0) return `0 0 ${width} ${height}`
 
-  throw new Error(`Icon "${name}" needs a viewBox, or a width and a height`)
+  throw chatKitErrors.ICON_NO_FRAME({name})
 }

@@ -1,4 +1,0 @@
-{
-  "extends": ["./tsconfig.json", "@internal/tsconfig/tsconfig.build.json"],
-  "compilerOptions": {"emitDeclarationOnly": false}
-}

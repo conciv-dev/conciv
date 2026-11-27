@@ -1,3 +1,4 @@
+import {simulationErrors} from '@conciv/errors'
 import {it} from '@effect/vitest'
 import {ConfigProvider, Effect, FileSystem, Layer} from 'effect'
 import {describe, expect} from 'vitest'
@@ -39,7 +40,7 @@ describe('drive manifest', () => {
     Effect.gen(function* () {
       const error = yield* DriveManifest.resolve().pipe(Effect.flip, Effect.provide(driveFiles(contents)))
 
-      expect(error).toMatchObject({_tag: 'DriveManifest.ResolveError', reason: 'decode'})
+      expect(error).toMatchObject({code: simulationErrors.MANIFEST_INVALID.code})
     }),
   )
 })

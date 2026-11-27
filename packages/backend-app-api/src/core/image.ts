@@ -1,15 +1,6 @@
 import {Context, Schema, type Effect} from 'effect'
 import type * as State from './state.js'
-import type {DecodeError, ResizerUnavailableError, SizeError} from './image/error.js'
-
-export {
-  DecodeError,
-  ResizerUnavailableError,
-  SizeError,
-  makeDecodeError,
-  makeResizerUnavailableError,
-  makeSizeError,
-} from './image/error.js'
+import type {EvlogError} from 'evlog'
 
 export const Content = Schema.Struct({
   uri: Schema.String,
@@ -35,7 +26,7 @@ export interface Interface extends State.Transformable<Editor> {
   readonly normalize: (
     resource: string,
     content: Content & {readonly encoding: 'base64'},
-  ) => Effect.Effect<Content & {readonly encoding: 'base64'}, ResizerUnavailableError | DecodeError | SizeError>
+  ) => Effect.Effect<Content & {readonly encoding: 'base64'}, EvlogError>
 }
 
 export const Service = Context.Service<Interface>('@conciv/Image')
