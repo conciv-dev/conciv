@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {abort} from './abort'
 import {
   batch,
@@ -453,7 +454,9 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
 
     const next = transitionPluginHost(machine(), event)
 
-    void Promise.try(() => setMachine(next.state)).catch((cause: unknown) => console.error('[plugin] host', cause))
+    void Promise.try(() => setMachine(next.state)).catch((cause: unknown) =>
+      log.error({action: 'plugin', message: 'the plugin host state update failed', error: cause}),
+    )
     next.effects.forEach(
       (effect) => void Promise.try(() => run(effect)).catch((cause: unknown) => crashed(effect, cause)),
     )
@@ -464,7 +467,12 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
   const crashed = (effect: PluginHostEffect<Instance>, cause: unknown) => {
     if ('attempt' in effect) return dispatch({type: 'failed', id: effect.id, attempt: effect.attempt, cause})
 
-    console.error(`[plugin] ${'id' in effect ? effect.id : effect.instance.definition.id}`, cause)
+    log.error({
+      action: 'plugin',
+      message: 'a plugin host step failed',
+      plugin: 'id' in effect ? effect.id : effect.instance.definition.id,
+      error: cause,
+    })
   }
 
   const run = (effect: PluginHostEffect<Instance>) => {
@@ -527,7 +535,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
         if (plugin === effect.id) providers.delete(token)
       })
 
-    console.error(`[plugin] ${effect.id}`, effect.cause)
+    log.error({action: 'plugin', message: 'plugin failed', plugin: effect.id, error: effect.cause})
   }
 
   const start = (effect: Extract<PluginHostEffect<Instance>, {type: 'start'}>) => {
@@ -544,7 +552,9 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
 
           if (!isPromiseLike(returned)) return
 
-          void Promise.resolve(returned).catch((cause: unknown) => console.error(`[plugin] ${effect.id}`, cause))
+          void Promise.resolve(returned).catch((cause: unknown) =>
+            log.error({action: 'plugin', message: 'the window setup failed', plugin: effect.id, error: cause}),
+          )
           throw new Error('Window setup must be synchronous. Start async work with createKeyed or createLatest.')
         }),
       (cause) => (sync.running ? failed(cause) : queueMicrotask(() => failed(cause))),
@@ -560,7 +570,9 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
     const cleanups = new Set<Cleanup>()
 
     const release = (fn: Cleanup) =>
-      void Promise.try(fn).catch((cause: unknown) => console.error(`[plugin] ${plugin}`, cause))
+      void Promise.try(fn).catch((cause: unknown) =>
+        log.error({action: 'plugin', message: 'a plugin cleanup failed', plugin, error: cause}),
+      )
 
     const own = (fn: Cleanup): Cleanup => {
       if (controller.signal.aborted) {
@@ -635,6 +647,7 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
         return experimental?.client() ?? input.unavailableClient()
       },
       signal: controller.signal,
+      log,
       add<T>(registry: Registry<T>, item: T | (() => T | undefined)) {
         if (late()) return () => {}
 

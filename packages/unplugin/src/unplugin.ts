@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplugin'
 import type {Engine} from '@conciv/backend/start'
 import type {ConcivConfig} from '@conciv/types/config-types'
@@ -9,6 +10,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {concivStateDir} from '@conciv/types/state-types'
 import {isEnginePort} from './core/widget-start.js'
+import {startHostLog} from './core/host-log.js'
 
 function widgetStarterPath(): string {
   return fileURLToPath(new URL('../dist/core/widget-start.js', import.meta.url))
@@ -23,16 +25,18 @@ function createStateDirNow(stateDir: string): void {
   try {
     writeFileSync(ignoreFile, STATE_GITIGNORE, {flag: 'wx'})
   } catch (error) {
-    console.error('conciv: could not write', ignoreFile, error)
+    log.error({action: 'unplugin', message: 'could not write the state folder ignore file', path: ignoreFile, error})
   }
 }
 
 function writeWidgetClient(root: string, client: {askedPort: number; port: number}): string | undefined {
   const {askedPort, port} = client
   if (!isEnginePort(port)) {
-    console.error(
-      `conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}, so the page gets no widget`,
-    )
+    log.error({
+      action: 'unplugin',
+      message: 'the engine port must be an integer from 1 to 65535, so the page gets no widget',
+      port: String(port),
+    })
     return undefined
   }
   const stateDir = concivStateDir(root)
@@ -47,7 +51,11 @@ function writeWidgetClient(root: string, client: {askedPort: number; port: numbe
     writeFileSync(path, source, 'utf8')
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)
-    console.error(`conciv: could not write the widget client ${path}, so the page gets no widget: ${cause}`)
+    log.error({
+      action: 'unplugin',
+      message: `could not write the widget client, so the page gets no widget: ${cause}`,
+      path,
+    })
     return undefined
   }
   return path
@@ -93,6 +101,7 @@ function reportStartFailure(error: unknown): never {
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
+    startHostLog(options.logLevel)
     const askedPort = options.port ?? CONCIV_DEFAULT_PORT
     const state: {slot: EngineSlot} = {slot: {stage: 'idle'}}
     const startEngine = async (onPort: (port: number) => void): Promise<Engine> => {
@@ -120,7 +129,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
           (engine) => engine.stop(),
           () => undefined,
         )
-        .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+        .catch((error: unknown) => log.error({action: 'unplugin', message: 'stopping the engine failed', error}))
         .then(() => {
           state.slot = {stage: 'idle'}
         })

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {onCleanup, untrack} from 'solid-js'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
@@ -54,7 +55,7 @@ export function PluginExperimentalLoader(props: {
       machine.state = next.state
       next.effects.forEach((effect) =>
         Promise.try(() => run(effect)).catch((cause: unknown) =>
-          console.error('[plugin] plugin experimental effect failed', cause),
+          log.error({action: 'plugin', message: 'plugin experimental effect failed', error: cause}),
         ),
       )
     } finally {
@@ -100,7 +101,7 @@ export function PluginExperimentalLoader(props: {
         effect.reserved,
       )
 
-    console.error('[plugin] failed to load plugin experimentals', effect.cause)
+    log.error({action: 'plugin', message: 'failed to load plugin experimentals', error: effect.cause})
   }
 
   onCleanup(

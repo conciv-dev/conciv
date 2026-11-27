@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createDefu} from 'defu'
 import {z} from 'zod'
 import type {EngineClient} from '../connection/rpc-client.js'
@@ -114,7 +115,13 @@ function mirroredState(
   const forget = (error?: unknown): void => {
     mirror.following = undefined
     if (error !== undefined && signal?.aborted !== true)
-      console.error(`conciv: following the ${target.scope} settings of "${target.namespace}" failed`, error)
+      log.error({
+        action: 'settings',
+        message: 'following the settings failed',
+        scope: target.scope,
+        namespace: target.namespace,
+        error,
+      })
   }
   return () => {
     mirror.following ??= follow().catch((error: unknown) => {

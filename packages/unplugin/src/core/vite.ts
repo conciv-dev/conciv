@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
 import {access, readFile, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
@@ -89,9 +90,11 @@ async function writeScanEntry(root: string, files: readonly string[]): Promise<r
     return [path]
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)
-    console.warn(
-      `conciv: could not write ${path}, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
-    )
+    log.warn({
+      action: 'unplugin',
+      message: `could not write the file, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
+      path,
+    })
     return files
   }
 }
@@ -205,7 +208,7 @@ function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine
   const closing = Promise.withResolvers<void>()
   const stopped = closing.promise
     .then(() => engine.stop())
-    .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+    .catch((error: unknown) => log.error({action: 'unplugin', message: 'stopping the engine failed', error}))
   server.httpServer?.once('close', () => closing.resolve())
   return {
     ...engine,

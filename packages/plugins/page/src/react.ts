@@ -18,6 +18,7 @@ import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy
 import type {RefAdder} from './snapshot.js'
 import type {RawFrame, Owner, LocateResult, SourceLoc} from '@conciv/frontend-plugin-api/page'
 import type {TreeNode, HookNode, InspectResult, TreeResult} from './page-introspect-types.js'
+import type {BaseContext} from '@conciv/frontend-plugin-api'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
@@ -32,6 +33,7 @@ export function installReactBridge(): void {
   try {
     instrument({})
   } catch (error) {
+    // oxlint-disable-next-line no-console
     console.warn('[conciv] react devtools hook unavailable', error)
   }
 }
@@ -83,11 +85,11 @@ async function rawFrames(fiber: Fiber): Promise<RawFrame[]> {
   }))
 }
 
-export async function framesForElement(el: Element): Promise<RawFrame[]> {
+export async function framesForElement(el: Element, log: BaseContext['log']): Promise<RawFrame[]> {
   const fiber = getFiberFromHostInstance(el)
   if (!fiber) return []
   return rawFrames(fiber).catch((error: unknown) => {
-    console.warn('[conciv] react source frames unavailable', error)
+    log.warn({action: 'page', message: 'react source frames unavailable', error})
     return []
   })
 }
@@ -464,9 +466,9 @@ function buildReport(stats: Map<number, Stat>, tracking: boolean, opts: {name?: 
   }
 }
 
-export function makeTracker(): Tracker {
+export function makeTracker(log: BaseContext['log']): Tracker {
   const tracker = {tracking: false, stats: new Map<number, Stat>()}
-  const subscribed = subscribeCommits((root) => {
+  const subscribed = subscribeCommits(log, (root) => {
     if (!tracker.tracking) return
     traverseRenderedFibers(root, (fiber: Fiber) => {
       if (isCompositeFiber(fiber)) recordRender(tracker.stats, fiber)
@@ -493,14 +495,17 @@ export function makeTracker(): Tracker {
 
 const TRACKING_UNAVAILABLE = 'render tracking is unavailable: this page does not let conciv hook into React'
 
-function subscribeCommits(onCommit: (root: Fiber) => void): {ok: boolean; unsubscribe: () => void} {
+function subscribeCommits(
+  log: BaseContext['log'],
+  onCommit: (root: Fiber) => void,
+): {ok: boolean; unsubscribe: () => void} {
   try {
     return {
       ok: true,
       unsubscribe: instrument({onCommitFiberRoot: (_rendererID: number, root: Fiber) => onCommit(root)}),
     }
   } catch (error) {
-    console.warn('[conciv] react render tracking unavailable', error)
+    log.warn({action: 'page', message: 'react render tracking unavailable', error})
     return {ok: false, unsubscribe: () => {}}
   }
 }

@@ -596,6 +596,19 @@
       "rules": {
         "unicorn/no-array-sort": "off"
       }
+    },
+    {
+      "files": ["packages/*/src/**", "packages/plugins/*/src/**"],
+      "rules": {"no-console": "error"}
+    },
+    {
+      "files": [
+        "packages/cli/src/**",
+        "packages/publish/src/**",
+        "packages/skills/src/**",
+        "packages/ui-kit-system/src/scripts/**"
+      ],
+      "rules": {"no-console": "off"}
     }
   ],
   "ignorePatterns": [

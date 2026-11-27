@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {EngineClient} from '@conciv/client'
 import type {SettingsScope} from '@conciv/protocol'
 import type {AsyncStorage, SyncStorage} from '@solid-primitives/storage'
@@ -164,7 +165,7 @@ export function createLocalPersistence(): LocalPersistence {
       return true
     } catch (error) {
       if (!quota(error) || !canEvict(untrack(localStorageState), Date.now())) {
-        console.error(`[persistence] write failed for ${key}`, error)
+        log.error({action: 'persistence', message: 'write failed', key, error})
         dispatchLocalStorage({type: 'write.failed'})
 
         return false
@@ -177,7 +178,7 @@ export function createLocalPersistence(): LocalPersistence {
       return true
     }
 
-    console.error(`[persistence] write failed for ${key}: this browser's storage is full`)
+    log.error({action: 'persistence', message: "write failed: this browser's storage is full", key})
     dispatchLocalStorage({type: 'eviction.failed', now: Date.now()})
 
     return false
@@ -217,7 +218,7 @@ export function createLocalPersistence(): LocalPersistence {
       try {
         storage.setItem(entry.key, entry.value)
       } catch (error) {
-        console.error(`[persistence] could not put back ${entry.key}`, error)
+        log.error({action: 'persistence', message: 'could not put back an evicted entry', key: entry.key, error})
       }
     })
 
@@ -230,7 +231,7 @@ export function createLocalPersistence(): LocalPersistence {
     try {
       return {readable: true, value: localStorage.getItem(name)}
     } catch (error) {
-      console.error(`[persistence] read failed for ${name}`, error)
+      log.error({action: 'persistence', message: 'read failed', name, error})
 
       return {readable: false}
     }
@@ -262,7 +263,7 @@ export function createLocalPersistence(): LocalPersistence {
         try {
           localStorage.removeItem(name)
         } catch (error) {
-          console.error(`[persistence] remove failed for ${name}`, error)
+          log.error({action: 'persistence', message: 'remove failed', name, error})
         }
       },
     }
@@ -511,7 +512,8 @@ function removeFrom(
 }
 
 export function removePersisted(target: PersistTarget, rpc: EngineClient, local: LocalPersistence) {
-  const failed = (key: string) => (error: unknown) => console.error(`[persistence] remove failed for ${key}`, error)
+  const failed = (key: string) => (error: unknown) =>
+    log.error({action: 'persistence', message: 'remove failed', key, error})
 
   if (target.kind === 'browser') return removeFrom(local.view(target.storage), target, failed)
 

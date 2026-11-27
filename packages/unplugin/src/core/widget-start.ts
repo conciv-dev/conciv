@@ -6,7 +6,7 @@ async function mountWidget(): Promise<void> {
 }
 
 function startWhenReady(): void {
-  mountWidget().catch((error) => console.error('[conciv] widget failed to start', error))
+  mountWidget().catch(() => undefined)
 }
 
 export function isEnginePort(port: number): boolean {

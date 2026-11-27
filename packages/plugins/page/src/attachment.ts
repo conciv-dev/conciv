@@ -1,6 +1,6 @@
 import {Effect, Exit, FiberMap, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
-import type {MountedSession} from '@conciv/frontend-plugin-api'
+import type {BaseContext, MountedSession} from '@conciv/frontend-plugin-api'
 import type {PageOperation} from '@conciv/frontend-plugin-api/page'
 import {Command, Control, Definition, Outcome} from './rpc.js'
 import type {PageOperations} from './operations.js'
@@ -9,6 +9,7 @@ export type Answering = {
   readonly session: MountedSession
   readonly operations: PageOperations
   readonly registered: () => readonly PageOperation[]
+  readonly log: BaseContext['log']
 }
 
 const CONTROL: `rpc.${typeof Definition.id}.control` = `rpc.${Definition.id}.control`
@@ -69,7 +70,16 @@ export function answerCommands(input: Answering): Effect.Effect<void> {
           )
           .pipe(
             Effect.tapError((cause) =>
-              Effect.sync(() => ended.aborted || console.warn('[conciv] page send failed', cause)),
+              Effect.sync(
+                () =>
+                  ended.aborted ||
+                  input.log.warn({
+                    action: 'page',
+                    message: 'page send failed',
+                    sessionId: owner.sessionId,
+                    error: cause,
+                  }),
+              ),
             ),
             Effect.exit,
             Effect.map(Exit.isSuccess),
@@ -95,7 +105,16 @@ export function answerCommands(input: Answering): Effect.Effect<void> {
         }).pipe(
           Effect.scoped,
           Effect.catch((cause) =>
-            Effect.sync(() => ended.aborted || console.warn('[conciv] page command failed', cause)),
+            Effect.sync(
+              () =>
+                ended.aborted ||
+                input.log.warn({
+                  action: 'page',
+                  message: 'page command failed',
+                  sessionId: owner.sessionId,
+                  error: cause,
+                }),
+            ),
           ),
         )
 
@@ -109,7 +128,16 @@ export function answerCommands(input: Answering): Effect.Effect<void> {
           }),
         ),
         Effect.catch((cause) =>
-          Effect.sync(() => ended.aborted || console.warn('[conciv] page event subscription failed', cause)),
+          Effect.sync(
+            () =>
+              ended.aborted ||
+              input.log.warn({
+                action: 'page',
+                message: 'page event subscription failed',
+                sessionId: owner.sessionId,
+                error: cause,
+              }),
+          ),
         ),
       )
     }),

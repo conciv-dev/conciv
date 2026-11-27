@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {EngineClient} from '../connection/rpc-client.js'
 import {z} from 'zod'
 import type * as Rpc from '@conciv/protocol/schema/rpc'
@@ -179,12 +180,24 @@ export function makeRpc(
                 try {
                   await handler(event)
                 } catch (error) {
-                  console.error(error)
+                  log.error({
+                    action: 'plugin',
+                    message: 'an rpc event handler failed',
+                    plugin: definition.id,
+                    event: name,
+                    error,
+                  })
                 }
               }
             }
             void deliver().catch((error: unknown) =>
-              console.error(`[plugin] the event subscription of rpc.${definition.id}.${name} failed`, error),
+              log.error({
+                action: 'plugin',
+                message: 'the rpc event subscription failed',
+                plugin: definition.id,
+                event: name,
+                error,
+              }),
             )
             return () => controller.abort()
           },

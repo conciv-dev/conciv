@@ -61,7 +61,7 @@ function PickElementButton(props: {page: Page; terminal: TerminalState}): JSX.El
       const picked = await props.page.pick()
       if (picked && shown.current) props.terminal.hold(picked)
     } catch (cause) {
-      console.error('[terminal] picking an element failed', cause)
+      ctx.log.error({action: 'terminal', message: 'picking an element failed', error: cause})
       void ctx.toast.show({title: 'Could not select that element', variant: 'error'})
     }
   }

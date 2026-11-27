@@ -139,7 +139,7 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
         shown: shownModel(session.id),
         busy: busy(session.id),
       }),
-    transport: (terminal: PtyClient, pty: HeldPty) => rpcTerminalTransport(runtime, terminal, pty),
+    transport: (terminal: PtyClient, pty: HeldPty) => rpcTerminalTransport(runtime, terminal, pty, ctx.log),
   }
 }
 

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   createMemo,
   ErrorBoundary,
@@ -254,7 +255,7 @@ function createCodeBlocks(
 
         if (!view) return
         void Promise.try(() => item.value.run(input(block, view))).catch((cause: unknown) =>
-          console.error(`[plugin] ${item.plugin}`, cause),
+          log.error({action: 'plugin', message: 'a code block action failed', plugin: item.plugin, error: cause}),
         )
       },
     }

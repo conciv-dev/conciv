@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {EngineConnectionTimings} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
@@ -74,7 +75,7 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
       teardown = undefined
       rebindImpl = undefined
       state = 'unmounted'
-      console.error('[conciv] failed to start widget', error)
+      log.error({action: 'widget', message: 'failed to start widget', error})
       throw error
     }
   }
@@ -98,7 +99,7 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
       .then((client) => client.emit(name, undefined))
       .catch((error: unknown) => {
         panelCommandsPromise = null
-        console.error('[conciv] panel command failed', error)
+        log.error({action: 'widget', message: 'panel command failed', command: name, error})
       })
   }
 

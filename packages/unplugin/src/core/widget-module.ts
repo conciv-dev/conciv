@@ -21,7 +21,7 @@ const HOST_WIDGET_SETTINGS = [
 
 const PAGE_MOUNT = [
   `if (typeof document !== 'undefined' && !document.querySelector(${JSON.stringify(DOCK_SCRIPT_SELECTOR)}))`,
-  `  mountConciv().catch((error) => console.error('[conciv] widget failed to start', error))`,
+  `  mountConciv().catch(() => undefined)`,
 ]
 
 const DOCK_RENDERER = [
@@ -35,7 +35,7 @@ const DOCK_RENDERER = [
   `  }`,
   `  const mount = (panel) => {`,
   `    panel.inert = !entry.isActive`,
-  `    conciv.mount(panel).catch((error) => console.error('[conciv] widget failed to start', error))`,
+  `    conciv.mount(panel).catch(() => undefined)`,
   `  }`,
   `  entry.events.on('entry:activated', () => setInert(false))`,
   `  entry.events.on('entry:deactivated', () => setInert(true))`,

@@ -27,7 +27,7 @@ export function ConcivWidget(props: ConcivWidgetProps): ReactElement {
   useEffect(() => {
     if (!host) return
     const handle = createConciv(config.init)
-    handle.mount(host).catch((error: unknown) => console.error('conciv widget failed to mount', error))
+    handle.mount(host).catch(() => undefined)
     return () => {
       handle.unmount()
     }

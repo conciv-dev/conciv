@@ -60,6 +60,7 @@
     "@tanstack/solid-query": "catalog:",
     "@zumer/snapdom": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createMemo, For, onCleanup, Show, untrack, type Accessor} from 'solid-js'
 import {Navigate, getRouteApi, useRouter} from '@tanstack/solid-router'
 import {Panel, Slot, type MountedSession, type SessionScreen} from '@conciv/frontend-plugin-api'
@@ -128,7 +129,7 @@ function listed(item: PaneProvider, key: string, view: MountedSession, screen: S
       .list(panelInput(() => view, screen, {open: [key.slice(item.plugin.length + 1)]}))
       .some((tab) => panelKey(item.plugin, tab.id) === key)
   } catch (cause) {
-    console.error(`[plugin] ${item.plugin} panel list failed`, cause)
+    log.error({action: 'plugin', message: 'panel list failed', plugin: item.plugin, error: cause})
 
     return false
   }
@@ -143,7 +144,7 @@ function renamed(item: PaneProvider, key: string, view: MountedSession, screen: 
       panelKey(item.plugin, normalize(panelInput(() => view, screen, {id: key.slice(item.plugin.length + 1)}))) !== key
     )
   } catch (cause) {
-    console.error(`[plugin] ${item.plugin} panel normalize failed`, cause)
+    log.error({action: 'plugin', message: 'panel normalize failed', plugin: item.plugin, error: cause})
 
     return false
   }

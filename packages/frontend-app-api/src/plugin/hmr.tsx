@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
 import {usePluginHost} from './host'
@@ -17,7 +18,9 @@ export default function PluginHotReload() {
         .then((value) => {
           if (value) host.reload(definition.id, definition)
         })
-        .catch((cause: unknown) => console.error(`[plugin] ${definition.id}`, cause))
+        .catch((cause: unknown) =>
+          log.error({action: 'plugin', message: 'the hot reload check failed', plugin: definition.id, error: cause}),
+        )
     })
   })
 

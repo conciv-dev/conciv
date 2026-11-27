@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createContext, createEffect, useContext, type JSX} from 'solid-js'
 import {useEngineReachability, type EngineReachability} from '../app/reachability.js'
 import type {LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
@@ -32,7 +33,7 @@ export function NoticeSurface(): JSX.Element {
 export function useReportFailure(): (message: string, error: unknown) => void {
   const notices = useNotices()
   return (message, error) => {
-    console.error(`[conciv] ${message}`, error)
+    log.error({action: 'notice', message, error})
     notices.notify(message, {tone: 'danger', key: message})
   }
 }

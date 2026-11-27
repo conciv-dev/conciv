@@ -44,6 +44,7 @@ export function make(
     plugin: raw.plugin,
     experimental: raw.experimental,
     event: raw.event,
+    logs: raw.logs,
   } satisfies {readonly [Group in keyof typeof contract]: EngineClient[Group]}
   return {
     ...groups,

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {batch, createEffect, createMemo, createSignal, getOwner, onCleanup, untrack} from 'solid-js'
 import type {SessionRef} from '@conciv/frontend-plugin-api'
 import {same} from '../persistence/equality'
@@ -22,7 +23,9 @@ export function createLocatedWrites() {
     setWritesState(next.state)
     next.effects.forEach((effect) => {
       if (effect.type === 'run')
-        return void Promise.try(effect.run).catch((cause: unknown) => console.error('[plugin]', cause))
+        return void Promise.try(effect.run).catch((cause: unknown) =>
+          log.error({action: 'plugin', message: 'a located write failed', error: cause}),
+        )
 
       if (effect.type === 'drain')
         return batch(() => {

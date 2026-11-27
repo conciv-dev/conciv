@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   batch,
   createMemo,
@@ -89,7 +90,7 @@ export function persistedHandle<T extends object>(
     setLoadState(next.state)
     next.effects.forEach((effect) => {
       if (effect.type === 'reject') {
-        if (effect.log) console.error('[plugin storage] Load failed', effect.cause)
+        if (effect.log) log.error({action: 'plugin storage', message: 'Load failed', error: effect.cause})
 
         return settled?.reject(effect.cause)
       }
@@ -98,7 +99,10 @@ export function persistedHandle<T extends object>(
 
       const applied = effect.writes.map((write) => Promise.try(() => apply(write)))
       applied.forEach(
-        (write) => void write.catch((cause: unknown) => console.error('[plugin storage] Queued write failed', cause)),
+        (write) =>
+          void write.catch((cause: unknown) =>
+            log.error({action: 'plugin storage', message: 'Queued write failed', error: cause}),
+          ),
       )
       void Promise.all(applied).then(
         () => settled?.resolve(),
@@ -158,7 +162,7 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>, loa
         effect.writes.forEach(
           (write) =>
             void Promise.try(() => forward(effect.handle, write)).catch((cause: unknown) =>
-              console.error('[plugin storage] Queued write failed', cause),
+              log.error({action: 'plugin storage', message: 'Queued write failed', error: cause}),
             ),
         )
       }),
