@@ -10,7 +10,6 @@ export function annotateSiteFile(code: string, id: string, root: string): Return
 export function sourceAnnotations(root: string): Plugin {
   return {
     name: 'site-source-annotations',
-    apply: 'build',
     enforce: 'pre',
     transform(code, id) {
       return annotateSiteFile(code, id, root)
