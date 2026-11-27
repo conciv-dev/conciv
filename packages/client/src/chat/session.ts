@@ -371,11 +371,33 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     setRunSource(stoppingRun)
     try {
       await options.stop(runIds)
+      log.debug({action: 'wip-stop', message: '[wip-stop] stop rpc answered', runIds, at: performance.now()})
+    } catch (cause) {
+      log.debug({action: 'wip-stop', message: '[wip-stop] stop rpc failed', cause, at: performance.now()})
+      throw cause
     } finally {
       chat.stop()
       setRunSource(stoppedRun)
     }
-    await refresh()
+    const shown = shownIds()
+    const window = await latestWindow().catch((cause: unknown) => {
+      log.debug({action: 'wip-stop', message: '[wip-stop] stop refresh failed', cause, at: performance.now()})
+      throw cause
+    })
+    log.debug({
+      action: 'wip-stop',
+      message: '[wip-stop] stop refresh window',
+      parts: window.flatMap((message) => message.parts),
+      at: performance.now(),
+    })
+    showWindow(window, shown)
+    log.debug({
+      action: 'wip-stop',
+      message: '[wip-stop] stop refresh shown',
+      cardStillRunning: cardStillRunning(chat.messages()),
+      parts: chat.messages().flatMap((message) => message.parts),
+      at: performance.now(),
+    })
   }
   const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
   const stop = async (): Promise<void> => {
