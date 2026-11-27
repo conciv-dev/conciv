@@ -46,12 +46,12 @@ export function makeEngineRpcClient(
   session?: SessionAccessor,
 ): EngineClient {
   return createORPCClient<EngineClient>({
-    call: (path, input, options) => {
+    call: async (path, input, options) => {
       const current = connection()
       if (current === undefined) throw engineUnreachable(RPC_UNBOUND_MESSAGE)
       const sessionId = session?.()
       const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
-      return current.link.call(path, input, {...options, context})
+      return await current.link.call(path, input, {...options, context})
     },
   })
 }
