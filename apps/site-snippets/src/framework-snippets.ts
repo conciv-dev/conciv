@@ -6,15 +6,6 @@ export const cleanSnippet = (code: string) =>
     .filter((line) => !TWOSLASH_LINE.test(line.trim()))
     .join('\n')
 
-const COMPLETION_LINE = /^\/\/\s*\^\|/
-
-export const copySnippet = (code: string) => {
-  const lines = code.split('\n')
-  return lines
-    .filter((line, index) => !COMPLETION_LINE.test(lines[index + 1]?.trim() ?? '') && !TWOSLASH_LINE.test(line.trim()))
-    .join('\n')
-}
-
 export type FrameworkSnippet = {
   id: string
   label: string
@@ -38,17 +29,11 @@ export const FRAMEWORK_SNIPPETS: FrameworkSnippet[] = [
     file: 'vite.config.ts',
     lang: 'ts',
     twoslash: true,
-    code: `// @noErrors
-import {defineConfig} from 'vite'
-import conciv, {type ConcivConfig} from '@conciv/it/plugin/vite'
-
-const options: ConcivConfig = {
-  h
-// ^|
-}
+    code: `import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
-  plugins: [conciv(options)],
+  plugins: [conciv()],
 })`,
   },
   {

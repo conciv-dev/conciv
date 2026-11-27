@@ -6,7 +6,7 @@ import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from '@/components/ui/select'
 import {CopyButton} from './copy-button'
-import {copySnippet, type FrameworkSnippet} from 'site-snippets'
+import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
 import {siteErrors} from '@conciv/errors'
 
@@ -225,7 +225,7 @@ function FileBar() {
 function Copy() {
   const {active} = useFrameworkTabs()
   return (
-    <CopyButton.Root text={copySnippet(active.code ?? '')}>
+    <CopyButton.Root text={cleanSnippet(active.code ?? '')}>
       <CopyButton.Trigger label="Copy config" />
       <CopyButton.Feedback />
     </CopyButton.Root>

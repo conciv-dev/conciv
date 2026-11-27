@@ -23,7 +23,7 @@ export function InstallStep({
       duration={0.65}
       ease="power3.out"
       threshold={0.2}
-      className="not-prose grid grid-cols-1 gap-2 border-t py-[30px] last:border-b sm:grid-cols-[88px_1fr] sm:gap-6"
+      className="not-prose grid grid-cols-1 gap-2 border-t text-base leading-normal py-[30px] last:border-b sm:grid-cols-[88px_1fr] sm:gap-6"
     >
       <div
         aria-hidden
