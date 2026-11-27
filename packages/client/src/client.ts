@@ -43,6 +43,7 @@ import type {EngineClient} from './connection/rpc-client.js'
 import {chatConnection, type ChatConnectionOptions} from './chat/chat-connection.js'
 export type {ChatSession} from './chat.js'
 import {createTanstackQueryUtils, type RouterUtils} from '@orpc/tanstack-query'
+import {contractCode, engineErrors} from '@conciv/protocol'
 
 export function makeQueryUtils(client: EngineClient): RouterUtils<EngineClient> {
   return createTanstackQueryUtils(client)
@@ -94,7 +95,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     decide: async (approvalId, reply) => {
       const answer = await safe(options.rpc.chat.permissionDecision({approvalId, reply}))
       if (answer.isSuccess) return
-      if (answer.definedError?.code === 'UNKNOWN_REQUEST') return
+      if (answer.definedError?.code === contractCode(engineErrors.UNKNOWN_REQUEST)) return
       throw answer.error
     },
   })

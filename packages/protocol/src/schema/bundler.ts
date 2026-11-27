@@ -1,6 +1,7 @@
 import type {BundlerConfig, ModuleNode} from '@conciv/types/bundler-types'
 import {Schema} from 'effect'
 import {ephemeral, inventory} from './event.js'
+import {engineErrors} from '../errors.js'
 
 export const SourceLocation = Schema.Struct({line: Schema.Finite, column: Schema.Finite}).annotate({
   identifier: 'Bundler.SourceLocation',
@@ -57,6 +58,6 @@ export type BundlerBridge = {
 }
 
 export function defineBundlerBridge<T extends BundlerBridge>(bridge: T): T {
-  if (!bridge.id) throw new Error('bundler bridge: id is required')
+  if (!bridge.id) throw engineErrors.BUNDLER_ID_MISSING()
   return bridge
 }

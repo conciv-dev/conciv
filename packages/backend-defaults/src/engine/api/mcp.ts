@@ -10,6 +10,7 @@ import {
   cappedValue,
   codeDiscoverReply,
   codeExecuteReply,
+  engineErrors,
   safeStringify,
   toolValueReply,
   type CodeDescriptions,
@@ -34,7 +35,7 @@ import type {ChatPlane, CodeCapability, CodeRunner, CodeSandbox, CodeTool} from 
 import {createMCPServer} from '../../ai.js'
 import {CodeModeCatalog, CodeModeInstructions} from '../../backend-defaults.js'
 import {loopbackHostAllowlist} from '../lib/cors.js'
-import {callTrace} from './call-trace.js'
+import {callTrace, failureText} from './call-trace.js'
 import {
   EXECUTE_TOOL_NAME,
   ExecuteInputSchema,
@@ -178,7 +179,7 @@ async function runExecute(
   await calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, calls.trace.callId, calls.signal)
-    .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
+    .catch((error: unknown) => ({success: false, error: {message: failureText(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
     ? parsed.data
@@ -193,7 +194,7 @@ async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): 
   const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
     (value) => toolValueReply(value),
     (error: unknown) => ({
-      content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
+      content: [{type: 'text', text: cappedText(safeStringify({error: {message: failureText(error)}}))}],
       isError: true,
     }),
   )
@@ -299,7 +300,7 @@ export async function openCodeSession(
       return {result, reply: codeExecuteReply(result)}
     },
     discover: async (toolNames) => {
-      if (code.discover === null) throw new Error('no tools to discover')
+      if (code.discover === null) throw engineErrors.NO_CODE_MODE({message: 'no tools to discover'})
       return {tools: cappedValue(await code.discover.run(toolNames))}
     },
   })

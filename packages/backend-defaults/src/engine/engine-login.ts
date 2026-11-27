@@ -5,7 +5,7 @@ import {Effect} from 'effect'
 import {Hono} from 'hono'
 import type {WSContext} from 'hono/ws'
 import {REVOKED_SOCKET_CLOSE_CODE} from '@conciv/client'
-import type {ExchangeRefusal} from '@conciv/protocol'
+import {engineErrors, type ExchangeRefusal} from '@conciv/protocol'
 import {RPC_PREFIX, type RpcSocketGate} from '@conciv/serve/rpc'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
 import {createConcivStateDir} from '@conciv/types/state-types'
@@ -319,8 +319,8 @@ export function makeAuthRouter(deps: {
     requestCode: os.auth.requestCode.effect(function* ({input, context}) {
       return yield* Effect.sync(() => deps.codes.request(describeRequester(context), input.reissue ?? false))
     }),
-    issueCode: os.auth.issueCode.effect(function* ({context, errors}) {
-      if (!context.engineCaller) return yield* Effect.fail(errors.FORBIDDEN())
+    issueCode: os.auth.issueCode.effect(function* ({context}) {
+      if (!context.engineCaller) return yield* Effect.fail(engineErrors.FORBIDDEN())
       return yield* Effect.sync(() => deps.codes.issue())
     }),
   }

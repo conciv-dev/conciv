@@ -47,7 +47,9 @@ import {
 import {Socket} from 'effect/socket'
 import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/types/rpc-types'
-import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
+import {contract, contractCode, engineErrors, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
+import {EvlogError} from 'evlog'
+import {clientErrors} from './client-errors.js'
 import {
   createConnectionState,
   defaultEngineConnectionTimings,
@@ -99,14 +101,14 @@ const EVENT_STREAM_PATH = 'event.subscribe'
 const RETRY_PLUGIN = '~retry'
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 
-export type EngineUnreachable = Error & {readonly isEngineUnreachable: true}
+export type EngineUnreachable = EvlogError
 
-export function engineUnreachable(message: string, cause?: unknown): EngineUnreachable {
-  return Object.assign(new Error(message, {cause}), {isEngineUnreachable: true as const})
+export function engineUnreachable(message: string): EngineUnreachable {
+  return clientErrors.ENGINE_UNREACHABLE({message})
 }
 
 export function isEngineUnreachable(value: unknown): value is EngineUnreachable {
-  return value instanceof Error && Reflect.get(value, 'isEngineUnreachable') === true
+  return EvlogError.isEvlogError(value) && value.code === clientErrors.ENGINE_UNREACHABLE.code
 }
 
 function storageRefused(error: unknown): boolean {
@@ -178,7 +180,7 @@ function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, 
 }
 
 function unauthorized(error: unknown): boolean {
-  return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
+  return error instanceof ORPCError && error.code === contractCode(engineErrors.UNAUTHORIZED)
 }
 
 function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
@@ -361,8 +363,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
         Effect.tryPromise({
           try: async () => {
             const decoded = decodePeerMessage(peerFrame(raw))
-            if (!decoded.matched || !isServerPeerSendMessage(decoded.message))
-              throw new Error('the frame is not an rpc server message')
+            if (!decoded.matched || !isServerPeerSendMessage(decoded.message)) throw clientErrors.NOT_AN_RPC_FRAME()
             await peer.message(decoded.message)
           },
           catch: (error) => error,

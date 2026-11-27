@@ -3,6 +3,7 @@ import {optional} from './schema.js'
 import type {Maker} from './identifier.js'
 import * as Location from './location.js'
 import {statics} from './schema.js'
+import {engineErrors} from '../errors.js'
 
 export const Id = Schema.String.check(Schema.isStartingWith('evt_')).pipe(
   Schema.brand('Event.ID'),
@@ -157,7 +158,7 @@ export function latest(definitions: ReadonlyArray<Definition>) {
         if (definition.durable.version > existing.durable.version) result.set(definition.type, definition)
         return result
       }
-      if (definition !== existing) throw new Error(`Duplicate latest event definition for ${definition.type}`)
+      if (definition !== existing) throw engineErrors.DUPLICATE_LATEST_EVENT({type: definition.type})
       return result
     }, new Map<string, Definition>()),
   )
@@ -172,7 +173,7 @@ export function durableMap<const Definitions extends ReadonlyArray<Definition>>(
     definitions.reduce((result, definition) => {
       if (definition.durability !== 'durable') return result
       const key = versionedType(definition.type, definition.durable.version)
-      if (result.has(key)) throw new Error(`Duplicate durable event definition for ${key}`)
+      if (result.has(key)) throw engineErrors.DUPLICATE_DURABLE_EVENT({key})
       result.set(key, definition)
       return result
     }, new Map<string, DurableDefinition>()),

@@ -13,6 +13,7 @@ import {
 import type {ChatMessage, ToolCallPart} from '@conciv/types/chat-message-types'
 import {chatBusy} from '@conciv/types/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/types/chat-types'
+import {clientErrors} from '../connection/client-errors.js'
 
 export type Chat = UseChatReturn
 
@@ -166,7 +167,7 @@ function cardStillRunning(messages: readonly ChatMessage[]): boolean {
 }
 
 function asError(value: unknown): Error {
-  return value instanceof Error ? value : new Error(String(value))
+  return value instanceof Error ? value : clientErrors.FAILED({message: String(value)})
 }
 
 export function createChat(options: CreateChatOptions): Chat {
@@ -389,7 +390,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   })
   const lastLocalRunId = createMemo<string | null>((previous) => chat.runId() ?? previous, null)
   const neverLeft = (before: RunState, errorBefore: Error | undefined): Error | undefined => {
-    if (run() !== before && withdrawn()) return new Error('The message was taken back before the engine had it')
+    if (run() !== before && withdrawn()) return clientErrors.MESSAGE_WITHDRAWN()
     const refused = chat.error()
     if (refused === undefined || refused === errorBefore || answered(chat.messages())) return undefined
     if (refused instanceof StreamReconnectLimitError) return refused

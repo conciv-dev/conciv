@@ -7,6 +7,7 @@ import {
   BACKEND_CAPABILITIES,
   backendContract,
   dispatchHandshake,
+  simulationErrors,
   type FinishReason,
   type Item,
   type LlmNotification,
@@ -25,7 +26,7 @@ export type Interface = {
   readonly stream: (request: ModelRequest) => Stream.Stream<ProviderResponseEvent, ProviderDisconnected>
 }
 
-type InvocationNotFound = {readonly kind: 'InvocationNotFound'; readonly id: string; readonly message: string}
+type InvocationNotFound = {readonly kind: 'InvocationNotFound'; readonly id: string}
 
 type ControllerDisconnected = {readonly kind: 'ControllerDisconnected'; readonly message: string}
 
@@ -38,7 +39,7 @@ type State = {readonly counter: number; readonly pending: ReadonlyMap<string, Pe
 type Attachment = {readonly fiber: Fiber.Fiber<void>; readonly notifications: Queue.Queue<LlmNotification>}
 
 function invocationNotFound(id: string): InvocationNotFound {
-  return {kind: 'InvocationNotFound', id, message: `Simulated provider invocation not found or already finished: ${id}`}
+  return {kind: 'InvocationNotFound', id}
 }
 
 function controllerDisconnected(message: string): ControllerDisconnected {
@@ -222,22 +223,19 @@ const makeRouter = (
 ) => {
   const os = implement(backendContract).$context<SimulationControlServer.Context>()
   return os.router({
-    handshake: os.handshake.effect(function* ({input, errors}) {
+    handshake: os.handshake.effect(function* ({input}) {
       const outcome = dispatchHandshake(
         {role: 'backend', server: {name: 'conciv', version}, capabilities: BACKEND_CAPABILITIES},
         input,
       )
       if (outcome.type === 'accepted') return outcome.response
-      const refused = outcome.refusal
-      if (refused.code === 'ROLE_MISMATCH') return yield* Effect.fail(errors.ROLE_MISMATCH(refused))
-      if (refused.code === 'UNSUPPORTED_PROTOCOL') return yield* Effect.fail(errors.UNSUPPORTED_PROTOCOL(refused))
-      return yield* Effect.fail(errors.MISSING_CAPABILITY(refused))
+      return yield* Effect.fail(outcome.refusal)
     }),
     llm: {
-      subscribe: os.llm.subscribe.effect(function* ({context, errors}) {
+      subscribe: os.llm.subscribe.effect(function* ({context}) {
         const attachment = yield* controllers
           .take(context.connection)
-          .pipe(Effect.mapError((failure) => errors.CONTROLLER_DISCONNECTED({message: failure.message})))
+          .pipe(Effect.mapError((failure) => simulationErrors.CONTROLLER_DISCONNECTED({message: failure.message})))
         return SimulationControlServer.notifications(
           attachment.notifications,
           context.connection,
@@ -247,58 +245,46 @@ const makeRouter = (
       pending: os.llm.pending.effect(function* () {
         return {invocations: yield* driver.pending}
       }),
-      chunk: os.llm.chunk.effect(function* ({input, errors}) {
+      chunk: os.llm.chunk.effect(function* ({input}) {
         yield* driver
           .push(input.id, input.items)
-          .pipe(
-            Effect.mapError((failure) => errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}})),
-          )
+          .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
         return {ok: true}
       }),
-      finish: os.llm.finish.effect(function* ({input, errors}) {
+      finish: os.llm.finish.effect(function* ({input}) {
         yield* driver
           .finish(input.id, input.reason)
-          .pipe(
-            Effect.mapError((failure) => errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}})),
-          )
+          .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
         return {ok: true}
       }),
-      disconnect: os.llm.disconnect.effect(function* ({input, errors}) {
+      disconnect: os.llm.disconnect.effect(function* ({input}) {
         yield* driver
           .disconnect(input.id)
-          .pipe(
-            Effect.mapError((failure) => errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}})),
-          )
+          .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
         return {ok: true}
       }),
     },
     tool: {
-      register: os.tool.register.effect(function* ({input, context, errors}) {
+      register: os.tool.register.effect(function* ({input, context}) {
         const notifications = yield* tools
           .install(context.connection, input.tools)
-          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
+          .pipe(Effect.mapError(SimulatedTools.refusal))
         return SimulationControlServer.notifications(
           notifications,
           context.connection,
           tools.release(context.connection, notifications),
         )
       }),
-      update: os.tool.update.effect(function* ({input, context, errors}) {
-        yield* tools
-          .update(context.connection, input)
-          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
+      update: os.tool.update.effect(function* ({input, context}) {
+        yield* tools.update(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
         return {ok: true}
       }),
-      finish: os.tool.finish.effect(function* ({input, context, errors}) {
-        yield* tools
-          .finish(context.connection, input)
-          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
+      finish: os.tool.finish.effect(function* ({input, context}) {
+        yield* tools.finish(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
         return {ok: true}
       }),
-      fail: os.tool.fail.effect(function* ({input, context, errors}) {
-        yield* tools
-          .fail(context.connection, input)
-          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
+      fail: os.tool.fail.effect(function* ({input, context}) {
+        yield* tools.fail(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
         return {ok: true}
       }),
     },

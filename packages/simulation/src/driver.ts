@@ -1,10 +1,12 @@
 import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
 import type {RouterContractClient} from '@orpc/contract'
+import {contractCode} from '@conciv/protocol'
 import {
   backendContract,
   ItemSchema,
   PROTOCOL_VERSION,
+  simulationErrors,
   type FinishReason,
   type Item,
   type LlmNotification,
@@ -68,13 +70,13 @@ type DriverState = {
 }
 
 function ended(error: unknown): boolean {
-  return error instanceof ORPCError && error.code === 'INVOCATION_NOT_FOUND'
+  return error instanceof ORPCError && error.code === contractCode(simulationErrors.INVOCATION_NOT_FOUND)
 }
 
 function opened(websocket: WebSocket): Promise<void> {
   return new Promise((resolve, reject) => {
     websocket.addEventListener('open', () => resolve(), {once: true})
-    websocket.addEventListener('error', () => reject(new Error(`the driver could not connect to ${websocket.url}`)), {
+    websocket.addEventListener('error', () => reject(simulationErrors.DRIVER_UNREACHABLE({url: websocket.url})), {
       once: true,
     })
   })

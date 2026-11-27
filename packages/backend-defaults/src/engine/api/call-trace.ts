@@ -26,6 +26,10 @@ type MirrorSink = {
   runtime: EngineRuntime
 }
 
+export function failureText(failure: unknown): string {
+  return failure instanceof Error ? `${failure.name}: ${failure.message}` : String(failure)
+}
+
 export function callTrace(header: (name: string) => string | null, ids: Maker) {
   const hub = hubOrigin(header)
   const callId = CallId.make('call_' + ids.ascending())

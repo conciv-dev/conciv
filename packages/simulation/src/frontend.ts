@@ -4,6 +4,7 @@ import type {RouterContractClient} from '@orpc/contract'
 import {WebSocket} from 'ws'
 import {
   PROTOCOL_VERSION,
+  simulationErrors,
   uiContract,
   type SemanticNode,
   type SemanticSnapshot,
@@ -33,7 +34,7 @@ function opened(endpoint: string, signal: AbortSignal | undefined): Promise<WebS
     }
     const failed = (error: Error): void => {
       settle()
-      reject(new Error(`the driver could not reach the engine's ui endpoint at ${endpoint}`, {cause: error}))
+      reject(simulationErrors.UI_ENDPOINT_UNREACHABLE({endpoint, cause: error}))
     }
     const aborted = (): void => {
       settle()
@@ -70,7 +71,7 @@ export async function connectUi(endpoint: string, signal?: AbortSignal): Promise
 
 export function byRole(snapshot: SemanticSnapshot, role: string, label: string): SemanticNode {
   const found = snapshot.nodes.find((node) => node.role === role && node.label === label)
-  if (found === undefined) throw new Error(`the widget shows no ${role} named ${label}`)
+  if (found === undefined) throw simulationErrors.NO_SUCH_NODE({role, label})
   return found
 }
 

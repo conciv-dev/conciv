@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import type {Maker} from '@conciv/protocol/schema/identifier'
 import {ORPCError, withEventMeta, type ContractedRouter} from '@orpc/server'
+import type {EvlogError} from 'evlog'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isToolError} from '@conciv/types/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -13,11 +14,14 @@ import {approvalDenied} from '../../../ai.js'
 import * as EventFeed from '../../event-feed.js'
 import {
   cappedText,
+  contractError,
+  engineErrors,
+  isCatalogError,
+  pluginRpcError,
   PluginExperimentalBundleSchema,
   PluginExperimentalChunksSchema,
   safeStringify,
   type contract,
-  type RegistryCallErrorName,
 } from '@conciv/protocol'
 import {widgetCaller} from '../../lib/cors.js'
 import {engineMcpUrl} from '../../engine-login.js'
@@ -40,7 +44,7 @@ import {
 } from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
-import {callTrace} from '../call-trace.js'
+import {callTrace, failureText} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
@@ -76,7 +80,7 @@ function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeo
       yield* Effect.promise(() => deps.runtime.forSession(input.sessionId).run.stop(input.runIds))
       return {ok: true}
     }),
-    permissionDecision: sessionOs.chat.permissionDecision.effect(function* ({input, context, errors}) {
+    permissionDecision: sessionOs.chat.permissionDecision.effect(function* ({input, context}) {
       const decided = yield* Effect.promise(() =>
         decidePermissionCard(
           {
@@ -87,14 +91,14 @@ function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeo
           input,
         ),
       )
-      if (!decided) return yield* Effect.fail(errors.UNKNOWN_REQUEST())
+      if (!decided) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST())
       return {ok: true as const}
     }),
-    uiReply: os.chat.uiReply.effect(function* ({input, errors}) {
+    uiReply: os.chat.uiReply.effect(function* ({input}) {
       const answered = yield* Effect.sync(() =>
         deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value),
       )
-      if (!answered) return yield* Effect.fail(errors.UNKNOWN_REQUEST())
+      if (!answered) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST({message: 'no pending ui question'}))
       return {ok: true as const}
     }),
   }
@@ -163,52 +167,51 @@ export function ptyOutput<Failure>(
   )
 }
 
-type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
-type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
 
-function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data, cause: error})
-  if (error instanceof ORPCError) return error
-  return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error), cause: error})
+function registryCallError(error: unknown): unknown {
+  if (isToolError(error) || error instanceof ORPCError || isCatalogError(engineErrors._prefix, error)) return error
+  return engineErrors.HANDLER_ERROR({
+    message: error instanceof Error ? error.message : String(error),
+    ...(error instanceof Error ? {cause: error} : {}),
+  })
 }
 
 const isDeclined = Schema.is(Permission.DeclinedError)
 const isBlocked = Schema.is(Permission.BlockedError)
 const isCorrected = Schema.is(Permission.CorrectedError)
 
-function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: RegistryErrors & ApprovalErrors): Error {
+function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect) && isDeclined(defect.success)) {
-    return errors.APPROVAL_DENIED({message: approvalDenied(name).message})
+    return engineErrors.APPROVAL_DENIED({message: approvalDenied(name).message})
   }
   const failure = Cause.findErrorOption(cause)
-  if (Option.isNone(failure)) return registryCallError(Cause.squash(cause), errors)
+  if (Option.isNone(failure)) return registryCallError(Cause.squash(cause))
   const refused = failure.value.error
-  if (isBlocked(refused) || isCorrected(refused)) return errors.APPROVAL_DENIED({message: failure.value.message})
-  return registryCallError(failure.value, errors)
+  if (isBlocked(refused) || isCorrected(refused)) return engineErrors.APPROVAL_DENIED({message: failure.value.message})
+  return registryCallError(failure.value)
 }
 
-function requireLiveSession(deps: RpcDeps, sessionId: SessionId, errors: ApprovalErrors): Effect.Effect<void, Error> {
+function requireLiveSession(deps: RpcDeps, sessionId: SessionId): Effect.Effect<void, EvlogError> {
   return Effect.gen(function* () {
     const row = yield* Effect.promise(() => rowById(deps.chat.db, sessionId))
     if (row !== null && row.deletedAt === null) return
-    return yield* Effect.fail(errors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`}))
+    return yield* Effect.fail(engineErrors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`}))
   })
 }
 
 function runPluginTool(
   deps: RpcDeps,
   call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean},
-  errors: RegistryErrors & ApprovalErrors,
 ) {
   return Effect.gen(function* () {
-    if (!call.widget) yield* requireLiveSession(deps, call.sessionId, errors)
+    if (!call.widget) yield* requireLiveSession(deps, call.sessionId)
     const result = yield* settlingAsks(
       call.sessionId,
       callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
       (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
-    ).pipe(Effect.catchCause((cause) => Effect.fail(pluginToolError(call.name, cause, errors))))
+    ).pipe(Effect.catchCause((cause) => Effect.fail(pluginToolError(call.name, cause))))
     return registryAnswer(result)
   })
 }
@@ -251,14 +254,12 @@ function hubTraced<Value, Failure, Services>(
     yield* Effect.promise(() => mirror.publish(trace.start(mirrored, name, input)))
     return yield* run.pipe(
       Effect.tap((value) => finish(cappedText(safeStringify(value)), false)),
-      Effect.tapCause((cause) => finish(String(Cause.squash(cause)), true)),
+      Effect.tapCause((cause) => finish(failureText(Cause.squash(cause)), true)),
     )
   })
 }
 
-type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
-
-type CodeCall = {context: RpcContext; errors: CodeErrors; signal: AbortSignal}
+type CodeCall = {context: RpcContext; signal: AbortSignal}
 
 async function resolveCodeSession(
   deps: RpcDeps,
@@ -273,7 +274,7 @@ async function resolveCodeSession(
     outside: trace.hub !== null && sessionId === undefined,
     signal: call.signal,
   })
-  if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()
+  if (code === null || code.sandbox === null) throw engineErrors.NO_CODE_MODE()
   return code.sandbox
 }
 
@@ -341,21 +342,13 @@ function pluginExperimentalChunk(input: {id: string; file: string}) {
   }).pipe(Effect.result)
 }
 
-function missingChunk(pluginId: string, file: string) {
-  return {message: `No chunk ${file} in the current build of the plugin ${pluginId}`, data: {pluginId, file}}
-}
-
-function missingPlugin(pluginId: string) {
-  const message = `No active plugin with a ./plugin-experimental bundle: ${pluginId}`
-  return {message, data: {pluginId, message}}
-}
-
 function pluginCall(input: {rpcId: string; method: string; input?: unknown}) {
   return Plugin.awaitActivation.pipe(
     Effect.andThen(Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input))),
+    Effect.mapError(pluginRpcError),
     Effect.catchDefect((defect) =>
       Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
-        Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),
+        Effect.andThen(Effect.fail(pluginRpcError({type: 'rpc.internal', message: 'RPC call failed'}))),
       ),
     ),
   )
@@ -363,16 +356,12 @@ function pluginCall(input: {rpcId: string; method: string; input?: unknown}) {
 
 function missingPluginOutcome<Success>(
   outcome: Result.Result<Success | undefined, {file: string}>,
-  id: string,
-  errors: {
-    PLUGIN_CHUNK_NOT_FOUND: (options: ReturnType<typeof missingChunk>) => Error
-    PLUGIN_NOT_FOUND: (options: ReturnType<typeof missingPlugin>) => Error
-  },
-): Effect.Effect<Success, Error> {
+  pluginId: string,
+): Effect.Effect<Success, EvlogError> {
   if (Result.isFailure(outcome))
-    return Effect.fail(errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(id, outcome.failure.file)))
+    return Effect.fail(engineErrors.PLUGIN_CHUNK_NOT_FOUND({pluginId, file: outcome.failure.file}))
   if (outcome.success !== undefined) return Effect.succeed(outcome.success)
-  return Effect.fail(errors.PLUGIN_NOT_FOUND(missingPlugin(id)))
+  return Effect.fail(engineErrors.PLUGIN_NOT_FOUND({pluginId}))
 }
 
 export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, EngineRpcContext> {
@@ -429,28 +418,24 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
       catalog: os.registry.catalog.effect(function* () {
         return yield* pluginSignatures()
       }),
-      invoke: toolCallOs.registry.invoke.effect(function* ({input, context, errors, path}) {
+      invoke: toolCallOs.registry.invoke.effect(function* ({input, context, path}) {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         const plugin = assist === undefined ? yield* pluginSignature(input.name) : undefined
-        if (assist === undefined && plugin === undefined) return yield* Effect.fail(errors.UNKNOWN_TOOL())
+        if (assist === undefined && plugin === undefined) return yield* Effect.fail(engineErrors.UNKNOWN_TOOL())
         const trace = callTrace((header) => rpcHeader(context, header), deps.code.ids)
         const run =
           assist === undefined
-            ? runPluginTool(
-                deps,
-                {
-                  sessionId: context.session.id,
-                  name: input.name,
-                  input: input.input,
-                  callId: trace.callId,
-                  widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
-                },
-                errors,
-              )
+            ? runPluginTool(deps, {
+                sessionId: context.session.id,
+                name: input.name,
+                input: input.input,
+                callId: trace.callId,
+                widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
+              })
             : Effect.tryPromise({try: () => assist.execute(input.input), catch: (error) => error})
         return yield* admitOutsideCall(deps, context, context.session, path.join('.')).pipe(
           Effect.andThen(hubTraced(deps, context, {name: input.name, input: input.input, trace}, run)),
-          Effect.catchCause((cause) => Effect.fail(registryCallError(Cause.squash(cause), errors))),
+          Effect.catchCause((cause) => Effect.fail(registryCallError(Cause.squash(cause)))),
         )
       }),
     },
@@ -478,53 +463,59 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
           Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list()))),
         )
       }),
-      experimental: os.plugin.experimental.effect(function* ({input, errors}) {
-        return yield* missingPluginOutcome(yield* pluginExperimental(input.id), input.id, errors)
+      experimental: os.plugin.experimental.effect(function* ({input}) {
+        return yield* missingPluginOutcome(yield* pluginExperimental(input.id), input.id)
       }),
-      experimentalChunk: os.plugin.experimentalChunk.effect(function* ({input, errors}) {
-        return yield* missingPluginOutcome(yield* pluginExperimentalChunk(input), input.id, errors)
+      experimentalChunk: os.plugin.experimentalChunk.effect(function* ({input}) {
+        return yield* missingPluginOutcome(yield* pluginExperimentalChunk(input), input.id)
       }),
     },
     experimental: {
       persistentPty: {
-        create: os.experimental.persistentPty.create.effect(function* ({input, context, errors}) {
+        create: os.experimental.persistentPty.create.effect(function* ({input, context}) {
           const created = yield* Effect.promise(() => deps.ptys.create(input, context.callerOrigin))
-          if (created === null) return yield* Effect.fail(errors.NO_TTY())
+          if (created === null) return yield* Effect.fail(engineErrors.NO_TTY())
           return created
         }),
-        remove: os.experimental.persistentPty.remove.effect(function* ({input, errors}) {
+        remove: os.experimental.persistentPty.remove.effect(function* ({input}) {
           const pty = deps.ptys.find(input.ptyId)
-          if (pty === undefined) return yield* Effect.fail(errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}}))
-          if (pty.busy()) return yield* Effect.fail(errors.BUSY())
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
+          if (pty.busy()) return yield* Effect.fail(engineErrors.BUSY())
           yield* Effect.sync(() => pty.kill())
           return {ok: true as const}
         }),
-        output: os.experimental.persistentPty.output.effect(function* ({input, context, errors, signal, lastEventId}) {
+        output: os.experimental.persistentPty.output.effect(function* ({
+          input,
+          context,
+          signal,
+          lastEventId,
+          procedure,
+        }) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}}))
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
           const resumed = PtyResumeCursor.safeParse(lastEventId)
           const stream = ptyOutput(pty, {
             cursor: resumed.success ? resumed.data : input.cursor,
-            overflow: () => errors.SLOW_CONSUMER({data: {capacity: OUTPUT_CAPACITY}}),
+            overflow: () => contractError(engineErrors.SLOW_CONSUMER(), procedure['~orpc'].errorMap),
           })
           const events = yield* Stream.toAsyncIterableEffect(stream)
           return ptyEvents(relayEvents(events[Symbol.asyncIterator](), signal))
         }),
-        write: os.experimental.persistentPty.write.effect(function* ({input, context, errors}) {
+        write: os.experimental.persistentPty.write.effect(function* ({input, context}) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}}))
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
           yield* Effect.sync(() => writeToPty(pty, input.data))
           return {ok: true as const}
         }),
-        resize: os.experimental.persistentPty.resize.effect(function* ({input, context, errors}) {
+        resize: os.experimental.persistentPty.resize.effect(function* ({input, context}) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}}))
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
           yield* Effect.sync(() => pty.resize(input.cols, input.rows))
           return {ok: true as const}
         }),
-        inject: os.experimental.persistentPty.inject.effect(function* ({input, context, errors}) {
+        inject: os.experimental.persistentPty.inject.effect(function* ({input, context}) {
           const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}}))
+          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
           yield* Effect.sync(() => pty.inject(input.text))
           return {ok: true as const}
         }),
@@ -536,21 +527,21 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
       }),
     },
     code: {
-      describe: os.code.describe.effect(function* ({context, errors}) {
+      describe: os.code.describe.effect(function* ({context}) {
         return yield* Effect.promise(async (signal) =>
-          (await resolveCodeSession(deps, undefined, {context, errors, signal})).describe(),
+          (await resolveCodeSession(deps, undefined, {context, signal})).describe(),
         )
       }),
-      execute: os.code.execute.effect(function* ({input, context, errors}) {
+      execute: os.code.execute.effect(function* ({input, context}) {
         return yield* Effect.promise(async (signal) => {
-          const code = await resolveCodeSession(deps, input.sessionId, {context, errors, signal})
+          const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
           return (await code.execute(input.typescriptCode)).result
         })
       }),
-      discover: os.code.discover.effect(function* ({input, context, errors}) {
+      discover: os.code.discover.effect(function* ({input, context}) {
         return yield* Effect.promise(async (signal) => {
-          const code = await resolveCodeSession(deps, input.sessionId, {context, errors, signal})
-          if (code.sandbox.discover === null) throw errors.NO_CODE_MODE({message: 'no tools to discover'})
+          const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
+          if (code.sandbox.discover === null) throw engineErrors.NO_CODE_MODE({message: 'no tools to discover'})
           return code.discover(input.toolNames)
         })
       }),

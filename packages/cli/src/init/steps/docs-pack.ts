@@ -6,6 +6,7 @@ import type {ManualCard} from '../ledger.js'
 import type {InitContext, InitStep, SpawnBin} from '../pipeline.js'
 import type {AddDep} from './install-it.js'
 import {hasDependency, readManifest} from './manifest.js'
+import {cliErrors} from '../../failure.js'
 
 const skillsName = '@conciv/skills'
 const intentPackage = '@tanstack/intent@latest'
@@ -32,7 +33,7 @@ async function resolveIntentCommands(cwd: string): Promise<IntentCommands> {
   const pmName = await detectPackageManagerName(cwd)
   const intentLine = dlxCommand(pmName, intentPackage, {args: ['install']})
   const [bin, ...args] = intentLine.split(' ')
-  if (bin === undefined) throw new Error(`nypm dlxCommand returned an empty command: ${intentLine}`)
+  if (bin === undefined) throw cliErrors.EMPTY_DLX_COMMAND({line: intentLine})
   return {spawn: [bin, ...args], intentLine, addCommand: addDependencyCommand(pmName, skillsName, {dev: true})}
 }
 

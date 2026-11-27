@@ -3,7 +3,8 @@ import type * as Identifier from '@conciv/protocol/schema/identifier'
 import '@orpc/effect/extensions/effect'
 import {middlewareGen, type EffectWrapOptions, type WithEffectContext} from '@orpc/effect'
 import {implement, ORPCError, type Implementer} from '@orpc/server'
-import {contract} from '@conciv/protocol'
+import {answerCatalogErrors, contract, engineErrors} from '@conciv/protocol'
+import {isToolError} from '@conciv/types/tool-call-types'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/types/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/types/rpc-types'
@@ -22,8 +23,8 @@ import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {ProjectDeps} from '../../lib/project.js'
-import {Context, Effect, type ManagedRuntime} from 'effect'
-import type {AuditableLogger, RequestLogger} from 'evlog'
+import {Context, Effect, Option, type ManagedRuntime} from 'effect'
+import type {AuditableLogger, EvlogError, RequestLogger} from 'evlog'
 import {EvlogLogger} from 'evlog/effect'
 import type * as Tab from '@conciv/backend-app-api/core/tab'
 import type * as Job from '@conciv/backend-app-api/core/job'
@@ -122,37 +123,35 @@ const TaggedFailureSchema = z.object({
   message: z.string().optional(),
 })
 
-const PluginRpcFailureSchema = z.object({type: z.string(), message: z.string(), data: z.unknown().optional()})
-
-function declaredError(
-  options: EffectWrapOptions,
-  code: string,
-  error: {message?: string; data?: unknown},
-): ORPCError<string, unknown> | undefined {
-  const declared = options.procedure['~orpc'].errorMap[code]
-  if (declared === undefined) return undefined
-  return new ORPCError(code, {message: error.message ?? declared.message, data: error.data})
-}
-
-function pluginRpcError(options: EffectWrapOptions, failure: unknown): ORPCError<string, unknown> | undefined {
-  const parsed = PluginRpcFailureSchema.safeParse(failure)
-  if (!parsed.success) return undefined
-  const {type, message} = parsed.data
-  if (type === 'rpc.internal' || type === 'rpc.invalid_output')
-    return declaredError(options, 'PLUGIN_RPC_INTERNAL', {message, data: {type, message}})
-  return declaredError(options, 'PLUGIN_RPC', {message, data: failure})
-}
-
-function engineError(options: EffectWrapOptions, failure: unknown): unknown {
-  if (failure instanceof ORPCError) return failure
+function catalogFailure(failure: unknown): unknown {
+  if (isToolError(failure))
+    return new ORPCError(failure.code, {message: failure.message, data: failure.data, cause: failure})
   const tagged = TaggedFailureSchema.safeParse(failure)
-  if (!tagged.success) return pluginRpcError(options, failure) ?? failure
-  if (tagged.data._tag === 'Session.NotFoundError') return declaredError(options, 'NOT_FOUND', {}) ?? failure
-  return declaredError(options, 'UNAVAILABLE', {message: tagged.data.message}) ?? failure
+  if (!tagged.success) return failure
+  if (tagged.data._tag === 'Session.NotFoundError') return engineErrors.NOT_FOUND()
+  return engineErrors.UNAVAILABLE({message: tagged.data.message})
+}
+
+function recordEngineError(options: EffectWrapOptions) {
+  return (failure: EvlogError, answer: ORPCError<string, unknown>): Effect.Effect<void> => {
+    const recorded = Effect.serviceOption(EvlogLogger).pipe(
+      Effect.map(Option.map((logger) => logger.set({error: {code: failure.code, why: failure.why, fix: failure.fix}}))),
+      Effect.asVoid,
+    )
+    if (answer.code !== 'INTERNAL_SERVER_ERROR') return recorded
+    return recorded.pipe(
+      Effect.andThen(
+        Effect.logError('an engine error the procedure does not declare', {path: options.path, error: failure}),
+      ),
+    )
+  }
 }
 
 function wrapEngineEffect<A>(effect: Effect.Effect<A, unknown>, options: EffectWrapOptions): Effect.Effect<A, unknown> {
-  return effect.pipe(Effect.mapError((failure) => engineError(options, failure)))
+  return effect.pipe(
+    Effect.mapError(catalogFailure),
+    answerCatalogErrors(engineErrors._prefix, options.procedure['~orpc'].errorMap, recordEngineError(options)),
+  )
 }
 
 function isAuditable(logger: RequestLogger): logger is AuditableLogger {
@@ -169,27 +168,23 @@ export function makeCallContext(
   }
 }
 
-function headerSessionId(context: RpcContext): Effect.Effect<SessionId | null, ORPCError<'BAD_REQUEST', unknown>> {
+function headerSessionId(context: RpcContext): Effect.Effect<SessionId | null, EvlogError> {
   const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
   if (!raw) return Effect.succeed(null)
   if (isSessionId(raw)) return Effect.succeed(raw)
   return Effect.fail(
-    new ORPCError('BAD_REQUEST', {
-      message: `the ${CONCIV_SESSION_HEADER} header carries a malformed session id`,
-    }),
+    engineErrors.BAD_REQUEST({message: `the ${CONCIV_SESSION_HEADER} header carries a malformed session id`}),
   )
 }
 
-export function callerScope(
-  deps: RpcDeps,
-  context: RpcContext,
-): Effect.Effect<SessionScope, ORPCError<'BAD_REQUEST', unknown>> {
+export function callerScope(deps: RpcDeps, context: RpcContext): Effect.Effect<SessionScope, EvlogError> {
   return headerSessionId(context).pipe(
     Effect.flatMap((sessionId) =>
       sessionId === null
         ? Effect.fail(
-            new ORPCError('BAD_REQUEST', {
+            engineErrors.BAD_REQUEST({
               message: `this procedure acts on behalf of one session and the caller sent no ${CONCIV_SESSION_HEADER} header; resolve a session with sessions.resolve and send it on every call`,
+              fix: `resolve a session with sessions.resolve and send its id in the ${CONCIV_SESSION_HEADER} header`,
             }),
           )
         : Effect.succeed(deps.runtime.forSession(sessionId)),
@@ -225,7 +220,7 @@ export function admitOutsideCall(
   context: RpcContext,
   scope: SessionScope,
   procedure: string,
-): Effect.Effect<void, ORPCError<'APPROVAL_DENIED', unknown>> {
+): Effect.Effect<void, EvlogError> {
   const hub = hubOrigin((header) => rpcHeader(context, header))
   if (hub === null) return Effect.void
   return refuseOutside(deps, hub.client, procedure).pipe(Effect.andThen(admitHubCaller(deps, context, scope)))
@@ -281,8 +276,8 @@ export function makeHubAdmission(deps: RpcDeps) {
   })
 }
 
-function approvalDenied(message: string): Effect.Effect<never, ORPCError<'APPROVAL_DENIED', unknown>> {
-  return Effect.fail(new ORPCError('APPROVAL_DENIED', {message}))
+function approvalDenied(message: string): Effect.Effect<never, EvlogError> {
+  return Effect.fail(engineErrors.APPROVAL_DENIED({message}))
 }
 
 function outsideRefusal(procedure: string): string | null {
@@ -295,11 +290,7 @@ function outsideRefusal(procedure: string): string | null {
   return null
 }
 
-function refuseOutside(
-  deps: RpcDeps,
-  client: string | null,
-  procedure: string,
-): Effect.Effect<void, ORPCError<'APPROVAL_DENIED', unknown>> {
+function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): Effect.Effect<void, EvlogError> {
   return Effect.gen(function* () {
     const disconnected = yield* Effect.promise(() => deps.hub.refusal(client))
     if (disconnected !== null) return yield* approvalDenied(disconnected)
@@ -308,11 +299,7 @@ function refuseOutside(
   })
 }
 
-function admitHubCaller(
-  deps: RpcDeps,
-  context: RpcContext,
-  scope: SessionScope,
-): Effect.Effect<void, ORPCError<'APPROVAL_DENIED', unknown>> {
+function admitHubCaller(deps: RpcDeps, context: RpcContext, scope: SessionScope): Effect.Effect<void, EvlogError> {
   const hub = hubOrigin((header) => rpcHeader(context, header))
   if (hub === null) return Effect.void
   return Effect.gen(function* () {

@@ -1,11 +1,13 @@
 import {createHash} from 'node:crypto'
 import {Cause, Deferred, Effect, Exit, PubSub, Queue, Ref, Scope, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
+import type {EvlogError} from 'evlog'
 import {define as definePlugin, type Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {Tool} from '@conciv/backend-app-api'
 import {isClosed, type Connection} from '../control-server.js'
 import {
   exposedToolName,
+  simulationErrors,
   type ToolFailParams,
   type ToolFinishParams,
   type ToolInvocation,
@@ -17,11 +19,7 @@ import {
 
 const COMPLETED_RETENTION = 256
 
-export type ToolInvocationNotFound = {
-  readonly kind: 'ToolInvocationNotFound'
-  readonly id: string
-  readonly message: string
-}
+export type ToolInvocationNotFound = {readonly kind: 'ToolInvocationNotFound'; readonly id: string}
 
 export type ToolControllerRefused = {readonly kind: 'ToolController'; readonly message: string}
 
@@ -71,20 +69,13 @@ export type Interface = {
   readonly plugin: Plugin
 }
 
-type ToolErrors = {
-  readonly TOOL_INVOCATION_NOT_FOUND: (options: {message: string; data: {id: string}}) => Error
-  readonly TOOL_CONTROLLER: (options: {message: string}) => Error
-}
-
-export function refusal(failure: ToolFailure, errors: ToolErrors): Error {
-  if (failure.kind === 'ToolInvocationNotFound') {
-    return errors.TOOL_INVOCATION_NOT_FOUND({message: failure.message, data: {id: failure.id}})
-  }
-  return errors.TOOL_CONTROLLER({message: failure.message})
+export function refusal(failure: ToolFailure): EvlogError {
+  if (failure.kind === 'ToolInvocationNotFound') return simulationErrors.TOOL_INVOCATION_NOT_FOUND({id: failure.id})
+  return simulationErrors.TOOL_CONTROLLER({message: failure.message})
 }
 
 function notFound(id: string): ToolInvocationNotFound {
-  return {kind: 'ToolInvocationNotFound', id, message: `Simulated tool invocation not found or already finished: ${id}`}
+  return {kind: 'ToolInvocationNotFound', id}
 }
 
 function refused(message: string): ToolControllerRefused {

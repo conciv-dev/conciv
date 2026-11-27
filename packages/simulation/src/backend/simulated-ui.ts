@@ -1,12 +1,14 @@
 import {implement} from '@orpc/server'
 import {Deferred, Effect} from 'effect'
 import {z} from 'zod'
+import type {EvlogError} from 'evlog'
 import {define as definePlugin, type Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {
   dispatchHandshake,
   SemanticSnapshotSchema,
   uiContract,
   UiStateSchema,
+  simulationErrors,
   WidgetDrive,
   type UiCapability,
   type WidgetOutcome,
@@ -29,73 +31,68 @@ const WIDGET_CAPABILITIES: readonly UiCapability[] = [
 
 type Ask = (request: WidgetRequest) => Effect.Effect<WidgetOutcome, unknown>
 
-type ActionErrors = {readonly UI_ACTION_FAILED: (options: {message: string}) => Error}
-
 function makeRouter(ask: Ask, version: string) {
   const os = implement(uiContract).$context<SimulationControlServer.Context>()
-  const forward = <T>(schema: z.ZodType<T>, request: WidgetRequest, errors: ActionErrors): Effect.Effect<T, unknown> =>
+  const forward = <T>(schema: z.ZodType<T>, request: WidgetRequest): Effect.Effect<T, unknown> =>
     ask(request).pipe(
       Effect.flatMap((outcome) =>
         outcome.type === 'failure'
-          ? Effect.fail(errors.UI_ACTION_FAILED({message: outcome.message}))
+          ? Effect.fail(simulationErrors.UI_ACTION_FAILED({message: outcome.message}))
           : Effect.try({try: () => schema.parse(outcome.value), catch: (error) => error}),
       ),
     )
-  const unsupported = (errors: ActionErrors, name: string): Effect.Effect<never, Error> =>
-    Effect.fail(errors.UI_ACTION_FAILED({message: `the widget does not support ${name}`}))
+  const unsupported = (name: string): Effect.Effect<never, EvlogError> =>
+    Effect.fail(simulationErrors.UI_ACTION_FAILED({message: `the widget does not support ${name}`}))
   return os.router({
-    handshake: os.handshake.effect(function* ({input, errors}) {
+    handshake: os.handshake.effect(function* ({input}) {
       const outcome = dispatchHandshake(
         {role: 'ui', server: {name: 'conciv', version}, capabilities: WIDGET_CAPABILITIES},
         input,
       )
       if (outcome.type === 'accepted') return outcome.response
-      const refused = outcome.refusal
-      if (refused.code === 'ROLE_MISMATCH') return yield* Effect.fail(errors.ROLE_MISMATCH(refused))
-      if (refused.code === 'UNSUPPORTED_PROTOCOL') return yield* Effect.fail(errors.UNSUPPORTED_PROTOCOL(refused))
-      return yield* Effect.fail(errors.MISSING_CAPABILITY(refused))
+      return yield* Effect.fail(outcome.refusal)
     }),
     ui: {
-      state: os.ui.state.effect(function* ({errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.state'}, errors)
+      state: os.ui.state.effect(function* () {
+        return yield* forward(UiStateSchema, {type: 'ui.state'})
       }),
-      snapshot: os.ui.snapshot.effect(function* ({errors}) {
-        return yield* forward(SemanticSnapshotSchema, {type: 'ui.snapshot'}, errors)
+      snapshot: os.ui.snapshot.effect(function* () {
+        return yield* forward(SemanticSnapshotSchema, {type: 'ui.snapshot'})
       }),
-      matches: os.ui.matches.effect(function* ({input, errors}) {
-        return yield* forward(z.boolean(), {type: 'ui.matches', ...input}, errors)
+      matches: os.ui.matches.effect(function* ({input}) {
+        return yield* forward(z.boolean(), {type: 'ui.matches', ...input})
       }),
-      type: os.ui.type.effect(function* ({input, errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.type', ...input}, errors)
+      type: os.ui.type.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.type', ...input})
       }),
-      press: os.ui.press.effect(function* ({input, errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.press', ...input}, errors)
+      press: os.ui.press.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.press', ...input})
       }),
-      enter: os.ui.enter.effect(function* ({errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.enter'}, errors)
+      enter: os.ui.enter.effect(function* () {
+        return yield* forward(UiStateSchema, {type: 'ui.enter'})
       }),
-      arrow: os.ui.arrow.effect(function* ({input, errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.arrow', ...input}, errors)
+      arrow: os.ui.arrow.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.arrow', ...input})
       }),
-      focus: os.ui.focus.effect(function* ({input, errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.focus', ...input}, errors)
+      focus: os.ui.focus.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.focus', ...input})
       }),
-      click: os.ui.click.effect(function* ({input, errors}) {
-        return yield* forward(UiStateSchema, {type: 'ui.click', ...input}, errors)
+      click: os.ui.click.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.click', ...input})
       }),
-      capture: os.ui.capture.effect(function* ({errors}) {
-        return yield* unsupported(errors, 'ui.capture')
+      capture: os.ui.capture.effect(function* () {
+        return yield* unsupported('ui.capture')
       }),
       recording: {
-        finish: os.ui.recording.finish.effect(function* ({errors}) {
-          return yield* unsupported(errors, 'ui.recording.finish')
+        finish: os.ui.recording.finish.effect(function* () {
+          return yield* unsupported('ui.recording.finish')
         }),
       },
-      mouse: os.ui.mouse.effect(function* ({errors}) {
-        return yield* unsupported(errors, 'ui.mouse')
+      mouse: os.ui.mouse.effect(function* () {
+        return yield* unsupported('ui.mouse')
       }),
-      resize: os.ui.resize.effect(function* ({errors}) {
-        return yield* unsupported(errors, 'ui.resize')
+      resize: os.ui.resize.effect(function* () {
+        return yield* unsupported('ui.resize')
       }),
     },
   })

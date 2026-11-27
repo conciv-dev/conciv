@@ -76,6 +76,7 @@
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-sandbox": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
   },
