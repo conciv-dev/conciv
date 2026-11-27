@@ -1,4 +1,5 @@
 import logos from '@internal/brand/logos.json'
+import {siteErrors} from './errors'
 
 export type BrandFile = (typeof logos.files)[number]
 
@@ -31,7 +32,7 @@ const ASSET_URL_BY_PATH: Record<string, string> = Object.fromEntries(
 export function brandAssetUrl(path: string) {
   const url = ASSET_URL_BY_PATH[path]
   if (url) return url
-  throw new Error(`No brand asset emitted for ${path}`)
+  throw siteErrors.BRAND_ASSET_MISSING({path})
 }
 
 export const OG_DEFAULT_URL = brandAssetUrl('social/og-default-1200x630.png')

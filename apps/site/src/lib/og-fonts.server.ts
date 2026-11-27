@@ -1,4 +1,5 @@
 import {env} from 'cloudflare:workers'
+import {siteErrors} from './errors'
 
 type FontWeight = 400 | 700
 
@@ -23,7 +24,7 @@ const FONT_FILES: FontFile[] = [
 async function fetchFontFile(assetPath: string, requestUrl: string): Promise<Uint8Array> {
   const response = await env.ASSETS.fetch(new URL(assetPath, requestUrl))
   if (!response.ok) {
-    throw new Error(`Failed to load OG font ${assetPath}: ${response.status}`)
+    throw siteErrors.OG_FONT_NOT_LOADED({path: assetPath, status: response.status})
   }
   return new Uint8Array(await response.arrayBuffer())
 }

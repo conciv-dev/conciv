@@ -5,6 +5,7 @@ import {panelCommands} from './panel-commands'
 import {rootSearchSchema} from './search-schemas'
 import {dismissTry, getTrySession} from './try-session.functions'
 import {shouldAutoOpen, shouldDismissOnClose} from './try-state'
+import {siteErrors} from './errors'
 
 declare global {
   interface WindowEventMap {
@@ -56,7 +57,7 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; router: Regist
   ])
   if (document.querySelector('[data-conciv-root]')) return
   const setup = tryIt.default.setup
-  if (setup === undefined) throw new Error('conciv try-it plugin has no setup')
+  if (setup === undefined) throw siteErrors.TRY_IT_NO_SETUP()
   const plugins = host
     .compose({
       'try-it': {...tryIt.default, windowEntry: async () => ({default: setup})},

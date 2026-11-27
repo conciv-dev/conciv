@@ -8,6 +8,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/
 import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
+import {siteErrors} from '@/lib/errors'
 
 type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
 
@@ -62,7 +63,7 @@ const FrameworkTabsContext = createContext<FrameworkTabsContextValue | null>(nul
 
 function useFrameworkTabs(): FrameworkTabsContextValue {
   const value = useContext(FrameworkTabsContext)
-  if (!value) throw new Error('FrameworkTabs.* must be used inside FrameworkTabs.Root')
+  if (!value) throw siteErrors.FRAMEWORK_TABS_OUTSIDE_ROOT()
   return value
 }
 

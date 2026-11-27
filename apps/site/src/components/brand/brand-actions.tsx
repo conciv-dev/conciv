@@ -3,6 +3,7 @@ import {useMutation, type MutationStatus} from '@tanstack/react-query'
 import {Check, Copy, Download, TriangleAlert} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {brandAssetUrl} from '@/lib/brand-assets'
+import {siteErrors} from '@/lib/errors'
 
 const RESET_DELAY = 1400
 
@@ -22,7 +23,7 @@ const COPY_LABEL: Record<MutationStatus, string> = {
 
 async function copySvgSource(path: string) {
   const response = await fetch(brandAssetUrl(path))
-  if (!response.ok) return Promise.reject(response.status)
+  if (!response.ok) throw siteErrors.SVG_NOT_LOADED({status: response.status})
   await navigator.clipboard.writeText(await response.text())
 }
 

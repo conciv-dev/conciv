@@ -1,6 +1,7 @@
 import {Check, Copy} from 'lucide-react'
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/components/ui/tooltip'
+import {siteErrors} from '@/lib/errors'
 
 type CopyButtonContextValue = {copied: boolean}
 
@@ -8,7 +9,7 @@ const CopyButtonContext = createContext<CopyButtonContextValue | null>(null)
 
 function useCopyButton(): CopyButtonContextValue {
   const value = useContext(CopyButtonContext)
-  if (!value) throw new Error('CopyButton.* must be used inside CopyButton.Root')
+  if (!value) throw siteErrors.COPY_BUTTON_OUTSIDE_ROOT()
   return value
 }
 
