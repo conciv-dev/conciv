@@ -33,8 +33,6 @@ const TERMINAL_CLIENT = 'terminal'
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
 
-const APPROVAL_DENIED = 'APPROVAL_DENIED'
-
 const PLUGIN_RPC_CODES: readonly string[] = ['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']
 
 const PluginFailureSchema = z.object({type: z.string(), data: z.unknown().optional()})
@@ -103,7 +101,7 @@ function callingAgent(env: NodeJS.ProcessEnv): string {
 
 function rejectedByServer(error: unknown): error is ORPCError<string, unknown> {
   if (!(error instanceof ORPCError)) return false
-  return error.defined || error.code === APPROVAL_DENIED || clientError(ENGINE_ERROR_STATUS[error.code])
+  return error.defined || clientError(ENGINE_ERROR_STATUS[error.code])
 }
 
 function clientError(status: number | undefined): boolean {
