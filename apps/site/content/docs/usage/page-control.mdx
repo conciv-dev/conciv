@@ -3,59 +3,47 @@ title: Page control
 description: Point at an element, ask for a change, see it live, then keep it in your source.
 ---
 
-Ask the agent to change something you see on the page. It works in your own browser tab, on the page as it is now:
+Page control lets the agent read and change the page you have open, in your own browser tab. It is built in, with
+nothing to install.
 
-```text
-Make the heading on this page larger and bold.
-```
+## Basic
 
-The agent reads the page, finds the element, changes it, and checks the result. Page control is built in: nothing to
-install.
+Click **Select an element from the page**, the crosshair beside the composer. Then click an element in your app. It
+is pinned to your next message, with its source file and line when conciv can find them:
 
-## Point at what you mean
-
-Click **Select an element from the page**, the crosshair beside the composer. Then click an element in your app. It is
-pinned to your next message, with its source file and line when conciv can find them.
-
-```text
+```text title="Prompt"
 Give this card more padding, and round its corners.
 ```
 
-<ImageZoom
-  src="/screenshots/grab-element.png"
-  alt="A grabbed heading pinned to the composer with its source location"
-  width={1920}
-  height={1080}
+The agent reads the page, finds the element, changes it, and checks the result.
+
+<Playground
+  page="vite-react"
+  script="page-control/point-and-change"
+  caption="Point at an element, ask for a change, and watch it land on the page."
 />
 
 ## Try a change live
 
-The agent can restyle the page on the spot, so you see an idea at once. Ask for something visible:
+The agent can restyle the page on the spot, so you see an idea at once:
 
-```text
+```text title="Prompt"
 Try the header in dark blue, without saving it.
 ```
 
 A live change lives only in the page. The next hot reload wipes it, because it is not in your source.
 
-<ImageZoom
-  src="/screenshots/page-control.png"
-  alt="The agent restyled the page heading live, with its page edit card in the thread"
-  width={1920}
-  height={1080}
-/>
-
 ## Keep the change
 
 When you like it, ask the agent to keep it. It edits the real source file, so the change survives a reload:
 
-```text
+```text title="Prompt"
 Keep that. Save it to the component.
 ```
 
 The agent can also open the file in your editor:
 
-```text
+```text title="Prompt"
 Open the file that renders this card in my editor.
 ```
 
@@ -63,40 +51,36 @@ Open the file that renders this card in my editor.
 
 The agent can click, type and scroll like a user. Use it to reproduce a bug or walk through a flow:
 
-```text
+```text title="Prompt"
 Fill the signup form with a test user, submit it, and tell me what the console says.
 ```
 
 What the agent can do on the page:
 
 - **Read** the page: its controls, its text, a field's value, a screenshot, the console and the current route.
-- **Act** on it: click, fill, select, check, press a key, hover, scroll and submit, one step or a list of steps.
+- **Act** on it: click, fill, select, check, press a key, hover, scroll and submit.
 - **Restyle** it: change styles, classes and text, live.
 - **Inspect React**: the component tree, and the file and line that rendered an element.
 - **Wait** for an element to show or hide, or for a hot update to land after a file edit.
-- **Run code** in the page. This asks you first, every time (see [Approvals](/docs/usage/approvals)).
+- **Run code** in the page. This asks you first, every time.
 
-## Details
+Learn more about the ask in the [Approvals documentation](/docs/usage/approvals).
 
 <Accordions type="single">
-  <Accordion title="Which tab answers">
-    With several tabs open, the tab you focused last answers. Name another tab in your message to point the agent at it.
+  <Accordion title="Several tabs open: which one answers?">
+    The tab you focused last answers. Name another tab in your message to point the agent at it.
   </Accordion>
-  <Accordion title="Page content is not instructions">
-    Page text, console messages and screenshots are untrusted. The agent is told never to follow instructions found in
-    them.
+  <Accordion title="Can text on the page give the agent orders?">
+    No. Page text, console messages and screenshots are untrusted. The agent is told never to follow instructions found
+    in them.
   </Accordion>
-  <Accordion title="The tool names">
-    In code mode the page tools are called `external_page_*`, such as `external_page_click`. You see these names in the
-    tool cards in the thread.
-  </Accordion>
-  <Accordion title="Where it comes from">
-    Page control is the page plugin, which conciv ships and always loads. See [Plugins conciv
-    ships](/docs/usage/add-plugins).
+  <Accordion title="Why do the cards say external_page_click?">
+    That is the tool's name in code mode, where the agent calls tools from a short program. Learn more in the [Tools and
+    code mode documentation](/docs/tools-and-code-mode).
   </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Approvals](/docs/usage/approvals): the card that asks before code runs in your page.
-- [Dev server](/docs/usage/dev-server): how the agent reads the server behind the page.
+- **[Approvals](/docs/usage/approvals):** the card that asks before code runs in your page.
+- **[Dev server](/docs/usage/dev-server):** how the agent reads the server behind the page.
