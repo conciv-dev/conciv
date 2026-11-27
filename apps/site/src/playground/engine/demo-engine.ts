@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {contract} from '@conciv/protocol'
 import {WidgetDrive} from '@conciv/protocol/simulation'
 import type {EngineConnection} from '@conciv/client'
-import type {PageEdit, PlaygroundScript, Turn, UiStep} from '../script'
+import {PLAYGROUND_LABELS, type PageEdit, type PlaygroundScript, type Turn, type UiStep} from '../script'
 import {createChat} from './demo-chat'
 import {createDrive, type Drive} from './demo-drive'
 import {createEvents} from './demo-events'
@@ -94,7 +94,8 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
   }
   const pace = createPace(options.reducedMotion)
   const drive = createDrive(events.publish)
-  const store = createSessions()
+  const labels = options.script.labels ?? PLAYGROUND_LABELS
+  const store = createSessions(labels.session)
   const chat = createChat({
     pace,
     drive,
@@ -138,20 +139,20 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
     registry: {catalog: () => []},
     meta: {
       models: () => ({
-        models: [{id: 'playground', name: 'Playground script'}],
+        models: [{id: 'playground', name: labels.model}],
         defaultModel: 'playground',
         modelsFailed: false,
-        harness: {id: HARNESS_ID, name: 'Playground', imageInput: false, persistentPty: false},
+        harness: {id: HARNESS_ID, name: labels.session, imageInput: false, persistentPty: false},
         login: {loggedIn: true},
       }),
       harnesses: () => ({
         harnesses: [
           {
             id: HARNESS_ID,
-            name: 'Playground',
+            name: labels.session,
             imageInput: false,
             persistentPty: false,
-            models: [{id: 'playground', name: 'Playground script'}],
+            models: [{id: 'playground', name: labels.model}],
             defaultModel: 'playground',
             modelsFailed: false,
             login: {loggedIn: true},

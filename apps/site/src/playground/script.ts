@@ -50,8 +50,16 @@ export type Turn = {
 
 export type PlaygroundPluginId = 'test-runner' | 'project-version' | 'shelf'
 
+export type PlaygroundLabels = {
+  readonly session: string
+  readonly model: string
+}
+
+export const PLAYGROUND_LABELS: PlaygroundLabels = {session: 'Playground', model: 'Playground script'}
+
 export type PlaygroundScript = {
   readonly title: string
+  readonly labels?: PlaygroundLabels
   readonly screen: 'launcher' | 'panel' | 'quick'
   readonly plugins: readonly PlaygroundPluginId[]
   readonly turns: readonly Turn[]
