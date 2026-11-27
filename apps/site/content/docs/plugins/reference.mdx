@@ -1,9 +1,10 @@
 ---
 title: Plugin API reference
-description: What to import for each part of a plugin, and every field of ctx, generated from the plugin API's own types.
+description: What to import for each part of a plugin, and every field of Plugin.define, ctx, a tool and the browser registries, generated from the plugin API's own types.
 ---
 
-Look up an import or a field here. The [guides](/docs/plugins/guides/tool) show each one in use.
+Look up an import or a field here. Each table is generated from the plugin API's types, and the list under it says
+what each row is for. The [guides](/docs/plugins) show each one in use.
 
 ## What to import
 
@@ -20,48 +21,274 @@ Look up an import or a field here. The [guides](/docs/plugins/guides/tool) show 
 | `@conciv/client`                           | read data in a browser part through the widget's query cache |
 | `@conciv/backend-test-utils`               | start a real engine in a test and script the agent           |
 
-## Engine part
+## Plugin.define
 
-`ctx` in an engine part. In the Promise style each domain returns a `Promise`. In the Effect style the same fields
-return an `Effect`.
+What the engine part's `Plugin.define` takes:
 
-<auto-type-table path="./api-types.ts" name="EngineContext" />
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
 
-- `tool`: add, change and remove tools. See [Add a tool](/docs/plugins/guides/tool).
-- `skill`: add skills. See [Add a skill](/docs/plugins/guides/skill).
-- `rpc`: answer an RPC contract. See [Share an RPC method](/docs/plugins/guides/rpc).
+<auto-type-table path="./api-types.ts" name="PromiseDefinition" />
+
+- `id`: the plugin's name. A config entry turns it off as `-<id>`.
+- `setup`: runs once when the engine loads the plugin. It may return a cleanup that runs when the plugin unloads.
+
+</Tab>
+<Tab value="Effect">
+
+<auto-type-table path="./api-types.ts" name="EffectDefinition" />
+
+- `id`: the plugin's name. A config entry turns it off as `-<id>`.
+- `effect`: runs once when the engine loads the plugin. Its scope closes when the plugin unloads.
+
+</Tab>
+</Tabs>
+
+What the browser part's `Plugin.define` takes:
+
+<auto-type-table path="./api-types.ts" name="BrowserDefinition" />
+
+- `stores`: values the widget keeps for the plugin. See [Add settings](/docs/plugins/guides/settings).
+- `icons`: SVG icons of your own, named for `ctx.ui.Icon`.
+- `beforeRegister`: runs once with the options, before any plugin's setup, for hooks the page needs early.
+- `enforce`: orders `beforeRegister` calls: every `pre`, then the rest, then every `post`.
+- `setup`: runs once when the widget loads the browser part. It has no `id`: it takes the engine part's.
+
+## Engine ctx
+
+What `setup` or `effect` gets as `ctx`. In the Promise style each domain returns a `Promise`. In the Effect style the
+same fields return an `Effect`.
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+<auto-type-table path="./api-types.ts" name="PromiseContext" />
+
+</Tab>
+<Tab value="Effect">
+
+<auto-type-table path="./api-types.ts" name="EffectContext" />
+
+</Tab>
+</Tabs>
+
+- `app`: the running conciv, with its version, release channel and platform.
+- `location`: where the engine runs. Its `directory` is your project folder.
+- `options`: the options from the plugin's config entry, as JSON.
+- `agent`: change the agent profiles, such as their permission rules.
+- `event`: follow the engine's events.
+- `model`: list the models, and add or change them.
 - `permission`: ask the user before an action. See [Ask for permission](/docs/plugins/guides/permission).
-- `agent`: change the agents, such as their permission rules.
-- `options`: the options from the plugin's config entry. See [Add settings](/docs/plugins/guides/settings).
-- `location`: where the engine runs. Its directory is your project folder.
+- `plugin`: list the plugins the engine loaded.
+- `rpc`: answer an RPC contract, or call another plugin's. See [Share an RPC method](/docs/plugins/guides/rpc).
+- `browserTabs`: list the browser tabs a session's page plugin sees.
+- `job`: start, wait on and cancel background jobs.
+- `session`: list, create and drive sessions.
+- `skill`: add, change and remove skills. See [Add a skill](/docs/plugins/guides/skill).
+- `storage`: a key-value store kept for your plugin, and a folder for its files.
+- `tool`: add, change and remove tools, and hook into their calls. See [Add a tool](/docs/plugins/guides/tool).
+- `servers`: the dev servers the engine knows about.
 
 ## A tool
 
 What `tools.add` takes:
 
-<auto-type-table path="./api-types.ts" name="ToolDefinition" />
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+<auto-type-table path="./api-types.ts" name="PromiseToolDefinition" />
+
+</Tab>
+<Tab value="Effect">
+
+<auto-type-table path="./api-types.ts" name="EffectToolDefinition" />
+
+</Tab>
+</Tabs>
+
+- `name`: what the agent calls. Use letters, digits and `_`.
+- `description`: how the agent decides when to call it.
+- `input`: the schema the agent's input must match. The engine checks it before your code runs.
+- `output`: the schema of the result's `output`.
+- `options`: `codemode`, `namespace`, `permission` and `pinned`. See
+  [Tools and code mode](/docs/tools-and-code-mode).
+- `execute`: runs one call. It returns a `Promise` or an `Effect` of the result.
+
+What `execute` gets as its second argument:
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+<auto-type-table path="./api-types.ts" name="PromiseToolCallContext" />
+
+</Tab>
+<Tab value="Effect">
+
+<auto-type-table path="./api-types.ts" name="EffectToolCallContext" />
+
+</Tab>
+</Tabs>
+
+- `sessionId`: the chat the call runs in.
+- `agent`: the agent profile running the call.
+- `messageId`: the agent message that holds the call, when there is one.
+- `id`: the call's own id.
+- `origin`: where the call came from: `chat` for the widget, `hub` for an agent outside it.
+- `progress`: sends an update the card can show while the call runs.
+- `signal` (Promise): aborts when the user stops the turn.
+- `cancel` (Effect): set when the call can be cancelled.
 
 What `execute` returns:
 
 <auto-type-table path="./api-types.ts" name="ToolResult" />
 
-What `execute` gets as its second argument:
+- `output`: the result the agent reads, matching the `output` schema.
+- `content`: text or files for the agent, in place of or beside `output`.
+- `metadata`: data for the card, which the agent does not read.
 
-<auto-type-table path="./api-types.ts" name="ToolCallContext" />
+What `tools` is inside `ctx.tool.transform`:
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+<auto-type-table path="./api-types.ts" name="PromiseTools" />
+
+</Tab>
+<Tab value="Effect">
+
+<auto-type-table path="./api-types.ts" name="EffectTools" />
+
+</Tab>
+</Tabs>
+
+- `list`: every tool, with its full id.
+- `get`: one tool by its id.
+- `namespace`: describe a group of tools once.
+- `add`: add one tool.
+- `update`: change a tool, such as another plugin's.
+- `remove`: remove a tool by its id.
 
 ## An RPC method
 
-One entry of a contract's methods:
+One entry of a contract's `methods`:
 
 <auto-type-table path="./api-types.ts" name="RpcMethod" />
 
-## Browser part
+- `input`: the schema the caller's input must match.
+- `output`: the schema of what the method returns.
+- `errors`: the failures callers can tell apart, each with the schema of its data.
 
-`ctx` in a browser part's setup:
+## Browser ctx
+
+What the browser part's `setup` gets as `ctx`:
 
 <auto-type-table path="./api-types.ts" name="BrowserContext" />
 
-## Next
+- `id`: the plugin's id, from its engine part.
+- `options`: the options from the plugin's config entry.
+- `signal`: aborts when the plugin reloads or stops.
+- `client`: calls the engine: `client.rpc(contract)` and `client.event.subscribe`.
+- `add`: adds an entry to a registry, such as `Panel` or `ToolRegistry`. `list` reads a registry.
+- `provide` and `use`: share an in-process contract with another plugin.
+- `layout`: panel tabs, scroll offsets and the settings page.
+- `sessions`: the sessions of open tabs, and the mounted one.
+- `screen`: the mounted session's screen and its composer.
+- `storage`: stores for keys known only at run time.
+- `system`: the clipboard, saving files and opening URLs.
+- `desktop`: opens a file in the user's editor, when the engine can.
+- `dialogs`: opens dialogs that close with their owner.
+- `toast`: short messages in a corner of the window.
+- `tabs`: the open session tabs, across engines.
+- `links`: routes local links to the plugins that handle them.
+- `ui`: the widget's own components, such as `Icon`, `Button`, `Switch` and `SettingsRow`.
+- `app`: the widget's version, release channel and platform.
+- `appearance`: the user's appearance settings.
+- `overlay`: a layer over the page, under the widget.
+- `router`: the widget's route.
+- `keybinds`: the keybinds of published commands.
+- `servers`: the dev servers the engine knows about.
+- `attention` and `commands`: not implemented yet, always `undefined`.
 
-- [Build your first plugin](/docs/plugins/first-plugin): every part in one tutorial.
-- [Plugins](/docs/plugins): add a plugin to your config.
+## Browser registries
+
+### Panel
+
+<auto-type-table path="./api-types.ts" name="PanelDefinition" />
+
+- `id`: the panel's name, unique in your plugin.
+- `region`: where the tabs go. It is required, and `'pane'` is the only value.
+- `list`: the tabs to show. It runs again when what it reads changes.
+- `render`: draws a tab's content once.
+- `close`, `closed` and `restore`: run as the user closes a tab, and bring it back.
+- `focus`: runs when one of your tabs is selected.
+- `normalize`, `mobile` and `transient`: how stored tabs are matched, shown on a phone, and kept.
+
+One tab that `list` returns:
+
+<auto-type-table path="./api-types.ts" name="PanelTabDefinition" />
+
+- `id`: the tab's id, stored in the user's open tabs.
+- `title`: the tab's name, shown when it has no `label`.
+- `label`: what the tab strip draws.
+- `pinned`: always in the strip.
+- `closable`, `draggable` and `tabbable`: how the user can close, move and reach the tab.
+- `transient`, `fallback`, `group`, `missing`, `hidden` and `file`: how the strip treats the tab.
+
+### Slot
+
+<auto-type-table path="./api-types.ts" name="SlotDefinition" />
+
+- `at`: the place: `session.header`, `session.status`, `window.bottom` or `page.overlay`.
+- `order`: sorts the slot among others at the same place.
+- `render`: draws the content once. A `page.overlay` slot also takes `hides`.
+
+### ComposerPill
+
+<auto-type-table path="./api-types.ts" name="ComposerPillDefinition" />
+
+- `id`: the pill's name.
+- `order`: sorts it among the other pills.
+- `show`: what the pill looks like for one composer, or `undefined` to hide it.
+- `menu`: your own content for the popover the pill opens.
+
+What `show` returns:
+
+<auto-type-table path="./api-types.ts" name="ComposerPillShown" />
+
+- `label`: the pill's text, and `title` the popover's heading.
+- `icon` and `tone`: the pill's icon, and its colour for success, warning or danger.
+- `run`: what a click does.
+- `rows`: a menu of rows, each with its own `run`, in place of `run`.
+
+### SettingsPage
+
+<auto-type-table path="./api-types.ts" name="SettingsPageDefinition" />
+
+- `id`: the entry's name.
+- `page` and `section`: put it on the General page, or in its General section.
+- `title` and `icon`: how the entry reads.
+- `entries`: what the settings search finds.
+- `render`: draws the page, section or row.
+
+### ToolRegistry
+
+<auto-type-table path="./api-types.ts" name="ToolCardDefinition" />
+
+- `name`: the tool whose calls this card draws.
+- `render`: draws one call.
+- `errorComponent`: draws a failed call.
+
+What `render` gets:
+
+<auto-type-table path="./api-types.ts" name="ToolCardProps" />
+
+- `tool`, `input` and `status`: the tool's name, the agent's input, and where the call is.
+- `output`: the result as JSON text, once the call ends.
+- `error`: the message of a failed call.
+- `metadata`: the call's metadata, such as progress updates.
+- The other props are how the widget opens, locks and lays out the card.
+
+## Next steps
+
+- **[Build your first plugin](/docs/plugins/first-plugin)**: every part in one tutorial.
+- **[Plugins](/docs/plugins)**: every guide.
