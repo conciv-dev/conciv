@@ -2,7 +2,8 @@ import type {z} from 'zod'
 import {TestRunner} from '@conciv/plugin-test-runner/rpc'
 import testRunnerCode from '@conciv/plugin-test-runner/plugin-experimental?raw'
 import {Definition as Page} from '@conciv/plugin-page/rpc'
-import type {DemoBundle, DemoRpc} from '../src/playground/engine/demo-engine'
+import type {FakeBundle} from '@internal/test-utils'
+import type {PlaygroundRpc} from './play-script'
 
 type RunResult = z.input<(typeof TestRunner)['methods']['run']['output']>
 
@@ -18,9 +19,27 @@ const TEST_EVENT = `rpc.${TestRunner.id}.event`
 
 const TestEventSchema = TestRunner.events.event.schema
 
-export const testRunnerBundle: DemoBundle = {id: TestRunner.id, file: 'plugin-experimental.cjs', code: testRunnerCode}
+export const testRunnerBundle: FakeBundle = {
+  info: {
+    id: TestRunner.id,
+    source: {type: 'package', target: TestRunner.id},
+    features: {server: true, rpc: true, experimental: true},
+    state: {status: 'active'},
+  },
+  experimental: async () => ({
+    file: 'plugin-experimental.cjs',
+    code: testRunnerCode,
+    revision: `${TestRunner.id}-playground`,
+    options: {},
+    chunks: [],
+  }),
+}
 
-export function createTestRunnerRpc(): DemoRpc {
+export function builtinBundle(id: string): FakeBundle {
+  return {info: {id, source: {type: 'builtin'}, features: {server: true, rpc: true}, state: {status: 'active'}}}
+}
+
+export function createTestRunnerRpc(): PlaygroundRpc {
   const run: {events: TestEvent[]; result: RunResult} = {events: [], result: NO_RUN}
   return {
     id: TestRunner.id,
@@ -41,7 +60,7 @@ export function createTestRunnerRpc(): DemoRpc {
   }
 }
 
-export function createPageRpc(): DemoRpc {
+export function createPageRpc(): PlaygroundRpc {
   const grabs = new Map<string, StoredGrab>()
   const SaveInput = Page.methods['grabs.save'].input
   const GetInput = Page.methods['grabs.get'].input

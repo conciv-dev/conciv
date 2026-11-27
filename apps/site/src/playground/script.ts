@@ -31,10 +31,9 @@ export type ToolReply = {
   readonly events?: readonly PluginEvent[]
 }
 
-export type Reply =
-  | {readonly kind: 'text'; readonly text: string}
-  | {readonly kind: 'thinking'; readonly text: string}
-  | ToolReply
+export type TextReply = {readonly kind: 'text'; readonly text: string}
+
+export type Reply = TextReply | {readonly kind: 'thinking'; readonly text: string} | ToolReply
 
 export type UiStep =
   | {readonly kind: 'click'; readonly role: string; readonly label: string}
@@ -44,7 +43,7 @@ export type Turn = {
   readonly prompt: string
   readonly queued?: boolean
   readonly before?: readonly UiStep[]
-  readonly replies: readonly Reply[]
+  readonly replies: readonly [...Reply[], TextReply]
   readonly after?: readonly UiStep[]
 }
 

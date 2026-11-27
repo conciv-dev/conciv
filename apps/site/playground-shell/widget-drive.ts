@@ -5,8 +5,7 @@ import {
   type WidgetOutcome,
   type WidgetRequest,
 } from '@conciv/protocol/simulation'
-import type {Publish} from './demo-events'
-import {aborted} from './demo-time'
+import {aborted} from './pace'
 
 const CALL = `rpc.${WidgetDrive.id}.call` as const
 
@@ -20,9 +19,10 @@ const PAGE_ROLES: Readonly<Record<string, string>> = {
 
 const WATCHED: MutationObserverInit = {subtree: true, childList: true, attributes: true, characterData: true}
 
+type Emit = (type: `rpc.${string}`, data: Record<string, unknown>) => void
+
 export type Drive = {
   readonly answer: (input: unknown) => void
-  readonly subscribed: (types: readonly string[] | undefined) => void
   readonly click: (role: string, label: string, signal: AbortSignal) => Promise<void>
   readonly shown: (role: string, label: string, signal: AbortSignal) => Promise<void>
   readonly send: (text: string, signal: AbortSignal) => Promise<void>
@@ -77,17 +77,15 @@ function matchNode(nodes: readonly SemanticNode[], role: string, label: string):
   return nodes.find((node) => node.role === role && node.label === label && node.disabled !== true)
 }
 
-export function createDrive(publish: Publish, root: Node, started: Promise<void>): Drive {
+export function createDrive(emit: Emit, root: Node, listening: Promise<unknown>): Drive {
   const pending = new Map<string, (outcome: WidgetOutcome) => void>()
-  const sharedStream = Promise.withResolvers<void>()
-  const listening = Promise.all([started, sharedStream.promise])
   const ask = async (request: WidgetRequest, signal: AbortSignal): Promise<unknown> => {
     await Promise.race([listening, aborted(signal)])
     if (signal.aborted) stopped(signal)
     const requestId = crypto.randomUUID()
     const answered = Promise.withResolvers<WidgetOutcome | undefined>()
     pending.set(requestId, answered.resolve)
-    publish(CALL, {requestId, request})
+    emit(CALL, {requestId, request})
     const outcome = await Promise.race([answered.promise, aborted(signal).then(() => undefined)])
     pending.delete(requestId)
     if (outcome === undefined) return stopped(signal)
@@ -142,9 +140,6 @@ export function createDrive(publish: Publish, root: Node, started: Promise<void>
     answer: (input) => {
       const parsed = ResultInput.parse(input)
       pending.get(parsed.requestId)?.(parsed.outcome)
-    },
-    subscribed: (types) => {
-      if (types === undefined) sharedStream.resolve()
     },
     click,
     shown: async (role, label, signal) => {

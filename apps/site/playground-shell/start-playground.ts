@@ -8,12 +8,13 @@ import {builtins as pageBuiltins} from '@conciv/plugin-page/builtins'
 import {builtins as terminalBuiltins} from '@internal/plugin-terminal/builtins'
 import {ConcivApp, type BuiltinPlugins, type ComposedPlugin, type Platform} from '@internal/frontend-defaults'
 import shell from '@internal/frontend-defaults/package.json' with {type: 'json'}
-import {createDemoEngine, type DemoBundle, type DemoRpc} from '../src/playground/engine/demo-engine'
 import {playgroundScripts} from '../src/playground/playground-scripts'
 import type {PlaygroundPluginId, PlaygroundScript} from '../src/playground/script'
 import type {StartPlayground} from '../src/playground/shell-api'
 import {projectVersion, shelf} from './demo-plugins'
-import {createPageRpc, createTestRunnerRpc, testRunnerBundle} from './served-plugins'
+import type {FakeBundle} from '@internal/test-utils'
+import {createPlaygroundEngine, type PlaygroundRpc} from './play-script'
+import {builtinBundle, createPageRpc, createTestRunnerRpc, testRunnerBundle} from './served-plugins'
 
 type Builtin = {
   readonly id: string
@@ -26,7 +27,7 @@ type LocalPlugin = {readonly id: string; readonly plugin: Plugin.Definition}
 
 const START = {launcher: '/', panel: '/panel/latest?open=true', quick: '/quick'} as const
 
-type Served = {readonly bundle: DemoBundle; readonly rpc: () => DemoRpc}
+type Served = {readonly bundle: FakeBundle; readonly rpc: () => PlaygroundRpc}
 
 const SERVED: Partial<Record<PlaygroundPluginId, Served>> = {
   'test-runner': {bundle: testRunnerBundle, rpc: createTestRunnerRpc},
@@ -85,18 +86,16 @@ function placeHost(host: HTMLElement): ShadowRoot {
 
 export const startPlayground: StartPlayground = (options) => {
   const script = playgroundScripts[options.script]
-  const director = new AbortController()
   const driveStarted = Promise.withResolvers<void>()
   const builtins = shellBuiltins(driveStarted.resolve)
   const served = servedPlugins(script)
   const root = placeHost(options.host)
-  const engine = createDemoEngine({
+  const engine = createPlaygroundEngine({
     script,
-    serverBuiltins: builtins.serverBuiltins,
     reducedMotion: options.reducedMotion,
     editPage: options.editPage,
     onProgress: options.onProgress ?? (() => undefined),
-    bundles: served.map((plugin) => plugin.bundle),
+    bundles: [...(builtins.serverBuiltins ?? []).map(builtinBundle), ...served.map((plugin) => plugin.bundle)],
     rpc: [createPageRpc(), ...served.map((plugin) => plugin.rpc())],
     version: shell.version,
     widgetRoot: root,
@@ -116,9 +115,7 @@ export const startPlayground: StartPlayground = (options) => {
     plugins: localPlugins(script),
     builtins,
     onInteractive: () => {
-      engine.play(director.signal).catch((error: unknown) => {
-        if (!director.signal.aborted) console.error('[playground] the script stopped', error)
-      })
+      engine.play().catch((error: unknown) => console.error('[playground] the script stopped', error))
     },
   }
   const hostRouter = window.__TSR_ROUTER__
@@ -126,7 +123,6 @@ export const startPlayground: StartPlayground = (options) => {
   window.__TSR_ROUTER__ = hostRouter
   return {
     stop: () => {
-      director.abort()
       engine.dispose()
       dispose()
       container.remove()
