@@ -3,7 +3,7 @@ title: TanStack Start
 description: Add conciv to a TanStack Start app, which runs on Vite.
 ---
 
-TanStack Start runs on Vite, so conciv joins it as the same `conciv()` Vite plugin, beside `tanstackStart()`.
+TanStack Start runs on Vite. conciv joins it as the same `conciv()` Vite plugin, beside `tanstackStart()`.
 
 <Callout type="success" title="Prefer to let your agent do it?">
   Copy this prompt into your coding agent. It runs conciv's init command, which makes the same changes as below.
@@ -11,7 +11,7 @@ TanStack Start runs on Vite, so conciv joins it as the same `conciv()` Vite plug
   <SetupPrompt framework="tanstack-start" />
 </Callout>
 
-## Basic
+## Add conciv to TanStack Start
 
 Install `@conciv/it` as a dev dependency:
 
@@ -71,13 +71,13 @@ export default defineConfig({
 Restart your dev server to load it. Learn more in the [Add plugins documentation](/docs/usage/add-plugins).
 
 <Accordions type="single">
-  <Accordion title="The route list is empty or fails?">
+  <Accordion title="The route list is empty or fails">
     The plugin reads your routes from the generated `src/routeTree.gen.ts`. When that file cannot be read, the tool says
     so. Start the dev server once, so TanStack Router generates it.
   </Accordion>
-  <Accordion title="init printed a snippet instead of editing the config?">
+  <Accordion title="init prints a snippet instead of editing the config">
     init edits only a config shape it can prove: one `plugins` array in the exported config object. A config built in a
-    function, as some TanStack Start templates are, can get the snippet instead. Add it as in Basic above.
+    function, as some TanStack Start templates are, can get the snippet instead. Add it as shown above.
   </Accordion>
 </Accordions>
 
