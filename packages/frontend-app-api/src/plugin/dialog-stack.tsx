@@ -32,6 +32,7 @@ import {
   type DialogStackEffect,
   type DialogStackEvent,
 } from './dialog-stack-machine'
+import {pluginErrors} from './errors'
 
 const TEXT_FIELD = [
   'input:not([type="hidden"], [type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="reset"], [type="range"], [type="file"], [type="color"], [type="image"]):not(:disabled, [readonly])',
@@ -340,13 +341,7 @@ export function useDialog() {
   const layer = useContext(LayerContext)
   const owner = getOwner()
 
-  if (!owner) {
-    throw new Error('useDialog must be used within a DialogProvider')
-  }
-
-  if (!ctx) {
-    throw new Error('useDialog must be used within a DialogProvider')
-  }
+  if (!owner || !ctx) throw pluginErrors.DIALOG_OUTSIDE_PROVIDER()
 
   return {
     get active() {

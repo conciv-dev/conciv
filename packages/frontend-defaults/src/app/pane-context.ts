@@ -1,5 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {ChatSession} from '@conciv/client'
+import {appErrors} from './errors.js'
 
 export type PendingAttachmentQueue = {
   enqueue: (file: File) => void
@@ -31,6 +32,6 @@ export const PaneContext = createContext<PaneContextValue>()
 
 export function usePane(): PaneContextValue {
   const value = useContext(PaneContext)
-  if (!value) throw new Error('usePane called outside a panel session route')
+  if (!value) throw appErrors.OUTSIDE_PROVIDER({hook: 'usePane', provider: 'a panel session route'})
   return value
 }

@@ -2,6 +2,7 @@ import {createComponent, useContext, type Accessor, type Component} from 'solid-
 import type {Context, SetupContext} from './context.js'
 import type {Declarations} from './declarations.js'
 import {DrawerContext, PanelContext, PluginContext} from './internal.js'
+import {pluginApiErrors} from './errors/errors.js'
 
 /**
  * The plugin's context inside a contribution: the same object setup receives. Pass the definition for the typed
@@ -21,7 +22,7 @@ export function usePlugin<D extends Declarations>(): SetupContext<D>
 export function usePlugin(): Context {
   const context = useContext(PluginContext)
 
-  if (!context) throw new Error('usePlugin must run inside a plugin contribution')
+  if (!context) throw pluginApiErrors.OUTSIDE_CONTRIBUTION()
 
   return context
 }
@@ -71,7 +72,7 @@ export interface PanelFrame {
 export function usePanel() {
   const frame = useContext(PanelContext)
 
-  if (!frame) throw new Error('usePanel must run inside a panel render')
+  if (!frame) throw pluginApiErrors.OUTSIDE_PANEL()
 
   return frame
 }

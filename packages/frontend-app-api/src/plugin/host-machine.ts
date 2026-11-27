@@ -1,3 +1,4 @@
+import {pluginErrors} from './errors'
 export const WATCH_RETRY_MS = 1_000
 
 export const LIST_TIMEOUT_MS = 30_000
@@ -159,7 +160,7 @@ export function transitionHost<Listing>(state: HostState, event: HostEvent<Listi
         state,
         [
           {type: 'cancel-list'},
-          {type: 'log-list-error', cause: new Error(`Plugin listing timed out after ${LIST_TIMEOUT_MS} ms`)},
+          {type: 'log-list-error', cause: pluginErrors.LIST_TIMED_OUT({milliseconds: LIST_TIMEOUT_MS})},
         ],
         event.quitting,
       )

@@ -17,6 +17,7 @@ import {
 } from './storage-machine'
 import {assertStoreDefinition, assertStoreWrite, withInitial, type Encode} from './schema'
 import {settingsStorage} from './settings-storage'
+import {persistenceErrors} from './errors'
 
 type InitType = Promise<string | null> | string | null
 
@@ -457,7 +458,7 @@ function browserBacking(target: BrowserTarget, normalize: Normalize, local: Loca
       removeItem: (key) => current.removeItem(key),
     },
     save: async (key, value) => {
-      if (!current.setItem(key, value)) throw new Error(`${key} could not be stored in this browser`)
+      if (!current.setItem(key, value)) throw persistenceErrors.NOT_STORED({key})
     },
   }
 }

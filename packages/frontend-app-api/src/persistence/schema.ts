@@ -1,5 +1,6 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {isEqual, isPlainObject, mapValues, omit, omitBy, uniq} from 'es-toolkit'
+import {persistenceErrors} from './errors'
 
 type Path = readonly PropertyKey[]
 
@@ -11,7 +12,7 @@ function syncValidate<S extends StandardSchemaV1<unknown, object>>(name: string,
   return (value: unknown) => {
     const result = schema['~standard'].validate(value)
 
-    if (result instanceof Promise) throw new TypeError(`The store ${name} has a schema that validates asynchronously`)
+    if (result instanceof Promise) throw persistenceErrors.ASYNC_SCHEMA({name})
 
     return result
   }
@@ -94,7 +95,7 @@ function withoutUndefinedFields(value: unknown): unknown {
 function readBackError(refused: string, path: Path) {
   const field = path.length > 0 ? path.map(String).join('.') : 'the root'
 
-  return new Error(`${refused}: it does not read back what it writes at ${field}; a converting schema needs an encode`)
+  return persistenceErrors.NO_READ_BACK({refused, field})
 }
 
 function differingPath(left: unknown, right: unknown): Path {

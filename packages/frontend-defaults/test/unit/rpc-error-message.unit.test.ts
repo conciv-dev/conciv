@@ -2,11 +2,12 @@ import {describe, expect, test} from 'vitest'
 import {ORPCError} from '@orpc/client'
 import {engineUnreachable} from '@conciv/client'
 import {classifyRpcError} from '../../src/shell/rpc-error-message.js'
+import {paneErrors} from '../../src/pane/errors.js'
 
 describe('an error screen picks what to tell the user', () => {
   const unreachable = "conciv couldn't reach the engine. Check that the dev server is still running."
   const generic = 'Something went wrong. Try again.'
-  test.each<[string, unknown, {message: string; transportFailure: boolean}]>([
+  test.each<[string, unknown, {message: string; fix?: string; transportFailure: boolean}]>([
     [
       'the engine cannot be reached',
       engineUnreachable('Cannot send message, WebSocket is not open.'),
@@ -21,6 +22,11 @@ describe('an error screen picks what to tell the user', () => {
       'the engine answers with its own message',
       new ORPCError('NOT_FOUND', {message: 'Session ses_1 was not found'}),
       {message: 'Session ses_1 was not found', transportFailure: false},
+    ],
+    [
+      'conciv refuses with a fix the user can follow',
+      paneErrors.PREVIEW_READ_ONLY(),
+      {message: 'the session preview is read-only', fix: 'Open the session to write in it.', transportFailure: false},
     ],
   ])('when %s', (_situation, error, shown) => {
     expect(classifyRpcError(error, unreachable, generic)).toEqual(shown)

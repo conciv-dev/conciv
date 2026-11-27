@@ -21,6 +21,7 @@ import type {AppData, PendingDraftAttachment} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 import type {DraftSink} from './pane-attachments.js'
 import {decodeNotes, durableNote, noteValue} from '../composer/note-schema.js'
+import {paneErrors} from './errors.js'
 
 type DraftReconcile = {kind: 'local'; saveToEngine: boolean} | {kind: 'engine'} | {kind: 'cleared'} | {kind: 'empty'}
 
@@ -664,7 +665,7 @@ export async function editDraft(
   })
   settleKeptSave(appData, keep, sessionId, kept)
   if (kept.keptLocally || (await kept.saving)) return
-  throw new Error('neither this browser nor the engine holds the edited draft')
+  throw paneErrors.DRAFT_NOT_KEPT({change: 'edited'})
 }
 
 async function settleKept(drafts: DraftStore, sessionId: string, updatedAt: number, saved: boolean): Promise<void> {
@@ -782,7 +783,7 @@ export async function carryMovedDraft(
   const kept = await keepInDraft(appData, keep, sessionId, 'first', () => Promise.resolve(moved))
   settleKeptSave(appData, keep, sessionId, kept)
   if (kept.keptLocally || (await kept.saving)) return
-  throw new Error('neither this browser nor the engine holds the moved draft')
+  throw paneErrors.DRAFT_NOT_KEPT({change: 'moved'})
 }
 
 const textAdded = (text: string, items: readonly DraftItem[]) => (): Promise<MovedDraft> =>

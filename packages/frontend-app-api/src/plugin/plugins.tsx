@@ -13,6 +13,7 @@ import {
   type PluginExperimentalEffect,
   type PluginExperimentalEvent,
 } from './plugin-experimental-machine'
+import {pluginErrors} from './errors'
 
 export type PluginExperimentalSource = {
   readonly pluginExperimentals: () => Promise<BridgePluginExperimentals>
@@ -129,7 +130,7 @@ async function evaluate(
 }
 
 function fetchChunks(client: ConcivClient | undefined, id: string, file: string) {
-  if (!client) return Promise.reject(new Error(`conciv has no engine connection to load ${file} of the plugin ${id}`))
+  if (!client) return Promise.reject(pluginErrors.NO_ENGINE_CONNECTION({file, id}))
 
   return client.plugin.experimentalChunk({id, file}).then((result) => result.data.chunks)
 }

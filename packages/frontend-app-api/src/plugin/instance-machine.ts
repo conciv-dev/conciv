@@ -1,10 +1,14 @@
-import {sortBy} from 'es-toolkit'
+import {isEqual, sortBy} from 'es-toolkit'
 import type {Cleanup} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
+import {EvlogError} from 'evlog'
+import {pluginErrors} from './errors'
 
 export type PluginStatus = 'loading' | 'active' | 'failed' | 'disabled'
 
-export type PluginFailure = {readonly phase: 'setup' | 'render'; readonly error: string}
+type FailureText = {readonly error: string; readonly fix: string | undefined}
+
+export type PluginFailure = FailureText & {readonly phase: 'setup' | 'render'}
 
 export type PluginSetup = (ctx: never) => Cleanup | void
 
@@ -24,9 +28,9 @@ export type PluginEntry<I> =
       readonly status: 'active'
       readonly attempt: number
       readonly instance: I | undefined
-      readonly renderError: string | undefined
+      readonly renderError: FailureText | undefined
     })
-  | (Listing & {readonly status: 'failed'; readonly error: string})
+  | (Listing & FailureText & {readonly status: 'failed'})
 
 type Running<I> = Extract<PluginEntry<I>, {status: 'loading' | 'preparing' | 'active'}>
 
@@ -128,7 +132,7 @@ export function transitionPluginHost<I>(state: PluginHostState<I>, event: Plugin
 
     const error = formatError(event.cause)
 
-    if (entry.renderError === error) return step(state, log)
+    if (isEqual(entry.renderError, error)) return step(state, log)
 
     return step(put(state, event.id, {...entry, renderError: error}), log)
   }
@@ -222,7 +226,7 @@ export function transitionPluginHost<I>(state: PluginHostState<I>, event: Plugin
 
   if (entry.attempt !== event.attempt) return step(state)
 
-  return fail(state, event.id, entry, new Error('Plugin activation timed out'))
+  return fail(state, event.id, entry, pluginErrors.ACTIVATION_TIMED_OUT())
 }
 
 export function selectPluginStatus<I>(state: PluginHostState<I>, id: string): PluginStatus | undefined {
@@ -238,9 +242,9 @@ export function selectPluginStatus<I>(state: PluginHostState<I>, id: string): Pl
 export function selectPluginFailure<I>(state: PluginHostState<I>, id: string): PluginFailure | undefined {
   const entry = state.plugins[id]
 
-  if (entry?.status === 'failed') return {phase: 'setup', error: entry.error}
+  if (entry?.status === 'failed') return {phase: 'setup', error: entry.error, fix: entry.fix}
 
-  if (entry?.status === 'active' && entry.renderError !== undefined) return {phase: 'render', error: entry.renderError}
+  if (entry?.status === 'active' && entry.renderError !== undefined) return {phase: 'render', ...entry.renderError}
 
   return undefined
 }
@@ -354,7 +358,7 @@ function start<I>(state: PluginHostState<I>, id: string, listed: Entry, override
 
 function fail<I>(state: PluginHostState<I>, id: string, entry: Running<I>, cause: unknown) {
   return step(
-    put(state, id, {status: 'failed', listed: entry.listed, override: entry.override, error: formatError(cause)}),
+    put(state, id, {status: 'failed', listed: entry.listed, override: entry.override, ...formatError(cause)}),
     [...teardown(id, entry), {type: 'log', id, cause}],
   )
 }
@@ -385,8 +389,9 @@ function put<I>(state: PluginHostState<I>, id: string, entry: PluginEntry<I>): P
   return {...state, plugins: {...state.plugins, [id]: entry}}
 }
 
-function formatError(cause: unknown) {
-  return cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)
+function formatError(cause: unknown): FailureText {
+  const fix = EvlogError.isEvlogError(cause) ? cause.fix : undefined
+  return {error: cause instanceof Error ? (cause.stack ?? cause.message) : String(cause), fix}
 }
 
 function step<I>(state: PluginHostState<I>, effects: readonly PluginHostEffect<I>[] = []): PluginHostTransition<I> {

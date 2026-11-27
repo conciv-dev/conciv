@@ -13,6 +13,7 @@ import type {LauncherAnchor} from '../lib/draggable-position.js'
 import type {PreferencesApi} from '../settings/preferences-schema.js'
 import type {ServerBinding} from '@internal/frontend-app-api/plugin/servers'
 import type {LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
+import {appErrors} from './errors.js'
 
 export type AppContextValue = {
   rpc: EngineClient
@@ -43,7 +44,7 @@ export const AppContext = createContext<AppContextValue>()
 
 function useAppScope<Selected>(hook: string, select: (app: AppContextValue) => Selected): Selected {
   const value = useContext(AppContext)
-  if (!value) throw new Error(`${hook} called outside the app provider`)
+  if (!value) throw appErrors.OUTSIDE_PROVIDER({hook, provider: 'the app provider'})
   return select(value)
 }
 
