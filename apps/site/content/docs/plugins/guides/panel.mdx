@@ -3,17 +3,17 @@ title: Add a panel
 description: Add a tab to the session's pane, next to the chat, and draw your plugin's own screen in it.
 ---
 
-The last section imports `@conciv/client`, which the tutorial did not install. The widget provides it at run time,
+The last section imports `@conciv/client`. The tutorial did not install it. The widget provides it at run time,
 and the install gives your editor its types.
 
 ```package-install
 npm install -D @conciv/client
 ```
 
-A panel adds a tab next to the chat, for something your plugin shows all the time: a list, a log, a live run. The
-browser part is written with Solid components and plain async functions.
+A panel adds a tab next to the chat, for something your plugin shows all the time: a list, a log, a live run. You
+write the browser part with Solid components and plain async functions.
 
-## Basic
+## Add a tab
 
 Add the panel in your plugin's browser part:
 
@@ -52,9 +52,9 @@ export default Plugin.define({
 A few things to notice:
 
 - `title` is the tab's name. The strip draws `label` when you give one, and the title when you do not.
-- `list` returns the tabs to show. It runs again when what it reads changes, so return a pinned tab every time.
-- `render` draws a tab's content once, and your component updates itself from then on.
-- `props.session` is the session on screen. Read it where you use it, since it changes without a remount.
+- `list` returns the tabs to show. It runs again when what it reads changes. Return a pinned tab every time.
+- `render` draws a tab's content once. Your component updates itself from then on.
+- `props.session` is the session on screen. Read it where you use it. It changes without a remount.
 
 Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
