@@ -1,6 +1,87 @@
 ---
 title: TanStack Start
-description: 'Add conciv to a TanStack Start app.'
+description: Add conciv to a TanStack Start app, which runs on Vite.
 ---
 
-This page is being written.
+TanStack Start runs on Vite, so conciv joins it as the same `conciv()` Vite plugin, beside `tanstackStart()`.
+
+<Callout type="success" title="Prefer to let your agent do it?">
+  Copy this prompt into your coding agent. It runs conciv's init command, which makes the same changes as below.
+
+  <SetupPrompt framework="tanstack-start" />
+</Callout>
+
+## Basic
+
+Install `@conciv/it` as a dev dependency:
+
+```package-install
+npm install -D @conciv/it
+```
+
+Add `conciv()` to the plugins of your `vite.config.ts`:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import {tanstackStart} from '@tanstack/react-start/plugin/vite'
+import viteReact from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite' // [!code ++]
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    viteReact(),
+    conciv(), // [!code ++]
+  ],
+})
+```
+
+Start your dev server with `npm run dev`, open your app, and click the conciv button. Type the 6-digit code your dev
+server prints. Learn more in the [Logging in documentation](/docs/usage/logging-in).
+
+## What works
+
+Everything that works on [Vite](/docs/bundlers/vite):
+
+- The widget on every page, server-rendered ones included, and the engine that starts with `vite dev`.
+- The [dev server tools](/docs/usage/dev-server): the agent reads your config, URLs and module graph.
+- `vite build` leaves conciv out.
+
+## Add the TanStack plugin
+
+The TanStack plugin gives the agent your build errors, your route list and recent server function calls:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import {tanstackStart} from '@tanstack/react-start/plugin/vite'
+import viteReact from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    viteReact(),
+    conciv({
+      plugins: ['@conciv/plugin-tanstack'], // [!code ++]
+    }),
+  ],
+})
+```
+
+Restart your dev server to load it. Learn more in the [Add plugins documentation](/docs/usage/add-plugins).
+
+<Accordions type="single">
+  <Accordion title="The route list is empty or fails?">
+    The plugin reads your routes from the generated `src/routeTree.gen.ts`. When that file cannot be read, the tool says
+    so. Start the dev server once, so TanStack Router generates it.
+  </Accordion>
+  <Accordion title="init printed a snippet instead of editing the config?">
+    init edits only a config shape it can prove: one `plugins` array in the exported config object. A config built in a
+    function, as some TanStack Start templates are, can get the snippet instead. Add it as in Basic above.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Use conciv](/docs/usage):** what the agent can do in your app.
+- **[Examples](/docs/examples):** a TanStack Start app with conciv and its plugins set up.
