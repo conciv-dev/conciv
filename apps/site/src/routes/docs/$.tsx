@@ -3,18 +3,12 @@ import {DocsLayout} from 'fumadocs-ui/layouts/notebook'
 import {createServerFn} from '@tanstack/react-start'
 import {slugsToMarkdownPath, source} from '@/lib/source'
 import browserCollections from 'collections/browser'
-import {
-  DocsBody,
-  DocsDescription,
-  DocsPage,
-  DocsTitle,
-  MarkdownCopyButton,
-  ViewOptionsPopover,
-} from 'fumadocs-ui/layouts/notebook/page'
+import {DocsBody, DocsDescription, DocsPage, DocsTitle} from 'fumadocs-ui/layouts/notebook/page'
 import {baseOptions} from '@/lib/layout.shared'
 import {gitConfig, repoUrl} from '@/lib/shared'
 import {DocsSidebarSeparator} from '@/components/docs-sidebar-separator'
 import {DocsHeaderNav, docsHeaderMenuLinks} from '@/components/docs-header-nav'
+import {DocsPageActions} from '@/components/docs-page-actions'
 import {docsSearchDefaults, docsSearchSchema} from '@/lib/search-schemas'
 import {buildDocsHead} from '@/lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
@@ -63,17 +57,17 @@ const clientLoader = browserCollections.docs.createClientLoader({
       path: string
     },
   ) {
+    const actions = (
+      <DocsPageActions
+        markdownUrl={markdownUrl}
+        githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/apps/site/content/docs/${path}`}
+      />
+    )
+
     return (
-      <DocsPage toc={toc}>
-        <DocsTitle>{frontmatter.title}</DocsTitle>
-        <DocsDescription>{frontmatter.description}</DocsDescription>
-        <div className="flex flex-row gap-2 items-center border-b -mt-4 pb-6">
-          <MarkdownCopyButton markdownUrl={markdownUrl} />
-          <ViewOptionsPopover
-            markdownUrl={markdownUrl}
-            githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/apps/site/content/docs/${path}`}
-          />
-        </div>
+      <DocsPage toc={toc} tableOfContent={{footer: actions}} tableOfContentPopover={{footer: actions}}>
+        <DocsTitle className="od-display text-5xl leading-tight font-extrabold">{frontmatter.title}</DocsTitle>
+        <DocsDescription className="text-xl">{frontmatter.description}</DocsDescription>
         <DocsBody>
           <MDX components={useMDXComponents()} />
         </DocsBody>
