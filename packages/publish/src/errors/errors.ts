@@ -110,14 +110,6 @@ export const publishErrors = defineErrorCatalog('publish', {
   NO_VERSION_TO_TAG: {
     message: ({name}: {name: string}) => `${name}: no versioned manifest in the workspace to tag`,
   },
-  UNKNOWN_TASK: {
-    message: ({requested, expected}: {requested: string; expected: string}) =>
-      `unknown --task ${requested}; expected ${expected}`,
-  },
-  SHARD_PACKAGES_EMPTY: {
-    message: 'SHARD_PACKAGES is empty; nothing to run',
-    fix: 'Set SHARD_PACKAGES to the space-separated package names of this shard.',
-  },
   TURBO_TASK_EDGES: {
     message: ({violations}: {violations: string[]}) =>
       `every package task waits on its dependencies' builds through "^build", never through a "<package>#<task>" edge:\n${violations.join('\n')}`,
@@ -162,12 +154,6 @@ export const publishErrors = defineErrorCatalog('publish', {
   },
   OVER_BUDGET: {
     message: ({lines}: {lines: string[]}) => lines.join('\n'),
-  },
-  NO_PACKAGE_NAME: {
-    message: ({path}: {path: string}) => `no usable package name in ${path}`,
-  },
-  INVALID_SHARD_PACKAGE_NAME: {
-    message: ({path, name}: {path: string; name: string}) => `invalid package name in ${path}: ${name}`,
   },
   INVALID_MANIFEST: {
     message: ({path, reason}: {path: string; reason: string}) => `${path}: invalid package manifest - ${reason}`,

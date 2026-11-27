@@ -1,6 +1,5 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
-import {publishErrors} from './errors/errors.ts'
 
 export type WorkspacePackage = {name: string; e2e: boolean}
 
@@ -62,9 +61,9 @@ function readPackage(dir: string): WorkspacePackage | null {
   if (!existsSync(manifestPath)) return null
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
   if (!isRecord(manifest) || typeof manifest.name !== 'string')
-    throw publishErrors.NO_PACKAGE_NAME({path: manifestPath})
+    throw new Error(`no usable package name in ${manifestPath}`)
   if (!VALID_PACKAGE_NAME.test(manifest.name))
-    throw publishErrors.INVALID_SHARD_PACKAGE_NAME({path: manifestPath, name: manifest.name})
+    throw new Error(`invalid package name in ${manifestPath}: ${manifest.name}`)
   return {name: manifest.name, e2e: hasE2eScript(manifest)}
 }
 
