@@ -19,6 +19,8 @@ import type {ToolDomain} from './tool.js'
 import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
+export type {BundlerCode, BundlerDomain, BundlerEditor, BundlerHooks, SourceMap} from './bundler.js'
+
 export interface Context {
   readonly app: App
   readonly location: Location.Info

@@ -662,6 +662,10 @@
       "exports": ["JobDomain", "JobStartInput"]
     },
     {
+      "file": "packages/backend-plugin-api/src/{effect,promise}/bundler.ts",
+      "exports": ["BundlerDomain", "BundlerEditor", "BundlerHooks"]
+    },
+    {
       "file": "packages/backend-app-api/src/core/session.ts",
       "exports": ["Session"]
     },
