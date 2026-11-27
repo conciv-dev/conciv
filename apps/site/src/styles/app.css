@@ -304,6 +304,21 @@ html > body[data-scroll-locked] {
   color: var(--color-fd-muted-foreground);
 }
 
+.fd-scroll-container::-webkit-scrollbar {
+  height: 8px;
+}
+.fd-scroll-container::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--color-fd-muted-foreground) 45%, transparent);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .fd-scroll-container {
+    scrollbar-color: color-mix(in oklch, var(--color-fd-muted-foreground) 45%, transparent) transparent;
+  }
+}
+.twoslash-popup-container {
+  margin-right: 0;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
