@@ -24,6 +24,7 @@ export default defineConfig(
         ],
         external: ['unplugin', 'vite', 'launch-editor'],
         noExternal: ['@conciv/protocol'],
+        bundle: true,
       },
     },
   }),

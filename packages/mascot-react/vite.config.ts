@@ -8,7 +8,7 @@ export default defineConfig(
       server: {
         entries: ['src/mascot-react.ts'],
         external: ['react', /^react\//, /^@conciv\/mascot/],
-        unbundle: true,
+        bundle: false,
       },
     },
   }),

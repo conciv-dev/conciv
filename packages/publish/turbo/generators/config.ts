@@ -132,12 +132,12 @@ function publishedManifest(spec: Spec, version: string): object {
     exports: {'.': {types: `./dist/${spec.name}.d.ts`, import: `./dist/${spec.name}.js`}},
     publishConfig: {access: 'public'},
     scripts: {
-      build: 'tsdown && tsc -p tsconfig.build.json',
+      build: 'vite build',
       typecheck: 'tsc -p tsconfig.json --noEmit',
       publint: 'publint',
       attw: 'attw --pack . --profile esm-only',
     },
-    devDependencies: devDependencies(spec, {tsdown: 'catalog:'}),
+    devDependencies: devDependencies(spec, {'@internal/vite-config': 'workspace:*'}),
   }
 }
 
@@ -156,12 +156,7 @@ function templatedFiles(spec: Spec): Array<[string, string]> {
     ['vite.config.ts', 'vite.config.ts'],
     ['README.md', 'README.md'],
   ]
-  switch (spec.kind) {
-    case 'internal':
-      return shared
-    case 'published':
-      return [...shared, ['tsdown.config.ts', 'tsdown.config.ts']]
-  }
+  return shared
 }
 
 function jsonFiles(spec: Spec, version: string): Array<[string, object]> {

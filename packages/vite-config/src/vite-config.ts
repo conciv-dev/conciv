@@ -6,15 +6,18 @@ import type {EnvironmentOptions, Plugin, PluginOption, UserConfig} from 'vite'
 export type Entries = ReadonlyArray<string> | Readonly<Record<string, string>>
 
 export type LibEnvironment = {
-  entries: Entries
+  entries?: Entries
   external?: ReadonlyArray<string | RegExp>
   noExternal?: ReadonlyArray<string | RegExp> | true
-  unbundle?: true
+  bundle?: boolean
   banner?: string
   define?: Readonly<Record<string, string>>
   outDir?: string
   jsx?: 'preserve'
   types?: false
+  consumer?: 'client'
+  bundleDir?: string
+  typesOnly?: true
 }
 
 export type LibOptions = {
@@ -34,11 +37,23 @@ function isList(entries: Entries): entries is ReadonlyArray<string> {
   return Array.isArray(entries)
 }
 
-function resolveEntries(directory: string, base: string, entries: Entries): Record<string, string> {
-  const named: Readonly<Record<string, string>> = isList(entries)
-    ? Object.fromEntries(entries.map((path) => [relative(base, path).slice(0, -extname(path).length), path]))
-    : entries
-  return Object.fromEntries(Object.entries(named).map(([name, path]) => [name, join(directory, path)]))
+function namedEntries(entries: Entries): Readonly<Record<string, string>> {
+  if (!isList(entries)) return entries
+  const base = commonDirectory(entries)
+  return Object.fromEntries(entries.map((path) => [relative(base, path).slice(0, -extname(path).length), path]))
+}
+
+function splitBundled([name, environment]: [string, LibEnvironment]): Array<[string, LibEnvironment]> {
+  const named = environment.entries ? Object.entries(namedEntries(environment.entries)) : []
+  if (environment.bundle !== true || environment.types === false || named.length < 2) return [[name, environment]]
+  const consumer = environment.consumer ?? (name === 'client' ? 'client' : undefined)
+  return [
+    [name, {...environment, types: false}],
+    ...named.map(([entry, path]): [string, LibEnvironment] => [
+      `${name}_types_${entry.replaceAll(/[^\w$]/g, '_')}`,
+      {...environment, consumer, entries: {[entry]: path}, typesOnly: true},
+    ]),
+  ]
 }
 
 function environmentOptions(
@@ -47,24 +62,42 @@ function environmentOptions(
   options: LibEnvironment,
   first: boolean,
 ): EnvironmentOptions {
-  const server = name !== 'client'
-  const base = commonDirectory(isList(options.entries) ? options.entries : Object.values(options.entries))
+  if (!options.entries) return {consumer: options.consumer}
+  const server = name !== 'client' && options.consumer !== 'client'
+  const named = namedEntries(options.entries)
+  const base = commonDirectory(Object.values(named))
   const noExternal = options.noExternal === true ? true : [...(options.noExternal ?? [])]
+  const count = Object.keys(named).length
+  const unbundled = options.bundle === false || (options.bundle !== true && !options.bundleDir && count > 1)
   return {
+    consumer: options.consumer,
     resolve: server ? {external: true, noExternal} : {},
     define: options.define,
     build: {
-      lib: {entry: resolveEntries(directory, base, options.entries), formats: ['es']},
+      lib: {
+        entry: Object.fromEntries(Object.entries(named).map(([entry, path]) => [entry, join(directory, path)])),
+        formats: ['es'],
+      },
       outDir: options.outDir,
       emptyOutDir: first,
-      sourcemap: !options.jsx,
+      sourcemap: !options.jsx && !options.bundleDir,
       emitAssets: server || undefined,
       rolldownOptions: {
         external: [...(options.external ?? [])],
         output: {
           banner: options.banner,
-          ...(options.unbundle ? {preserveModules: true, preserveModulesRoot: join(directory, base)} : {}),
+          ...(unbundled
+            ? {preserveModules: true, preserveModulesRoot: join(directory, base), virtualDirname: `_virtual/${name}`}
+            : {}),
           ...(options.jsx ? {entryFileNames: '[name].jsx', chunkFileNames: '[name]-[hash].jsx'} : {}),
+          ...(options.bundleDir
+            ? {
+                entryFileNames: `${options.bundleDir}/[name]-[hash].js`,
+                chunkFileNames: `${options.bundleDir}/[name]-[hash].js`,
+                assetFileNames: `${options.bundleDir}/[name]-[hash][extname]`,
+                minify: true,
+              }
+            : {}),
         },
       },
     },
@@ -80,14 +113,16 @@ function packageTypes(): Plugin {
       async handler(id, importer) {
         if (!importer || !/\.d\.[cm]?ts$/.test(importer)) return null
         const resolved = await this.resolve(id, importer, {skipSelf: true}).catch(() => null)
-        return !resolved || resolved.external || resolved.id.includes('/node_modules/') ? {id, external: true} : null
+        const source = resolved && !resolved.external && !/\/(dist|node_modules)\//.test(resolved.id)
+        return source ? null : {id, external: true}
       },
     },
   }
 }
 
-function declarations(directory: string, name: string): PluginOption[] {
-  return [packageTypes(), ...dts({cwd: directory, tsconfig: 'tsconfig.build.json', sourcemap: true})].map((plugin) => ({
+function declarations(directory: string, name: string, emitDtsOnly: boolean): PluginOption[] {
+  const plugins = dts({cwd: directory, tsconfig: 'tsconfig.build.json', sourcemap: true, emitDtsOnly})
+  return [packageTypes(), ...plugins].map((plugin) => ({
     ...plugin,
     apply: 'build',
     applyToEnvironment: (candidate) => candidate.name === name,
@@ -96,12 +131,17 @@ function declarations(directory: string, name: string): PluginOption[] {
 
 export function libConfig(options: LibOptions): UserConfig {
   const directory = dirname(fileURLToPath(options.root))
-  const environments = Object.entries(options.environments)
-  const typed = environments.filter(([, entry]) => entry.types !== false && !entry.jsx).map(([name]) => name)
+  const environments = Object.entries(options.environments).flatMap(splitBundled)
+  const typed = environments.filter(
+    ([, entry]) => entry.entries && entry.types !== false && !entry.jsx && !entry.bundleDir,
+  )
   const preservesJsx = environments.some(([, entry]) => entry.jsx === 'preserve')
   return {
     oxc: {exclude: [/\.js$/, /\.d\.[cm]?ts$/, ...(preservesJsx ? [/\.tsx$/] : [])]},
-    plugins: [...(options.plugins ?? []), ...typed.flatMap((name) => declarations(directory, name))],
+    plugins: [
+      ...(options.plugins ?? []),
+      ...typed.flatMap(([name, entry]) => declarations(directory, name, entry.typesOnly === true)),
+    ],
     environments: Object.fromEntries(
       environments.map(([name, entry], index) => [name, environmentOptions(directory, name, entry, index === 0)]),
     ),

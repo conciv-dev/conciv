@@ -31,6 +31,7 @@ export default defineConfig(
           'src/pi/pi.ts',
         ],
         noExternal: [/^@tanstack\/ai-(acp|claude-code|codex|opencode)(\/|$)/],
+        bundle: true,
       },
     },
   }),

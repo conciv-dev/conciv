@@ -40,7 +40,6 @@ export default defineConfig(
           'src/protocol.ts',
           'src/simulation.ts',
         ],
-        unbundle: true,
       },
     },
   }),

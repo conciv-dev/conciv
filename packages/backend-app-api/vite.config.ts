@@ -14,7 +14,6 @@ export default defineConfig(
           cwd: fileURLToPath(new URL('.', import.meta.url)),
           exclude: ['src/**/*.test.ts', 'src/**/*.d.ts'],
         }),
-        unbundle: true,
       },
     },
   }),

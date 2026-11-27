@@ -38,7 +38,7 @@
   "scripts": {
     "gen:tokens": "node src/scripts/gen-tokens.ts",
     "gen:check": "node src/scripts/check-tokens.ts",
-    "build": "pnpm gen:tokens && vite build && tsc -p tsconfig.build.json",
+    "build": "pnpm gen:tokens && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints tokens.css host.css"
@@ -61,6 +61,7 @@
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
     "postcss": "catalog:",

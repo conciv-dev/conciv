@@ -22,7 +22,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -31,9 +31,11 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:"
+    "unocss": "catalog:",
+    "vite": "catalog:"
   },
   "peerDependencies": {
     "unocss": "^66.7.2"

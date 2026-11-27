@@ -1,21 +1,16 @@
-import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import {libConfig} from '@internal/vite-config'
 
-export default defineConfig({
-  plugins: [solid()],
-  build: {
-    lib: {
-      entry: {
-        solid: fileURLToPath(new URL('src/solid/conciv-lockup.tsx', import.meta.url)),
+export default defineConfig(
+  libConfig({
+    root: import.meta.url,
+    plugins: [solid()],
+    environments: {
+      client: {
+        entries: {solid: 'src/solid/conciv-lockup.tsx'},
+        external: [/^solid-js/, /^motion/],
       },
-      formats: ['es'],
     },
-    rollupOptions: {
-      external: [/^solid-js/, /^motion/],
-    },
-    emptyOutDir: true,
-
-    sourcemap: true,
-  },
-})
+  }),
+)

@@ -7,9 +7,7 @@ export default defineConfig(
     root: import.meta.url,
     plugins: [concivTest()],
     environments: {
-      server: {
-        entries: ['src/backend-test-utils.ts', 'src/browser.ts', 'src/vitest.ts'],
-      },
+      server: {entries: ['src/backend-test-utils.ts', 'src/browser.ts', 'src/vitest.ts'], bundle: true},
     },
   }),
 )

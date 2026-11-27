@@ -7,7 +7,7 @@ import {typecheckProjects} from './typecheck-coverage.ts'
 import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]s|[jt]sx)$/
-const BUILD_CONFIG = /^(?:tsdown|vite)\.config\.[cm]?[jt]s$/
+const BUILD_CONFIG = /^vite\.config\.[cm]?[jt]s$/
 const NON_BUILD_FILE = /(?:^|\/)(?:test|__tests__)\/|\.(?:test|spec|stories|fixtures)\.[^/]+$/
 const WORKSPACE_IMPORT =
   /(?:\bfrom|\bimport|\bimport\.meta\.resolve\(|\bimport\(|\brequire\()\s*['"](@conciv\/[a-z0-9-]+)(?:\/[^'"]*)?['"]/g
