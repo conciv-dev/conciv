@@ -5,15 +5,14 @@ import {ConfigProvider} from 'effect'
 import {main} from '@conciv/cli/commands'
 import {harnessRegistry} from '@conciv/harness'
 
+function readParam(param) {
+  const syntax = param.cli.syntax
+  if (syntax === undefined) return []
+  return [{name: param.name, kind: syntax.type, label: syntax.label, description: param.description}]
+}
+
 function readParams(route) {
-  return route.phases.flatMap((phase) =>
-    Object.values(phase.model.params).map((param) => ({
-      name: param.name,
-      kind: param.cli.syntax.type,
-      label: param.cli.syntax.label,
-      description: param.description,
-    })),
-  )
+  return route.phases.flatMap((phase) => Object.values(phase.model.params).flatMap(readParam))
 }
 
 function isInherited(param, inherited) {
