@@ -105,9 +105,9 @@ Rules that hold the layout:
   `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
   inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
   and no dependent and no build, and a `src` edit reruns every dependent through `^build`. A UnoCSS config scans
-  only its own package and packages it depends on (the app: its kits and the built-in plugins page, terminal and
-  ios); any other plugin builds its own utilities-only sheet (`presetConciv({sheet: 'plugin'})`) and adds it with
-  `ctx.add(Style, css)`. That holds only while every task `test` and `typecheck` depend on (`build`) excludes tests,
+  only its own package and packages it depends on (the app: its kits); no package scans a plugin's source, and every
+  plugin, the built-ins page, terminal and ios included, builds its own utilities-only sheet
+  (`presetConciv({sheet: 'plugin'})`) and adds it with `ctx.add(Style, css)`. That holds only while every task `test` and `typecheck` depend on (`build`) excludes tests,
   specs and stories from its `inputs`, as the `content.filesystem` globs do. `apps/storybook` keeps one root input:
   the story files it reads, which no build reads. `--filter=...[ref]` ignores the flag and
   still selects whole packages plus manifest dependents.

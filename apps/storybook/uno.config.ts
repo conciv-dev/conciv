@@ -9,7 +9,6 @@ export default defineConfig({
       '../../packages/ui-kit-chat/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-chat-tools/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-tap/src/**/*.{ts,tsx}',
-      '../../packages/plugins/page/src/**/*.{ts,tsx}',
     ],
   },
   presets: [presetConciv()],
