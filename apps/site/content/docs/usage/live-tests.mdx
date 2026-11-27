@@ -3,9 +3,9 @@ title: Live tests
 description: Ask the agent to run your tests, and read the result in the chat.
 ---
 
-Live tests come from the test runner plugin, `@conciv/plugin-test-runner`, which runs your project's tests when you ask.
+Live tests come from the test runner plugin, `@conciv/plugin-test-runner`. It runs your project's tests when you ask.
 
-## Basic
+## Add the test runner
 
 Add the plugin to the `plugins` option of your conciv config:
 
@@ -60,7 +60,7 @@ module.exports = {
 ```
 
 Restart your dev server. The engine installs the plugin from npm into its own cache, so it does not go in your
-`package.json`. Your test framework does: the plugin runs the one installed in your project.
+`package.json`. Your test framework does. The plugin runs the one installed in your project.
 
 Then ask in plain words:
 
@@ -92,7 +92,7 @@ the rows appear together when the run ends.
 
 ## Ask about the last run
 
-The agent can read the last result without running again, or list your test files without running them:
+The agent can read the last result without a new run. It can also list your test files without running them:
 
 ```text title="Prompt"
 Which tests failed in the last run? Which test files cover the checkout?
@@ -124,7 +124,7 @@ export default defineConfig({
 </Callout>
 
 <Accordions type="single">
-  <Accordion title="The run fails before any test runs?">
+  <Accordion title="The run fails before any test runs">
     The message says why: the framework is not installed in your project, or its config fails to load. Install it, or
     fix the config, and ask again.
   </Accordion>
@@ -132,7 +132,7 @@ export default defineConfig({
 
 ## Options
 
-This table is generated from the schema the plugin checks its options with.
+conciv generates this table from the schema the plugin checks its options with.
 
 <TestRunnerOptions />
 
