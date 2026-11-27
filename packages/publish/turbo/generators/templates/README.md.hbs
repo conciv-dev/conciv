@@ -25,4 +25,5 @@
 
 - Typecheck and lint: run the `typecheck` script in `{{directory}}`, then `pnpm lint` at the repo root.
 - Tests: the package has no `test` script yet, because `vitest run` with no test file fails. Add
-  `"test": "vitest run"` to `package.json` with the first test, in `test/unit`, `test/it` or `test/e2e`.
+  `"test": "vitest run"` to `package.json` with the first test. `vite.config.ts` runs `test/unit/**/*.unit.test.ts`
+  and `test/it/**/*.it.test.ts`{{#if browserTests}}, and `test/e2e/**/*.e2e.test.tsx` in browser mode{{/if}}.

@@ -2,5 +2,9 @@ import {defineConfig} from 'vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig({
+{{#if browserTests}}
+  plugins: [concivTest({browser: true})],
+{{else}}
   plugins: [concivTest()],
+{{/if}}
 })

@@ -181,7 +181,13 @@ function jsonFiles(spec: Spec, version: string): Array<[string, object]> {
 }
 
 function templateData(spec: Spec): object {
-  return {...spec, packageName: packageName(spec), directory: directory(spec), sourceOnly: spec.kind === 'internal'}
+  return {
+    ...spec,
+    packageName: packageName(spec),
+    directory: directory(spec),
+    sourceOnly: spec.kind === 'internal',
+    browserTests: spec.runtime !== 'node',
+  }
 }
 
 const readSpec = Effect.fn('readSpec')(function* (answers: PlopTypes.Answers) {

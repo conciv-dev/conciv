@@ -169,6 +169,9 @@ describe('turbo gen package', () => {
       expect(yield* read('packages/gen-check-web/tsconfig.json')).toContain('@internal/tsconfig/tsconfig.web.json')
       expect(yield* read('packages/gen-check-both/tsconfig.json')).toMatch(/tsconfig\.web\.json[\s\S]*"node"/)
       expect(yield* read('packages/gen-check-both/vite.config.ts')).toContain('@internal/vitest-config/conciv-test')
+      expect(yield* read('packages/gen-check-web/vite.config.ts')).toContain('browser: true')
+      expect(yield* read('packages/gen-check-both/vite.config.ts')).toContain('browser: true')
+      expect(yield* read('packages/gen-check-node/vite.config.ts')).not.toContain('browser: true')
 
       const guards = yield* read('packages/publish/src/guards.ts')
       const fallow = yield* read('.fallowrc.json')
