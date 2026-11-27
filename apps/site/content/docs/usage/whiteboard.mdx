@@ -3,80 +3,61 @@ title: Whiteboard
 description: Sketch on a canvas over your app, and have the agent build it or draw back.
 ---
 
-Open the whiteboard, sketch a rough layout over your app, and ask the agent to build it:
+The whiteboard is an [Excalidraw](https://excalidraw.com) canvas over your app that you and the agent draw on
+together.
 
-```text
+<Callout type="warn" title="Example apps only">
+  The whiteboard plugin is not on npm yet. Today it runs only in the example apps inside the conciv repo, which load it
+  from its folder. Learn more in the [Examples documentation](/docs/examples).
+</Callout>
+
+## Basic
+
+Click **Whiteboard** above the composer. The canvas opens over the page, and the chat stays usable above it. Sketch a
+rough layout, then ask:
+
+```text title="Prompt"
 Build the layout I sketched on the whiteboard, using our Card component.
 ```
 
-The whiteboard is an [Excalidraw](https://excalidraw.com) canvas that you and the agent share. You both draw on the same
-surface.
-
-<Callout type="warn">
-  The whiteboard plugin is not on npm yet. Today it runs only in the example apps inside the conciv repo, which load it
-  from its folder. See [Examples](/docs/examples).
-</Callout>
-
-## Open the canvas
-
-Click **Whiteboard** above the composer. The canvas opens over the page, and the chat stays usable above it. Press
-Escape to close it.
-
-The canvas is see-through, so your page shows under your sketch. For a solid canvas, turn off **Canvas background** in
-the general settings.
+Press Escape to close the canvas. It is see-through, so your page shows under your sketch. For a solid canvas, turn
+off **Canvas background** in the general settings.
 
 ## Have the agent draw
 
 Ask for a diagram of what you are both looking at:
 
-```text
+```text title="Prompt"
 Draw a diagram of how the checkout page loads its data.
 ```
 
-The agent draws real Excalidraw shapes, not a picture. Move, restyle or delete anything it drew. It can draw shapes,
-connect them with arrows, convert an SVG, and turn a mermaid diagram into shapes.
+The agent draws real Excalidraw shapes, not a picture, so you can move, restyle or delete anything it drew. It can
+connect shapes with arrows, convert an SVG, and turn a mermaid diagram into shapes.
 
 ## Comment on an element
 
 Click **Comment** above the composer, then click an element on the page. The comment is tied to the component's
-source, not to a spot on the canvas.
+source, not to a spot on the canvas. The agent can comment too, and work through yours:
 
-The agent can comment too, and reply to yours:
-
-```text
-Leave a comment on each component that still uses the old button.
-```
-
-Ask it to work through the open comments:
-
-```text
+```text title="Prompt"
 Go through my comments on the whiteboard and fix each one. Resolve the ones you fixed.
 ```
 
-## Details
+Deleting an element, clearing the canvas, and resolving or deleting a comment each show a [Permission
+card](/docs/usage/approvals) first.
 
 <Accordions type="single">
-  <Accordion title="What asks you first">
-    Deleting an element, clearing the canvas, resolving a comment and deleting a comment each show a [Permission
-    card](/docs/usage/approvals) first.
-  </Accordion>
-  <Accordion title="The agent draws in a draft">
-    The agent draws into a draft first, then adds it to the shared canvas. A draft still open when its turn ends is
-    added for it.
-  </Accordion>
-  <Accordion title="Where the board is kept">
+  <Accordion title="Where is the board kept?">
     Each chat session has its own board. The engine keeps it in your project's conciv state, on your machine. Every open
     tab shows the same board as it changes.
   </Accordion>
-  <Accordion title="Closing keeps the board">
-    Closing the canvas only hides it. It stays loaded, so the agent can keep drawing while it is closed.
-  </Accordion>
-  <Accordion title="The tool names">
-    In code mode the tools are called `external_whiteboard_*`, such as `external_whiteboard_canvas_diagram`.
+  <Accordion title="Does closing the canvas stop the agent drawing?">
+    No. Closing only hides the canvas. The agent draws into a draft first, then adds it to the board, even while the
+    canvas is closed.
   </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Page control](/docs/usage/page-control): have the agent change the page directly.
-- [Plugins conciv ships](/docs/usage/add-plugins): the whiteboard and the other plugins.
+- **[Page control](/docs/usage/page-control):** have the agent change the page directly.
+- **[Add plugins](/docs/usage/add-plugins):** the plugins you can add to your own app.
