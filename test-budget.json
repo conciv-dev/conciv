@@ -16,7 +16,7 @@
   "@conciv/plugin-tanstack": 6,
   "@internal/plugin-terminal": 5,
   "@conciv/plugin-test-runner": 9,
-  "@conciv/plugin-try-it": 3,
+  "@conciv/plugin-try-it": 4,
   "@conciv/plugin-whiteboard": 19,
   "@internal/publish": 11,
   "@conciv/solid-streamdown": 4,

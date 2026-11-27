@@ -6,6 +6,12 @@ type ConnectTimings = {readonly probeMs: number; readonly holdMs: number; readon
 
 type ConnectInput = {readonly timings: ConnectTimings}
 
+const PROBE_BACK_OFF_CAP = 5
+
+function probeBackOff(probeMs: number) {
+  return Schedule.min([Schedule.exponential(probeMs), Schedule.spaced(probeMs * PROBE_BACK_OFF_CAP)])
+}
+
 type Connection = {
   readonly state: SubscriptionRef.SubscriptionRef<TryItConnectMachine.ConnectState>
   readonly dispatch: (event: TryItConnectMachine.ConnectEvent) => Effect.Effect<void>
@@ -21,7 +27,7 @@ export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInpu
 
   const sweep = Effect.fn('try-it.sweep')(function* (attempt: number, retry: boolean) {
     const spaced = probe.pipe(
-      Effect.retry({while: Predicate.isTagged('TryIt.ProbeSilent'), schedule: Schedule.spaced(input.timings.probeMs)}),
+      Effect.retry({while: Predicate.isTagged('TryIt.ProbeSilent'), schedule: probeBackOff(input.timings.probeMs)}),
     )
     yield* (retry ? spaced : probe).pipe(
       Effect.matchEffect({
