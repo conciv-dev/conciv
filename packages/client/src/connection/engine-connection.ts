@@ -1,24 +1,32 @@
-import {createORPCClient, mapEventIterator, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
-import {StandardRPCLink, type StandardLinkClient, type StandardLinkPlugin} from '@orpc/client/standard'
 import {
-  ClientRetryPlugin,
-  type ClientRetryPluginAttemptOptions,
-  type ClientRetryPluginContext,
-} from '@orpc/client/plugins'
+  createORPCClient,
+  ORPCError,
+  wrapAsyncIteratorPreservingEventMeta,
+  type ClientLink,
+  type ClientOptions,
+} from '@orpc/client'
 import {
-  getContractRouter,
-  getEventIteratorSchemaDetails,
-  isContractProcedure,
-  type ContractRouterClient,
+  RPCLinkCodec,
+  StandardLink,
+  type StandardLinkInterceptor,
+  type StandardLinkPlugin,
+  type StandardLinkTransport,
+} from '@orpc/client/standard'
+import {createEffectClient} from '@orpc/effect'
+import {RetryLinkPlugin, type RetryLinkPluginAttemptOptions, type RetryLinkPluginContext} from '@orpc/client/plugins'
+import {
+  getAsyncIteratorObjectSchemasDetails,
+  getRouterContract,
+  ProcedureContract,
+  type RouterContractClient,
 } from '@orpc/contract'
 import {
-  decodeResponseMessage,
-  encodeRequestMessage,
-  experimental_ClientPeerWithoutCodec as ClientPeer,
-  MessageType,
-  type DecodedRequestMessage,
-  type EncodedMessage,
-} from '@orpc/standard-server-peer'
+  ClientPeer,
+  decodePeerMessage,
+  encodePeerMessage,
+  isServerPeerSendMessage,
+  type ClientPeerSendMessage,
+} from '@standard-server/peer'
 import {
   Clock,
   Deferred,
@@ -39,7 +47,9 @@ import {
 import {Socket} from 'effect/socket'
 import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/types/rpc-types'
-import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
+import {contract, contractCode, engineErrors, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
+import {EvlogError} from 'evlog'
+import {clientErrors} from './client-errors.js'
 import {
   createConnectionState,
   defaultEngineConnectionTimings,
@@ -52,7 +62,7 @@ import {
   type TrustStatus,
 } from './engine-connection-machine.js'
 
-export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
+export type RpcClientContext = RetryLinkPluginContext & {concivSessionId?: string}
 
 export type SessionAccessor = () => string | null
 
@@ -81,26 +91,24 @@ export type EngineConnection = {
 }
 
 const MIN_UPTIME = Duration.seconds(1)
-const UNAUTHORIZED_STATUS = 401
 const NORMAL_CLOSE_CODE = 1000
 const ABNORMAL_CLOSE_CODE = 1006
-const SOCKET_LINK_URL = 'http://orpc'
 const WEBSOCKET_OPEN = 1
 const SOCKET_NOT_OPEN_MESSAGE = 'Cannot send message, WebSocket is not open.'
 const CONNECTION_CLOSED_MESSAGE = 'The engine connection closed before the call was answered.'
 const EVENT_STREAM_ENDED_MESSAGE = 'The engine ended the event stream.'
 const EVENT_STREAM_PATH = 'event.subscribe'
-const INSIDE_RETRY_ORDER = 2_000_000
+const RETRY_PLUGIN = '~retry'
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 
-export type EngineUnreachable = Error & {readonly isEngineUnreachable: true}
+export type EngineUnreachable = EvlogError
 
-export function engineUnreachable(message: string, cause?: unknown): EngineUnreachable {
-  return Object.assign(new Error(message, {cause}), {isEngineUnreachable: true as const})
+export function engineUnreachable(message: string): EngineUnreachable {
+  return clientErrors.ENGINE_UNREACHABLE({message})
 }
 
 export function isEngineUnreachable(value: unknown): value is EngineUnreachable {
-  return value instanceof Error && Reflect.get(value, 'isEngineUnreachable') === true
+  return EvlogError.isEvlogError(value) && value.code === clientErrors.ENGINE_UNREACHABLE.code
 }
 
 function storageRefused(error: unknown): boolean {
@@ -147,13 +155,15 @@ function rpcSocketUrl(key: string, token: string | undefined): string {
 }
 
 function isStreamingCall(path: readonly string[]): boolean {
-  const procedure = getContractRouter(contract, path)
-  return isContractProcedure(procedure) && getEventIteratorSchemaDetails(procedure['~orpc'].outputSchema) !== undefined
+  const procedure = getRouterContract(contract, path)
+  return (
+    procedure instanceof ProcedureContract &&
+    getAsyncIteratorObjectSchemasDetails(procedure['~orpc'].outputSchemas) !== undefined
+  )
 }
 
-function frame(encoded: EncodedMessage): string | Uint8Array<ArrayBuffer> {
-  if (typeof encoded === 'string') return encoded
-  return Uint8Array.from(ArrayBuffer.isView(encoded) ? encoded : new Uint8Array(encoded))
+function peerFrame(raw: string | Uint8Array): string | Uint8Array<ArrayBuffer> {
+  return typeof raw === 'string' ? raw : Uint8Array.from(raw)
 }
 
 function closeCode(error: Socket.SocketError): number {
@@ -170,7 +180,7 @@ function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, 
 }
 
 function unauthorized(error: unknown): boolean {
-  return error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS
+  return error instanceof ORPCError && error.code === contractCode(engineErrors.UNAUTHORIZED)
 }
 
 function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
@@ -301,18 +311,20 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
       Effect.raceFirst(untilAborted(signal)),
     )
 
-  const sendFrame = async ([id, type, payload]: DecodedRequestMessage): Promise<void> => {
-    const encoded = await encodeRequestMessage(id, type, payload)
-    if (type !== MessageType.ABORT_SIGNAL) await run(settled(undefined))
-    const written = await run(writeIfOpen(frame(encoded)))
-    if (!written && type !== MessageType.ABORT_SIGNAL) throw engineUnreachable(SOCKET_NOT_OPEN_MESSAGE)
+  const sendFrame = async (message: ClientPeerSendMessage): Promise<void> => {
+    const encoded = await encodePeerMessage(message)
+    const cancelling = message.kind === 'cancel'
+    if (!cancelling) await run(settled(undefined))
+    const written = await run(writeIfOpen(encoded))
+    if (!written && !cancelling) throw engineUnreachable(SOCKET_NOT_OPEN_MESSAGE)
   }
 
-  const peer = new ClientPeer(async (message) => {
-    const sending = sendFrame(message)
-    if (message[1] === MessageType.REQUEST) return sending
-    await sending.catch((error: unknown) => peer.close({id: message[0], reason: error}))
-  })
+  const peer = new ClientPeer(sendFrame)
+
+  const closePeer = (reason: unknown): Effect.Effect<void> =>
+    Effect.tryPromise({try: () => peer.close(reason), catch: (error) => error}).pipe(
+      Effect.catch((error) => Effect.logError('[conciv] the rpc peer did not close cleanly', error)),
+    )
 
   const idleWatch = yield* RcRef.make({
     acquire: PubSub.subscribe(frames).pipe(
@@ -349,13 +361,17 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     PubSub.publish(frames, undefined).pipe(
       Effect.andThen(
         Effect.tryPromise({
-          try: async () => peer.message(await decodeResponseMessage(raw)),
+          try: async () => {
+            const decoded = decodePeerMessage(peerFrame(raw))
+            if (!decoded.matched || !isServerPeerSendMessage(decoded.message)) throw clientErrors.NOT_AN_RPC_FRAME()
+            await peer.message(decoded.message)
+          },
           catch: (error) => error,
         }),
       ),
       Effect.catch((error) =>
         Effect.logError('[conciv] the dev server sent a frame the rpc client could not read', error).pipe(
-          Effect.andThen(Effect.sync(() => peer.close({reason: error}))),
+          Effect.andThen(closePeer(error)),
         ),
       ),
     )
@@ -392,7 +408,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
         'open-socket': (opening) =>
           FiberHandle.run(attempts, connectAttempt(opening.attempt), {startImmediately: true}).pipe(Effect.asVoid),
         'close-socket': () => FiberHandle.clear(attempts),
-        'close-peer': () => Effect.sync(() => peer.close({reason: engineUnreachable(CONNECTION_CLOSED_MESSAGE)})),
+        'close-peer': () => closePeer(engineUnreachable(CONNECTION_CLOSED_MESSAGE)),
         'send-trust-frame': (trustFrame) => sendTrustFrame(trustFrame.token),
         'schedule-uptime': (uptime) =>
           FiberHandle.run(uptimeTimer, after(MIN_UPTIME, {type: 'uptime-reached', attempt: uptime.attempt}), {
@@ -429,23 +445,23 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     }
   }
 
-  const refused = async (error: unknown, credential: string | undefined): Promise<unknown> => {
+  const refused = async <E>(error: E, credential: string | undefined): Promise<E> => {
     if (unauthorized(error)) await run(dispatch({type: 'unauthorized', token: credential}))
     return error
   }
 
   const now = (): number => runNow(Clock.currentTimeMillis)
 
-  const retriable = (options: ClientRetryPluginAttemptOptions<RpcClientContext>): boolean =>
+  const retriable = (options: RetryLinkPluginAttemptOptions<RetryLinkPluginContext>): boolean =>
     !disposed() && options.signal?.aborted !== true && !(options.error instanceof ORPCError)
 
-  const streamRetriable = async (options: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
+  const streamRetriable = async (options: RetryLinkPluginAttemptOptions<RetryLinkPluginContext>): Promise<boolean> => {
     if (!unauthorized(options.error)) return retriable(options)
     await refused(options.error, current().token)
     return !disposed() && options.signal?.aborted !== true
   }
 
-  const retryDelay = async (options: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<number> => {
+  const retryDelay = async (options: RetryLinkPluginAttemptOptions<RetryLinkPluginContext>): Promise<number> => {
     if (!isStreamingCall(options.path))
       return run(Effect.sleep(Duration.millis(timings.connectionLossRetryDelayMs)).pipe(Effect.as(0)))
     if (unauthorized(options.error)) await trustedAgain(trust, options.signal)
@@ -459,51 +475,64 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     throw engineUnreachable(EVENT_STREAM_ENDED_MESSAGE)
   }
 
-  const eventStreamEnd: StandardLinkPlugin<RpcClientContext> = {
-    order: INSIDE_RETRY_ORDER,
-    init: (options) => {
-      options.interceptors = [
-        ...(options.interceptors ?? []),
-        async (call) => {
-          const output = await call.next()
-          if (call.path.join('.') !== EVENT_STREAM_PATH || !isEventIterator(output)) return output
-          return endedAsDrop(output, call.signal)
-        },
-      ]
-    },
+  const endedInterceptor: StandardLinkInterceptor<RpcClientContext> = async (call) => {
+    const output = await call.next()
+    if (call.path.join('.') !== EVENT_STREAM_PATH || !isEventIterator(output)) return output
+    return endedAsDrop(output, call.signal)
   }
 
-  const socketClient: StandardLinkClient<RpcClientContext> = {
-    call: async (request) => {
+  const eventStreamEnd: StandardLinkPlugin<RpcClientContext> = {
+    name: 'conciv-event-stream-end',
+    before: [RETRY_PLUGIN],
+    init: (options) => ({...options, interceptors: [...(options.interceptors ?? []), endedInterceptor]}),
+  }
+
+  const unauthorizedInterceptor: StandardLinkInterceptor<RpcClientContext> = async (options) => {
+    const sent = current().token
+    const output = await options.next().catch(async (error: unknown) => {
+      throw await refused(error, sent)
+    })
+    if (!isEventIterator(output)) return output
+    return wrapAsyncIteratorPreservingEventMeta(output, {mapError: (error) => refused(error, current().token)})
+  }
+
+  const unauthorizedMapping: StandardLinkPlugin<RpcClientContext> = {
+    name: 'conciv-unauthorized',
+    after: [RETRY_PLUGIN],
+    init: (options) => ({...options, interceptors: [unauthorizedInterceptor, ...(options.interceptors ?? [])]}),
+  }
+
+  const socketTransport: StandardLinkTransport<RpcClientContext> = {
+    send: async (request) => {
       await run(settled(request.signal))
       request.signal?.throwIfAborted()
       if (current().socket !== 'open') throw engineUnreachable(SOCKET_NOT_OPEN_MESSAGE)
-      const response = await peer.request(request)
-      return {...response, body: async () => response.body}
+      return peer.request(request)
     },
   }
 
-  const rpc = new StandardRPCLink<RpcClientContext>(socketClient, {
-    url: SOCKET_LINK_URL,
-    headers: sessionHeaders,
-    interceptors: [
-      async (options) => {
-        const sent = current().token
-        const output = await options.next().catch(async (error: unknown) => {
-          throw await refused(error, sent)
-        })
-        if (!isEventIterator(output)) return output
-        return mapEventIterator(output, {
-          value: async (value) => value,
-          error: async (error) => refused(error, current().token),
-        })
+  const announcedRetry = (onRetry: RpcClientContext['onRetry']): Pick<RpcClientContext, 'retryDelay' | 'onRetry'> => {
+    const announced: {retryOutcome: ReturnType<NonNullable<RpcClientContext['onRetry']>>} = {retryOutcome: undefined}
+    return {
+      retryDelay: (attempt) => {
+        announced.retryOutcome = onRetry?.(attempt)
+        return retryDelay(attempt)
       },
-    ],
+      onRetry: () => {
+        const {retryOutcome} = announced
+        announced.retryOutcome = undefined
+        return retryOutcome
+      },
+    }
+  }
+
+  const rpc = new StandardLink<RpcClientContext>(new RPCLinkCodec({headers: sessionHeaders}), socketTransport, {
     plugins: [
-      new ClientRetryPlugin<RpcClientContext>({
+      new RetryLinkPlugin<RpcClientContext>({
         default: {retry: Number.POSITIVE_INFINITY, retryDelay, shouldRetry: retriable},
       }),
       eventStreamEnd,
+      unauthorizedMapping,
     ],
   })
 
@@ -512,27 +541,32 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
       runDetached(dispatch({type: 'call-started'}))
       if (isStreamingCall(path))
         return watchedWhileOpen(() =>
-          rpc.call(path, input, {...options, context: {shouldRetry: streamRetriable, ...options.context}}),
+          rpc.call(path, input, {
+            ...options,
+            context: {shouldRetry: streamRetriable, ...options.context, ...announcedRetry(options.context.onRetry)},
+          }),
         )
       const deadline = now() + timings.callDeadlineMs
       const asked = options.context.shouldRetry
-      const callerRetries = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
+      const callerRetries = async (
+        attempt: RetryLinkPluginAttemptOptions<RetryLinkPluginContext>,
+      ): Promise<boolean> => {
         if (asked === undefined) return now() < deadline && retriable(attempt)
         return typeof asked === 'function' ? asked(attempt) : asked
       }
-      const shouldRetry = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> =>
+      const shouldRetry = async (attempt: RetryLinkPluginAttemptOptions<RetryLinkPluginContext>): Promise<boolean> =>
         !disposed() && (await callerRetries(attempt))
       return rpc.call(path, input, {...options, context: {...options.context, shouldRetry}})
     },
   }
 
-  const auth = createORPCClient<ContractRouterClient<typeof contract, RpcClientContext>>(link).auth
+  const auth = createEffectClient(createORPCClient<RouterContractClient<typeof contract, RpcClientContext>>(link)).auth
 
-  const answered = <A>(call: (signal: AbortSignal) => Promise<A>): Effect.Effect<A, unknown> =>
-    Effect.tryPromise({try: call, catch: (error) => error}).pipe(Effect.timeout(Duration.millis(timings.authTimeoutMs)))
+  const answered = <A>(call: Effect.Effect<A, unknown>): Effect.Effect<A, unknown> =>
+    call.pipe(Effect.timeout(Duration.millis(timings.authTimeoutMs)))
 
   const trustAnswer = (token: string): Effect.Effect<boolean, unknown> =>
-    answered((signal) => auth.trust({token}, {signal, context: {retry: 0}})).pipe(
+    answered(auth.trust({token}, {context: {retry: 0}})).pipe(
       Effect.map(({trusted}) => trusted),
       Effect.catchIf(unauthorized, () => Effect.succeed(false)),
     )
@@ -601,12 +635,12 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     requestTrustWithToken: (token) => run(pending(askWithToken(token)).pipe(Effect.flatMap(Deferred.await))),
     requestTrustWithCode: (code) =>
       run(
-        answered((signal) => auth.exchange({code}, {signal})).pipe(
+        answered(auth.exchange({code})).pipe(
           Effect.tap((result) => ('token' in result ? dispatch({type: 'trusted', token: result.token}) : Effect.void)),
         ),
       ),
     requestAuthCode: (options = {}) =>
-      run(answered((signal) => auth.requestCode({reissue: options.reissue ?? false}, {signal})).pipe(Effect.asVoid)),
+      run(answered(auth.requestCode({reissue: options.reissue ?? false})).pipe(Effect.asVoid)),
   }
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))

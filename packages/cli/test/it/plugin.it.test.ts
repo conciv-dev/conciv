@@ -31,7 +31,14 @@ describe('plugin call', () => {
     expect(soldOut.exitCode).toBe(1)
     expect(JSON.parse(soldOut.stdout)).toEqual({
       ok: false,
-      error: {kind: 'user', message: 'fern is sold out', code: 'PLUGIN_RPC', type: 'sold-out', data: {plant: 'fern'}},
+      error: {
+        kind: 'user',
+        message: 'fern is sold out',
+        hint: "read the plugin's error type and message and change the call to match",
+        code: 'PLUGIN_RPC',
+        type: 'sold-out',
+        data: {plant: 'fern'},
+      },
     })
   })
 })

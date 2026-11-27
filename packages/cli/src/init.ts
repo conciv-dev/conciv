@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {command, description, name, toggle} from '@bomb.sh/router'
 import type {CliOutcome} from './envelope.js'
-import {userFailure} from './failure.js'
+import {cliErrors} from './failure.js'
 import {handler} from './router/handler.js'
 import type {InitOptions, InitResult, InitRuntime} from './init/pipeline.js'
 import type {InitOutput} from './init/wizard.js'
@@ -40,7 +40,7 @@ function initOutcome(result: InitResult, json: boolean): CliOutcome {
   if (!json) return {report: 'none', code: result.outcome === 'refused' || result.outcome === 'cancelled' ? 1 : 0}
   if (result.outcome === 'completed') return {report: 'json', data: {steps: result.steps, next: result.next}}
   if (result.outcome === 'planned') return {report: 'json', data: {dryRun: true, plan: result.plan}}
-  throw userFailure(result.reason, {hint: 'nothing was written'})
+  throw cliErrors.INIT_REFUSED({reason: result.reason})
 }
 
 const InitModelSchema = z.object({yes: z.boolean(), dryRun: z.boolean(), force: z.boolean(), json: z.boolean()})

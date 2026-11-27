@@ -1,12 +1,14 @@
 import {implement} from '@orpc/server'
 import {Deferred, Effect} from 'effect'
 import {z} from 'zod'
+import type {EvlogError} from 'evlog'
 import {define as definePlugin, type Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {
   dispatchHandshake,
   SemanticSnapshotSchema,
   uiContract,
   UiStateSchema,
+  simulationErrors,
   WidgetDrive,
   type UiCapability,
   type WidgetOutcome,
@@ -27,65 +29,71 @@ const WIDGET_CAPABILITIES: readonly UiCapability[] = [
   'ui.snapshot',
 ]
 
-type Ask = (request: WidgetRequest, signal: AbortSignal | undefined) => Promise<WidgetOutcome>
-
-type ActionErrors = {readonly UI_ACTION_FAILED: (options: {message: string}) => Error}
+type Ask = (request: WidgetRequest) => Effect.Effect<WidgetOutcome, unknown>
 
 function makeRouter(ask: Ask, version: string) {
   const os = implement(uiContract).$context<SimulationControlServer.Context>()
-  const forward = async <T>(
-    schema: z.ZodType<T>,
-    request: WidgetRequest,
-    signal: AbortSignal | undefined,
-    errors: ActionErrors,
-  ): Promise<T> => {
-    const outcome = await ask(request, signal)
-    if (outcome.type === 'failure') throw errors.UI_ACTION_FAILED({message: outcome.message})
-    return schema.parse(outcome.value)
-  }
-  const unsupported = (errors: ActionErrors, name: string): never => {
-    throw errors.UI_ACTION_FAILED({message: `the widget does not support ${name}`})
-  }
+  const forward = <T>(schema: z.ZodType<T>, request: WidgetRequest): Effect.Effect<T, unknown> =>
+    ask(request).pipe(
+      Effect.flatMap((outcome) =>
+        outcome.type === 'failure'
+          ? Effect.fail(simulationErrors.UI_ACTION_FAILED({message: outcome.message}))
+          : Effect.try({try: () => schema.parse(outcome.value), catch: (error) => error}),
+      ),
+    )
+  const unsupported = (name: string): Effect.Effect<never, EvlogError> =>
+    Effect.fail(simulationErrors.UI_ACTION_FAILED({message: `the widget does not support ${name}`}))
   return os.router({
-    handshake: os.handshake.handler(({input, errors}) => {
+    handshake: os.handshake.effect(function* ({input}) {
       const outcome = dispatchHandshake(
         {role: 'ui', server: {name: 'conciv', version}, capabilities: WIDGET_CAPABILITIES},
         input,
       )
       if (outcome.type === 'accepted') return outcome.response
-      const refused = outcome.refusal
-      if (refused.code === 'ROLE_MISMATCH') throw errors.ROLE_MISMATCH(refused)
-      if (refused.code === 'UNSUPPORTED_PROTOCOL') throw errors.UNSUPPORTED_PROTOCOL(refused)
-      throw errors.MISSING_CAPABILITY(refused)
+      return yield* Effect.fail(outcome.refusal)
     }),
     ui: {
-      state: os.ui.state.handler(({signal, errors}) => forward(UiStateSchema, {type: 'ui.state'}, signal, errors)),
-      snapshot: os.ui.snapshot.handler(({signal, errors}) =>
-        forward(SemanticSnapshotSchema, {type: 'ui.snapshot'}, signal, errors),
-      ),
-      matches: os.ui.matches.handler(({input, signal, errors}) =>
-        forward(z.boolean(), {type: 'ui.matches', ...input}, signal, errors),
-      ),
-      type: os.ui.type.handler(({input, signal, errors}) =>
-        forward(UiStateSchema, {type: 'ui.type', ...input}, signal, errors),
-      ),
-      press: os.ui.press.handler(({input, signal, errors}) =>
-        forward(UiStateSchema, {type: 'ui.press', ...input}, signal, errors),
-      ),
-      enter: os.ui.enter.handler(({signal, errors}) => forward(UiStateSchema, {type: 'ui.enter'}, signal, errors)),
-      arrow: os.ui.arrow.handler(({input, signal, errors}) =>
-        forward(UiStateSchema, {type: 'ui.arrow', ...input}, signal, errors),
-      ),
-      focus: os.ui.focus.handler(({input, signal, errors}) =>
-        forward(UiStateSchema, {type: 'ui.focus', ...input}, signal, errors),
-      ),
-      click: os.ui.click.handler(({input, signal, errors}) =>
-        forward(UiStateSchema, {type: 'ui.click', ...input}, signal, errors),
-      ),
-      capture: os.ui.capture.handler(({errors}) => unsupported(errors, 'ui.capture')),
-      recording: {finish: os.ui.recording.finish.handler(({errors}) => unsupported(errors, 'ui.recording.finish'))},
-      mouse: os.ui.mouse.handler(({errors}) => unsupported(errors, 'ui.mouse')),
-      resize: os.ui.resize.handler(({errors}) => unsupported(errors, 'ui.resize')),
+      state: os.ui.state.effect(function* () {
+        return yield* forward(UiStateSchema, {type: 'ui.state'})
+      }),
+      snapshot: os.ui.snapshot.effect(function* () {
+        return yield* forward(SemanticSnapshotSchema, {type: 'ui.snapshot'})
+      }),
+      matches: os.ui.matches.effect(function* ({input}) {
+        return yield* forward(z.boolean(), {type: 'ui.matches', ...input})
+      }),
+      type: os.ui.type.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.type', ...input})
+      }),
+      press: os.ui.press.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.press', ...input})
+      }),
+      enter: os.ui.enter.effect(function* () {
+        return yield* forward(UiStateSchema, {type: 'ui.enter'})
+      }),
+      arrow: os.ui.arrow.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.arrow', ...input})
+      }),
+      focus: os.ui.focus.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.focus', ...input})
+      }),
+      click: os.ui.click.effect(function* ({input}) {
+        return yield* forward(UiStateSchema, {type: 'ui.click', ...input})
+      }),
+      capture: os.ui.capture.effect(function* () {
+        return yield* unsupported('ui.capture')
+      }),
+      recording: {
+        finish: os.ui.recording.finish.effect(function* () {
+          return yield* unsupported('ui.recording.finish')
+        }),
+      },
+      mouse: os.ui.mouse.effect(function* () {
+        return yield* unsupported('ui.mouse')
+      }),
+      resize: os.ui.resize.effect(function* () {
+        return yield* unsupported('ui.resize')
+      }),
     },
   })
 }
@@ -105,18 +113,15 @@ export function widgetDrivePlugin(options: WidgetDriveOptions): Plugin {
               return waiting === undefined ? Effect.void : Deferred.succeed(waiting, input.outcome).pipe(Effect.asVoid)
             }),
         })
-        const ask: Ask = (request, signal) => {
+        const ask: Ask = (request) => {
           const requestId = crypto.randomUUID()
-          return Effect.runPromise(
-            Effect.acquireUseRelease(
-              Deferred.make<WidgetOutcome>().pipe(
-                Effect.tap((answer) => Effect.sync(() => pending.set(requestId, answer))),
-              ),
-              (answer) =>
-                registration.events.emit('call', {requestId, request}).pipe(Effect.andThen(Deferred.await(answer))),
-              () => Effect.sync(() => pending.delete(requestId)),
+          return Effect.acquireUseRelease(
+            Deferred.make<WidgetOutcome>().pipe(
+              Effect.tap((answer) => Effect.sync(() => pending.set(requestId, answer))),
             ),
-            {signal},
+            (answer) =>
+              registration.events.emit('call', {requestId, request}).pipe(Effect.andThen(Deferred.await(answer))),
+            () => Effect.sync(() => pending.delete(requestId)),
           )
         }
         const server = yield* SimulationControlServer.start({

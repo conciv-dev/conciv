@@ -2,6 +2,7 @@ import {chat, StreamProcessor} from '@tanstack/ai'
 import type {CapabilityContext} from '@tanstack/ai'
 import {getToolBridgeProvisioner} from '@tanstack/ai-sandbox'
 import {z} from 'zod'
+import {failureText} from '@conciv/protocol'
 import type {TextAdapter} from '@conciv/harness/adapters'
 import type {ChatMessage, ModelMessage} from '@conciv/types/chat-message-types'
 import type {ChatEvent} from '@conciv/types/chat-event-types'
@@ -54,7 +55,7 @@ export async function callPermissionPrompt(
     })
     return PromptReplySchema.parse(await reply.json()).result.content[0].text
   } catch (error) {
-    return `the permission prompt call failed: ${String(error)}`
+    return `the permission prompt call failed: ${failureText(error)}`
   } finally {
     await served.close()
   }
