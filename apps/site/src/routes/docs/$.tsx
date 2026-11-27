@@ -77,13 +77,15 @@ const clientLoader = browserCollections.docs.createClientLoader({
       >
         <DocsTitle className="od-display text-5xl leading-tight font-extrabold">{frontmatter.title}</DocsTitle>
         <DocsDescription className="text-xl">{frontmatter.description}</DocsDescription>
-        <DocsBody>
+        <DocsBody className={path.startsWith('comparison') ? comparisonTableClass : undefined}>
           <MDX components={useMDXComponents()} />
         </DocsBody>
       </DocsPage>
     )
   },
 })
+
+const comparisonTableClass = '[&_table]:w-full [&_table]:min-w-xl [&_table]:table-fixed'
 
 const emptyTocClass = '[&>#toc-title]:hidden [&>#toc-title+div]:hidden [&>div:last-child]:border-t-0'
 
