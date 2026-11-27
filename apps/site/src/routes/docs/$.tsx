@@ -85,7 +85,26 @@ const clientLoader = browserCollections.docs.createClientLoader({
   },
 })
 
-const comparisonTableClass = '[&_table]:w-full [&_table]:min-w-xl [&_table]:table-fixed'
+const comparisonTableClass = [
+  'xl:[&_div:has(>table)]:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]',
+  '[&_table]:w-full',
+  '[&_table]:min-w-2xl',
+  '[&_table]:table-fixed',
+  '[&_table]:bg-transparent',
+  '[&_table]:text-sm',
+  '[&_:is(th,td)]:border-s-0',
+  '[&_:is(th,td)]:px-4',
+  '[&_:is(th,td)]:py-3.5',
+  '[&_:is(th,td)]:align-middle',
+  '[&_th]:bg-transparent',
+  '[&_th]:font-medium',
+  '[&_th:not(:first-child)]:w-40',
+  '[&_td:first-child_a]:font-normal',
+  '[&_td:first-child_a]:text-fd-foreground',
+  '[&_td:first-child_a]:decoration-dotted',
+  '[&_td:first-child_a]:decoration-fd-muted-foreground',
+  '[&_td:first-child_a]:underline-offset-4',
+].join(' ')
 
 const emptyTocClass = '[&>#toc-title]:hidden [&>#toc-title+div]:hidden [&>div:last-child]:border-t-0'
 

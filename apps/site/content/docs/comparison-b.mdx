@@ -10,40 +10,50 @@ dev server, so the agent sees the page and edits the code that renders it.
 
 ## Features
 
-- **Yes**: built in.
-- **Partly**: possible, with set-up or limits.
-- **No**: not supported.
+- <Yes /> built in.
+- <Partly /> possible, with set-up or limits.
+- <No /> not supported.
 
 Facts about other tools are general. Products in both groups change fast, so check their own docs.
 
 ### Seeing the app
 
-| Feature                                                  | conciv                | Browser extension | In-IDE agent                           |
-| -------------------------------------------------------- | --------------------- | ----------------- | -------------------------------------- |
-| Reads the rendered page                                  | Yes                   | Yes               | Partly, where the editor has a preview |
-| Works in the tab you have open, with its state and login | Yes                   | Yes               | No                                     |
-| Point at an element to pin it to the message             | Yes                   | Partly            | Partly                                 |
-| Names the source file of an element                      | Yes, when it finds it | No                | Partly                                 |
-| Reads the dev server's config, URLs and module graph     | Yes, on Vite          | No                | No                                     |
-| Works on any site, production included                   | No                    | Yes               | No                                     |
+| Feature                                                                  | conciv  | Browser extension | In-IDE agent |
+| ------------------------------------------------------------------------ | :-----: | :---------------: | :----------: |
+| Reads the rendered page                                                  | <Yes /> |      <Yes />      |  <Partly />  |
+| Works in your open tab, with its state and login                         | <Yes /> |      <Yes />      |    <No />    |
+| [Point at an element to pin it to the message](/docs/usage/page-control) | <Yes /> |    <Partly />     |  <Partly />  |
+| [Names the source file of an element](/docs/usage/page-control)          | <Yes /> |      <No />       |  <Partly />  |
+| [Reads the dev server's config and module graph](/docs/usage/dev-server) | <Yes /> |      <No />       |    <No />    |
+| Works on any site, production included                                   | <No />  |      <Yes />      |    <No />    |
+
+An in-IDE agent reads the page only where the editor has a preview. conciv names an element's source file when it can
+find it. It reads the dev server's module graph on Vite only.
 
 ### Changing the code
 
-| Feature                       | conciv                                                     | Browser extension  | In-IDE agent       |
-| ----------------------------- | ---------------------------------------------------------- | ------------------ | ------------------ |
-| Edits your source             | Yes                                                        | No                 | Yes                |
-| Checks its change in the page | Yes                                                        | Yes, the page only | Partly             |
-| Runs your tests               | Yes, with the [test runner](/docs/usage/add-plugins)       | No                 | Yes                |
-| Asks before risky actions     | Yes, as a [card in the page](/docs/agents-and-permissions) | Varies             | Yes, in the editor |
+| Feature                                                   | conciv  | Browser extension | In-IDE agent |
+| --------------------------------------------------------- | :-----: | :---------------: | :----------: |
+| Edits your source                                         | <Yes /> |      <No />       |   <Yes />    |
+| [Checks its change in the page](/docs/usage/page-control) | <Yes /> |    <Partly />     |  <Partly />  |
+| [Runs your tests](/docs/usage/live-tests)                 | <Yes /> |      <No />       |   <Yes />    |
+| [Asks before risky actions](/docs/usage/approvals)        | <Yes /> |    <Partly />     |   <Yes />    |
+
+A browser extension checks the page, but has no source to check it against. Whether it asks before risky actions
+varies by product. conciv runs your tests with the test runner plugin, and asks as a card in the page. An in-IDE agent
+asks in the editor.
 
 ### Set-up and reach
 
-| Feature                    | conciv                                      | Browser extension   | In-IDE agent              |
-| -------------------------- | ------------------------------------------- | ------------------- | ------------------------- |
-| Which agent answers        | Your own CLI: Claude Code, Codex and others | The extension's own | The editor's own          |
-| What you install           | A dev dependency and a bundler plugin       | A browser extension | An editor or an extension |
-| Works with any framework   | Partly: Vite, Next.js, webpack and Rspack   | Yes                 | Yes                       |
-| Extended by your own tools | Yes, with [plugins](/docs/plugins)          | Varies              | Varies, often with MCP    |
+| Feature                                     |   conciv   | Browser extension | In-IDE agent |
+| ------------------------------------------- | :--------: | :---------------: | :----------: |
+| [Uses your own agent CLI](/docs/harnesses)  |  <Yes />   |      <No />       |    <No />    |
+| [Works with any framework](/docs/bundlers)  | <Partly /> |      <Yes />      |   <Yes />    |
+| [Extended by your own tools](/docs/plugins) |  <Yes />   |    <Partly />     |  <Partly />  |
+
+In conciv, your own CLI answers: Claude Code, Codex and others. A browser extension and an in-IDE agent each bring
+their own. You install conciv as a dev dependency and a bundler plugin. It works with Vite, Next.js, webpack and
+Rspack. How the other two take your own tools varies by product; in-IDE agents often take them through MCP.
 
 ## Where each one fits
 

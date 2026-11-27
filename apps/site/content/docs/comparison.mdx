@@ -13,40 +13,51 @@ The three are not rivals. conciv runs your terminal agent's own CLI. It can also
 
 ## Features
 
-- **Yes**: built in.
-- **Partly**: possible, with set-up or limits.
-- **No**: not supported.
+- <Yes /> built in.
+- <Partly /> possible, with set-up or limits.
+- <No /> not supported.
 
 Facts about other tools are general. Check each tool's own docs for its current options.
 
 ### Seeing the app
 
-| Feature                                                  | conciv                | Terminal agent | MCP browser tools           |
-| -------------------------------------------------------- | --------------------- | -------------- | --------------------------- |
-| Reads the rendered page                                  | Yes                   | No             | Yes                         |
-| Works in the tab you have open, with its state and login | Yes                   | No             | Partly, by how you start it |
-| Point at an element to pin it to the message             | Yes                   | No             | No                          |
-| Names the source file of an element                      | Yes, when it finds it | No             | No                          |
-| Reads the dev server's config, URLs and module graph     | Yes, on Vite          | No             | No                          |
-| Works on any site, production included                   | No                    | No             | Yes                         |
+| Feature                                                                  | conciv  | Terminal agent | MCP browser tools |
+| ------------------------------------------------------------------------ | :-----: | :------------: | :---------------: |
+| Reads the rendered page                                                  | <Yes /> |     <No />     |      <Yes />      |
+| Works in your open tab, with its state and login                         | <Yes /> |     <No />     |    <Partly />     |
+| [Point at an element to pin it to the message](/docs/usage/page-control) | <Yes /> |     <No />     |      <No />       |
+| [Names the source file of an element](/docs/usage/page-control)          | <Yes /> |     <No />     |      <No />       |
+| [Reads the dev server's config and module graph](/docs/usage/dev-server) | <Yes /> |     <No />     |      <No />       |
+| Works on any site, production included                                   | <No />  |     <No />     |      <Yes />      |
+
+MCP browser tools reach your open tab only if you start them attached to your own browser. conciv names an element's
+source file when it can find it. It reads the dev server's module graph on Vite only.
 
 ### Changing the code
 
-| Feature                       | conciv                                                     | Terminal agent       | MCP browser tools                  |
-| ----------------------------- | ---------------------------------------------------------- | -------------------- | ---------------------------------- |
-| Edits your source             | Yes, through your agent CLI                                | Yes                  | No, the agent that calls them does |
-| Checks its change in the page | Yes                                                        | No                   | Yes, when an agent pairs them      |
-| Runs your tests               | Yes, with the [test runner](/docs/usage/add-plugins)       | Yes, in a shell      | No                                 |
-| Asks before risky actions     | Yes, as a [card in the page](/docs/agents-and-permissions) | Yes, in the terminal | By the agent that calls them       |
+| Feature                                                   | conciv  | Terminal agent | MCP browser tools |
+| --------------------------------------------------------- | :-----: | :------------: | :---------------: |
+| Edits your source                                         | <Yes /> |    <Yes />     |      <No />       |
+| [Checks its change in the page](/docs/usage/page-control) | <Yes /> |     <No />     |    <Partly />     |
+| [Runs your tests](/docs/usage/live-tests)                 | <Yes /> |    <Yes />     |      <No />       |
+| [Asks before risky actions](/docs/usage/approvals)        | <Yes /> |    <Yes />     |    <Partly />     |
+
+conciv edits your source through your own agent CLI. MCP browser tools edit nothing themselves: the agent that calls
+them does, and that agent can check its change in a page when it pairs them. conciv runs your tests with the test
+runner plugin, and asks as a card in the page. A terminal agent asks in the terminal.
 
 ### Set-up and reach
 
-| Feature                                  | conciv                                    | Terminal agent | MCP browser tools           |
-| ---------------------------------------- | ----------------------------------------- | -------------- | --------------------------- |
-| Uses your own agent CLI and login        | Yes                                       | Yes            | Not an agent                |
-| Works with any framework                 | Partly: Vite, Next.js, webpack and Rspack | Yes            | Yes                         |
-| Extended by your own tools               | Yes, with [plugins](/docs/plugins)        | Yes, with MCP  | Not their job               |
-| Gives your terminal agent your open tabs | Yes, through [MCP](/docs/agents)          | No             | Partly, a browser it drives |
+| Feature                                                  |   conciv   | Terminal agent | MCP browser tools |
+| -------------------------------------------------------- | :--------: | :------------: | :---------------: |
+| [Uses your own agent CLI and login](/docs/harnesses)     |  <Yes />   |    <Yes />     |      <No />       |
+| [Works with any framework](/docs/bundlers)               | <Partly /> |    <Yes />     |      <Yes />      |
+| [Extended by your own tools](/docs/plugins)              |  <Yes />   |    <Yes />     |      <No />       |
+| [Gives your terminal agent your open tabs](/docs/agents) |  <Yes />   |     <No />     |    <Partly />     |
+
+MCP browser tools are not an agent, so they have no CLI or login of their own. conciv works with Vite, Next.js,
+webpack and Rspack. It takes your own tools as plugins; a terminal agent takes them through MCP. conciv gives your
+terminal agent your open tabs through MCP, where MCP browser tools give it a browser of their own to drive.
 
 ## Where each one fits
 

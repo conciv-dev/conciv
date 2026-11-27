@@ -10,31 +10,38 @@ already have, on your machine, with the page running in front of you.
 
 ## Features
 
-- **Yes**: built in.
-- **Partly**: possible, with set-up or limits.
-- **No**: not supported.
+- <Yes /> built in.
+- <Partly /> possible, with set-up or limits.
+- <No /> not supported.
 
 Facts about other tools are general. Check each product's own docs for what it offers today.
 
 ### Where it runs
 
-| Feature                              | conciv | Hosted app builder     | Component workshop   |
-| ------------------------------------ | ------ | ---------------------- | -------------------- |
-| Works on your existing repo          | Yes    | Partly, by import      | Yes                  |
-| Runs on your machine                 | Yes    | No, in its own service | Yes                  |
-| Keeps your stack and your dev server | Yes    | Partly                 | Yes, beside your app |
-| Starts an app from nothing           | No     | Yes                    | No                   |
-| Hosts the result for you             | No     | Often                  | No                   |
+| Feature                                                | conciv  | Hosted app builder | Component workshop |
+| ------------------------------------------------------ | :-----: | :----------------: | :----------------: |
+| Works on your existing repo                            | <Yes /> |     <Partly />     |      <Yes />       |
+| [Runs on your machine](/docs/engine-and-widget)        | <Yes /> |       <No />       |      <Yes />       |
+| [Keeps your stack and your dev server](/docs/bundlers) | <Yes /> |     <Partly />     |      <Yes />       |
+| Starts an app from nothing                             | <No />  |      <Yes />       |       <No />       |
+| Hosts the result for you                               | <No />  |      <Yes />       |       <No />       |
+
+A hosted app builder takes an existing repo by import, and runs it in its own service. Most of them host the result
+for you. A component workshop runs beside your app, not inside it.
 
 ### Working on the app
 
-| Feature                                      | conciv                                                     | Hosted app builder | Component workshop          |
-| -------------------------------------------- | ---------------------------------------------------------- | ------------------ | --------------------------- |
-| An agent that changes the code               | Yes, your own CLI                                          | Yes, its own       | No                          |
-| Real pages, with your routes, data and login | Yes                                                        | Its own preview    | No, one component at a time |
-| Point at an element to pin it to the message | Yes                                                        | Varies             | No                          |
-| Runs your tests                              | Yes, with the [test runner](/docs/usage/add-plugins)       | Varies             | Partly, component tests     |
-| Asks before risky actions                    | Yes, as a [card in the page](/docs/agents-and-permissions) | Varies             | No                          |
+| Feature                                                                  | conciv  | Hosted app builder | Component workshop |
+| ------------------------------------------------------------------------ | :-----: | :----------------: | :----------------: |
+| [An agent that changes the code](/docs/harnesses)                        | <Yes /> |      <Yes />       |       <No />       |
+| Real pages, with your routes, data and login                             | <Yes /> |     <Partly />     |       <No />       |
+| [Point at an element to pin it to the message](/docs/usage/page-control) | <Yes /> |     <Partly />     |       <No />       |
+| [Runs your tests](/docs/usage/live-tests)                                | <Yes /> |     <Partly />     |     <Partly />     |
+| [Asks before risky actions](/docs/usage/approvals)                       | <Yes /> |     <Partly />     |       <No />       |
+
+In conciv the agent is your own CLI; a hosted app builder brings its own. A hosted app builder shows its own preview,
+and its other features vary by product. A component workshop renders one component at a time, and runs component
+tests. conciv runs your tests with the test runner plugin, and asks as a card in the page.
 
 ## Where each one fits
 
