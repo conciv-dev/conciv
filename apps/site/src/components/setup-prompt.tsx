@@ -1,6 +1,8 @@
 import {Check, Copy} from 'lucide-react'
-import {useRef, useState} from 'react'
+import {useRef, useState, type ReactNode} from 'react'
+import {Tab, Tabs} from 'fumadocs-ui/components/tabs'
 import {Button} from '@/components/ui/button'
+import {writeAgentPrompt, type AgentPromptId} from '@/lib/agent-prompts'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 
 type FrameworkId = 'vite' | 'nextjs' | 'tanstack-start' | 'webpack' | 'rspack' | 'ios'
@@ -174,5 +176,21 @@ export function CopyPrompt({text}: {text: string}) {
       </div>
       <PromptText text={text} />
     </div>
+  )
+}
+
+export function AgentsHumans({prompt, children}: {prompt: 'setup' | AgentPromptId; children: ReactNode}) {
+  return (
+    <Tabs groupId="reader" persist items={['Agents', 'Humans']} defaultIndex={1}>
+      <Tab value="Agents">
+        <p>
+          {prompt === 'setup'
+            ? 'Pick your framework, copy the prompt, and paste it into your coding agent. It runs every step on this page for you.'
+            : 'Copy this into your coding agent. It builds this in your project, from this page.'}
+        </p>
+        {prompt === 'setup' ? <SetupPrompt /> : <CopyPrompt text={writeAgentPrompt(prompt)} />}
+      </Tab>
+      <Tab value="Humans">{children}</Tab>
+    </Tabs>
   )
 }
