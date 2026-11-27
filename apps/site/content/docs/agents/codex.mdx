@@ -3,10 +3,10 @@ title: Codex
 description: "Connect Codex to conciv, and what conciv runs when it is the session's agent."
 ---
 
-[Codex](https://developers.openai.com/codex/cli) connects to conciv as an MCP server, and chats in the panel
+[Codex](https://developers.openai.com/codex/cli) connects to conciv as an MCP server. In the panel it chats
 inside its own sandbox.
 
-## Basic
+## Connect Codex
 
 Run this once, in any folder:
 
@@ -48,13 +48,13 @@ effort. Past Codex sessions in this project show in the session list.
 npx @conciv/cli mcp disconnect codex
 ```
 
-This stops conciv answering Codex, and removes `conciv-hub` from its config.
+This stops conciv answering Codex. It removes `conciv-hub` from its config.
 
 <Accordions type="single">
-  <Accordion title="The chat says Codex is not logged in?">
+  <Accordion title="The chat says Codex is not logged in">
     conciv checks the Codex login before a turn. Log in to Codex in a terminal, then send the message again.
   </Accordion>
-  <Accordion title="Why does Codex never ask before it acts?">
+  <Accordion title="Codex never asks before it acts">
     conciv runs it with the never approval policy. Its sandbox limits what it can touch instead. Pick Claude Code or
     Gemini CLI for a harness that asks with cards.
   </Accordion>
