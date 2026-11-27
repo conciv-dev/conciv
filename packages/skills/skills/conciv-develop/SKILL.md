@@ -155,7 +155,7 @@ export default Plugin.define<RunnerServices>({
     const adapter = getRunner(config.data.runner) ?? vitest
     const manager = yield* adapter
       .create(ctx.location.directory)
-      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
+      .pipe(Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, Effect.die))
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
@@ -172,12 +172,43 @@ export default Plugin.define<RunnerServices>({
 ```
 
 `ctx.options` holds the `[name, options]` config value: parse it with zod. `Plugin.define<R, E>` takes
-the services the effect needs and a tagged error it may fail with
+the services the effect needs and the error it may fail with
 (`packages/backend-plugin-api/src/effect/plugin.ts:52-59`). The `ctx` fields are `app`, `location`,
 `options`, `agent`, `event`, `model`, `permission`, `plugin`, `rpc`, `session`, `skill`, `storage`,
 `tool` and `servers` (`packages/backend-plugin-api/src/effect/plugin.ts:18-43`). The promise entry,
 `@conciv/backend-plugin-api`, has the same domains with `setup(ctx)` and `Promise`s; `setup` may
 return a cleanup.
+
+## Errors
+
+Every error a plugin throws or fails with comes from one evlog error catalog, kept in the plugin's own
+`errors.ts` beside the code that fails. Each entry has a `message` (a function when it needs values),
+and `why` and `fix` where the user or the agent can act on it; `status` only where it means an HTTP
+status. Never write `new Error`, `Data.TaggedError`, `Schema.TaggedError` or an error class.
+
+```ts
+import {defineErrorCatalog} from 'evlog'
+
+export const deployErrors = defineErrorCatalog('deploy', {
+  TARGET_DOWN: {
+    message: ({env}: {env: string}) => `${env} is not answering`,
+    why: 'The deploy target did not answer its health check.',
+    fix: 'Check that the target is up, then deploy again.',
+  },
+})
+
+declare module 'evlog' {
+  interface RegisteredErrorCatalogs {
+    deploy: typeof deployErrors
+  }
+}
+```
+
+Fail with `Effect.fail(deployErrors.TARGET_DOWN({env}))` (or `throw deployErrors.TARGET_DOWN({env})` in the
+promise entry). Branch on the code, never on a tag:
+`Effect.catchIf((error) => error.code === deployErrors.TARGET_DOWN.code, handle)`. A third-party error the
+plugin rethrows becomes the `cause`: `deployErrors.TARGET_DOWN({env, cause: error})`. The values in the
+message are not kept on the error; a handler that needs them reads them from `internal`.
 
 See [tool-contract](references/tool-contract.md) for every tool field, the name rule, errors,
 approvals, skills and prompt hooks.

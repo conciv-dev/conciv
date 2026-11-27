@@ -4,6 +4,7 @@ import {join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
+import {publishErrors} from './errors/errors.ts'
 
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
 const PRESET_PREFIX = '@internal/tsconfig/'
@@ -49,9 +50,7 @@ export async function assertTypecheckCoversTrackedFiles(cwd: string): Promise<vo
   )
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
-  throw new Error(
-    `every package on the @internal/tsconfig preset takes its include from the preset, and its "typecheck" script checks every tracked TypeScript file:\n${messages.join('\n')}`,
-  )
+  throw publishErrors.TYPECHECK_COVERAGE_GAPS({violations: messages})
 }
 
 async function trackedTypescriptFiles(cwd: string): Promise<string[]> {
@@ -104,7 +103,7 @@ async function readTsconfig(path: string): Promise<Tsconfig | undefined> {
   if (!existsSync(path)) return undefined
   const text = await readFile(path, 'utf8')
   const result = tsconfigSchema.safeParse(parseJson(path, text))
-  if (!result.success) throw new Error(`${path}: invalid tsconfig\n${result.error.message}`)
+  if (!result.success) throw publishErrors.INVALID_TSCONFIG({path, reason: result.error.message})
   return result.data
 }
 
@@ -112,7 +111,7 @@ function parseJson(path: string, text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error: unknown) {
-    throw new Error(`${path}: a tsconfig on the @internal/tsconfig preset is plain JSON`, {cause: error})
+    throw publishErrors.TSCONFIG_NOT_JSON({path, cause: error instanceof Error ? error : undefined})
   }
 }
 
@@ -139,7 +138,7 @@ async function listCheckedFiles(packageDir: string, config: string): Promise<str
     preferLocal: true,
     reject: false,
   })
-  if (result.exitCode !== 0) throw new Error(`${config}: tsc --listFilesOnly failed\n${result.stdout}${result.stderr}`)
+  if (result.exitCode !== 0) throw publishErrors.LIST_FILES_FAILED({config, output: `${result.stdout}${result.stderr}`})
   return result.stdout
     .split('\n')
     .filter((line) => line.length > 0)

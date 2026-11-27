@@ -27,6 +27,7 @@ import {
   type RenderOptions,
   renderSummary,
 } from './summary.ts'
+import {publishErrors} from './errors/errors.ts'
 
 const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output', '--untested']
 
@@ -61,7 +62,7 @@ function argValue(args: string[], flag: string): string | null {
 function taskConfig(args: string[]): TaskConfig {
   const requested = argValue(args, '--task') ?? 'test'
   const config = TASKS[requested]
-  if (config === undefined) throw new Error(`unknown --task ${requested}; expected ${Object.keys(TASKS).join(' or ')}`)
+  if (config === undefined) throw publishErrors.UNKNOWN_TASK({requested, expected: Object.keys(TASKS).join(' or ')})
   return config
 }
 
@@ -109,7 +110,7 @@ function turbo(tasks: string[], filters: string[], passed: string[] = []): void 
 
 function run(args: string[]): void {
   const entries = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
-  if (entries.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
+  if (entries.length === 0) throw publishErrors.SHARD_PACKAGES_EMPTY()
   const tasks = taskConfig(args).turboTasks
   const parts = entries.map(readPackagePart)
   const whole = parts.flatMap(({name, part}) => (part === null ? [`--filter=${name}`] : []))

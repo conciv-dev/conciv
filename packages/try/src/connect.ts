@@ -9,6 +9,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/types/connect-ports'
 import {seedWorkspace} from './seed-workspace.js'
 import {CONNECT_SYSTEM_PROMPT} from './system-prompt.js'
+import {tryErrors} from './errors/errors.js'
 
 const DEFAULT_ORIGIN = 'https://conciv.dev'
 
@@ -29,7 +30,7 @@ export type ConnectOpts = {
 
 async function resolveWorkspace(workspace: string | undefined): Promise<string> {
   if (workspace !== undefined) {
-    if (workspace !== '.') throw new Error('workspace must be "." when provided')
+    if (workspace !== '.') throw tryErrors.INVALID_WORKSPACE()
     return realpath(process.cwd())
   }
   return realpath(await mkdtemp(join(tmpdir(), 'conciv-connect-')))
@@ -56,7 +57,7 @@ function writeShownEntry(entry: LogEntry): void {
   process.stderr.write(`${[entry.message, ...readErrors(entry).map(formatDetail)].join(' ')}\n`)
 }
 
-function isAddressInUse(error: unknown): boolean {
+function isAddressInUse(error: unknown): error is Error {
   return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
 }
 
@@ -70,7 +71,7 @@ function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
     .list()
     .map((registered) => registered.id)
     .join(', ')
-  throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
+  throw tryErrors.UNKNOWN_HARNESS({id, known})
 }
 
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {
@@ -81,7 +82,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
     const seeded = await seedWorkspace(opts.origin ?? DEFAULT_ORIGIN, root)
     onEvent({type: 'seeded', seeded})
   }
-  let lastError: unknown
+  let lastError: Error | undefined
   for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
     try {
       const engine = await start({
@@ -103,5 +104,5 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
       lastError = error
     }
   }
-  throw new Error(`no free port between ${CONNECT_FIRST_PORT} and ${CONNECT_LAST_PORT}: ${String(lastError)}`)
+  throw tryErrors.NO_FREE_PORT({first: CONNECT_FIRST_PORT, last: CONNECT_LAST_PORT, cause: lastError})
 }

@@ -8,6 +8,7 @@ import {ConcivConfigSchema, readLogLevel, type ConcivConfig} from '@conciv/types
 import {startHostLog} from './host-log.js'
 import {concivStateDir} from '@conciv/types/state-types'
 import type * as Boot from './boot.js'
+import {unpluginErrors} from './errors.js'
 
 export const CONCIV_DEFAULT_PORT = 24170
 
@@ -148,13 +149,13 @@ function importBesideEntry(file: string) {
 function readConcivOptions(text: string): ConcivConfig {
   const parsed = ConcivConfigSchema.safeParse(parseJson(text))
   if (parsed.success) return parsed.data
-  throw new Error(`conciv: CONCIV_OPTIONS is not a valid conciv config: ${parsed.error.message}`)
+  throw unpluginErrors.INVALID_OPTIONS({reason: parsed.error.message})
 }
 
 function parseJson(text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error) {
-    throw new Error('conciv: CONCIV_OPTIONS is not JSON', {cause: error})
+    throw unpluginErrors.OPTIONS_NOT_JSON({cause: error instanceof Error ? error : undefined})
   }
 }

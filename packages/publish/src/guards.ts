@@ -11,6 +11,7 @@ import {
   transitiveDependents,
   type WorkspacePackage,
 } from './workspace.ts'
+import {publishErrors} from './errors/errors.ts'
 
 const CODE_FILE_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'html', 'json']
 
@@ -67,19 +68,19 @@ export async function assertWorkspaceRoot(cwd: string): Promise<void> {
   const hasWorkspaceManifest = await pathExists(join(cwd, 'pnpm-workspace.yaml'))
   const hasChangesetDir = await pathExists(join(cwd, CHANGESET_DIR))
   if (!hasWorkspaceManifest || !hasChangesetDir) {
-    throw new Error(`conciv-publish must run at the workspace root (via the root pnpm scripts); cwd is ${cwd}`)
+    throw publishErrors.NOT_AT_WORKSPACE_ROOT({cwd})
   }
 }
 
 export function assertValidTag(tag: string): void {
   if (!/^[a-z][a-z0-9-]*$/.test(tag)) {
-    throw new Error(`invalid dist-tag ${JSON.stringify(tag)}: must match /^[a-z][a-z0-9-]*$/`)
+    throw publishErrors.INVALID_DIST_TAG({tag})
   }
 }
 
 function assertValidPackageName(name: string): void {
   if (!/^@conciv\/[a-z][a-z0-9-]*$/.test(name)) {
-    throw new Error(`invalid package name ${JSON.stringify(name)}: must match /^@conciv\\/[a-z][a-z0-9-]*$/`)
+    throw publishErrors.INVALID_PACKAGE_NAME({name})
   }
 }
 
@@ -130,25 +131,25 @@ export async function assertVersioned(cwd: string): Promise<void> {
   const stale = packages.filter((pkg) => !pkg.manifest.private && pkg.manifest.version === '0.0.0')
   if (stale.length > 0) {
     const names = stale.map((pkg) => pkg.manifest.name ?? '(unnamed)').join(', ')
-    throw new Error(`still 0.0.0 - run "conciv-publish version" before publishing: ${names}`)
+    throw publishErrors.STILL_UNVERSIONED({names})
   }
 }
 
 export async function assertBootstrappable(cwd: string, name: string): Promise<void> {
   assertValidPackageName(name)
   if (!PUBLIC_PACKAGES.includes(name)) {
-    throw new Error(`${name} is not in PUBLIC_PACKAGES - add it to packages/publish/src/guards.ts first`)
+    throw publishErrors.NOT_PUBLIC({name})
   }
   const packages = await readWorkspacePackages(cwd)
   const found = packages.find((pkg) => pkg.manifest.name === name)
   if (!found) {
-    throw new Error(`${name} not found in the workspace`)
+    throw publishErrors.PACKAGE_NOT_FOUND({name})
   }
   if (found.manifest.private) {
-    throw new Error(`${name} is private - unset "private" in its package.json before bootstrapping`)
+    throw publishErrors.PACKAGE_PRIVATE({name})
   }
   if (found.manifest.version === '0.0.0') {
-    throw new Error(`${name} is still 0.0.0 - land a changeset and merge the version PR before bootstrapping`)
+    throw publishErrors.PACKAGE_UNVERSIONED({name})
   }
 }
 
@@ -156,19 +157,19 @@ function parseChangesetPackageNames(content: string, file: string): string[] {
   try {
     const releases = parseChangesetFile(content).releases
     if (releases.length === 0) {
-      throw new Error('changeset has no releases')
+      throw publishErrors.CHANGESET_EMPTY()
     }
     return releases.map((release) => release.name)
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${file}: ${message}`, {cause: error})
+    if (error instanceof Error) throw publishErrors.CHANGESET_UNREADABLE({file, reason: error.message, cause: error})
+    throw publishErrors.CHANGESET_UNREADABLE({file, reason: String(error)})
   }
 }
 
 async function listChangesetFiles(changesetDir: string): Promise<string[]> {
   const entries = await readdir(changesetDir).catch((error: unknown) => {
     if (isMissingPath(error)) {
-      throw new Error(`${changesetDir} does not exist - is cwd the workspace root?`)
+      throw publishErrors.CHANGESET_FOLDER_MISSING({directory: changesetDir})
     }
     throw error
   })
@@ -178,7 +179,7 @@ async function listChangesetFiles(changesetDir: string): Promise<string[]> {
 async function assertNotSymlink(filePath: string): Promise<void> {
   const stats = await lstat(filePath)
   if (stats.isSymbolicLink()) {
-    throw new Error(`${filePath}: changeset files must not be symlinks`)
+    throw publishErrors.CHANGESET_SYMLINK({path: filePath})
   }
 }
 
@@ -202,7 +203,7 @@ export async function assertChangesetsResolve(cwd: string): Promise<void> {
     }
   }
   if (errors.length > 0) {
-    throw new Error(`invalid changeset package names:\n${errors.join('\n')}`)
+    throw publishErrors.CHANGESET_UNKNOWN_PACKAGES({problems: errors})
   }
 }
 
@@ -269,9 +270,7 @@ export async function assertPublishedChangesCovered(cwd: string, base: string): 
   const changesetNames = await addedChangesetPackageNames(cwd, entries)
   const covered = changesetNames.some((name) => publishedByName.has(name))
   if (covered) return
-  throw new Error(
-    `no changeset covers changed published packages: ${[...touchedPackageNames].toSorted().join(', ')} - add a changeset naming any published @conciv package (fixed versioning releases the whole set together), or apply the "no-changeset" label if this PR intentionally ships no release`,
-  )
+  throw publishErrors.CHANGESET_MISSING({packages: [...touchedPackageNames].toSorted().join(', ')})
 }
 
 const PRIVATE_SCOPE = '@internal/'
@@ -284,22 +283,13 @@ export async function assertPublicSet(cwd: string): Promise<void> {
     .filter((name): name is string => typeof name === 'string')
   const leaked = published.filter((name) => name.startsWith(PRIVATE_SCOPE))
   if (leaked.length > 0) {
-    throw new Error(
-      leaked
-        .map(
-          (name) =>
-            `${name} must stay private: ${PRIVATE_SCOPE}* packages are inlined by conciv's own builds, never published`,
-        )
-        .join('\n'),
-    )
+    throw publishErrors.PRIVATE_SCOPE_PUBLISHED({names: leaked, scope: PRIVATE_SCOPE})
   }
   const found = published.filter((name) => name.startsWith('@conciv/'))
   const unexpected = found.filter((name) => !PUBLIC_PACKAGES.includes(name))
   const missing = PUBLIC_PACKAGES.filter((name) => !found.includes(name))
   if (unexpected.length > 0 || missing.length > 0) {
-    throw new Error(
-      `public package set drift - unexpected: [${unexpected.join(', ')}], missing: [${missing.join(', ')}]`,
-    )
+    throw publishErrors.PUBLIC_SET_DRIFT({unexpected, missing})
   }
 }
 
@@ -328,7 +318,7 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
         .map((dep) => `${pkg.manifest.name ?? '(unnamed)'} depends on private workspace package ${dep}`),
     )
   if (violations.length > 0) {
-    throw new Error(violations.join('\n'))
+    throw publishErrors.PUBLIC_DEPENDS_ON_PRIVATE({violations})
   }
 }
 
@@ -371,7 +361,7 @@ export async function assertPublicTypesPublic(cwd: string): Promise<void> {
       }),
   )
   const all = violations.flat()
-  if (all.length > 0) throw new Error(all.join('\n'))
+  if (all.length > 0) throw publishErrors.PUBLIC_TYPES_NAME_PRIVATE({violations: all})
 }
 
 const LOOP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
@@ -415,9 +405,7 @@ export function findDependencyLoops(packages: WorkspacePackage[]): string[] {
 export async function assertNoDependencyLoop(cwd: string): Promise<void> {
   const loops = findDependencyLoops(await readWorkspacePackages(cwd))
   if (loops.length > 0) {
-    throw new Error(
-      `workspace packages form ${loops.length} dependency loop(s); every edge counts (dependencies, devDependencies, peerDependencies, optionalDependencies):\n${loops.join('\n')}`,
-    )
+    throw publishErrors.DEPENDENCY_LOOPS({loops})
   }
 }
 
@@ -446,8 +434,6 @@ export async function assertSharedDependenciesCatalogued(cwd: string): Promise<v
     .map((use) => `${use.manifestDir}/package.json: ${use.name} ${JSON.stringify(use.spec)}`)
     .toSorted()
   if (violations.length > 0) {
-    throw new Error(
-      `dependencies shared by two or more workspace manifests must use "catalog:" and take their version from the catalog in pnpm-workspace.yaml:\n${violations.join('\n')}`,
-    )
+    throw publishErrors.DEPENDENCIES_NOT_CATALOGUED({violations})
   }
 }

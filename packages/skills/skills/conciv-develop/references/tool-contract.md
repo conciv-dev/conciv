@@ -31,7 +31,7 @@ The test runner's tools, from `packages/plugins/test-runner/src/tools.ts:9-36`:
 const codeMode = {namespace: 'test_runner', codemode: true}
 const direct = {namespace: 'test_runner', codemode: false}
 
-function toolFailure(error: RunnerUnavailable) {
+function toolFailure(error: EvlogError) {
   return Effect.fail(Tool.toolError({message: error.message, error}))
 }
 
@@ -53,7 +53,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       execute: () =>
         manager.list(false).pipe(
           Effect.map((output) => ({output})),
-          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+          Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, toolFailure),
         ),
     })
 ```
@@ -75,8 +75,8 @@ declared output" (`packages/backend-app-api/src/core/tool/runtime.ts:32-41`).
 ## Errors
 
 Fail the effect with a `Tool.Error` built by `Tool.makeError({message})` or
-`Tool.toolError({message, metadata})` (`packages/protocol/src/schema/tool.ts:63-76`). Map a typed failure
-once, at the edge. The TanStack plugin, from `packages/plugins/tanstack/src/tools.ts:155-159`:
+`Tool.toolError({message, metadata})` (`packages/protocol/src/schema/tool.ts:63-76`). Map a catalog
+error once, at the edge. The TanStack plugin, from `packages/plugins/tanstack/src/tools.ts:155-159`:
 
 ```ts
       execute: () =>
@@ -86,8 +86,8 @@ once, at the edge. The TanStack plugin, from `packages/plugins/tanstack/src/tool
         ),
 ```
 
-`Effect.catchTag('Name', (failure) => Effect.fail(Tool.toolError({message})))` does the same for one
-tag, as `toolFailure` above. In the promise entry, `throw Tool.toolError(...)`; any other thrown error
+`Effect.catchIf((error) => error.code === myErrors.NAME.code, (error) => Effect.fail(Tool.toolError({message: error.message})))`
+does the same for one catalog code, as `toolFailure` above; branch on `code`, never on a tag. In the promise entry, `throw Tool.toolError(...)`; any other thrown error
 becomes a `Tool.Error` with its message.
 
 ## Approvals

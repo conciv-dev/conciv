@@ -20,27 +20,27 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
     status: () => manager.status,
     current: () => manager.current,
     list: (input, call) =>
-      manager
-        .list(input.failedOnly)
-        .pipe(
-          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
+      manager.list(input.failedOnly).pipe(
+        Effect.catchIf(
+          (error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code,
+          (error) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
-          ),
         ),
+      ),
     run: (input, call) =>
-      manager
-        .run(input)
-        .pipe(
-          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
+      manager.run(input).pipe(
+        Effect.catchIf(
+          (error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code,
+          (error) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
-          ),
         ),
+      ),
     stop: () => manager.stop.pipe(Effect.as(OK)),
   })
 }
 ```
 
-Map each typed failure to a declared error once, at the edge. In the promise entry a handler returns a
+Map each catalog error to a declared error once, at the edge, by its `code`. In the promise entry a handler returns a
 `Promise` and returns `call.error(...)` to fail. RPC methods never ask the user; an operation that must
 ask is a tool.
 

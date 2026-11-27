@@ -11,6 +11,7 @@ import {concivStateDir} from '@conciv/types/state-types'
 import {isEnginePort} from './core/widget-start.js'
 import {widgetStarterPath} from './core/widget-module.js'
 import {startHostLog} from './core/host-log.js'
+import {unpluginErrors} from './core/errors.js'
 
 const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
 
@@ -95,7 +96,7 @@ function withAlias(alias: ResolveAlias, specifier: string, path: string): Resolv
 }
 
 function reportStartFailure(error: unknown): never {
-  throw new Error('conciv: the engine failed to start', {cause: error})
+  throw unpluginErrors.ENGINE_START_FAILED({cause: error instanceof Error ? error : undefined})
 }
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
@@ -145,7 +146,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
         await startEngine((port) => {
           if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port, logLevel}) !== undefined)
             return
-          throw new Error(`conciv: could not rewrite the widget client for port ${String(port)}`)
+          throw unpluginErrors.WIDGET_CLIENT_NOT_REWRITTEN({port})
         })
       })
       compiler.hooks.watchClose.tap('conciv', stopEngine)

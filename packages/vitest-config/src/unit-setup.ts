@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, inject} from 'vitest'
+import {vitestConfigErrors} from './errors/errors.ts'
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -19,11 +20,7 @@ function failOnLeftoverBody(): void {
   if (!first) return
   const count = document.body.childElementCount
   document.body.replaceChildren()
-  throw new Error(
-    `this test left ${count} element(s) in document.body after cleanup, the first ${describeElement(first)}. ` +
-      'Render through @internal/frontend-test-utils, which removes what it renders when the test ends. ' +
-      'The leftovers were removed so later files start on an empty page.',
-  )
+  throw vitestConfigErrors.LEFTOVER_BODY({count, first: describeElement(first)})
 }
 
 async function watchTheDom(): Promise<void> {

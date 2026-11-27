@@ -1,6 +1,7 @@
 import {execa} from 'execa'
 import {z} from 'zod'
 import {readWorkspacePackages} from './workspace.ts'
+import {publishErrors} from './errors/errors.ts'
 
 export type RegistryState = 'missing' | 'trusted' | 'untrusted'
 
@@ -27,7 +28,7 @@ export async function registryRecord(name: string): Promise<RegistryRecord> {
   const response = await fetch(`https://registry.npmjs.org/${name.replaceAll('/', '%2f')}`)
   if (response.status === 404) return {state: 'missing', versions: []}
   if (!response.ok) {
-    throw new Error(`registry lookup for ${name} failed with ${response.status}`)
+    throw publishErrors.REGISTRY_LOOKUP_FAILED({name, status: response.status})
   }
   return recordFromDocument(await response.json())
 }
@@ -76,7 +77,7 @@ export async function pushMissingTags(cwd: string, names: readonly string[]): Pr
   const tags = names.map((name) => {
     const version = packages.find((pkg) => pkg.manifest.name === name)?.manifest.version
     if (version === undefined) {
-      throw new Error(`${name}: no versioned manifest in the workspace to tag`)
+      throw publishErrors.NO_VERSION_TO_TAG({name})
     }
     return `${name}@${version}`
   })

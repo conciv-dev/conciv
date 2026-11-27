@@ -33,6 +33,7 @@ import {
   resolveVersionCommit,
   treesMatch,
 } from './swift-mirror.ts'
+import {publishErrors} from './errors/errors.ts'
 
 const REPOSITORY = 'conciv-dev/conciv'
 const RELEASE_WORKFLOW = 'release.yml'
@@ -82,7 +83,7 @@ const checkChangesets = defineCommand({
     await assertChangesetsResolve(cwd)
     if (args['require-coverage']) {
       if (!args.base) {
-        throw new Error('--require-coverage requires --base <ref>')
+        throw publishErrors.COVERAGE_NEEDS_BASE()
       }
       await assertPublishedChangesCovered(cwd, args.base)
     }
@@ -304,9 +305,7 @@ async function withMirrorAuth<T>(
 ): Promise<T> {
   const token = process.env.GH_MIRROR_TOKEN
   if (!token) {
-    throw new Error(
-      'GH_MIRROR_TOKEN is required to publish the conciv-swift mirror (a PAT with push access to conciv-dev/conciv-swift)',
-    )
+    throw publishErrors.MIRROR_TOKEN_MISSING()
   }
   const askpassDir = await mkdtemp(join(tmpdir(), 'conciv-askpass-'))
   const askpass = join(askpassDir, 'askpass.sh')
@@ -425,9 +424,7 @@ async function assertTaggedTreeMatches(
   try {
     await cloneTaggedTree(git, sdkVersion, tagDir)
     if (await treesMatch(destDir, tagDir)) return
-    throw new Error(
-      `conciv-swift ${sdkVersion} is already tagged but the assembled tree differs: the mirror source changed without a @conciv/plugin-ios version bump. Check the release flow (changesets should bump the version on every release).`,
-    )
+    throw publishErrors.MIRROR_TAG_DIFFERS({version: sdkVersion})
   } finally {
     await rm(tagDir, {recursive: true, force: true})
   }
