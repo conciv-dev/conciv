@@ -1,220 +1,53 @@
 ---
 title: Plugins
-description: Add a plugin to give the agent new tools and the widget new screens, from npm or from a folder in your project.
+description: What a plugin adds to conciv, when a skill is enough instead, and the guides for every part of a plugin.
 ---
 
-A plugin adds to conciv. It can give the agent a tool, draw that tool's calls as a card, or add a screen to the
-widget. Add one with the `plugins` option, or write your own.
+A plugin is code you add to conciv. Its engine part gives the agent new tools, and its browser part adds screens to
+the widget. A plugin in your project's `conciv/plugins` folder loads with no config entry.
 
 ## What a plugin can do
 
-- **Give the agent a tool.** The agent calls it like any built-in tool. The test runner plugin adds
-  `test_runner_run`, so you can say "run the tests" in the chat.
-- **Draw a card in the chat.** A tool's calls show as your own component instead of the generic card. The test runner
-  shows each finished run as a list of passed and failed tests.
-- **Add a panel.** A tab in the session's pane, next to the chat. The test runner's Tests tab follows a run live.
-- **Add a slot or a pill.** Content at a fixed place in the widget, or a pill above the composer. The whiteboard adds
-  a pill that opens its canvas.
-
-This is a whole plugin with one tool. It reads your project's `package.json` and tells the agent its name and
-version:
-
-<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
-<Tab value="Promise">
-
-```ts twoslash title="conciv/plugins/project-version/server.ts"
-import {readFile} from 'node:fs/promises'
-import path from 'node:path'
-import {z} from 'zod'
-import {Plugin} from '@conciv/backend-plugin-api'
-
-const Manifest = z.object({name: z.string(), version: z.string()})
-
-export default Plugin.define({
-  id: 'project-version',
-  async setup(ctx) {
-    await ctx.tool.transform((tools) => {
-      tools.add({
-        name: 'project_version',
-        description: "Read the project's name and version from its package.json.",
-        input: z.object({}),
-        output: Manifest,
-        execute: async () => {
-          const text = await readFile(path.join(ctx.location.directory, 'package.json'), 'utf8')
-          return {output: Manifest.parse(JSON.parse(text))}
-        },
-      })
-    })
-  },
-})
-```
-
-</Tab>
-<Tab value="Effect">
-
-```ts twoslash title="conciv/plugins/project-version/server.ts"
-import {readFile} from 'node:fs/promises'
-import path from 'node:path'
-import {Effect} from 'effect'
-import {z} from 'zod'
-import {Plugin} from '@conciv/backend-plugin-api/effect'
-import * as Tool from '@conciv/protocol/schema/tool'
-
-const Manifest = z.object({name: z.string(), version: z.string()})
-
-export default Plugin.define({
-  id: 'project-version',
-  effect: (ctx) =>
-    ctx.tool.transform((tools) => {
-      tools.add({
-        name: 'project_version',
-        description: "Read the project's name and version from its package.json.",
-        input: z.object({}),
-        output: Manifest,
-        execute: () =>
-          Effect.tryPromise({
-            try: () => readFile(path.join(ctx.location.directory, 'package.json'), 'utf8'),
-            catch: () => Tool.toolError({message: 'The project has no readable package.json.'}),
-          }).pipe(Effect.map((text) => ({output: Manifest.parse(JSON.parse(text))}))),
-      })
-    }),
-})
-```
-
-</Tab>
-</Tabs>
-
-- `Plugin.define` declares the plugin. Its `id` is the name you use in your config.
-- `ctx` is what the engine gives your plugin. `ctx.location.directory` is your project folder.
-- `ctx.tool.transform` is where you add tools. Each `tools.add` call adds one.
-- `description` is what the agent reads to decide when to call the tool. Write it for the agent.
-- `input` is a zod schema. The engine checks the agent's input against it before your code runs.
-- `output` is the schema of what the tool returns.
-- What `execute` returns as `output` is what the agent gets back.
-
-A file in your project's `conciv/plugins` folder loads with no config. Ask the agent "What version is this
-project?" and it calls `project_version`.
+- **Give the agent a tool.** The agent calls it like any built-in tool. The test runner adds `test_runner_run`, so
+  you can say "run the tests".
+- **Ask the user first.** A tool can stop and show an approval card before it acts.
+- **Draw a card in the chat.** A tool's calls show as your own component instead of the generic card.
+- **Add a panel.** A tab next to the chat. The test runner's Tests tab follows a run live.
+- **Add a slot or a pill.** Content at a fixed place in the widget, or a button above the composer.
+- **Answer RPC calls.** Your browser part, a terminal or another plugin calls your engine part by name.
 
 ## Plugin or skill?
 
 Start with the smallest thing that does the job:
 
-| You want the agent to                                 | Use                                                                                                    |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Follow your steps for a kind of task                  | a [skill](/docs/skills)                                                                                |
-| Run code you wrote, or read something it cannot reach | a plugin with a [tool](/docs/plugins/guides/tool)                                                      |
-| Show you something in the widget                      | a plugin with a [panel](/docs/plugins/guides/panel) or a [card](/docs/plugins/guides/tool#draw-a-card) |
+| You want the agent to                                 | Use                                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Follow your steps for a kind of task                  | a [skill](/docs/skills), a Markdown file with no code                          |
+| Run code you wrote, or read something it cannot reach | a plugin with a [tool](/docs/plugins/guides/tool)                              |
+| Show you something in the widget                      | a plugin with a [panel](/docs/plugins/guides/panel) or a card for its tool     |
 
-## Add a plugin
+To add a plugin someone else wrote, such as the test runner, see [Add plugins](/docs/usage/add-plugins).
 
-List plugins in the `plugins` option of `conciv()` in your bundler config:
+## Start here
 
-```ts twoslash title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
+- [Build your first plugin](/docs/plugins/first-plugin): a tool the agent calls and the card it draws, from an empty
+  folder.
 
-export default defineConfig({
-  plugins: [
-    conciv({
-      plugins: ['@conciv/plugin-test-runner', './tools/deploy-plugin'], // [!code ++]
-    }),
-  ],
-})
-```
+## Engine part
 
-- `'@conciv/plugin-test-runner'` is a package name. The engine installs it from npm into its own cache. You do not add
-  it to your `package.json`.
-- `'./tools/deploy-plugin'` is a folder in your project. It resolves from your project folder, not from the config
-  file.
+- [Add a tool](/docs/plugins/guides/tool): run your code when the agent asks, direct or in code mode.
+- [Ask for permission](/docs/plugins/guides/permission): show an approval card before a tool acts.
+- [Add a skill](/docs/plugins/guides/skill): ship instructions that teach the agent your tools.
+- [Share an RPC method](/docs/plugins/guides/rpc): let the browser part and other callers reach the engine part.
+- [Call your plugin from a terminal](/docs/plugins/guides/terminal): run an RPC method from your shell.
 
-The other bundlers take the same option. See the [quick start](/docs/getting-started) for your bundler's config.
+## Browser part
 
-### Pass options
+- [Add a panel](/docs/plugins/guides/panel): a tab next to the chat with your own screen.
+- [Add a slot or composer pill](/docs/plugins/guides/slot-pill): a small piece of UI at a fixed place.
+- [Add settings](/docs/plugins/guides/settings): read config options, and add a setting to the widget.
 
-Write an entry as `[name, options]` to configure that plugin:
+## Check and look up
 
-```ts twoslash title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
-
-export default defineConfig({
-  plugins: [
-    conciv({
-      plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]], // [!code ++]
-    }),
-  ],
-})
-```
-
-Every option value must be JSON: a string, number, boolean, null, array or object. The plugin reads them as
-`ctx.options`.
-
-### Turn a plugin off
-
-Put `-` before a plugin's id:
-
-```ts twoslash title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
-
-export default defineConfig({
-  plugins: [
-    conciv({
-      plugins: ['-project-version'], // [!code ++]
-    }),
-  ],
-})
-```
-
-This turns off a plugin that loads on its own, such as one in `conciv/plugins`.
-
-## Add a plugin from your project
-
-Every plugin in a `conciv/plugins` folder at your project root loads with no config entry. A plugin there is one
-`.ts` or `.js` file, or a folder:
-
-<Files>
-  <Folder name="conciv" defaultOpen>
-    <Folder name="plugins" defaultOpen>
-      <File name="project-version.ts" />
-      <Folder name="deploy" defaultOpen>
-        <File name="server.ts" />
-      </Folder>
-    </Folder>
-  </Folder>
-</Files>
-
-The engine watches these files. Save a change and the plugin loads again.
-
-<Accordions>
-<Accordion title="Every way to name a plugin">
-
-- A string that is not a path is a package name, installed from npm.
-- A path that starts with `./` or `../` resolves from your project folder.
-- An absolute path or a `file://` URL is used as it is.
-- A configured path must be a folder. A file there is skipped with the warning
-  `configured plugin path must be a directory`.
-- A string that starts with `-` turns off the plugin with that id.
-
-</Accordion>
-</Accordions>
-
-## Next
-
-<Cards>
-  <Card
-    title="Add a tool"
-    href="/docs/plugins/guides/tool"
-    description="Write the tool the agent calls, and its card."
-  />
-  <Card
-    title="Built-in plugins"
-    href="/docs/usage/add-plugins"
-    description="The plugins conciv ships, and how to add each."
-  />
-  <Card
-    title="Test your plugin"
-    href="/docs/plugins/guides/testing"
-    description="Run your plugin on a real engine in a test."
-  />
-</Cards>
+- [Test your plugin](/docs/plugins/guides/testing): run your plugin on a real engine in a test.
+- [Plugin API reference](/docs/plugins/reference): every import and every field of `ctx`, in both styles.
