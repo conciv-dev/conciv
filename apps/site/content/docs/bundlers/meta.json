@@ -1,4 +1,4 @@
 {
   "title": "Bundlers",
-  "pages": ["index", "vite", "nextjs", "webpack", "rspack", "tanstack-start", "ios"]
+  "pages": ["vite", "nextjs", "webpack", "rspack", "tanstack-start", "ios"]
 }

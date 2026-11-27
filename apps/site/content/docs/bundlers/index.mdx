@@ -1,35 +1,27 @@
 ---
-title: Rollup and esbuild
-description: conciv does not run with Rollup or esbuild yet. Serve your app with Vite instead.
+title: Bundlers
+description: Add conciv to the dev server of your bundler or framework, one page each.
 ---
 
-conciv does not run with Rollup or esbuild yet. Serve your app with Vite, and add conciv there. Vite builds with
-Rollup, so most Rollup apps move over with few changes.
+A bundler page shows the config that adds conciv to your dev server, and what the agent can do there. The widget and
+the chat are the same everywhere; only the wiring and the dev server tools differ.
 
-Once your app runs on Vite, copy this prompt into your coding agent:
+## Vite
 
-<SetupPrompt framework="vite" />
+- [Vite](/docs/bundlers/vite): Vite apps, Astro included. The agent also reads your dev server.
+- [TanStack Start](/docs/bundlers/tanstack-start): TanStack Start apps, which run on Vite.
 
-See [Vite](/docs/bundlers/vite) for the manual steps.
+## Other bundlers
 
-## Edge cases
+- [Next.js](/docs/bundlers/nextjs): `withConciv` plus two instrumentation files.
+- [webpack](/docs/bundlers/webpack): the widget and the engine in your development build.
+- [Rspack](/docs/bundlers/rspack): the widget and the engine in your development build.
 
-<Accordions>
-<Accordion id="entries" title="The Rollup and esbuild plugin entries">
+## Native apps
 
-`@conciv/it/plugin/rollup` and `@conciv/it/plugin/esbuild` exist, but do nothing. They start no engine and add no
-widget.
+- [iOS](/docs/bundlers/ios): the widget over a native app in the simulator, in early alpha.
 
-</Accordion>
-<Accordion id="init" title="Running conciv init on a Rollup or esbuild project">
+## Not supported yet
 
-init installs `@conciv/it`. Then it prints a card that says the entry does nothing today, and points you to Vite. It
-does not edit your config.
-
-</Accordion>
-</Accordions>
-
-## Next
-
-- [Vite](/docs/bundlers/vite): the full setup once your app runs on Vite.
-- [Quick start](/docs/getting-started): every framework conciv supports.
+Rollup and esbuild do not run conciv yet: their plugin entries exist but do nothing, so serve your app with
+[Vite](/docs/bundlers/vite) instead.
