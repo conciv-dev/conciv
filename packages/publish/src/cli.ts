@@ -241,17 +241,22 @@ function printSyncPlan(states: SyncPackageState[], plan: SyncPlanEntry[], json: 
   console.log(`${healthy}/${states.length} packages healthy`)
 }
 
-async function bootstrapSyncPackage(cwd: string, run: Run, turbo: Turbo, name: string): Promise<void> {
-  await assertBootstrappable(cwd, name)
-  await turbo('build', 'publint', 'attw', `--filter=${name}`)
-  await firstPublish(run, name)
+async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): Promise<void> {
+  await Promise.all(names.map((name) => assertBootstrappable(cwd, name)))
+  if (names.length === 0) return
+  await turbo('build', 'publint', 'attw', ...names.map((name) => `--filter=${name}`))
 }
 
 async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, plan: SyncPlanEntry[]): Promise<void> {
   await run('npm', ['whoami'])
+  await buildFirstPublishes(
+    cwd,
+    turbo,
+    plan.filter(({actions}) => actions.includes('publish')).map(({name}) => name),
+  )
   for (const {name, actions} of plan) {
     if (actions.includes('publish')) {
-      await bootstrapSyncPackage(cwd, run, turbo, name)
+      await firstPublish(run, name)
     }
     if (actions.includes('trust')) {
       await wireTrust(run, name)
