@@ -18,15 +18,15 @@ You want a flow through the widget to run the same way every time. This often co
 
 ## Solution
 
-Run the engine in simulation, and answer the model from a driver: a small node script of yours. Start the dev server
+Run the engine in simulation, and answer the model from a driver. A driver is a small node script of yours. Start the dev server
 with two variables:
 
 ```bash title="Terminal"
 CONCIV_SIMULATE=1 CONCIV_DRIVE=1 pnpm dev
 ```
 
-`CONCIV_SIMULATE=1` puts the engine in simulation. `CONCIV_DRIVE=1` opens two local sockets: one answers the model,
-the other acts on the widget. Once both listen, the dev server prints their addresses:
+`CONCIV_SIMULATE=1` puts the engine in simulation. `CONCIV_DRIVE=1` opens two local sockets. One answers the model.
+The other acts on the widget. Once both listen, the dev server prints their addresses:
 
 ```text title="Terminal"
 conciv drive backend websocket: ws://127.0.0.1:40950
@@ -103,7 +103,7 @@ through a fixed list of allowed addresses, and the rest are refused. Tools your 
 are offered to the agent, next to the plugins' tools. The widget takes driver calls in development builds only.
 
 <Accordions>
-  <Accordion title="Can the sockets use other ports?">
+  <Accordion title="Put the sockets on other ports">
     Any value of `CONCIV_DRIVE` other than `1` is an instance name. The engine reads `<name>.json` with the two
     addresses:
 
@@ -111,8 +111,13 @@ are offered to the agent, next to the plugins' tools. The widget takes driver ca
     {"endpoints": {"ui": "ws://127.0.0.1:41900", "backend": "ws://127.0.0.1:41950"}}
     ```
 
-    Start with `CONCIV_DRIVE=demo`. The folder is `DRIVE_REGISTRY_DIR` when set, else `conciv-drive/instances` under
-    `XDG_STATE_HOME`, else the path above. Both addresses must be `ws://127.0.0.1` with a port. A missing or broken
+    Start with `CONCIV_DRIVE=demo`. The engine looks for the file in the first of these that applies:
+
+    - `DRIVE_REGISTRY_DIR`, when set
+    - `conciv-drive/instances` under `XDG_STATE_HOME`, when set
+    - the path above
+
+    Both addresses must be `ws://127.0.0.1` with a port. A missing or broken
     file stops the engine with `Drive manifest not found` or `Invalid Drive manifest`.
 
   </Accordion>
