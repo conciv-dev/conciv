@@ -13,7 +13,7 @@ A skill is a page of instructions the agent reads when a task needs it. Ship one
 a how-to: which tool to call first, what the results mean, what to avoid. If you only need the instructions, with no
 new code, a skill file in your project is enough. See [Skills](/docs/skills).
 
-## Basic
+## Ship a skill file
 
 Keep the instructions in a Markdown file in your plugin folder:
 
@@ -80,14 +80,14 @@ export default Plugin.define({
 
 A few things to notice:
 
-- `Skill.Id`, `Skill.Name` and `AbsolutePath` are branded strings. `.make` turns a plain string into one, so an id
-  cannot go where a name belongs.
-- `description` is what the agent always sees. It decides from this line when to load the skill.
+- `Skill.Id`, `Skill.Name` and `AbsolutePath` are branded strings. `.make` turns a plain string into one. An id
+  then cannot go where a name belongs.
+- `description` is what the agent always sees. The agent decides from this line when to load the skill.
 - The agent sees the files next to `SKILL.md` and can read them, such as a `reference/` folder.
 - In both tabs, a missing file stops the plugin from loading.
 
-The agent gets the skill's name and description in every turn. When it starts a ticket task, it loads the content
-and follows it.
+The agent gets the skill's name and description in every turn. When it starts a ticket task, it loads the content.
+Then it follows it.
 
 ## A skill with no file
 
@@ -134,9 +134,9 @@ export default Plugin.define({
 ```
 
 <Accordions>
-<Accordion title="How do I keep a skill out of the agent's list?">
+<Accordion title="Keep a skill out of the agent's list">
 
-Leave out its `description`, or set `autoinvoke: false`. The agent is then not told about it. The user can still
+Leave out its `description`, or set `autoinvoke: false`. The engine then does not tell the agent about it. The user can still
 attach it to a message on purpose.
 
 </Accordion>
