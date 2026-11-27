@@ -4,9 +4,9 @@ description: Make the user approve a tool call before it does something they wou
 ---
 
 Ask first when a tool changes something the user cares about: it deploys, deletes, pays or sends. The user gets a
-card in the chat, and your tool waits for the answer.
+card in the chat. Your tool waits for the answer.
 
-## Basic
+## Ask before the tool acts
 
 Call `ctx.permission.assert` at the start of the tool, before it acts:
 
@@ -91,7 +91,7 @@ The chat shows a card titled with the action and its resources, here "release_sh
 
 - **Allow once.** This call runs.
 - **Allow always.** This call runs, and the project remembers the `save` values for this action.
-- **Deny.** The call fails and the agent is told.
+- **Deny.** The call fails, and conciv tells the agent.
 
 <Playground page="vite-react" script="plugins/permission-card" caption="A permission card, answered Allow once" />
 
@@ -165,9 +165,9 @@ export default Plugin.define({
 ```
 
 <Accordions>
-<Accordion title="Does an ask rule make it ask every time?">
+<Accordion title="An ask rule alone does not ask every time">
 
-Not on its own. The last rule that matches wins, and the list runs: the agent's rules, the session's, then saved
+The last rule that matches wins. The engine reads them in this order: the agent's rules, the session's, then saved
 answers. An `ask` rule you push onto an agent with `ctx.agent.transform` beats the catch-all rules before it. A saved
 Allow always answer still wins, because it comes after. Leaving out `save` is the way to ask on every call.
 
