@@ -1,5 +1,4 @@
-import {isAbsolute, relative, sep} from 'node:path'
-import {Effect, FileSystem} from 'effect'
+import {Effect, FileSystem, Path} from 'effect'
 import MagicString from 'magic-string'
 import type {JSXOpeningElement} from 'oxc-parser'
 import {
@@ -24,27 +23,31 @@ type Disk = {readonly text: string; readonly openings: JSXOpeningElement[]; read
 
 type Stamp = {readonly index: number; readonly node: JSXOpeningElement; readonly key: string | null}
 
-export function stampJsx(input: {keys: KeyMap; root: string; code: string; id: string}) {
-  return Effect.gen(function* () {
-    const file = input.id.split('?')[0] ?? input.id
-    if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
-    const parsed = yield* parseModule(file, input.code).pipe(Effect.orElseSucceed(() => null))
-    if (parsed === null || parsed.openings.length === 0) return null
-    const disk = yield* readDisk(file, parsed.openings.length)
-    return stampParsed({...input, file, parsed, disk})
-  })
-}
+export const stampJsx = Effect.fn('design.stampJsx')(function* (input: {
+  keys: KeyMap
+  root: string
+  code: string
+  id: string
+}) {
+  const file = input.id.split('?')[0] ?? input.id
+  if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
+  const parsed = yield* parseModule(file, input.code).pipe(Effect.orElseSucceed(() => null))
+  if (parsed === null || parsed.openings.length === 0) return null
+  const disk = yield* readDisk(file, parsed.openings.length)
+  const path = yield* Path.Path
+  const relativePath = inside(path, input.root, file) ? path.relative(input.root, file) : file
+  return stampParsed({...input, file, parsed, disk, relativePath})
+})
 
 function stampParsed(input: {
   keys: KeyMap
-  root: string
   code: string
   file: string
   parsed: Parsed
   disk: Disk | null
+  relativePath: string
 }) {
-  const {keys, root, code, file, parsed, disk} = input
-  const relativePath = inside(root, file) ? relative(root, file) : file
+  const {keys, code, file, parsed, disk, relativePath} = input
   const sites = parsed.openings.flatMap((node, index) =>
     calledComponent(node, parsed.imported) ? [{node, index}] : [],
   )
@@ -77,22 +80,25 @@ function stampParsed(input: {
   return {code: magic.toString(), map: magic.generateMap({source: file, hires: true})}
 }
 
-function readDisk(file: string, expected: number) {
-  return Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem
-    const text = yield* fs.readFileString(file).pipe(
-      Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(null)),
-      Effect.mapError((cause) => designErrors.UNREADABLE({file, detail: cause.message, cause})),
-    )
-    if (text === null) return null
-    const parsed = yield* parseModule(file, text).pipe(Effect.orElseSucceed(() => null))
-    if (parsed === null || parsed.openings.length !== expected) return null
-    const disk: Disk = {text, openings: parsed.openings, locate: makeLocator(text)}
-    return disk
-  })
-}
+const readDisk = Effect.fn('design.readDisk')(function* (file: string, expected: number) {
+  const fs = yield* FileSystem.FileSystem
+  const text = yield* fs.readFileString(file).pipe(
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(null)),
+    Effect.mapError((cause) => designErrors.UNREADABLE({file, detail: cause.message, cause})),
+  )
+  if (text === null) return null
+  const parsed = yield* parseModule(file, text).pipe(Effect.orElseSucceed(() => null))
+  if (parsed === null || parsed.openings.length !== expected) return null
+  const disk: Disk = {text, openings: parsed.openings, locate: makeLocator(text)}
+  return disk
+})
 
-function inside(root: string, file: string): boolean {
-  const path = relative(root, file)
-  return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path)
+function inside(path: Path.Path, root: string, file: string): boolean {
+  const relativePath = path.relative(root, file)
+  return (
+    relativePath !== '' &&
+    relativePath !== '..' &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
+  )
 }
