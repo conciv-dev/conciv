@@ -3,8 +3,6 @@ import {page, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createFakeEngine, FakeLLM} from '@internal/test-utils'
-import {createORPCClient} from '@orpc/client'
-import type {EngineClient} from '@conciv/client'
 import {approveFromElsewhere, sendFromElsewhere, uiAnswers} from '../utils/engine-client.js'
 import {PANE_SESSION, SESSION_ADDRESS} from '../utils/sample-data.js'
 import {paneEngine} from '../utils/sample-engines.js'
@@ -621,8 +619,7 @@ describe('the user stops while the agent asks', () => {
       FakeLLM.text('Here it is'),
     )
     await mountShell({engine})
-    const wipClient = createORPCClient<EngineClient>(engine.connect().link)
-    await wipClient.logs.setLevel({level: 'debug', scope: 'widget'})
+
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a color with me')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByRole('button', {name: 'Red'})).toBeVisible()
@@ -630,10 +627,6 @@ describe('the user stops while the agent asks', () => {
 
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
     expect(await screen.findByText('Tool execution interrupted')).toBeVisible()
-    const wipTrace = async () =>
-      (await wipClient.logs.query({text: '[wip-stop]', limit: 200})).events.map((e) => `${e.message} ${e.data ?? ''}`)
-    await expect.poll(wipTrace, {timeout: 10_000}).toContainEqual(expect.stringContaining('[wip-stop] refreshed'))
-    expect({redShown: screen.queryByRole('button', {name: 'Red'}) !== null, trace: await wipTrace()}).toEqual({})
     expect(screen.queryByRole('button', {name: 'Red'})).not.toBeInTheDocument()
     expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
 

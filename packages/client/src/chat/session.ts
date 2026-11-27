@@ -1,4 +1,3 @@
-import {log} from 'evlog'
 import {StreamReconnectLimitError, type SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
@@ -229,32 +228,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const connected = options.connect({
     onLifecycle: (lifecycle) => {
       receive({lifecycle, receivedAt: Date.now()})
-      log.debug({
-        action: 'wip-stop',
-        message: '[wip-stop] lifecycle',
-        phase: lifecycle.phase,
-        runId: lifecycle.runId,
-        chatRunId: chat.runId(),
-        loading: chat.isLoading(),
-        cardStillRunning: cardStillRunning(chat.messages()),
-        at: performance.now(),
-      })
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
       if (isRunPhaseTerminal(lifecycle.phase) && cardStillRunning(chat.messages()))
-        void refresh()
-          .then(() =>
-            log.debug({
-              action: 'wip-stop',
-              message: '[wip-stop] refreshed after the run ended',
-              cardStillRunning: cardStillRunning(chat.messages()),
-              parts: chat.messages().flatMap((message) => message.parts),
-              at: performance.now(),
-            }),
-          )
-          .catch((error: unknown) => {
-            log.debug({action: 'wip-stop', message: '[wip-stop] refresh failed', error})
-            options.onError?.(asError(error))
-          })
+        void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onHydrated: (hydration) => {
       receive(newerRun(run().source, hydration))
@@ -379,13 +355,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
   const stop = async (): Promise<void> => {
-    log.debug({
-      action: 'wip-stop',
-      message: '[wip-stop] user stop',
-      queued: stopQueued(),
-      loading: chat.isLoading(),
-      at: performance.now(),
-    })
     if (stopQueued()) return
     if (queuesStop()) {
       const runId = chat.runId()
