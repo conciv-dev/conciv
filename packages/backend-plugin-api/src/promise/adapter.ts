@@ -486,8 +486,20 @@ export function fromPromise(plugin: Plugin.Plugin) {
           (cleanup) => (typeof cleanup === 'function' ? Effect.promise(() => Promise.resolve(cleanup())) : Effect.void),
         )
       }),
+    ...(plugin.bundler === undefined ? {} : {bundler: adaptBundler(plugin.bundler)}),
   })
 }
+
+const hookCall = <Answer>(run: () => Answer | Promise<Answer>) =>
+  Effect.tryPromise({try: () => Promise.resolve(run()), catch: (cause) => cause})
+
+const adaptBundler = ({transform, resolveId, load}: Plugin.Bundler) => ({
+  ...(transform === undefined ? {} : {transform: (code: string, id: string) => hookCall(() => transform(code, id))}),
+  ...(resolveId === undefined
+    ? {}
+    : {resolveId: (id: string, importer: string | undefined) => hookCall(() => resolveId(id, importer))}),
+  ...(load === undefined ? {} : {load: (id: string) => hookCall(() => load(id))}),
+})
 
 type RuntimeSchema = Schema.Codec<unknown, unknown>
 
