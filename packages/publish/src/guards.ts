@@ -329,6 +329,12 @@ const DECLARATION_FILE = /\.d\.[cm]?ts$/
 
 const IMPORTED_MODULE = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g
 
+const EXPORT_LIST = /^export (?:type )?\{([^}]*)\}/gm
+
+const EXPORT_ALL = /^export \* from ['"](\.[^'"]*)['"]/gm
+
+const GENERATED_NAME = /^__|_exports$/
+
 async function readDeclarationFiles(dir: string): Promise<string[]> {
   const dist = join(dir, 'dist')
   try {
@@ -366,9 +372,48 @@ export type DeclarationGraph = {
   privateNames: readonly string[]
 }
 
-export function findPrivateTypeLeaks({entries, files, privateNames}: DeclarationGraph): string[] {
+function readExportedNames(text: string): string[] {
+  return Array.from(text.matchAll(EXPORT_LIST), (match) => match[1] ?? '').flatMap((list) =>
+    list
+      .split(',')
+      .map((specifier) =>
+        (
+          specifier
+            .trim()
+            .split(/\s+as\s+/)
+            .at(-1) ?? ''
+        ).replace(/^type\s+/, ''),
+      )
+      .filter((name) => name !== ''),
+  )
+}
+
+function findGeneratedExports(entries: readonly string[], files: ReadonlyMap<string, string>): string[] {
+  const exposed = [...entries]
+  for (const file of exposed) {
+    for (const match of (files.get(file) ?? '').matchAll(EXPORT_ALL)) {
+      const next = declarationCandidates(join(dirname(file), match[1] ?? '')).find((candidate) => files.has(candidate))
+      if (next !== undefined && !exposed.includes(next)) exposed.push(next)
+    }
+  }
+  return exposed.flatMap((file) =>
+    readExportedNames(files.get(file) ?? '')
+      .filter((name) => GENERATED_NAME.test(name))
+      .map((name) => `${file} exports ${name}, a helper name the bundler generated`),
+  )
+}
+
+export function findPublicTypeViolations({entries, files, privateNames}: DeclarationGraph): string[] {
   const parents = new Map<string, string | undefined>()
   const queue = [...new Set(entries.flatMap(declarationCandidates).flatMap((entry) => matchEntry(entry, files)))]
+  const namedFiles = [
+    ...new Set(
+      entries
+        .filter((entry) => !entry.includes('*'))
+        .flatMap(declarationCandidates)
+        .filter((entry) => files.has(entry)),
+    ),
+  ]
   queue.forEach((file) => parents.set(file, undefined))
   const chainTo = (file: string): string[] => {
     const parent = parents.get(file)
@@ -387,7 +432,7 @@ export function findPrivateTypeLeaks({entries, files, privateNames}: Declaration
       queue.push(next)
     }
   }
-  return leaks
+  return [...leaks, ...findGeneratedExports(namedFiles, files)]
 }
 
 async function readDeclarationGraph(cwd: string, pkg: WorkspacePackage): Promise<Map<string, string>> {
@@ -412,7 +457,7 @@ export async function assertPublicTypesPublic(cwd: string, only?: readonly strin
         (pkg) => only === undefined || (typeof pkg.manifest.name === 'string' && only.includes(pkg.manifest.name)),
       )
       .map(async (pkg) =>
-        findPrivateTypeLeaks({
+        findPublicTypeViolations({
           entries: readExportTargets(pkg.manifest.exports).map((target) => join(pkg.relativeDir, target)),
           files: await readDeclarationGraph(cwd, pkg),
           privateNames,
