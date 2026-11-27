@@ -14,7 +14,7 @@ your test checks what comes back. Nothing is mocked. This guide tests `project_v
 [Build your first plugin](/docs/plugins/first-plugin) and `release_ship` from
 [Ask for permission](/docs/plugins/guides/permission). Both are direct tools, with `codemode: false`.
 
-## Basic
+## Call your tool in a test
 
 Add the conciv test setup to a vitest config at your project root:
 
@@ -44,7 +44,7 @@ Run it from your project root with `npx vitest run`.
 
 A few things to notice:
 
-- Tests are collected from `test/unit`, `test/it` and `test/e2e`. Engine tests go in `test/it`.
+- vitest collects tests from `test/unit`, `test/it` and `test/e2e`. Engine tests go in `test/it`.
 - `test` is vitest's `test` with a `createEngine` fixture. It starts the real engine on a free port.
 - The first argument of `createEngine` is your conciv config. Here it is empty, because `conciv/plugins` loads on
   its own, as in your app.
@@ -127,7 +127,7 @@ The test finds the composer by its label and types into it, as a user does. `fin
 shows.
 
 <Accordions>
-<Accordion title="What else can a test script?">
+<Accordion title="More a test can script">
 
 - `TestLLM.failAfter(error)`: the model fails part way through its reply.
 - `TestLLM.hang()`: a reply that never ends, so the turn runs until it is stopped.
