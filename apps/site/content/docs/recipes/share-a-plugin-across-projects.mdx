@@ -12,13 +12,13 @@ A plugin in `conciv/plugins/` belongs to one project. You want the same plugin i
 - you want to publish a plugin for others to add.
 
 <Callout type="warn" title="Copies drift">
-  A copy of the plugin folder in each project works, but every fix then has to be made in every copy. Sooner or later
-  one project runs an old version.
+  A copy of the plugin folder in each project works, but you then make every fix in every copy. Sooner or later one
+  project runs an old version.
 </Callout>
 
 ## Solution
 
-Keep the plugin in one place, and point each project at it. In a monorepo, or on one machine, use a path:
+Keep the plugin in one place and point each project at it. In a monorepo, or on one machine, use a path:
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -56,8 +56,10 @@ For projects in other repos, publish the plugin as a package. Its `package.json`
 }
 ```
 
-`./server` is the engine part, and `./plugin-experimental` is the built browser part. Ship JavaScript: Node does not
-run TypeScript from a package. Each project then adds the plugin by name:
+- `./server` is the engine part.
+- `./plugin-experimental` is the built browser part.
+
+Ship JavaScript. Node does not run TypeScript from a package. Each project then adds the plugin by name:
 
 ```ts twoslash title="vite.config.ts"
 import conciv from '@conciv/it/plugin/vite'
@@ -69,9 +71,9 @@ The engine installs the package from npm into its own cache. You do not add it t
 more in the [Add plugins documentation](/docs/usage/add-plugins).
 
 <Accordions>
-  <Accordion title="Can I link the folder into conciv/plugins instead?">
-    Yes. The engine follows a symbolic link in `conciv/plugins/` to a folder. That shares the plugin without a config
-    entry, but every project needs its own link.
+  <Accordion title="Link the folder into conciv/plugins instead">
+    The engine follows a symbolic link in `conciv/plugins/` to a folder. That shares the plugin without a config entry,
+    but every project needs its own link.
   </Accordion>
 </Accordions>
 
