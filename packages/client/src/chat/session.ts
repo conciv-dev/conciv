@@ -347,11 +347,13 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     setRunSource(stoppingRun)
     try {
       await options.stop(runIds)
-    } finally {
+    } catch (error) {
       chat.stop()
+      throw error
+    } finally {
       setRunSource(stoppedRun)
     }
-    await refresh()
+    if (!chat.isLoading()) await refresh()
   }
   const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
   const stop = async (): Promise<void> => {
