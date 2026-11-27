@@ -47,9 +47,18 @@ AskUserQuestion   off                      <- the agent asks with a card in the 
 model             opus                     <- unless you pick another in the model menu
 ```
 
-The always-ask rules cover a forced or deleting git push, a hard git reset, git clean, deleting a branch with `-D`,
-pruning with git gc, a recursive rm, chmod or chown, and sudo. Each ask shows as a [Permission
-card](/docs/usage/approvals). A tool call waits up to an hour for your answer.
+conciv adds ask rules, so these commands always ask, even in auto mode:
+
+- `git push` that forces (`--force`, `-f`) or deletes a remote branch (`--delete`, `-d`, a `:branch` refspec)
+- `git reset --hard`
+- `git clean`
+- `git branch -D`
+- `git gc --prune`
+- a recursive `rm` (`-r`, `-R`, `-fr`, `-fR`)
+- a recursive `chmod -R` or `chown -R`
+- anything run with `sudo`
+
+Each ask shows as a [Permission card](/docs/usage/approvals). A tool call waits up to an hour for your answer.
 
 The model menu lists your account's own models, the same list as Claude Code's model picker. A picked effort level
 reaches Claude Code as its effort setting.
