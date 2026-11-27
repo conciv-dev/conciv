@@ -19,12 +19,29 @@ import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
 import {causeFrom, pluginHostErrors} from '@conciv/errors'
 import {EvlogError} from 'evlog'
-import type {Bundler, BundlerCode} from '@conciv/backend-plugin-api/effect/plugin'
-import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Option, Queue, References, Scope, Semaphore} from 'effect'
+import type {BundlerCode} from '@conciv/backend-plugin-api/effect/plugin'
+import {
+  Cause,
+  Context,
+  Effect,
+  Exit,
+  Latch,
+  Layer,
+  Logger,
+  Option,
+  PubSub,
+  Queue,
+  References,
+  Scope,
+  Semaphore,
+  Stream,
+} from 'effect'
 import * as Bus from './bus.js'
 import * as PluginHost from './plugin/host.js'
 import {
   type BundlerHook,
+  type BundlerRegistration,
+  type BundlerRegistry,
   type Chunks,
   type Failure,
   type Generation,
@@ -69,19 +86,25 @@ export const layer = Layer.effect(
     const list = Effect.fn('Plugin.list')(function* () {
       return inventory
     })
-    const bundlers = () =>
-      Array.from(active.values()).flatMap((slot) => {
-        const running = slot.activation?.failure === undefined ? slot.activation?.plugin : undefined
-        return running?.bundler === undefined ? [] : [{id: running.id, bundler: running.bundler}]
-      })
+    const bundlerChanges = yield* Effect.acquireRelease(PubSub.unbounded<void>(), (pubsub) => PubSub.shutdown(pubsub))
+    const bundler = State.create<BundlerRegistration[], BundlerRegistry>({
+      name: 'bundler',
+      initial: () => [],
+      notify: () => PubSub.publish(bundlerChanges, undefined).pipe(Effect.asVoid),
+      editor: (registrations) => ({
+        add: (hooks, plugin) => {
+          registrations.push({plugin, hooks})
+        },
+      }),
+    })
     const transform = Effect.fn('Plugin.transform')(function* (code: string, id: string) {
       const chain = yield* Effect.reduce(
-        bundlers(),
+        bundler.get(),
         (): TransformChain => ({result: undefined, changes: 0}),
-        (done: TransformChain, plugin) => {
-          const hook = plugin.bundler.transform
+        (done: TransformChain, registration) => {
+          const hook = registration.hooks.transform
           if (hook === undefined) return Effect.succeed(done)
-          return runHook('transform', plugin.id, id, () => hook(done.result?.code ?? code, id)).pipe(
+          return runHook('transform', registration.plugin, id, () => hook(done.result?.code ?? code, id)).pipe(
             Effect.map((answer) => {
               const next = readCode(answer)
               return next === undefined ? done : {result: next, changes: done.changes + 1}
@@ -93,17 +116,19 @@ export const layer = Layer.effect(
       return chain.changes === 1 ? chain.result : {code: chain.result.code}
     })
     const resolveId = Effect.fn('Plugin.resolveId')(function* (id: string, importer: string | undefined) {
-      return yield* firstAnswer(bundlers(), (plugin) => {
-        const hook = plugin.bundler.resolveId
-        return hook === undefined ? Effect.succeed(null) : runHook('resolveId', plugin.id, id, () => hook(id, importer))
+      return yield* firstAnswer(bundler.get(), (registration) => {
+        const hook = registration.hooks.resolveId
+        return hook === undefined
+          ? Effect.succeed(null)
+          : runHook('resolveId', registration.plugin, id, () => hook(id, importer))
       })
     })
     const loadModule = Effect.fn('Plugin.loadModule')(function* (id: string) {
-      return yield* firstAnswer(bundlers(), (plugin) => {
-        const hook = plugin.bundler.load
+      return yield* firstAnswer(bundler.get(), (registration) => {
+        const hook = registration.hooks.load
         return hook === undefined
           ? Effect.succeed(null)
-          : runHook('load', plugin.id, id, () => hook(id)).pipe(Effect.map(readCode))
+          : runHook('load', registration.plugin, id, () => hook(id)).pipe(Effect.map(readCode))
       })
     })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
@@ -149,7 +174,7 @@ export const layer = Layer.effect(
           release: holdUnsafe(),
         })
       })
-      const exit = yield* PluginHost.make({list}, plugin.id).pipe(
+      const exit = yield* PluginHost.make({list, bundler: bundler.transform}, plugin.id).pipe(
         Effect.provideContext(hostContext),
         Effect.flatMap((host) => plugin.effect(host)),
         grouped,
@@ -348,6 +373,7 @@ export const layer = Layer.effect(
       transform,
       resolveId,
       load: loadModule,
+      bundlerChanges: Stream.fromPubSub(bundlerChanges),
       experimental,
       experimentalChunk,
     })
@@ -419,8 +445,6 @@ function describeLoadFailure(error: Error) {
   return error.fix === undefined ? failure : `${failure} (${error.fix})`
 }
 
-type RunningBundler = {readonly id: string; readonly bundler: Bundler}
-
 type TransformChain = {readonly result: TransformedCode | undefined; readonly changes: number}
 
 function readCode(answer: BundlerCode): TransformedCode | undefined {
@@ -447,13 +471,13 @@ function runHook<Answer>(hook: BundlerHook, plugin: string, module: string, run:
 }
 
 function firstAnswer<Answer>(
-  plugins: readonly RunningBundler[],
-  ask: (plugin: RunningBundler) => Effect.Effect<Answer | null | undefined, EvlogError>,
+  registrations: readonly BundlerRegistration[],
+  ask: (registration: BundlerRegistration) => Effect.Effect<Answer | null | undefined, EvlogError>,
 ) {
   return Effect.reduce(
-    plugins,
+    registrations,
     (): Answer | null => null,
-    (found, plugin) =>
-      found === null ? ask(plugin).pipe(Effect.map((answer) => answer ?? null)) : Effect.succeed(found),
+    (found, registration) =>
+      found === null ? ask(registration).pipe(Effect.map((answer) => answer ?? null)) : Effect.succeed(found),
   )
 }

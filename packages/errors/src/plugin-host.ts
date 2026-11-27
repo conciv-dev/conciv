@@ -53,6 +53,13 @@ export const pluginHostErrors = defineErrorCatalog('plugin-host', {
     why: "The plugin's bundler part threw or failed while the dev server ran it.",
     fix: "Fix the plugin's bundler hook, or remove the plugin, and reload the page.",
   },
+  BUNDLER_HOOKS_INVALID: {
+    status: 400,
+    message: ({plugin}: {plugin: string}) =>
+      `conciv: the plugin ${plugin} registered a bundler hook that is not a function`,
+    why: 'ctx.bundler.add takes transform, resolveId and load, each a function when set.',
+    fix: 'Pass functions for the hooks the plugin sets, and leave the others out.',
+  },
 })
 
 declare module 'evlog' {

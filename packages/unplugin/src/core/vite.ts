@@ -205,6 +205,11 @@ async function bootEngine(
   })
 }
 
+function reloadAfterBundlerChange(server: ViteDevServer) {
+  for (const environment of Object.values(server.environments)) environment.moduleGraph.invalidateAll()
+  server.environments.client.hot.send({type: 'full-reload', path: '*'})
+}
+
 function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine {
   const closing = Promise.withResolvers<void>()
   const stopped = closing.promise
@@ -427,6 +432,7 @@ export function makeViteHook(
         await installConcivBinShim(concivStateDir(cfg.stateRoot)),
         builtins.widgetPageDir,
       )
+      booted.bundler.changes(() => reloadAfterBundlerChange(server))
       engines.push(stopWhenHttpServerCloses(server, booted))
       if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline(shutdown))
       apiBase = `http://127.0.0.1:${booted.port}`

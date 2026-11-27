@@ -15,6 +15,7 @@ export type {Hooks, Registration, Transform} from './registration.js'
 export type {Rule, Ruleset} from '@conciv/protocol/schema/permission'
 
 export type {AgentDomain, AgentEditor} from './agent.js'
+export type {BundlerCode, BundlerDomain, BundlerEditor, BundlerHooks, SourceMap} from './bundler.js'
 export type {EventDomain} from './event.js'
 export type {ModelDomain, ModelEditor} from './model.js'
 export type {PermissionDomain, PermissionEvaluation, PermissionHooks} from './permission.js'
