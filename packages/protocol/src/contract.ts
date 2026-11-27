@@ -1,5 +1,5 @@
 import {asyncIteratorObject, oc, type Schema} from '@orpc/contract'
-import type {AsyncIteratorClass} from '@orpc/client'
+import {COMMON_ERROR_STATUS_MAP, type AsyncIteratorClass} from '@orpc/client'
 import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/types/chat-event-types'
 import {
@@ -152,6 +152,29 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
+
+export const ENGINE_ERROR_STATUS: Readonly<Record<string, number>> = {
+  ...COMMON_ERROR_STATUS_MAP,
+  PLUGIN_RPC: 400,
+  PLUGIN_NOT_FOUND: 404,
+  PLUGIN_CHUNK_NOT_FOUND: 404,
+  PTY_NOT_FOUND: 404,
+  UNAVAILABLE: 500,
+  APPROVAL_DENIED: 500,
+  UNKNOWN_TOOL: 500,
+  INVALID_ARGS: 500,
+  HANDLER_ERROR: 500,
+  NO_CODE_MODE: 500,
+  PLUGIN_RPC_INTERNAL: 500,
+  SLOW_CONSUMER: 500,
+  NO_TTY: 500,
+  BUSY: 500,
+  UNKNOWN_MODEL: 500,
+  UNSUPPORTED_EFFORT: 500,
+  UNKNOWN_HARNESS: 500,
+  SESSION_RUNNING: 500,
+  UNKNOWN_REQUEST: 500,
+}
 
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const tabUnavailable = {UNAVAILABLE: {message: 'the tab is not open on this engine'}}

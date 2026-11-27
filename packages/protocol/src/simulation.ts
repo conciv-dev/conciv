@@ -1,4 +1,5 @@
 import {asyncIteratorObject, oc} from '@orpc/contract'
+import {COMMON_ERROR_STATUS_MAP} from '@orpc/client'
 import {z} from 'zod'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import {ReasoningEffortSchema} from '@conciv/types/chat-types'
@@ -438,6 +439,19 @@ export const NotificationSchema = z.discriminatedUnion('method', [
 export type Notification = z.infer<typeof NotificationSchema>
 
 const OkSchema = z.object({ok: z.literal(true)})
+
+export const SIMULATION_ERROR_STATUS: Readonly<Record<string, number>> = {
+  ...COMMON_ERROR_STATUS_MAP,
+  QUEUE_FULL: 500,
+  CONTROLLER_DISCONNECTED: 500,
+  ROLE_MISMATCH: 500,
+  UNSUPPORTED_PROTOCOL: 500,
+  MISSING_CAPABILITY: 500,
+  INVOCATION_NOT_FOUND: 500,
+  TOOL_INVOCATION_NOT_FOUND: 500,
+  TOOL_CONTROLLER: 500,
+  UI_ACTION_FAILED: 500,
+}
 
 const queueFull = {QUEUE_FULL: {message: 'Simulation control queue is full'}}
 

@@ -1,5 +1,5 @@
 import {ServerResponse} from 'node:http'
-import {AsyncIteratorClass, COMMON_ERROR_STATUS_MAP, ORPCError, type AnyRouter} from '@orpc/server'
+import {AsyncIteratorClass, ORPCError, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
 import {RPCHandler as WebsocketRPCHandler, type WebSocketLike} from '@orpc/server/websocket'
 import type {Context, MiddlewareHandler} from 'hono'
@@ -9,7 +9,7 @@ import {EvlogHandlerPlugin, getEvlogLogger, type EvlogLoggerContext} from '@orpc
 import type {DrainContext, RequestLogger} from 'evlog'
 import {valid} from 'semver'
 import {z} from 'zod'
-import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
+import {ENGINE_ERROR_STATUS, SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
 import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/types/rpc-types'
 
 const ADAPTER_REFUSED_STATUS = 500
@@ -32,17 +32,6 @@ const ClientVersionSchema = z
   .refine((value) => valid(value) === value.split('+')[0])
   .optional()
   .catch(undefined)
-
-const ERROR_STATUS_MAP = {
-  ...COMMON_ERROR_STATUS_MAP,
-  PLUGIN_RPC_INTERNAL: 500,
-  HANDLER_ERROR: 500,
-  TOOL_FAILED: 500,
-  SLOW_CONSUMER: 500,
-  PLUGIN_NOT_FOUND: 404,
-  PLUGIN_CHUNK_NOT_FOUND: 404,
-  PTY_NOT_FOUND: 404,
-}
 
 type ServeContext = RpcContext & EvlogLoggerContext
 
@@ -119,7 +108,7 @@ type RpcHandlerSetup = {callContext?: RpcCallContext; drain?: (event: DrainConte
 function rpcHandlerOptions(setup: RpcHandlerSetup, streams?: SocketStreams): RpcHandlerOptions {
   const {callContext, drain} = setup
   return {
-    errorStatusMap: ERROR_STATUS_MAP,
+    errorStatusMap: ENGINE_ERROR_STATUS,
     plugins: drain === undefined ? [] : [new EvlogHandlerPlugin<ServeContext>({drain, logAbort: true})],
     routingInterceptors: [
       async (options) =>

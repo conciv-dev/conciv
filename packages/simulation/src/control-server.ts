@@ -3,6 +3,7 @@ import '@orpc/effect/extensions/effect'
 import {RPCHandler} from '@orpc/server/websocket'
 import {Effect, Queue, type Scope} from 'effect'
 import {WebSocketServer, type WebSocket} from 'ws'
+import {SIMULATION_ERROR_STATUS} from '@conciv/protocol/simulation'
 
 const MAX_OUTBOUND_BYTES = 64 * 1024 * 1024
 
@@ -92,7 +93,10 @@ export type StartOptions = {
 }
 
 export function start(options: StartOptions): Effect.Effect<Server, Error, Scope.Scope> {
-  const handler = new RPCHandler(options.router, {interceptors: [oneAtATime()]})
+  const handler = new RPCHandler(options.router, {
+    interceptors: [oneAtATime()],
+    errorStatusMap: SIMULATION_ERROR_STATUS,
+  })
   const cleanups = new Set<Promise<void>>()
   const accept = (socket: WebSocket): void => {
     const connection: Connection = {socket}
