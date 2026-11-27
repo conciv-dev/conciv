@@ -1,0 +1,55 @@
+---
+title: conciv vs hosted app builders vs component workshops
+description: 'How conciv compares with hosted AI app builders, and with component workshops such as Storybook.'
+---
+
+A hosted AI app builder, in the style of v0 or Bolt, writes an app for you in its own environment. A component
+workshop, such as Storybook, renders your components one at a time, outside your app. conciv works on the app you
+already have, on your machine, with the page running in front of you.
+
+## Features
+
+- **Yes**: built in.
+- **Partly**: possible, with set-up or limits.
+- **No**: not supported.
+
+Facts about other tools are general. Check each product's own docs for what it offers today.
+
+### Where it runs
+
+| Feature                              | conciv | Hosted app builder     | Component workshop   |
+| ------------------------------------ | ------ | ---------------------- | -------------------- |
+| Works on your existing repo          | Yes    | Partly, by import      | Yes                  |
+| Runs on your machine                 | Yes    | No, in its own service | Yes                  |
+| Keeps your stack and your dev server | Yes    | Partly                 | Yes, beside your app |
+| Starts an app from nothing           | No     | Yes                    | No                   |
+| Hosts the result for you             | No     | Often                  | No                   |
+
+### Working on the app
+
+| Feature                                      | conciv                                                     | Hosted app builder | Component workshop          |
+| -------------------------------------------- | ---------------------------------------------------------- | ------------------ | --------------------------- |
+| An agent that changes the code               | Yes, your own CLI                                          | Yes, its own       | No                          |
+| Real pages, with your routes, data and login | Yes                                                        | Its own preview    | No, one component at a time |
+| Point at an element to pin it to the message | Yes                                                        | Varies             | No                          |
+| Runs your tests                              | Yes, with the [test runner](/docs/usage/add-plugins)       | Varies             | Partly, component tests     |
+| Asks before risky actions                    | Yes, as a [card in the page](/docs/agents-and-permissions) | Varies             | No                          |
+
+## Where each one fits
+
+- **A hosted app builder** fits a new prototype, when you do not have an app yet.
+- **A component workshop** fits building and documenting components in isolation.
+- **conciv** fits work on your own app while it runs, with the agent you already use.
+
+## Honest limits
+
+- conciv does not start an app for you. It needs one that already runs on a supported bundler.
+- It runs in development builds only, and hosts nothing.
+- It needs Node 26 or newer, and an agent CLI you install and log in to yourself.
+
+See [Requirements](/docs/requirements) for every version.
+
+## Next steps
+
+- **Try it on your app**: [Getting started](/docs/getting-started).
+- **Add tools to the agent**: [Plugins](/docs/plugins).

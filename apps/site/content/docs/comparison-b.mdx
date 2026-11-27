@@ -1,0 +1,65 @@
+---
+title: conciv vs browser-extension agents vs in-IDE agents
+description: 'How conciv compares with an agent in a browser extension, and with an agent in your editor.'
+---
+
+A browser-extension agent sees and drives web pages, but not your source. An agent in your editor, such as the one in
+Cursor or VS Code, edits your source, but mostly works from files. conciv sits between them: it runs inside your app's
+dev server, so the agent sees the page and edits the code that renders it.
+
+## Features
+
+- **Yes**: built in.
+- **Partly**: possible, with set-up or limits.
+- **No**: not supported.
+
+Facts about other tools are general. Products in both groups change fast, so check their own docs.
+
+### Seeing the app
+
+| Feature                                                  | conciv                | Browser extension | In-IDE agent                           |
+| -------------------------------------------------------- | --------------------- | ----------------- | -------------------------------------- |
+| Reads the rendered page                                  | Yes                   | Yes               | Partly, where the editor has a preview |
+| Works in the tab you have open, with its state and login | Yes                   | Yes               | No                                     |
+| Point at an element to pin it to the message             | Yes                   | Partly            | Partly                                 |
+| Names the source file of an element                      | Yes, when it finds it | No                | Partly                                 |
+| Reads the dev server's config, URLs and module graph     | Yes, on Vite          | No                | No                                     |
+| Works on any site, production included                   | No                    | Yes               | No                                     |
+
+### Changing the code
+
+| Feature                       | conciv                                                     | Browser extension  | In-IDE agent       |
+| ----------------------------- | ---------------------------------------------------------- | ------------------ | ------------------ |
+| Edits your source             | Yes                                                        | No                 | Yes                |
+| Checks its change in the page | Yes                                                        | Yes, the page only | Partly             |
+| Runs your tests               | Yes, with the [test runner](/docs/usage/add-plugins)       | No                 | Yes                |
+| Asks before risky actions     | Yes, as a [card in the page](/docs/agents-and-permissions) | Varies             | Yes, in the editor |
+
+### Set-up and reach
+
+| Feature                    | conciv                                      | Browser extension   | In-IDE agent              |
+| -------------------------- | ------------------------------------------- | ------------------- | ------------------------- |
+| Which agent answers        | Your own CLI: Claude Code, Codex and others | The extension's own | The editor's own          |
+| What you install           | A dev dependency and a bundler plugin       | A browser extension | An editor or an extension |
+| Works with any framework   | Partly: Vite, Next.js, webpack and Rspack   | Yes                 | Yes                       |
+| Extended by your own tools | Yes, with [plugins](/docs/plugins)          | Varies              | Varies, often with MCP    |
+
+## Where each one fits
+
+- **A browser-extension agent** fits tasks on sites you do not own: research, forms, other people's pages.
+- **An in-IDE agent** fits work in your files: refactors, new modules, code review.
+- **conciv** fits work on your own app while it runs: point at it, change it, see it.
+
+## Honest limits
+
+- conciv runs in development builds only. It is not for other people's sites.
+- It needs a supported bundler. Rollup and esbuild do nothing yet.
+- It needs Node 26 or newer, and an agent CLI you install and log in to yourself.
+- The panel lives in your app's page, not in your editor.
+
+See [Requirements](/docs/requirements) for every version.
+
+## Next steps
+
+- **Try it on your app**: [Getting started](/docs/getting-started).
+- **See what it can do**: [Use conciv](/docs/usage).

@@ -1,7 +1,73 @@
 ---
-title: Comparison
-description: 'How conciv compares with other ways to give an agent your running app.'
+title: conciv vs terminal agents vs MCP browser tools
+description: 'How conciv compares with a coding agent in your terminal, and with MCP tools that drive a browser.'
 icon: Scale
 ---
 
-This page is being written.
+A coding agent in your terminal, such as Claude Code or Codex, edits your source but cannot see your app. MCP browser
+tools, such as Playwright MCP or Chrome DevTools MCP, give an agent a browser to drive. conciv puts the agent inside
+your running app, in the tab you already have open, and ties what it sees to your source.
+
+The three are not rivals. conciv runs your terminal agent's own CLI, and it can connect that agent to your open tabs.
+
+## Features
+
+- **Yes**: built in.
+- **Partly**: possible, with set-up or limits.
+- **No**: not supported.
+
+Facts about other tools are general. Check each tool's own docs for its current options.
+
+### Seeing the app
+
+| Feature                                                                  | conciv                | Terminal agent | MCP browser tools           |
+| ------------------------------------------------------------------------ | --------------------- | -------------- | --------------------------- |
+| Reads the rendered page                                                  | Yes                   | No             | Yes                         |
+| Works in the tab you have open, with its state and login                 | Yes                   | No             | Partly, by how you start it |
+| [Point at an element to pin it to the message](/docs/usage/page-control) | Yes                   | No             | No                          |
+| Names the source file of an element                                      | Yes, when it finds it | No             | No                          |
+| Reads the dev server's config, URLs and module graph                     | Yes, on Vite          | No             | No                          |
+| Works on any site, production included                                   | No                    | No             | Yes                         |
+
+### Changing the code
+
+| Feature                       | conciv                                                     | Terminal agent       | MCP browser tools                  |
+| ----------------------------- | ---------------------------------------------------------- | -------------------- | ---------------------------------- |
+| Edits your source             | Yes, through your agent CLI                                | Yes                  | No, the agent that calls them does |
+| Checks its change in the page | Yes                                                        | No                   | Yes, when an agent pairs them      |
+| Runs your tests               | Yes, with the [test runner](/docs/usage/add-plugins)       | Yes, in a shell      | No                                 |
+| Asks before risky actions     | Yes, as a [card in the page](/docs/agents-and-permissions) | Yes, in the terminal | By the agent that calls them       |
+
+### Set-up and reach
+
+| Feature                                  | conciv                                    | Terminal agent | MCP browser tools           |
+| ---------------------------------------- | ----------------------------------------- | -------------- | --------------------------- |
+| Uses your own agent CLI and login        | Yes                                       | Yes            | Not an agent                |
+| Works with any framework                 | Partly: Vite, Next.js, webpack and Rspack | Yes            | Yes                         |
+| Extended by your own tools               | Yes, with [plugins](/docs/plugins)        | Yes, with MCP  | Not their job               |
+| Gives your terminal agent your open tabs | Yes, through [MCP](/docs/agents)          | No             | Partly, a browser it drives |
+
+## Where each one fits
+
+- **A terminal agent** is the right tool for work away from the page: refactors, scripts, backend code.
+- **MCP browser tools** fit a page you do not build, a production site, or deep browser data. Chrome DevTools MCP
+  centres on performance traces, network requests and the console. Playwright MCP drives pages through accessibility
+  snapshots.
+- **conciv** fits work on your own app while it runs: point at it, change it, see it.
+
+## Honest limits
+
+- conciv runs in development builds only. It is not for production sites.
+- It needs a supported bundler. Rollup and esbuild do nothing yet.
+- On webpack and Rspack, the agent cannot read the dev server's module graph.
+- It needs Node 26 or newer, and an agent CLI you install and log in to yourself.
+- The Pi CLI has no chat in conciv yet.
+- The iOS setup is an early alpha, for the simulator only.
+
+See [Requirements](/docs/requirements) for every version.
+
+## Next steps
+
+- **Try it on your app**: [Getting started](/docs/getting-started).
+- **Connect your terminal agent**: [Connect your agents](/docs/agents).
+- **See what it can do**: [Use conciv](/docs/usage).
