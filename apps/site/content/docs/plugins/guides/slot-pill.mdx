@@ -4,15 +4,14 @@ description: Put a small piece of your plugin at a fixed place in the widget, or
 ---
 
 A slot puts your content at a fixed place in the widget, such as a session's status area. A pill sits above the
-composer and runs an action when the user clicks it. Use these when a whole panel is too much.
+composer and runs an action when the user clicks it. The browser part is written with Solid components and plain
+async functions.
 
-The browser part is written with Solid components and plain async functions.
-
-## Add a slot
+## Basic
 
 Add a slot in your plugin's browser part:
 
-```tsx twoslash title="plugin-experimental.tsx"
+```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
 // @jsx: preserve
 // @jsxImportSource: solid-js
 // ---cut---
@@ -21,36 +20,36 @@ import {Plugin, Slot} from '@conciv/frontend-plugin-api'
 export default Plugin.define({
   setup(ctx) {
     ctx.add(Slot, {
-      at: 'session.status',
+      at: 'session.status', // <- the place in the widget
       render: (input) => <span>{input.session.run.status() === 'running' ? 'Agent working' : 'Agent idle'}</span>,
     })
   },
 })
 ```
 
-- `at` is the place in the widget. Here it is the session's status area.
-- `render` draws the content once. Read `input.session` where you use it, so it follows the session on screen.
-- `input.session.run.status()` says whether the agent is running in that session.
-
-The places a slot can go:
+`render` draws the content once. Read `input.session` where you use it, so it follows the session on screen. The
+places a slot can go:
 
 - `session.header`: a session's header.
 - `session.status`: a session's status area.
 - `window.bottom`: the bottom of the widget window.
-- `page.overlay`: over your app's page, outside the widget.
+- `page.overlay`: over your app's page, outside the widget. It keeps keyboard focus inside, unless you set
+  `hides: false`.
+
+Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 ## Add a pill above the composer
 
 A pill can put text in the composer for the user to send:
 
-```tsx twoslash title="plugin-experimental.tsx"
+```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
 import {ComposerPill, Plugin} from '@conciv/frontend-plugin-api'
 
 export default Plugin.define({
   setup(ctx) {
     ctx.add(ComposerPill, {
       id: 'review',
-      order: 20,
+      order: 20, // <- sorts it among the other pills
       show: (input) => ({
         label: 'Review',
         icon: 'eye',
@@ -61,16 +60,19 @@ export default Plugin.define({
 })
 ```
 
-- `id` names the pill. `order` sorts it among the other pills.
+A few things to notice:
+
 - `show` returns what the pill looks like, or `undefined` to hide it. It runs for each composer on screen.
-- `label` is the pill's text. Its icon is a name from the widget's icon set.
+- `icon` is a name from the widget's icon set, as for `ctx.ui.Icon`.
 - `run` is what a click does. Here it puts a prompt in the composer, and the user sends it.
+
+Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 ## Show something only some of the time
 
-Pass a function to `ctx.add`. The widget runs it again when what it reads changes. A result of `undefined` adds nothing:
+Pass a function to `ctx.add`. The widget runs it again when what it reads changes, and `undefined` adds nothing:
 
-```tsx twoslash title="plugin-experimental.tsx"
+```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
 // @jsx: preserve
 // @jsxImportSource: solid-js
 // ---cut---
@@ -79,29 +81,24 @@ import {Plugin, Slot} from '@conciv/frontend-plugin-api'
 export default Plugin.define({
   setup(ctx) {
     const badge: Slot = {at: 'window.bottom', render: () => <span>Dev build</span>}
-    ctx.add(Slot, () => (ctx.app.channel === 'dev' ? badge : undefined))
+    ctx.add(Slot, () => (ctx.app.channel === 'dev' ? badge : undefined)) // <- only in a dev build
   },
 })
 ```
 
-- `badge` is the slot, declared once with its type.
-- `ctx.app.channel` is the widget's release channel. The slot shows only in a dev build.
+`ctx.app.channel` is the widget's release channel. Build it as in
+[Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 <Accordions>
-<Accordion title="Focus in a page overlay">
+<Accordion title="Can a pill open a menu?">
 
-A `page.overlay` slot keeps keyboard focus inside it. Set `hides: false` on the slot to let focus go back to the page.
-
-</Accordion>
-<Accordion title="A pill with a menu">
-
-Instead of `run`, a pill can return `rows`: a list, each row with a `label` and its own `run`. For anything more,
-give the pill a `menu` function that renders your own content in the popover.
+Yes. Instead of `run`, return `rows`: a list, each row with a `label` and its own `run`. For anything more, give the
+pill a `menu` function that renders your own content in the popover.
 
 </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Add a panel](/docs/plugins/guides/panel): a whole tab next to the chat.
-- [Add settings](/docs/plugins/guides/settings): let the user switch your slot on and off.
+- **[Add a panel](/docs/plugins/guides/panel)**: a whole tab next to the chat.
+- **[Add settings](/docs/plugins/guides/settings)**: let the user switch your slot on and off.
