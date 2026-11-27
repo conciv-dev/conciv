@@ -52,7 +52,8 @@ The login messages live on this page only. Learn more in the [Logging in documen
 
 **Cause.** The digits differ from the newest code in your terminal.
 
-**Fix.** Type the code from the newest box. After 5 wrong tries the code is dropped: click **Send a new code**.
+**Fix.** Type the code from the newest box. After 5 wrong tries the engine drops the code. Then click **Send a new
+code**.
 
 ### Expired code
 
@@ -164,7 +165,7 @@ recipe](/docs/recipes/drive-the-widget-from-a-script).
 
 > the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused
 
-**Cause.** `CONCIV_SIMULATE` is set without `CONCIV_DRIVE`, so no socket opens and nothing answers the model.
+**Cause.** `CONCIV_SIMULATE` is set without `CONCIV_DRIVE`. No socket opens, so nothing answers the model.
 
 **Fix.** Set both variables.
 
@@ -203,8 +204,12 @@ socket still works.
 **Cause.** The command found no engine on that port.
 
 **Fix.** Start your dev server. If it runs, set `CONCIV_PORT` to the engine's port, which is not the dev server's. The
-command looks for the port in this order: `CONCIV_PORT`, then `.conciv/server.json` in this folder or a parent, then
-the newest engine on this machine, then 5173.
+command looks for the port in this order:
+
+1. `CONCIV_PORT`.
+2. `.conciv/server.json` in this folder or a parent.
+3. The newest engine on this machine.
+4. Port 5173.
 
 ### No engine state
 
