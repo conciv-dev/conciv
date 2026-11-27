@@ -1,7 +1,8 @@
 import {createElement, Fragment, useEffect, useRef, useState, type ReactElement, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
 import {createConciv, type ConcivInit} from '@conciv/app'
-import {listenForPortals} from './portals.js'
+import {listenForPortals} from '@conciv/frontend-plugin-api'
+import {PORTAL_EVENT} from './portals.js'
 
 export type {ConcivInit, ConcivSettingsInit} from '@conciv/app'
 
@@ -38,7 +39,7 @@ export function ConcivWidget(props: ConcivWidgetProps): ReactElement {
     setConfig({key: configKey, init})
   useEffect(() => {
     if (!host) return
-    const stopListening = listenForPortals(host, (element, node) => {
+    const stopListening = listenForPortals<ReactNode>(host, PORTAL_EVENT, (element, node) => {
       nextKey.current += 1
       const portal: Portal = {key: nextKey.current, element, node}
       setPortals((current) => [...current, portal])

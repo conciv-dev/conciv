@@ -59,3 +59,66 @@ export function mountRender<P extends object>(mount: Mount<P>): (props: P) => JS
     return element
   }
 }
+
+type PortalRequest<N> = {
+  readonly element: HTMLElement
+  readonly node: N
+  readonly placed: (remove: () => void) => void
+}
+
+function isPortalRequest<N>(value: unknown): value is PortalRequest<N> {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('element' in value) || !(value.element instanceof HTMLElement)) return false
+  return 'node' in value && 'placed' in value && typeof value.placed === 'function'
+}
+
+/**
+ * Asks the framework root above `element` to draw `node` into it through a portal: sends `event` as a composed DOM
+ * event that leaves the app's shadow root. A framework adapter calls it from its mount; `listenForPortals` with the
+ * same event answers.
+ *
+ * @param event - The adapter's event name.
+ * @param element - The mount's element, already in the page.
+ * @param node - What the framework draws into the element.
+ * @returns Removes the portal.
+ *
+ * @example
+ * ```ts
+ * mountRender((element, props) => requestPortal("conciv:react-portal", element, createElement(View, {props})))
+ * ```
+ */
+export function requestPortal<N>(event: string, element: HTMLElement, node: N): Cleanup {
+  const removals: Array<() => void> = []
+  const detail: PortalRequest<N> = {element, node, placed: (remove) => removals.push(remove)}
+  element.dispatchEvent(new CustomEvent(event, {bubbles: true, composed: true, detail}))
+  if (removals.length === 0) throw new Error(`a contribution sent ${event} and no <ConcivWidget/> above it placed it`)
+  return () => removals.forEach((remove) => remove())
+}
+
+/**
+ * Answers `requestPortal` for the contributions drawn under `host`: `place` puts the node into its element and
+ * returns what removes it.
+ *
+ * @param host - The element the framework root renders the app into.
+ * @param event - The adapter's event name, the one its `requestPortal` sends.
+ * @param place - Draws a node into an element; returns what removes it.
+ * @returns Stops listening.
+ *
+ * @example
+ * ```ts
+ * const stop = listenForPortals<ReactNode>(host, "conciv:react-portal", (element, node) => add({element, node}))
+ * ```
+ */
+export function listenForPortals<N>(
+  host: HTMLElement,
+  event: string,
+  place: (element: HTMLElement, node: N) => () => void,
+): () => void {
+  const listener = (incoming: Event) => {
+    if (!(incoming instanceof CustomEvent) || !isPortalRequest<N>(incoming.detail)) return
+    incoming.stopPropagation()
+    incoming.detail.placed(place(incoming.detail.element, incoming.detail.node))
+  }
+  host.addEventListener(event, listener)
+  return () => host.removeEventListener(event, listener)
+}

@@ -2,7 +2,8 @@ import {createElement, Fragment, type ComponentChild, type JSX} from 'preact'
 import {createPortal} from 'preact/compat'
 import {useEffect, useRef, useState} from 'preact/hooks'
 import {createConciv, type ConcivInit} from '@conciv/app'
-import {listenForPortals} from './portals.js'
+import {listenForPortals} from '@conciv/frontend-plugin-api'
+import {PORTAL_EVENT} from './portals.js'
 
 export type {ConcivInit, ConcivSettingsInit} from '@conciv/app'
 
@@ -39,7 +40,7 @@ export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
     setConfig({key: configKey, init})
   useEffect(() => {
     if (!host) return
-    const stopListening = listenForPortals(host, (element, node) => {
+    const stopListening = listenForPortals<ComponentChild>(host, PORTAL_EVENT, (element, node) => {
       nextKey.current += 1
       const portal: Portal = {key: nextKey.current, element, node}
       setPortals((current) => [...current, portal])
