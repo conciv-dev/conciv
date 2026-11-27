@@ -9,10 +9,10 @@ The contract file imports `@conciv/protocol`, which the tutorial installed only 
 npm install -D @conciv/protocol
 ```
 
-An RPC method is a function your engine part answers, and anything else calls by name: your browser part, a terminal,
+An RPC method is a function your engine part answers. Anything else calls it by name: your browser part, a terminal,
 or another plugin. This guide builds a plant shelf, with a `count` method and a `sell` method that can fail.
 
-## Basic
+## Declare the contract
 
 Declare the contract in its own file, so the engine part and the browser part both import it:
 
@@ -121,14 +121,14 @@ A few things to notice:
 
 - Each handler gets the checked input. What it returns is checked against `output` before it goes back.
 - `call.error` makes one of the method's declared errors: its name, a message and its data.
-- In both tabs a failed `emit` is logged, and the sale still succeeds.
+- In both tabs the plugin logs a failed `emit`. The sale still succeeds.
 - `Effect.catchCause` catches any failure of the emit. `Effect.orDie` makes a failed `register` stop the plugin load,
   as a rejected `register` does in the Promise tab.
 - `shelf` has its type written out, because a handler uses the registration it belongs to.
 
 ## Call it from the browser part
 
-`ctx.client.rpc(Shelf)` gives one typed function per method. The browser part is written with Solid components and
+`ctx.client.rpc(Shelf)` gives one typed function per method. You write the browser part with Solid components and
 plain async functions:
 
 ```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
@@ -206,7 +206,7 @@ export default Plugin.define({
 A few things to notice:
 
 - `subscribe` always lets `server.connected` through, at the start and after each reconnect. Read your data again
-  then, since you may have missed events.
+  then. You can have missed events in between.
 - `event.data` is what the engine part sent. Check it with your schema before you use it.
 - `ctx.signal` ends the loop when the plugin reloads or stops.
 
@@ -227,9 +227,9 @@ npx @conciv/cli plugin call plant-shelf count --data '{"plant": "fern"}'
 Learn more in [Call your plugin from a terminal](/docs/plugins/guides/terminal).
 
 <Accordions>
-<Accordion title="Can an error name start with rpc.?">
+<Accordion title="An error name cannot start with rpc.">
 
-No. The engine keeps names that start with `rpc.` for its own errors, and `Rpc.define` throws on one.
+The engine keeps names that start with `rpc.` for its own errors. `Rpc.define` throws on one.
 
 </Accordion>
 </Accordions>
