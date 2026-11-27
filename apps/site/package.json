@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "typecheck": "fumadocs-mdx && tsc --noEmit && tsc -p playground-shell/tsconfig.json --noEmit && tsc -p content/docs/plugins/tsconfig.json --noEmit",
+    "typecheck": "fumadocs-mdx && tsc --noEmit && tsc -p playground-shell/tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

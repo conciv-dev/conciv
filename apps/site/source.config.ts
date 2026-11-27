@@ -3,8 +3,9 @@ import {pageSchema} from 'fumadocs-core/source/schema'
 import {z} from 'zod'
 import {rehypeCodeDefaultOptions, remarkMdxMermaid} from 'fumadocs-core/mdx-plugins'
 import {transformerTwoslash} from 'fumadocs-twoslash'
-import {createFileSystemGeneratorCache, createGenerator, remarkAutoTypeTable} from 'fumadocs-typescript'
+import {remarkAutoTypeTable} from 'fumadocs-typescript'
 import {recmaShareTwoslashPopups} from './src/lib/recma-share-twoslash-popups'
+import {createReferenceGenerator} from './src/lib/reference-type-table'
 
 export const docs = defineDocs({
   dir: 'content/docs',
@@ -16,14 +17,10 @@ export const docs = defineDocs({
   },
 })
 
-const generator = createGenerator({
-  cache: createFileSystemGeneratorCache('.cache/fumadocs-typescript'),
-})
-
 export default defineConfig({
   mdxOptions: {
     recmaPlugins: [recmaShareTwoslashPopups],
-    remarkPlugins: [remarkMdxMermaid, [remarkAutoTypeTable, {generator}]],
+    remarkPlugins: [remarkMdxMermaid, [remarkAutoTypeTable, {generator: createReferenceGenerator()}]],
     rehypeCodeOptions: {
       ...rehypeCodeDefaultOptions,
       langs: ['ts', 'tsx', 'js', 'json', 'bash', 'md', 'mdx', 'swift'],
