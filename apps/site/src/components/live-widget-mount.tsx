@@ -9,14 +9,12 @@ const rootRoute = getRouteApi('__root__')
 export function LiveWidgetMount() {
   const isMobile = useIsMobile()
   const narrow = useMediaQuery('(width < 48rem)')
-  const {widget} = rootRoute.useSearch()
-  const {widgetHomeDefault, playgroundFrame, docsPage} = rootRoute.useRouteContext()
-  const widgetOpen = widget ?? widgetHomeDefault
+  const {playgroundFrame, docsPage} = rootRoute.useRouteContext()
   if (isMobile || playgroundFrame || (docsPage && narrow)) return null
   return (
     <ClientOnly>
       <Suspense fallback={null}>
-        <LiveWidget key={docsPage ? 'docs' : 'site'} open={widgetOpen} docs={docsPage} />
+        <LiveWidget key={docsPage ? 'docs' : 'site'} docs={docsPage} />
       </Suspense>
     </ClientOnly>
   )

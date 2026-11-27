@@ -14,13 +14,19 @@ export function channel<T>(): Channel<T> {
   return {
     push: (value) => deliver(value),
     end: () => deliver(END),
-    read: (signal) => readChannel(readers, signal),
+    read: (signal) => {
+      const reader: Reader<T> = {queue: [], wake: () => undefined}
+      readers.add(reader)
+      return readChannel(reader, () => readers.delete(reader), signal)
+    },
   }
 }
 
-async function* readChannel<T>(readers: Set<Reader<T>>, signal: AbortSignal | undefined): AsyncGenerator<T> {
-  const reader: Reader<T> = {queue: [], wake: () => undefined}
-  readers.add(reader)
+async function* readChannel<T>(
+  reader: Reader<T>,
+  leave: () => void,
+  signal: AbortSignal | undefined,
+): AsyncGenerator<T> {
   const stop = (): void => {
     reader.queue.push(END)
     reader.wake()
@@ -40,6 +46,6 @@ async function* readChannel<T>(readers: Set<Reader<T>>, signal: AbortSignal | un
     }
   } finally {
     signal?.removeEventListener('abort', stop)
-    readers.delete(reader)
+    leave()
   }
 }

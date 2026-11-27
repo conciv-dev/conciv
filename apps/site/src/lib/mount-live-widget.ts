@@ -12,11 +12,17 @@ declare global {
   }
 }
 
-type MountOptions = {readonly host: HTMLElement; readonly widgetOpen: boolean; readonly router: RegisteredRouter}
+type MountOptions = {readonly host: HTMLElement; readonly router: RegisteredRouter}
 
 function tryRequested(location: ParsedLocation | undefined): boolean {
   if (location === undefined) return false
   return rootSearchSchema.parse(location.search).try === 1
+}
+
+function widgetRequested(router: RegisteredRouter): boolean {
+  const {location} = router.state
+  const requested = rootSearchSchema.parse(location.search).widget
+  return requested ?? router.matchRoutes(location).some((match) => match.routeId === '/')
 }
 
 function followTryParam(router: RegisteredRouter): () => void {
@@ -63,9 +69,9 @@ function dismissWhenClosedUnconnected(router: RegisteredRouter, signal: AbortSig
 async function startWidget(options: MountOptions, signal: AbortSignal): Promise<ConcivHandle | undefined> {
   if (insideCaptureFrame()) return undefined
   const tryParam = tryRequested(options.router.state.location)
+  const widgetOpen = widgetRequested(options.router)
   const {token, dismissed} = await getTrySession()
-  const defaultOpen =
-    shouldAutoOpen({widgetOpen: options.widgetOpen, tryParam, dismissed, widgetPresent: false}) || tryParam
+  const defaultOpen = shouldAutoOpen({widgetOpen, tryParam, dismissed, widgetPresent: false}) || tryParam
   const [embed, tryIt, host] = await Promise.all([
     import('@conciv/app'),
     import('@conciv/plugin-try-it'),

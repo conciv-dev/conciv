@@ -78,8 +78,13 @@ function wake(run: Run): void {
 
 function changed(run: Run, signal: AbortSignal | undefined): Promise<void> {
   return new Promise((resolve) => {
-    run.waiting.add(resolve)
-    signal?.addEventListener('abort', () => resolve(), {once: true})
+    const settle = (): void => {
+      run.waiting.delete(settle)
+      signal?.removeEventListener('abort', settle)
+      resolve()
+    }
+    run.waiting.add(settle)
+    signal?.addEventListener('abort', settle, {once: true})
   })
 }
 
@@ -169,7 +174,9 @@ export function createChat(deps: ChatDeps) {
     void deps.pace
       .beat(run.stopped.signal)
       .then(() => deps.drive.click('button', ask.answer, run.stopped.signal))
-      .catch((error: unknown) => console.error('[playground] the scripted answer could not be clicked', error))
+      .catch((error: unknown) => {
+        if (!run.stopped.signal.aborted) console.error('[playground] the scripted answer could not be clicked', error)
+      })
     const drop = (): void => {
       const index = pending.findIndex((card) => card.approvalId === approvalId)
       if (index >= 0) pending.splice(index, 1)
@@ -322,7 +329,7 @@ export function createChat(deps: ChatDeps) {
     finish(sink, 'completed')
   }
   const start = (sessionId: string, runId: string, prompt: string): Run => {
-    const index = queue.findIndex((queued) => prompt.includes(queued.turn.prompt))
+    const index = queue.findIndex((queued) => queued.turn.prompt === prompt)
     const queued = index < 0 ? undefined : queue.splice(index, 1)[0]
     const run: Run = {
       id: runId,
@@ -349,10 +356,6 @@ export function createChat(deps: ChatDeps) {
         queue.push({turn, finished: finished.resolve})
         return finished.promise
       }),
-    idle: async (sessionId: string): Promise<void> => {
-      const running = active(sessionId)
-      if (running !== undefined) await ended(running)
-    },
     events: (sessionId: string, signal: AbortSignal | undefined) => push(sessionId).read(signal),
     send: (sessionId: string, runId: string, prompt: string, signal: AbortSignal | undefined) =>
       follow(start(sessionId, runId, prompt), signal),

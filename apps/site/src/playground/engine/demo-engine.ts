@@ -16,7 +16,7 @@ import {createDrive, type Drive} from './demo-drive'
 import {createEvents} from './demo-events'
 import {buildRouter, demoConnection, type EngineHandlers} from './demo-router'
 import {createSessions, createSettings, createTabs, HARNESS_ID} from './demo-store'
-import {aborted, createHold, createPace} from './demo-time'
+import {aborted, createHold, createPace, type Pace} from './demo-time'
 
 export type DemoBundle = {
   readonly id: string
@@ -39,6 +39,8 @@ export type DemoEngineOptions = {
   readonly rpc: readonly DemoRpc[]
   readonly serverBuiltins: readonly string[]
   readonly version: string
+  readonly widgetRoot: Node
+  readonly driveStarted: Promise<void>
 }
 
 export type DemoEngine = {
@@ -52,11 +54,18 @@ export type DemoEngine = {
 
 const DIRECTORY = '/workspace'
 
-const SentMessage = z.looseObject({id: z.string(), role: z.string(), content: z.unknown()})
+const GRABBED = 'Open grabbed element'
+
+const SentMessage = z.looseObject({
+  id: z.string(),
+  role: z.string(),
+  content: z.unknown(),
+  metadata: z.looseObject({displayText: z.string().optional()}).optional(),
+})
 
 const TextPart = z.looseObject({type: z.literal('text'), text: z.string().optional(), content: z.string().optional()})
 
-type Sent = {readonly id: string; readonly text: string}
+type Sent = {readonly id: string; readonly text: string; readonly typed: string}
 
 function contentText(content: unknown): string {
   if (typeof content === 'string') return content
@@ -76,7 +85,9 @@ function lastUserMessage(messages: readonly unknown[]): Sent | undefined {
       return parsed.success && parsed.data.role === 'user' ? [parsed.data] : []
     })
     .at(-1)
-  return user === undefined ? undefined : {id: user.id, text: contentText(user.content).trim()}
+  if (user === undefined) return undefined
+  const text = contentText(user.content).trim()
+  return {id: user.id, text, typed: user.metadata?.displayText?.trim() ?? text}
 }
 
 function rpcFailed(message: string): never {
@@ -90,9 +101,13 @@ function pluginNotFound(pluginId: string): never {
   })
 }
 
-function performStep(drive: Drive, step: UiStep, signal: AbortSignal): Promise<void> {
-  if (step.kind === 'point') return drive.point(step.role, step.label, signal)
-  return drive.click(step.role, step.label, signal)
+async function performStep(drive: Drive, pace: Pace, step: UiStep, signal: AbortSignal): Promise<void> {
+  if (step.kind === 'click') return drive.click(step.role, step.label, signal)
+  drive.hover(step.role, step.label)
+  await pace.beat(signal)
+  if (signal.aborted) return
+  drive.press(step.role, step.label)
+  await drive.shown('button', GRABBED, signal)
 }
 
 export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
@@ -104,7 +119,7 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
   }
   const hold = createHold()
   const pace = createPace(options.reducedMotion, hold)
-  const drive = createDrive(events.publish)
+  const drive = createDrive(events.publish, options.widgetRoot, options.driveStarted)
   const labels = options.script.labels ?? PLAYGROUND_LABELS
   const store = createSessions(labels.session)
   const chat = createChat({
@@ -135,7 +150,7 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
         if (sent !== undefined)
           store.saveMessage(sessionId, {id: sent.id, role: 'user', parts: [{type: 'text', content: sent.text}]})
         store.touch()
-        return chat.send(sessionId, runId, sent?.text ?? '', call.signal)
+        return chat.send(sessionId, runId, sent?.typed ?? '', call.signal)
       },
       join: ({runId}, call) => chat.join(runId, call.signal),
       hydrate: ({sessionId, before}) => ({
@@ -222,13 +237,15 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
         })
       },
     },
-    event: {subscribe: (input, call) => events.subscribe(input?.types, call.signal)},
+    event: {
+      subscribe: (input, call) => events.subscribe(input?.types, call.signal, () => drive.subscribed(input?.types)),
+    },
   }
   const performSteps = async (steps: readonly UiStep[] | undefined, signal: AbortSignal): Promise<void> => {
     for (const step of steps ?? []) {
       await pace.beat(signal)
       if (signal.aborted) return
-      await performStep(drive, step, signal)
+      await performStep(drive, pace, step, signal)
     }
   }
   const waitFor = (turnFinished: Promise<void> | undefined, signal: AbortSignal): Promise<void> =>

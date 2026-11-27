@@ -1,4 +1,4 @@
-export function pause(milliseconds: number, signal: AbortSignal | undefined): Promise<void> {
+function pause(milliseconds: number, signal: AbortSignal | undefined): Promise<void> {
   return new Promise((resolve) => {
     if (signal?.aborted === true) {
       resolve()

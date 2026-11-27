@@ -4,7 +4,8 @@ import {RotateCcw} from 'lucide-react'
 import {ViteReactPage} from '@/playground/pages/vite-react/vite-react-page'
 import {isPlaygroundPage, isPlaygroundScriptId} from '@/playground/playground-scripts'
 import {INITIAL_PAGE, type PageEdit, type PageState, type PlaygroundProgress} from '@/playground/script'
-import {loadPlayground, PlaygroundCommand, playgroundReport, type Playback} from '@/playground/shell-api'
+import {Button} from '@/components/ui/button'
+import {mountPlayground, PLAYGROUND_HOST_CLASS, PlaygroundCommand, playgroundReport} from '@/playground/shell-api'
 
 export const Route = createFileRoute('/playground/$page/$')({
   loader: ({params}) => {
@@ -35,35 +36,30 @@ function PlaygroundFrame() {
   const mount = useCallback(
     (host: HTMLDivElement | null) => {
       if (host === null) return
-      const state: {closed: boolean; playback: Playback | undefined} = {closed: false, playback: undefined}
       const listening = new AbortController()
-      const editPage = (edit: PageEdit): void => setPage((current) => ({...current, ...edit}))
-      const onProgress = (progress: PlaygroundProgress): void =>
-        window.parent.postMessage(playgroundReport(progress), location.origin)
+      const playground = mountPlayground({
+        host,
+        script,
+        editPage: (edit: PageEdit) => setPage((current) => ({...current, ...edit})),
+        onProgress: (progress: PlaygroundProgress) =>
+          window.parent.postMessage(playgroundReport(progress), location.origin),
+        onFailure: (error) => setFailure(describeFailure(error)),
+      })
       window.addEventListener(
         'message',
         (event: MessageEvent<unknown>) => {
           if (event.source !== window.parent || event.origin !== location.origin) return
           const parsed = PlaygroundCommand.safeParse(event.data)
-          if (!parsed.success || state.playback === undefined) return
-          state.playback[parsed.data.command]()
+          const playback = playground.playback()
+          if (!parsed.success || playback === undefined) return
+          playback[parsed.data.command]()
           freezeAnimations(host, parsed.data.command)
         },
         {signal: listening.signal},
       )
-      loadPlayground()
-        .then((startPlayground) => {
-          if (state.closed) return
-          const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-          state.playback = startPlayground({host, script, reducedMotion, editPage, onProgress})
-        })
-        .catch((error: unknown) => {
-          if (!state.closed) setFailure(describeFailure(error))
-        })
       return () => {
-        state.closed = true
         listening.abort()
-        state.playback?.stop()
+        playground.stop()
       }
     },
     [script],
@@ -72,7 +68,7 @@ function PlaygroundFrame() {
     <div className="h-svh overflow-clip">
       <ViteReactPage page={page} onCount={count} />
       {failure === undefined ? (
-        <div ref={mount} />
+        <div ref={mount} className={PLAYGROUND_HOST_CLASS} />
       ) : (
         <div className="fixed inset-0 flex items-center justify-center bg-fd-background/80 p-4">
           <div
@@ -81,14 +77,10 @@ function PlaygroundFrame() {
           >
             <p className="font-medium text-fd-foreground">The playground did not start.</p>
             <p className="text-fd-muted-foreground">{failure}</p>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-md border bg-fd-secondary px-3 py-1.5 font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent"
-              onClick={() => location.reload()}
-            >
-              <RotateCcw className="size-4" aria-hidden="true" />
+            <Button type="button" variant="outline" onClick={() => location.reload()}>
+              <RotateCcw aria-hidden="true" />
               Try again
-            </button>
+            </Button>
           </div>
         </div>
       )}

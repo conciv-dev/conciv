@@ -6,13 +6,7 @@ import type {Plugin} from '@conciv/frontend-plugin-api'
 import {WidgetDrive} from '@conciv/protocol/simulation'
 import {builtins as pageBuiltins} from '@conciv/plugin-page/builtins'
 import {builtins as terminalBuiltins} from '@internal/plugin-terminal/builtins'
-import {
-  ConcivApp,
-  WIDGET_LAYER,
-  type BuiltinPlugins,
-  type ComposedPlugin,
-  type Platform,
-} from '@internal/frontend-defaults'
+import {ConcivApp, type BuiltinPlugins, type ComposedPlugin, type Platform} from '@internal/frontend-defaults'
 import shell from '@internal/frontend-defaults/package.json' with {type: 'json'}
 import {createDemoEngine, type DemoBundle, type DemoRpc} from '../src/playground/engine/demo-engine'
 import {playgroundScripts} from '../src/playground/playground-scripts'
@@ -47,9 +41,20 @@ function staticEntry({id, plugin: {setup, ...declarations}}: Builtin): Entry {
   return {...declarations, id, windowEntry: setup && (() => Promise.resolve({default: setup}))}
 }
 
-function shellBuiltins(): BuiltinPlugins {
+async function loadDrive(onStarted: () => void): Promise<{default: Plugin.Setup}> {
+  const drive = await import('@internal/frontend-defaults/drive')
+  return {
+    default: (ctx) => {
+      const cleanup = drive.default(ctx)
+      onStarted()
+      return cleanup
+    },
+  }
+}
+
+function shellBuiltins(onDriveStarted: () => void): BuiltinPlugins {
   const plugins: readonly Builtin[] = [...terminalBuiltins, ...pageBuiltins]
-  const drive = compose({[WidgetDrive.id]: {windowEntry: () => import('@internal/frontend-defaults/drive')}})
+  const drive = compose({[WidgetDrive.id]: {windowEntry: () => loadDrive(onDriveStarted)}})
   return {
     entries: [...plugins.map(staticEntry), ...drive],
     serverBuiltins: [...plugins.flatMap((plugin) => (plugin.server === true ? [plugin.id] : [])), WidgetDrive.id],
@@ -75,31 +80,16 @@ function servedPlugins(script: PlaygroundScript): readonly Served[] {
 
 function placeHost(host: HTMLElement): ShadowRoot {
   host.setAttribute('data-conciv-root', '')
-  host.style.position = 'fixed'
-  host.style.inset = '0'
-  host.style.pointerEvents = 'none'
-  host.style.zIndex = String(WIDGET_LAYER)
   return host.shadowRoot ?? host.attachShadow({mode: 'open'})
-}
-
-const KEYBOARD_EVENTS = ['keydown', 'keypress', 'keyup'] as const
-
-const EDITABLE_TAGS: readonly string[] = ['INPUT', 'TEXTAREA', 'SELECT']
-
-function keepEditableKeysOffTheHostPage(root: ShadowRoot, signal: AbortSignal): void {
-  const guard = (event: KeyboardEvent): void => {
-    const target = event.composedPath()[0]
-    if (!(target instanceof HTMLElement) || !root.contains(target)) return
-    if (EDITABLE_TAGS.includes(target.tagName) || target.isContentEditable) event.stopPropagation()
-  }
-  KEYBOARD_EVENTS.forEach((type) => document.addEventListener(type, guard, {signal}))
 }
 
 export const startPlayground: StartPlayground = (options) => {
   const script = playgroundScripts[options.script]
   const director = new AbortController()
-  const builtins = shellBuiltins()
+  const driveStarted = Promise.withResolvers<void>()
+  const builtins = shellBuiltins(driveStarted.resolve)
   const served = servedPlugins(script)
+  const root = placeHost(options.host)
   const engine = createDemoEngine({
     script,
     serverBuiltins: builtins.serverBuiltins,
@@ -109,9 +99,9 @@ export const startPlayground: StartPlayground = (options) => {
     bundles: served.map((plugin) => plugin.bundle),
     rpc: [createPageRpc(), ...served.map((plugin) => plugin.rpc())],
     version: shell.version,
+    widgetRoot: root,
+    driveStarted: driveStarted.promise,
   })
-  const root = placeHost(options.host)
-  keepEditableKeysOffTheHostPage(root, director.signal)
   const container = document.createElement('div')
   root.append(container)
   const binding: ReturnType<Platform['engine']> = {

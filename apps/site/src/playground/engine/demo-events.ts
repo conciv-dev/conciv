@@ -14,9 +14,11 @@ export function createEvents(directory: string) {
   const events = channel<EngineEvent>()
   const publish: Publish = (type, data) =>
     events.push({id: crypto.randomUUID(), type, created: Date.now(), data, location: {directory}})
-  async function* subscribe(types: readonly string[] | undefined, signal: AbortSignal | undefined) {
+  async function* subscribe(types: readonly string[] | undefined, signal: AbortSignal | undefined, onRead: () => void) {
+    const reading = events.read(signal)
+    onRead()
     yield {id: crypto.randomUUID(), type: 'server.connected', data: {}}
-    for await (const event of events.read(signal)) {
+    for await (const event of reading) {
       if (types === undefined || types.includes(event.type)) yield event
     }
   }

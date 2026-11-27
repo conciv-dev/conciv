@@ -18,6 +18,8 @@ export type Playback = {
 
 export type StartPlayground = (options: StartPlaygroundOptions) => Playback
 
+export const PLAYGROUND_HOST_CLASS = 'pointer-events-none fixed inset-0 z-2147483000'
+
 const PLAYGROUND_SHELL_URL = '/playground-shell/start-playground.js'
 
 const PLAYGROUND_SOURCE = 'conciv-playground'
@@ -46,7 +48,36 @@ const ShellModule = z.object({
   startPlayground: z.custom<StartPlayground>((value) => typeof value === 'function'),
 })
 
-export async function loadPlayground(): Promise<StartPlayground> {
+async function loadPlayground(): Promise<StartPlayground> {
   const loaded: unknown = await import(/* @vite-ignore */ new URL(PLAYGROUND_SHELL_URL, document.baseURI).href)
   return ShellModule.parse(loaded).startPlayground
+}
+
+export type MountPlaygroundOptions = Omit<StartPlaygroundOptions, 'reducedMotion'> & {
+  readonly onFailure: (error: unknown) => void
+}
+
+export type MountedPlayground = {
+  readonly playback: () => Playback | undefined
+  readonly stop: () => void
+}
+
+export function mountPlayground({onFailure, ...options}: MountPlaygroundOptions): MountedPlayground {
+  const state: {closed: boolean; playback: Playback | undefined} = {closed: false, playback: undefined}
+  loadPlayground()
+    .then((startPlayground) => {
+      if (state.closed) return
+      const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+      state.playback = startPlayground({...options, reducedMotion})
+    })
+    .catch((error: unknown) => {
+      if (!state.closed) onFailure(error)
+    })
+  return {
+    playback: () => state.playback,
+    stop: () => {
+      state.closed = true
+      state.playback?.stop()
+    },
+  }
 }
