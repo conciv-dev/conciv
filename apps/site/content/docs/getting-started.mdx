@@ -1,155 +1,200 @@
 ---
-title: Quick start
-description: Copy one prompt into your coding agent, and it sets conciv up in your app.
+title: Getting started
+description: Add conciv to your app, log in, and ask the agent about the page you are on.
 icon: Rocket
 ---
 
-Pick your framework, copy the prompt, and paste it into your coding agent:
+A coding agent in your terminal cannot see your running app. So you leave the app to ask it something. Then you paste
+the error, the markup or a screenshot back by hand. conciv removes that trip: the agent runs inside your app, reads
+the page you are on, and edits the source that renders it.
+
+This guide takes the shortest path:
+
+1. Install conciv with one command.
+2. Start your dev server.
+3. Log in with the code your dev server prints.
+4. Ask the agent about the page you are on.
+
+<Callout type="success" title="Prefer to let your agent do it?">
+  Pick your framework, copy the prompt, and paste it into your coding agent. It runs every step on this page for you.
 
 <SetupPrompt />
 
-What you get:
-
-- `@conciv/it` in your dev dependencies, and conciv in your build config.
-- A conciv section in `AGENTS.md`, so your agent knows the conciv commands.
-- Your dev server running, with a conciv button in the corner of your app.
-- A login link, or a 6-digit code to type in the panel.
-
-## Give it a first task
-
-Ask your agent, in your terminal or in the conciv panel:
-
-<CopyPrompt text="Look at the page I have open in conciv. Change the main heading to say Hello from conciv. Edit the source file, then check that the page shows the new text." />
-
-The agent reads the live page, finds the heading in your source, and edits it. Your dev server reloads the page.
-
-<Callout>
-  The chat runs an agent CLI on your machine, `claude` by default. It must be on the `PATH` of the shell that starts
-  your dev server, and logged in. See [Harnesses](/docs/harnesses) for the others.
 </Callout>
 
-## Pick your framework
+## Installation
 
-<Cards>
-  <Card
-    title="Vite"
-    href="/docs/bundlers/vite"
-    icon={<img src="/icons/vite.svg" alt="" className="size-4" />}
-    description="Vite apps, and frameworks built on Vite such as Astro and TanStack Start."
-  />
-  <Card
-    title="Next.js"
-    href="/docs/bundlers/nextjs"
-    icon={<img src="/icons/nextjs.svg" alt="" className="size-4" />}
-    description="withConciv plus two instrumentation files."
-  />
-  <Card
-    title="webpack"
-    href="/docs/bundlers/webpack"
-    icon={<img src="/icons/webpack.svg" alt="" className="size-4" />}
-    description="The widget and the engine in your development build."
-  />
-  <Card
-    title="Rspack"
-    href="/docs/bundlers/rspack"
-    icon={<img src="/icons/rspack.svg" alt="" className="size-4" />}
-    description="The widget and the engine in your development build."
-  />
-  <Card
-    title="iOS (alpha)"
-    href="/docs/bundlers/ios"
-    icon={<img src="/icons/apple.svg" alt="" className="size-4" />}
-    description="A native app in the simulator, through the Swift package."
-  />
-  <Card title="Rollup and esbuild" href="/docs/bundlers" description="Not supported yet." />
-</Cards>
+Run init in your app folder, the one with `package.json`:
 
-## Set up by hand
-
-<Accordions>
-<Accordion id="by-hand" title="Run conciv init yourself">
-
-<Steps>
-<Step>
-
-### Run init
-
-Run it in your app folder, the one with `package.json`:
-
-```bash
+```package-install
 npx @conciv/cli@latest init
 ```
 
-</Step>
-<Step>
+init asks what to set up, shows the plan, and writes nothing until you say yes. What init changes:
 
-### Answer its questions
+- It adds `@conciv/it` to your dev dependencies.
+- It wires conciv into your bundler config.
+- It adds a conciv section to `AGENTS.md`, so your agent knows the conciv commands. With Claude Code, `CLAUDE.md`
+  gets it too.
+- It installs the conciv plugin for Claude Code, when Claude Code is on your machine.
+- It connects each agent CLI it finds to conciv, so the agent in your terminal can drive your open tabs.
+- It adds the `@conciv/skills` docs pack, only if you check that box.
 
-init asks four things:
+<Callout type="warn" title="Next.js with a src folder">
+  init writes the two instrumentation files to the project root. Next.js reads them from the folder that holds your
+  routes. If your routes live in `src/`, move both files there.
+</Callout>
 
-- Teach these agent harnesses about conciv? Every agent CLI it found is checked.
-- Connect these agents to conciv, so they can find and drive your open conciv tabs?
-- Wire the detected config for conciv? It names your framework.
-- Add the `@conciv/skills` docs pack? This one is off by default.
+This is the config init writes. Your other plugins stay as they are:
 
-Then it shows the plan and asks "Run this plan?".
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite' // [!code ++]
 
-</Step>
-<Step>
+export default defineConfig({
+  plugins: [
+    react(),
+    conciv(), // [!code ++]
+  ],
+})
+```
 
-### Read what it did
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs' // [!code ++]
 
-For each step it prints a line, and the diff of every config it edits. A step it cannot do ends as a card with a
-snippet to paste.
+const nextConfig: NextConfig = {}
 
-</Step>
-<Step>
+export default withConciv(nextConfig) // [!code ++]
+```
 
-### Start your app and log in
+```ts twoslash title="instrumentation.ts" tab="Next.js" tab-group="bundler"
+export {register} from '@conciv/it/plugin/nextjs' // [!code ++]
+```
 
-Start your dev server, then open your app. Click the conciv button and type the 6-digit code your dev server prints.
-See [Logging in](/docs/usage/logging-in).
+```ts twoslash title="instrumentation-client.ts" tab="Next.js" tab-group="bundler"
+import '@conciv/it/plugin/nextjs/widget' // [!code ++]
+```
 
-</Step>
-</Steps>
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const conciv = require('@conciv/it/plugin/webpack') // [!code ++]
 
-To skip init, wire the config yourself: see your framework's page.
+module.exports = {
+  mode: 'development', // <- conciv runs only when the build is not for production
+  plugins: [
+    new HtmlWebpackPlugin(),
+    conciv.default(), // [!code ++]
+  ],
+}
+```
 
-</Accordion>
-</Accordions>
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const {rspack} = require('@rspack/core')
+const conciv = require('@conciv/it/plugin/rspack') // [!code ++]
 
-## Edge cases
+module.exports = {
+  mode: 'development', // <- conciv runs only when the build is not for production
+  plugins: [
+    new rspack.HtmlRspackPlugin(),
+    conciv.default(), // [!code ++]
+  ],
+}
+```
+
+```ts twoslash title="vite.config.ts" tab="TanStack Start" tab-group="bundler"
+import {defineConfig} from 'vite'
+import {tanstackStart} from '@tanstack/react-start/plugin/vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite' // [!code ++]
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    react(),
+    conciv(), // [!code ++]
+  ],
+})
+```
+
+Each bundler has its own page with the manual setup and its edge cases: [Vite](/docs/bundlers/vite),
+[Next.js](/docs/bundlers/nextjs), [webpack](/docs/bundlers/webpack), [Rspack](/docs/bundlers/rspack) and
+[TanStack Start](/docs/bundlers/tanstack-start).
 
 <Accordions>
-<Accordion id="flags" title="init flags">
+<Accordion id="stops" title="init stopped before it wrote anything?">
 
-- `--yes` takes every default and asks nothing. Use it in CI or from an agent.
-- `--dry-run` prints the plan and changes nothing.
-- `--force` runs even with uncommitted git changes.
-- `--json` prints one JSON result. Pair it with `--yes` or `--dry-run`.
+init checks your project first, and stops with one of these messages:
 
-</Accordion>
-<Accordion id="stops" title="When init stops before it writes anything">
+- `no package.json here — run init from your app directory`
+- `uncommitted changes — commit first or pass --force`
+- `Non-interactive terminal — re-run with --yes or --dry-run`
 
-- No `package.json` in the folder: `no package.json here — run init from your app directory`.
-- Uncommitted changes, without `--force`: `uncommitted changes — commit first or pass --force`.
-- No terminal to ask in, without `--yes` or `--dry-run`: `Non-interactive terminal — re-run with --yes or --dry-run`.
-
-</Accordion>
-<Accordion id="undo" title="Stopping init halfway">
-
-Press Ctrl-C while it runs. init puts your config back as it was.
-
-</Accordion>
-<Accordion id="production" title="Production builds">
-
-conciv runs in your dev server only. `vite build` leaves it out. A Next.js production server does not start it.
+Pressing Ctrl-C while init runs puts your config back as it was. Every flag is in the
+[CLI reference](/docs/reference/cli).
 
 </Accordion>
 </Accordions>
 
-## Next
+## Start your dev server
 
-- [Connect your agents](/docs/agents): what init sets up for the agent in your terminal.
-- [Usage](/docs/usage): a tour of the widget.
-- [How it works](/docs/engine-and-widget): what runs where.
+Start your dev server the way you always do. conciv starts with it, and adds a conciv button to the corner of every
+page.
+
+```bash title="Terminal"
+npm run dev
+```
+
+A few things to notice:
+
+- conciv runs in dev builds only. A production build leaves it out.
+- The chat runs an agent CLI on your machine, `claude` by default. It must be on the `PATH` of the shell that starts
+  your dev server, and logged in. See [Connect your agents](/docs/agents) for the others.
+
+## Log in
+
+The engine can read your project and run commands, so it answers only browsers you let in. Click the conciv button.
+Your dev server prints a box with a 6-digit code:
+
+```text title="Dev server terminal"
+╭──────────────────────────────────────────────────────╮
+│ conciv: a browser asks to connect to this engine     │
+│ From:    Chrome 142 | macOS at http://localhost:5173 │
+│ Code:    482913                                      │
+│ Link:    http://localhost:5173/#conciv_otp=482913    │
+│ Expires: 10:42:07                                    │
+╰──────────────────────────────────────────────────────╯
+```
+
+Type the code in the panel, or open the link. You log in once per browser. Learn more in the
+[Logging in documentation](/docs/usage/logging-in).
+
+## Ask about the page
+
+Open the panel and ask about the page you have open. The agent reads the rendered page first, then finds the file
+that renders it.
+
+```text title="Prompt"
+What is on this page, and which file renders it?
+```
+
+<Playground
+  page="vite-react"
+  script="getting-started/ask-about-page"
+  caption="The agent reads the open page and names the file that renders it."
+/>
+
+A few things to notice:
+
+- The crosshair beside the composer pins an element to your message, with its source file when conciv finds it.
+- When the agent edits your source, your dev server reloads the page.
+- A risky action shows a card first: Allow once, Allow always or Deny.
+
+## Next steps
+
+- **Use conciv**: [chat, page control, live tests and more](/docs/usage), feature by feature.
+- **Connect your terminal agent**: [Connect your agents](/docs/agents) lets it drive your open tabs too.
+- **Learn what runs where**: [Engine and widget](/docs/engine-and-widget) and [Sessions](/docs/sessions).
+- **Add plugins**: [Add plugins](/docs/usage/add-plugins) to give the agent new tools, such as a test runner.
+- **Build your own plugin**: [Build your first plugin](/docs/plugins/first-plugin).
