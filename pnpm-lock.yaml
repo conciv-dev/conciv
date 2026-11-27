@@ -4110,13 +4110,31 @@ importers:
       '@conciv/app':
         specifier: workspace:^
         version: link:../app
+      '@conciv/frontend-plugin-api':
+        specifier: workspace:^
+        version: link:../frontend-plugin-api
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
     devDependencies:
+      '@conciv/backend-test-utils':
+        specifier: workspace:*
+        version: link:../backend-test-utils
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
       preact:
         specifier: 'catalog:'
         version: 11.1.0
@@ -4132,6 +4150,12 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/protocol:
     dependencies:
