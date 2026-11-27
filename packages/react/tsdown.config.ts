@@ -6,6 +6,6 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: false,
-  external: [/^@conciv\//, 'react'],
+  external: [/^@conciv\//, 'react', 'react-dom', 'solid-js'],
   banner: {js: "'use client';"},
 })

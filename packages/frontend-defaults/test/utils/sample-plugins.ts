@@ -1,5 +1,5 @@
 import type {FakeBundle} from '@internal/test-utils'
-import {Command, ComposerPill, Plugin, Slot} from '@conciv/frontend-plugin-api'
+import {Command, ComposerPill, mountRender, Plugin, Slot, type SlotMap} from '@conciv/frontend-plugin-api'
 import type {ShellPlugin} from './mount-shell.js'
 
 type JsonOption = string | number | boolean
@@ -36,6 +36,27 @@ export const releaseTrainSlotsPlugin: ShellPlugin = {
     setup(ctx) {
       ctx.add(Slot, {at: 'session.header', render: () => paragraph('Release train: on time')})
       ctx.add(Slot, {at: 'session.status', render: () => paragraph('Next train at noon')})
+    },
+  }),
+}
+
+export const sessionBadgePlugin: ShellPlugin = {
+  id: 'session-badge',
+  plugin: Plugin.define({
+    setup(ctx) {
+      ctx.add(Slot, {
+        at: 'session.header',
+        render: mountRender<SlotMap['session.header']>((element, props) => {
+          const badge = element.appendChild(document.createElement('p'))
+          const stop = props.subscribe(() => {
+            badge.textContent = `On session ${props.current().session.id}`
+          })
+          return () => {
+            stop()
+            badge.remove()
+          }
+        }),
+      })
     },
   }),
 }
