@@ -49,13 +49,6 @@ export default defineConfig(({mode}) => ({
   ssr: {
     noExternal: ['gsap', '@gsap/react'],
   },
-  environments: {
-    ssr: {
-      build: {
-        minify: true,
-      },
-    },
-  },
   resolve: {
     tsconfigPaths: true,
     alias: {

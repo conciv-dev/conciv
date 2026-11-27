@@ -1,10 +1,10 @@
 import {defineConfig, defineDocs} from 'fumadocs-mdx/config'
 import {pageSchema} from 'fumadocs-core/source/schema'
 import {z} from 'zod'
-import {rehypeCodeDefaultOptions, remarkMdxMermaid} from 'fumadocs-core/mdx-plugins'
+import {rehypeCodeDefaultOptions, remarkMdxMermaid, remarkStructureDefaultOptions} from 'fumadocs-core/mdx-plugins'
 import {transformerTwoslash} from 'fumadocs-twoslash'
+import {createFileSystemTypesCache} from 'fumadocs-twoslash/cache-fs'
 import {remarkAutoTypeTable} from 'fumadocs-typescript'
-import {recmaShareTwoslashPopups} from './src/lib/recma-share-twoslash-popups'
 import {createReferenceGenerator} from './src/lib/reference-type-table'
 
 export const docs = defineDocs({
@@ -19,7 +19,7 @@ export const docs = defineDocs({
 
 export default defineConfig({
   mdxOptions: {
-    recmaPlugins: [recmaShareTwoslashPopups],
+    remarkStructureOptions: {types: [...remarkStructureDefaultOptions.types, 'code']},
     remarkPlugins: [remarkMdxMermaid, [remarkAutoTypeTable, {generator: createReferenceGenerator()}]],
     rehypeCodeOptions: {
       ...rehypeCodeDefaultOptions,
@@ -27,6 +27,7 @@ export default defineConfig({
       transformers: [
         ...(rehypeCodeDefaultOptions.transformers ?? []),
         transformerTwoslash({
+          typesCache: createFileSystemTypesCache({dir: '.cache/twoslash'}),
           twoslashOptions: {compilerOptions: {types: ['node']}},
           rendererRich: {processHoverDocs: (text) => text.split(/\n\s*\n/, 1)[0] ?? text},
         }),
