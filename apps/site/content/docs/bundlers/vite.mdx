@@ -11,7 +11,7 @@ conciv runs inside the Vite dev server, through the `conciv()` plugin from `@con
   <SetupPrompt framework="vite" />
 </Callout>
 
-## Basic
+## Add conciv to Vite
 
 Install `@conciv/it` as a dev dependency:
 
@@ -42,7 +42,7 @@ server prints. Learn more in the [Logging in documentation](/docs/usage/logging-
 
 ## What works
 
-Everything. Vite is the bundler conciv gives the most on:
+Every feature works on Vite:
 
 - The widget on every page the dev server serves, and the engine that starts with `vite dev`.
 - The [dev server tools](/docs/usage/dev-server): the agent reads your config, URLs and module graph.
@@ -64,13 +64,13 @@ export default defineConfig({
 ```
 
 <Accordions type="single">
-  <Accordion id="devtools" title="conciv opened in the Vite DevTools dock?">
+  <Accordion id="devtools" title="conciv opens in the Vite DevTools dock">
     With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner. It logs in with no
     code. Learn more in the [Logging in documentation](/docs/usage/logging-in#vite-devtools).
   </Accordion>
-  <Accordion id="card" title="init printed a snippet instead of editing the config?">
+  <Accordion id="card" title="init prints a snippet instead of editing the config">
     init edits only a config shape it can prove: one `plugins` array in the exported config object. For any other shape
-    it prints the snippet to paste. Add it as in Basic above.
+    it prints the snippet to paste. Add it as shown above.
   </Accordion>
 </Accordions>
 
