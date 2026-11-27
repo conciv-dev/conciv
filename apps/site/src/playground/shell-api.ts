@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import type {PlaygroundScriptId} from './playground-scripts'
 import type {PageEdit} from './script'
 
@@ -10,4 +11,13 @@ export type StartPlaygroundOptions = {
 
 export type StartPlayground = (options: StartPlaygroundOptions) => () => void
 
-export const PLAYGROUND_SHELL_URL = '/playground-shell/start-playground.js'
+const PLAYGROUND_SHELL_URL = '/playground-shell/start-playground.js'
+
+const ShellModule = z.object({
+  startPlayground: z.custom<StartPlayground>((value) => typeof value === 'function'),
+})
+
+export async function loadPlayground(): Promise<StartPlayground> {
+  const loaded: unknown = await import(/* @vite-ignore */ new URL(PLAYGROUND_SHELL_URL, document.baseURI).href)
+  return ShellModule.parse(loaded).startPlayground
+}

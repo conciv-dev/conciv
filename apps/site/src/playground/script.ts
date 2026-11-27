@@ -52,7 +52,7 @@ export type PlaygroundPluginId = 'test-runner' | 'project-version' | 'shelf'
 
 export type PlaygroundScript = {
   readonly title: string
-  readonly screen: 'panel' | 'quick'
+  readonly screen: 'launcher' | 'panel' | 'quick'
   readonly plugins: readonly PlaygroundPluginId[]
   readonly turns: readonly Turn[]
 }

@@ -43,7 +43,7 @@ export default defineConfig(({mode}) => ({
       },
     }),
     react(),
-    conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
+    conciv({widget: false}),
     concivTest(),
   ],
   ssr: {

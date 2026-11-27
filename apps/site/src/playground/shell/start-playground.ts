@@ -30,7 +30,7 @@ type Builtin = {
 
 type LocalPlugin = {readonly id: string; readonly plugin: Plugin.Definition}
 
-const START = {panel: '/panel/latest?open=true', quick: '/quick'} as const
+const START = {launcher: '/', panel: '/panel/latest?open=true', quick: '/quick'} as const
 
 type Served = {readonly bundle: DemoBundle; readonly rpc: () => DemoRpc}
 
@@ -82,6 +82,19 @@ function placeHost(host: HTMLElement): ShadowRoot {
   return host.shadowRoot ?? host.attachShadow({mode: 'open'})
 }
 
+const KEYBOARD_EVENTS = ['keydown', 'keypress', 'keyup'] as const
+
+const EDITABLE_TAGS: readonly string[] = ['INPUT', 'TEXTAREA', 'SELECT']
+
+function keepEditableKeysOffTheHostPage(root: ShadowRoot, signal: AbortSignal): void {
+  const guard = (event: KeyboardEvent): void => {
+    const target = event.composedPath()[0]
+    if (!(target instanceof HTMLElement) || !root.contains(target)) return
+    if (EDITABLE_TAGS.includes(target.tagName) || target.isContentEditable) event.stopPropagation()
+  }
+  KEYBOARD_EVENTS.forEach((type) => document.addEventListener(type, guard, {signal}))
+}
+
 export const startPlayground: StartPlayground = (options) => {
   const script = playgroundScripts[options.script]
   const director = new AbortController()
@@ -97,6 +110,7 @@ export const startPlayground: StartPlayground = (options) => {
     version: shell.version,
   })
   const root = placeHost(options.host)
+  keepEditableKeysOffTheHostPage(root, director.signal)
   const container = document.createElement('div')
   root.append(container)
   const binding: ReturnType<Platform['engine']> = {
@@ -116,11 +130,14 @@ export const startPlayground: StartPlayground = (options) => {
       })
     },
   }
+  const hostRouter = window.__TSR_ROUTER__
   const dispose = render(() => createComponent(ConcivApp, {platform}), container)
+  window.__TSR_ROUTER__ = hostRouter
   return () => {
     director.abort()
     engine.dispose()
     dispose()
     container.remove()
+    window.__TSR_ROUTER__ = hostRouter
   }
 }

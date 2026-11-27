@@ -64,7 +64,7 @@ const UNSCRIPTED: Turn = {
   replies: [
     {
       kind: 'text',
-      text: 'This playground plays a fixed script, so it cannot answer that. Add conciv to your own app to ask anything.',
+      text: 'This demo plays a fixed script, so it cannot answer that or run tools. To ask an agent anything about your own app, add conciv to it: [Getting started](/docs/getting-started).',
     },
   ],
 }

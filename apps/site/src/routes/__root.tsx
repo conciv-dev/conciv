@@ -18,6 +18,7 @@ export const Route = createRootRoute({
   beforeLoad: ({matches}) => ({
     widgetHomeDefault: matches.some((match) => match.routeId === '/'),
     playgroundFrame: matches.some((match) => match.routeId === '/playground/$page/$'),
+    docsPage: matches.some((match) => match.routeId === '/docs/$'),
   }),
   head: ({matches}) => {
     const canonical = canonicalHeadTags(matches)

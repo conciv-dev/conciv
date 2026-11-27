@@ -2,6 +2,7 @@ import type {PlaygroundScript} from './script'
 import approvalsAllowOnce from './scripts/approvals/allow-once'
 import chatSendAndQueue from './scripts/chat/send-and-queue'
 import devServerBuildErrors from './scripts/dev-server/build-errors'
+import docsAsk from './scripts/docs/ask'
 import gettingStartedAskAboutPage from './scripts/getting-started/ask-about-page'
 import introFirstSession from './scripts/intro/first-session'
 import liveTestsRun from './scripts/live-tests/run'
@@ -25,6 +26,7 @@ const scripts = {
   'plugins/tool-direct-vs-codemode': pluginsToolDirectVsCodemode,
   'plugins/permission-card': pluginsPermissionCard,
   'plugins/panel-tab': pluginsPanelTab,
+  'docs/ask': docsAsk,
 } satisfies Record<string, PlaygroundScript>
 
 export type PlaygroundScriptId = keyof typeof scripts

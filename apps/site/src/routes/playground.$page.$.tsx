@@ -1,15 +1,10 @@
 import {useCallback, useState} from 'react'
 import {createFileRoute, notFound} from '@tanstack/react-router'
 import {RotateCcw} from 'lucide-react'
-import {z} from 'zod'
 import {ViteReactPage} from '@/playground/pages/vite-react/vite-react-page'
 import {isPlaygroundPage, isPlaygroundScriptId} from '@/playground/playground-scripts'
 import {INITIAL_PAGE, type PageEdit, type PageState} from '@/playground/script'
-import {PLAYGROUND_SHELL_URL, type StartPlayground} from '@/playground/shell-api'
-
-const ShellModule = z.object({
-  startPlayground: z.custom<StartPlayground>((value) => typeof value === 'function'),
-})
+import {loadPlayground} from '@/playground/shell-api'
 
 export const Route = createFileRoute('/playground/$page/$')({
   loader: ({params}) => {
@@ -35,11 +30,11 @@ function PlaygroundFrame() {
       if (host === null) return
       const state = {closed: false, stop: (): void => undefined}
       const editPage = (edit: PageEdit): void => setPage((current) => ({...current, ...edit}))
-      import(/* @vite-ignore */ new URL(PLAYGROUND_SHELL_URL, document.baseURI).href)
-        .then((loaded: unknown) => {
+      loadPlayground()
+        .then((startPlayground) => {
           if (state.closed) return
           const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-          state.stop = ShellModule.parse(loaded).startPlayground({host, script, reducedMotion, editPage})
+          state.stop = startPlayground({host, script, reducedMotion, editPage})
         })
         .catch((error: unknown) => {
           if (!state.closed) setFailure(describeFailure(error))
