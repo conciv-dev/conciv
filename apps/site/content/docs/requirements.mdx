@@ -4,4 +4,76 @@ description: 'What conciv needs: Node, a supported bundler, a browser and an age
 icon: Cpu
 ---
 
-This page is being written.
+conciv runs on your machine, inside your dev server. It needs a recent Node, a bundler it plugs into, a browser for
+the panel, and an agent CLI to answer in the chat.
+
+## Overview
+
+| Needs     | Supported                                                           |
+| --------- | ------------------------------------------------------------------- |
+| Node.js   | 26 or newer                                                         |
+| Bundler   | Vite 6, 7 or 8; Next.js 15.3 or 16; webpack 5; Rspack               |
+| Browser   | A current desktop browser; tested in Chromium and Firefox           |
+| Agent CLI | Claude Code, Codex, Gemini CLI or opencode, installed and logged in |
+| Build     | Development builds only                                             |
+
+## Node.js
+
+conciv needs Node.js 26 or newer. Its per-user registry is built on `node:sqlite`. Several published packages
+declare that floor in their `engines` field.
+
+Your app itself can target any runtime. Only the dev server process that runs conciv needs Node 26.
+
+## Bundlers
+
+conciv plugs into your bundler through `@conciv/it`. Each bundler has its own entry.
+
+| Bundler         | Versions        | Entry                       | Notes                                                                              |
+| --------------- | --------------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| Vite            | 6, 7 and 8      | `@conciv/it/plugin/vite`    | The full feature set. Also Astro and TanStack Start, which run on Vite.            |
+| Next.js         | 15.3 and 16     | `@conciv/it/plugin/nextjs`  | `withConciv` plus two instrumentation files.                                       |
+| webpack         | 5               | `@conciv/it/plugin/webpack` | The chat and page tools work. The agent cannot read the dev server's module graph. |
+| Rspack          | tested with 2.x | `@conciv/it/plugin/rspack`  | The same as webpack.                                                               |
+| Rollup, esbuild | none            | none                        | The entries exist but do nothing yet. Serve the app with Vite instead.             |
+
+The Vite and Next.js ranges are the `peerDependencies` of `@conciv/it`. webpack and Rspack have no declared range;
+the repo builds and tests against webpack 5 and Rspack 2.
+
+A native iOS app runs through the [iOS setup](/docs/bundlers/ios), in early alpha. It needs Xcode and the iOS
+simulator, plus a web dev server with conciv to run the engine.
+
+## Browsers
+
+The panel runs in the page your dev server serves. Use a current version of a desktop browser. The widget is tested in
+Chromium and Firefox. Other browsers are not in the test matrix.
+
+## Agent CLIs
+
+The chat runs an agent CLI on your machine, with your own login. conciv does not install it or log you in. The CLI
+must be on the `PATH` of the shell that starts your dev server.
+
+| Agent       | Command    | In conciv                                                     |
+| ----------- | ---------- | ------------------------------------------------------------- |
+| Claude Code | `claude`   | The default. Chat, permission cards, `/` commands and images. |
+| Codex       | `codex`    | Chat. Codex never asks; its sandbox limits what it can do.    |
+| Gemini CLI  | `gemini`   | Chat, with permission cards.                                  |
+| opencode    | `opencode` | Chat. Its permission asks do not reach conciv yet.            |
+| Pi          | `pi`       | No chat yet. Its past sessions show in the session list.      |
+
+Learn more in the [Connect your agents documentation](/docs/agents).
+
+## Development builds only
+
+conciv runs only in development:
+
+- `vite dev` starts it. `vite build` leaves it out.
+- `next dev` starts it. `next build` and `next start` leave it out.
+- webpack and Rspack run it when the build mode is not `production`.
+
+Learn more in the [Keep conciv out of production recipe](/docs/recipes/keep-conciv-out-of-production).
+
+## Next steps
+
+- **Install it**: [Getting started](/docs/getting-started) takes the shortest path.
+- **Pick your bundler**: [Vite](/docs/bundlers/vite), [Next.js](/docs/bundlers/nextjs),
+  [webpack](/docs/bundlers/webpack) and [Rspack](/docs/bundlers/rspack).
