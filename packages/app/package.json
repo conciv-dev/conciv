@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsdown -c tsdown.types.config.ts",
+    "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -73,7 +73,6 @@
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
     "publint": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",

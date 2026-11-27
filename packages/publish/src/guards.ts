@@ -1,5 +1,5 @@
 import {access, lstat, readFile, readdir} from 'node:fs/promises'
-import {join, relative} from 'node:path'
+import {dirname, join, relative} from 'node:path'
 import {parseChangesetFile} from '@changesets/parse'
 import {execa} from 'execa'
 import {minimatch} from 'minimatch'
@@ -348,31 +348,78 @@ async function readDeclarationFiles(dir: string): Promise<string[]> {
   }
 }
 
+function declarationCandidates(path: string): string[] {
+  if (DECLARATION_FILE.test(path)) return [path]
+  const script = /\.([cm]?)js$/.exec(path)
+  if (script) return [`${path.slice(0, -script[0].length)}.d.${script[1]}ts`]
+  return [`${path}.d.ts`, join(path, 'index.d.ts')]
+}
+
+function readExportTargets(value: unknown): string[] {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(readExportTargets)
+  if (typeof value === 'object' && value !== null) return Object.values(value).flatMap(readExportTargets)
+  return []
+}
+
+export type DeclarationGraph = {
+  entries: readonly string[]
+  files: ReadonlyMap<string, string>
+  privateNames: readonly string[]
+}
+
+export function findPrivateTypeLeaks({entries, files, privateNames}: DeclarationGraph): string[] {
+  const parents = new Map<string, string | undefined>()
+  const queue = [...new Set(entries.flatMap(declarationCandidates).filter((file) => files.has(file)))]
+  queue.forEach((file) => parents.set(file, undefined))
+  const chainTo = (file: string): string[] => {
+    const parent = parents.get(file)
+    return parent === undefined ? [file] : [...chainTo(parent), file]
+  }
+  const leaks: string[] = []
+  for (const file of queue) {
+    const specifiers = Array.from((files.get(file) ?? '').matchAll(IMPORTED_MODULE), (match) => match[1] ?? '')
+    for (const specifier of specifiers) {
+      const name = privateNames.find((candidate) => specifier === candidate || specifier.startsWith(`${candidate}/`))
+      if (name !== undefined) leaks.push(`${chainTo(file).join(' -> ')} names private workspace package ${name}`)
+      if (!specifier.startsWith('.')) continue
+      const next = declarationCandidates(join(dirname(file), specifier)).find((candidate) => files.has(candidate))
+      if (next === undefined || parents.has(next)) continue
+      parents.set(next, file)
+      queue.push(next)
+    }
+  }
+  return leaks
+}
+
+async function readDeclarationGraph(cwd: string, pkg: WorkspacePackage): Promise<Map<string, string>> {
+  const files = await readDeclarationFiles(pkg.dir)
+  return new Map(
+    await Promise.all(
+      files.map(async (file): Promise<[string, string]> => [relative(cwd, file), await readFile(file, 'utf8')]),
+    ),
+  )
+}
+
 export async function assertPublicTypesPublic(cwd: string, only?: readonly string[]): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
   const privateNames = packages
     .filter((pkg) => pkg.manifest.private)
     .map((pkg) => pkg.manifest.name)
     .filter((name): name is string => typeof name === 'string')
-  const namesPrivate = (specifier: string): string | undefined =>
-    privateNames.find((name) => specifier === name || specifier.startsWith(`${name}/`))
   const violations = await Promise.all(
     packages
       .filter((pkg) => !pkg.manifest.private)
       .filter(
         (pkg) => only === undefined || (typeof pkg.manifest.name === 'string' && only.includes(pkg.manifest.name)),
       )
-      .map(async (pkg) => {
-        const files = await readDeclarationFiles(pkg.dir)
-        const found = await Promise.all(
-          files.map(async (file) =>
-            Array.from((await readFile(file, 'utf8')).matchAll(IMPORTED_MODULE), (match) => match[1] ?? '')
-              .flatMap((specifier) => namesPrivate(specifier) ?? [])
-              .map((name) => `${relative(cwd, file)} names private workspace package ${name}`),
-          ),
-        )
-        return found.flat()
-      }),
+      .map(async (pkg) =>
+        findPrivateTypeLeaks({
+          entries: readExportTargets(pkg.manifest.exports).map((target) => join(pkg.relativeDir, target)),
+          files: await readDeclarationGraph(cwd, pkg),
+          privateNames,
+        }),
+      ),
   )
   const all = violations.flat()
   if (all.length > 0) throw new Error(all.join('\n'))
