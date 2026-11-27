@@ -133,7 +133,10 @@ export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <Select value={framework.id} onValueChange={setFrameworkId}>
           <SelectTrigger aria-label="Framework" size="sm" className="gap-2">
-            <SelectValue />
+            <SelectValue>
+              <img src={framework.icon} alt="" className="size-4" />
+              {framework.label}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent position="popper">
             <SelectGroup>
