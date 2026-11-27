@@ -2,7 +2,7 @@
 import {chmod, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {defineCommand, runMain} from 'citty'
+import {defineCommand, runCommand, runMain} from 'citty'
 import {execa} from 'execa'
 import {
   PUBLIC_PACKAGES,
@@ -34,6 +34,7 @@ import {
   treesMatch,
 } from './swift-mirror.ts'
 import {publishErrors} from './errors/errors.ts'
+import {formatCliError} from './errors/format.ts'
 
 const REPOSITORY = 'conciv-dev/conciv'
 const RELEASE_WORKFLOW = 'release.yml'
@@ -449,4 +450,10 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+const rawArgs = process.argv.slice(2)
+if (rawArgs.length === 0 || rawArgs.includes('--help') || rawArgs.includes('-h')) void runMain(main)
+else
+  void runCommand(main, {rawArgs}).catch((error: unknown) => {
+    process.stderr.write(`${formatCliError(error)}\n`)
+    process.exitCode = 1
+  })

@@ -28,6 +28,7 @@ import {
   renderSummary,
 } from './summary.ts'
 import {publishErrors} from './errors/errors.ts'
+import {formatCliError} from './errors/format.ts'
 
 const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output', '--untested']
 
@@ -218,4 +219,11 @@ const chosen = COMMANDS[command]
 if (chosen === undefined) {
   process.stderr.write(`usage: conciv-ci-shards <${Object.keys(COMMANDS).join('|')}> [--task test|e2e]\n`)
   process.exitCode = 2
-} else chosen(rest)
+} else {
+  try {
+    chosen(rest)
+  } catch (error) {
+    process.stderr.write(`${formatCliError(error)}\n`)
+    process.exitCode = 1
+  }
+}
