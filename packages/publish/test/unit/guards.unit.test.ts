@@ -47,6 +47,10 @@ describe('the published types check', () => {
       'kit/dist/kit.d.ts -> kit/dist/props.d.ts -> kit/dist/card.d.ts names private workspace package @internal/app-api',
     ])
     expect(leaks(['kit/dist/props.d.ts', 'kit/package.json'])).toHaveLength(1)
+    expect(leaks(['kit/dist/*.js'])).toEqual([
+      'kit/dist/card.d.ts names private workspace package @internal/app-api',
+      'kit/dist/builtins.d.ts names private workspace package @internal/defaults',
+    ])
     files.set('kit/dist/card.d.ts', 'export declare const card: string')
     expect(leaks(['kit/dist/kit.js'])).toEqual([])
   })

@@ -1,6 +1,7 @@
 import {access, lstat, readFile, readdir} from 'node:fs/promises'
 import {dirname, join, relative} from 'node:path'
 import {parseChangesetFile} from '@changesets/parse'
+import {escapeRegExp} from 'es-toolkit'
 import {execa} from 'execa'
 import {minimatch} from 'minimatch'
 import {
@@ -362,6 +363,12 @@ function readExportTargets(value: unknown): string[] {
   return []
 }
 
+function matchEntry(entry: string, files: ReadonlyMap<string, string>): string[] {
+  if (!entry.includes('*')) return files.has(entry) ? [entry] : []
+  const pattern = new RegExp(`^${entry.split('*').map(escapeRegExp).join('.*')}$`)
+  return [...files.keys()].filter((file) => pattern.test(file))
+}
+
 export type DeclarationGraph = {
   entries: readonly string[]
   files: ReadonlyMap<string, string>
@@ -370,7 +377,7 @@ export type DeclarationGraph = {
 
 export function findPrivateTypeLeaks({entries, files, privateNames}: DeclarationGraph): string[] {
   const parents = new Map<string, string | undefined>()
-  const queue = [...new Set(entries.flatMap(declarationCandidates).filter((file) => files.has(file)))]
+  const queue = [...new Set(entries.flatMap(declarationCandidates).flatMap((entry) => matchEntry(entry, files)))]
   queue.forEach((file) => parents.set(file, undefined))
   const chainTo = (file: string): string[] => {
     const parent = parents.get(file)
