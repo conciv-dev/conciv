@@ -155,6 +155,45 @@ documentation](/docs/reference/configuration#sessionid-and-claudesessionid).
 **Fix.** Point the path at the plugin's folder. Learn more in the [Debug a plugin that does not load
 recipe](/docs/recipes/debug-a-plugin-that-does-not-load).
 
+## In simulation
+
+These show when the engine runs with a driver. Learn more in the [Drive the widget from a script
+recipe](/docs/recipes/drive-the-widget-from-a-script).
+
+### No driver
+
+> the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused
+
+**Cause.** `CONCIV_SIMULATE` is set without `CONCIV_DRIVE`, so no socket opens and nothing answers the model.
+
+**Fix.** Set both variables.
+
+### Address not on the list
+
+> Simulation denied unregistered network destination
+
+**Cause.** The engine tried to reach an address that is not on the simulation's fixed list. The message names the
+method and the address.
+
+**Fix.** Leave the call out of the flow you simulate. The list is fixed.
+
+### Widget call not supported
+
+> the widget does not support \<call\>
+
+**Cause.** The widget does not answer `ui.capture`, `ui.recording.finish`, `ui.mouse` or `ui.resize`.
+
+**Fix.** Use the calls under `client.ui` that it answers, such as `snapshot` and `click`.
+
+### Widget socket did not start
+
+> conciv drive ui websocket did not start
+
+**Cause.** The widget socket could not listen, for example because its port is taken.
+
+**Fix.** Free the port, or name an instance with other ports. The engine runs on without the socket, and the model
+socket still works.
+
 ## From the CLI
 
 ### No dev server
