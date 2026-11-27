@@ -1,6 +1,56 @@
 ---
-title: Keep conciv out of production builds
-description: 'Make sure no conciv code reaches a production build.'
+title: Keep conciv out of production
+description: Make sure no deployed build carries the widget or starts the engine.
 ---
 
-This page is being written.
+## Problem
+
+conciv is a development tool, and you want it nowhere near what you deploy. The question comes up when:
+
+- you deploy a staging build made in development mode;
+- you run the dev server on a shared machine, for a demo or a review;
+- you are not sure what each bundler does in a production build.
+
+<Callout type="warn" title="A deployed widget is a dead button">
+  The engine listens on `127.0.0.1` only and answers only browsers that logged in. A widget on a deployed page cannot
+  reach it, so visitors see a button that never works.
+</Callout>
+
+## Solution
+
+A production build already leaves conciv out, on every bundler:
+
+- **Vite:** conciv runs with the dev server only. `vite build` never includes it.
+- **Next.js:** with `NODE_ENV` set to `production`, no engine starts and the widget does not mount.
+- **webpack and Rspack:** conciv runs only when `mode` is `development` or `none`. With no `mode`, the build is a
+  production build, so conciv is off.
+
+For any other build you deploy, turn conciv off with `enabled`. Read it from a variable your deploy already sets:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      enabled: process.env.STAGING !== '1', // <- off in the staging build, on everywhere else
+    }),
+  ],
+})
+```
+
+With `enabled: false`, no engine starts and no widget is added. The same option works on every bundler. Learn more in
+the [Configuration documentation](/docs/reference/configuration#enabled).
+
+<Accordions>
+  <Accordion title="Can I keep the engine and only drop the button?">
+    Yes. `widget: false` keeps the engine running and adds no widget to the page. Use it when you render the widget
+    yourself, or when only agents in your terminal should reach the engine.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Bundlers](/docs/bundlers):** what conciv does on each bundler, in each mode.
+- **[Engine and widget](/docs/engine-and-widget):** what the build plugin starts, and where.
