@@ -127,12 +127,12 @@ user, not hung.
 The chat runtime deliberately has no single "settled" moment, and it is split across three surfaces
 rather than one subscribe call:
 
-- **The one-shot snapshot is `chat.hydrate`** (`packages/protocol/src/contract.ts:522-525`), served by
+- **The one-shot snapshot is `chat.hydrate`** (`packages/protocol/src/contract.ts:470-473`), served by
   the chat plane's `hydrate` (`packages/backend-defaults/src/backend-defaults.ts:144-153`). It resolves once with messages, the
   active run, the last run lifecycle, and any pending approvals; it never streams.
 - **The turn itself streams over the rpc socket**: `chat.send` starts a run and streams it, and
   `chat.join` streams a run again from a `lastEventId` (`ChatJoinInput`,
-  `packages/protocol/src/contract.ts:62`, used at `packages/protocol/src/contract.ts:520-521`), which is
+  `packages/protocol/src/contract.ts:73`, used at `packages/protocol/src/contract.ts:468-469`), which is
   how a reload rejoins a run already in flight.
 - **Out-of-band session events** ride the `chat.events` iterator: the session scope yields a catch-up and
   then the session bus's `events` generator (`packages/backend-defaults/src/engine/runtime/core-runtime.ts:32`), which lives
