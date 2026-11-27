@@ -3,42 +3,38 @@ title: Dev server
 description: Ask the agent how your dev server sees your code, and have it restart the server.
 ---
 
-Ask the agent about your dev server when a build question comes up:
+The dev server tools let the agent ask your running Vite dev server about your code, instead of guessing from config
+files. They are built in, with nothing to install.
 
-```text
+## Basic
+
+Ask about your dev server when a build question comes up:
+
+```text title="Prompt"
 Why does @/components/Header resolve to the wrong file from src/routes/index.tsx?
 ```
 
-The agent asks the running dev server itself. It does not guess from your config files. The dev server tools are
-built in: nothing to install.
+The agent asks the server how the import resolves from that file, and answers from what the server says.
+
+<Callout type="info" title="Vite only">
+  The tools need a Vite dev server, which includes TanStack Start and Astro. On Next.js, webpack and Rspack they answer
+  that no dev server is attached.
+</Callout>
 
 ## Ask how the server is set up
 
-The agent reads the resolved config: the root, the base path, the mode, the aliases and the plugins.
+The agent reads the resolved config: the root, the base path, the mode, the aliases and the plugins. It also knows
+where the server listens, on this machine and on your network:
 
-```text
-Which Vite plugins are active, and what aliases are set?
-```
-
-It also knows where the server listens, on this machine and on your network:
-
-```text
+```text title="Prompt"
 What URL do I open on my phone to see this app?
-```
-
-## Ask where an import goes
-
-The agent asks the server how an import resolves, as if from a given file:
-
-```text
-Where does "@/lib/auth" resolve to from src/routes/login.tsx?
 ```
 
 ## Ask what a file pulls in
 
 The agent reads a file's place in the module graph: what it imports, and what imports it.
 
-```text
+```text title="Prompt"
 Which modules import src/lib/store.ts? I want to know what a change there touches.
 ```
 
@@ -46,20 +42,24 @@ Which modules import src/lib/store.ts? I want to know what a change there touche
 
 The agent reads the code the dev server sends to the browser for a URL, after every plugin ran:
 
-```text
+```text title="Prompt"
 Show me what /src/main.ts looks like after the transform. Is the env variable inlined?
 ```
 
-## Open a file in your editor
+## Read build errors
 
-```text
-Open src/routes/index.tsx at line 12 in my editor.
-```
+With the [TanStack plugin](/docs/usage/add-plugins) added, the agent also reads the dev server's build errors.
 
-## Restart the server
+<Playground
+  page="vite-react"
+  script="dev-server/build-errors"
+  caption="Ask the agent why the page broke, and it reads the dev server's build errors."
+/>
 
-```text
-Restart the dev server, then check the page loads.
+## Open a file or restart the server
+
+```text title="Prompt"
+Open src/routes/index.tsx at line 12 in my editor. Then restart the dev server and check the page loads.
 ```
 
 A restart asks you first, with a [Permission card](/docs/usage/approvals). Allow it, and the server restarts and
@@ -67,54 +67,51 @@ bundles its dependencies again.
 
 ## Ask from your terminal
 
-The same questions work from a terminal, with `conciv plugin call server` and the question's name:
+The same questions work from a terminal, with the question's name after `server`:
 
-```bash
-conciv plugin call server urls
+```bash title="Terminal"
+npx @conciv/cli plugin call server urls
 ```
 
 It prints the answer as JSON:
 
-```json
+```json title="Output"
 {"ok": true, "data": {"local": ["http://localhost:5173/"], "network": ["http://192.168.1.20:5173/"]}}
 ```
 
 The other questions take their input as JSON after `--data`:
 
-```bash
-conciv plugin call server config
-conciv plugin call server resolve --data '{"spec":"@/lib/auth","importer":"src/routes/login.tsx"}'
-conciv plugin call server graph --data '{"file":"src/lib/store.ts"}'
-conciv plugin call server transform --data '{"url":"/src/main.ts"}'
-conciv plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
+```bash title="Terminal"
+npx @conciv/cli plugin call server config
+npx @conciv/cli plugin call server resolve --data '{"spec":"@/lib/auth","importer":"src/routes/login.tsx"}'
+npx @conciv/cli plugin call server graph --data '{"file":"src/lib/store.ts"}'
+npx @conciv/cli plugin call server transform --data '{"url":"/src/main.ts"}'
+npx @conciv/cli plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
 ```
 
-- `config` and `urls` take no input.
-- `resolve` takes the import and, optionally, the file it is imported from. It answers `null` when nothing matches.
+- `resolve` takes the import, and optionally the file it is imported from. Its `id` is `null` when nothing matches.
 - `graph` takes a file. `transform` takes the URL the browser asks for.
 - `open` takes a file, and optionally a line and a column.
 
 A restart is not on this list. It always goes through the agent, so you get the card first.
 
-## Details
-
 <Accordions type="single">
-  <Accordion title="no dev server is attached to conciv">
-    The engine has no dev server to ask. This happens when the engine runs on its own, without your bundler. Start
-    conciv through your dev server. Opening a file in your editor still works.
+  <Accordion title="The answer says no dev server is attached to conciv?">
+    The engine has no Vite dev server to ask. It runs on another bundler, or on its own. Opening a file in your editor
+    still works.
   </Accordion>
-  <Accordion title="The dev server failed the request">
+  <Accordion title="The dev server failed the request?">
     The dev server itself refused the question, for example a transform that throws. From the terminal, the error's
     `data.message` holds the dev server's own message.
   </Accordion>
-  <Accordion title="The tool names">
-    In code mode the tools are called `external_server_*`, such as `external_server_resolve`. You see these names in the
-    tool cards in the thread.
+  <Accordion title="Why do the cards say external_server_resolve?">
+    That is the tool's name in code mode, where the agent calls tools from a short program. Learn more in the [Tools and
+    code mode documentation](/docs/tools-and-code-mode).
   </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Page control](/docs/usage/page-control): the page the server serves.
-- [CLI](/docs/reference/cli): every `conciv` command.
-- [Plugins](/docs/plugins): add your own questions with a plugin.
+- **[Page control](/docs/usage/page-control):** the page the server serves.
+- **[CLI](/docs/reference/cli):** every command, `plugin call` included.
+- **[Plugins](/docs/plugins):** add your own questions with a plugin.
