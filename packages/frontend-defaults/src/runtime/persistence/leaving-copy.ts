@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {z} from 'zod'
 import {readSessionStorage} from './session-storage'
 
@@ -25,7 +26,7 @@ export function keepLeavingCopy(name: string, draft: unknown): void {
   try {
     readSessionStorage()?.setItem(leavingKey(name), JSON.stringify({stamp: Date.now(), draft}))
   } catch (error) {
-    console.error(`[persistence] could not keep the leaving copy of draft ${name}`, error)
+    log.error({action: 'persistence', message: 'could not keep the leaving copy of a draft', name, error})
   }
 }
 
@@ -33,7 +34,7 @@ export function dropLeavingCopy(name: string): void {
   try {
     readSessionStorage()?.removeItem(leavingKey(name))
   } catch (error) {
-    console.error(`[persistence] could not drop the leaving copy of draft ${name}`, error)
+    log.error({action: 'persistence', message: 'could not drop the leaving copy of a draft', name, error})
   }
 }
 
@@ -41,7 +42,7 @@ function readRawCopy(name: string): string | null {
   try {
     return readSessionStorage()?.getItem(leavingKey(name)) ?? null
   } catch (error) {
-    console.error(`[persistence] could not read the leaving copy of draft ${name}`, error)
+    log.error({action: 'persistence', message: 'could not read the leaving copy of a draft', name, error})
     return null
   }
 }
@@ -51,7 +52,12 @@ export function readLeavingCopy<T>(name: string, schema: z.ZodType<T>): LeavingC
   if (raw === null) return undefined
   const parsed = LeavingCopySchema.pipe(z.object({stamp: z.number(), draft: schema})).safeParse(raw)
   if (parsed.success) return parsed.data
-  console.error(`[persistence] the leaving copy of draft ${name} is not a draft, dropped`, parsed.error)
+  log.error({
+    action: 'persistence',
+    message: 'the leaving copy of a draft is not a draft, dropped',
+    name,
+    error: parsed.error,
+  })
   dropLeavingCopy(name)
   return undefined
 }
@@ -72,6 +78,6 @@ export function dropLeavingCopies(): void {
       .filter((key): key is string => key?.startsWith(LEAVING_COPY_PREFIX) ?? false)
       .forEach((key) => storage.removeItem(key))
   } catch (error) {
-    console.error('[persistence] could not drop the leaving copies of the drafts', error)
+    log.error({action: 'persistence', message: 'could not drop the leaving copies of the drafts', error})
   }
 }

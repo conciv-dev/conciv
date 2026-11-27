@@ -1,6 +1,4 @@
 import {execFile} from 'node:child_process'
-import {readFileSync} from 'node:fs'
-import {join} from 'node:path'
 import {promisify} from 'node:util'
 import {describe, expect} from 'vitest'
 import {test} from '../utils/engine-test.js'
@@ -10,7 +8,7 @@ import {TestLLM} from '../utils/engine.js'
 import {CONTEXT_OVERFLOW_CODE} from '@conciv/types/chat-event-types'
 
 describe('start', () => {
-  test('a malformed access token is refused at start, a started engine answers its token on http and the socket only, and its Effect logs land in the log file in its home once it stops', async ({
+  test('a malformed access token is refused at start, a started engine answers its token on http and the socket only, stores no logs by default, and with logLevel info its Effect logs are stored and still read back after a restart', async ({
     createEngine,
   }) => {
     await expect(createEngine({}, {port: 'connect', token: 'not-a-uuid'})).rejects.toThrow(
@@ -40,11 +38,13 @@ describe('start', () => {
       headers: {authorization: `Bearer ${token}`},
     })
     expect(bearer.status).toBe(401)
+    expect(await makeRpcClient(apiBase, {token}).logs.query({limit: 10})).toEqual({level: 'off', events: []})
 
-    const logged = await createEngine({}, {fs: {filewatcher: true}})
+    const logged = await createEngine({logLevel: 'info'}, {fs: {filewatcher: true}})
     await logged.restart()
-    expect(readFileSync(join(logged.home, 'log', 'conciv-local.log'), 'utf8')).toMatch(
-      /^timestamp=\S+ level=INFO run=\S+ message="watcher started"/m,
+    const after = makeRpcClient(logged.address.apiBase, {token: logged.address.token})
+    expect((await after.logs.query({text: 'watcher started', source: 'engine', limit: 10})).events).toContainEqual(
+      expect.objectContaining({level: 'info', message: 'watcher started'}),
     )
   })
 })

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {Cleanup} from './core.js'
 
 /**
@@ -32,11 +33,8 @@ export interface Scope {
   close(): Promise<void>
 }
 
-type Log = <Data extends Readonly<Record<string, unknown>>>(message: string, data: Data) => void
-
 type Options = {
   readonly timeout: number
-  readonly log: Log
 }
 
 type Finalizer = {readonly label?: string; readonly run: Cleanup}
@@ -46,7 +44,7 @@ type Finalizer = {readonly label?: string; readonly run: Cleanup}
  *
  * @example
  * ```ts
- * const scope = Scope.make("example", { timeout: 3_000, log: (message, data) => console.error(message, data) })
+ * const scope = Scope.make("example", { timeout: 3_000 })
  * ```
  */
 export const Scope: {
@@ -54,7 +52,7 @@ export const Scope: {
    * Creates an open scope.
    *
    * @param name - Labels the scope in logs.
-   * @param options - The deadline and the log.
+   * @param options - The deadline.
    */
   make: (name: string, options: Options) => Scope
 } = {
@@ -72,7 +70,7 @@ function create(name: string, options: Options, detach?: () => void): Scope {
       .then(finalizer.run)
       .then(
         () => undefined,
-        (cause: unknown) => options.log('scope finalizer failed', {scope: name, error: cause}),
+        (cause: unknown) => log.error({action: 'scope', message: 'scope finalizer failed', scope: name, error: cause}),
       )
       .finally(() => running.delete(run))
 
@@ -93,7 +91,8 @@ function create(name: string, options: Options, detach?: () => void): Scope {
       running.forEach((label, run) => {
         running.delete(run)
 
-        if (label !== undefined) options.log('scope finalizer timed out', {scope: name, finalizer: label})
+        if (label !== undefined)
+          log.error({action: 'scope', message: 'scope finalizer timed out', scope: name, finalizer: label})
       })
       passed.resolve()
     }, options.timeout)

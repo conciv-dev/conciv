@@ -10,6 +10,7 @@ import {createPlugins} from './fake-plugins.js'
 import {buildRouter, withSendRecorded} from './fake-router.js'
 import {createSessions} from './fake-sessions.js'
 import {createSettings} from './fake-settings.js'
+import {createLogs} from './fake-logs.js'
 import {createTabs} from './fake-tabs.js'
 import type {
   FakeConnectOptions,
@@ -79,6 +80,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const tabs = createTabs({exists: (sessionId) => store.sessions.has(sessionId), now: store.now, publish})
   const plugins = createPlugins(options, location, unanswered, publish)
   const settings = createSettings(options.settings)
+  const logs = createLogs()
   const drafts = new Map<string, DraftRow>()
   const required = options.loggedIn === false ? (options.token ?? crypto.randomUUID()) : options.token
   const access: Access = {
@@ -122,6 +124,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     agent: {list: () => ({location, data: []})},
     fs: {find: () => ({location, data: []})},
     plugin: plugins.handlers,
+    logs,
     event: {
       subscribe: async function* (_input, call) {
         yield {id: crypto.randomUUID(), type: 'server.connected', data: {}}

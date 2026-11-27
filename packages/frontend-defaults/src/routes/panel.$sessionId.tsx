@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   Link,
   Outlet,
@@ -106,7 +107,14 @@ export const Route = createFileRoute('/panel/$sessionId')({
         ...context.data.utils.sessions.get.queryOptions({input: {sessionId: params.sessionId}}),
         staleTime: 'static',
       })
-      .catch((error: unknown) => console.error('[conciv] the session row did not load before the panel', error))
+      .catch((error: unknown) =>
+        log.error({
+          action: 'sessions',
+          message: 'the session row did not load before the panel',
+          sessionId: params.sessionId,
+          error,
+        }),
+      )
   },
   component: PanelSession,
 })

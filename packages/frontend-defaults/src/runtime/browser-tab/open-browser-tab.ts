@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {Cause, Duration, Effect, Option, Schedule, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
 import type {ConcivClient} from '@conciv/client'
@@ -130,7 +131,11 @@ function reported(input: OpenBrowserTab, signal: AbortSignal) {
   }).pipe(
     Effect.retry({schedule: STATE_RETRY, while: (cause) => readCode(cause) === 'UNAVAILABLE'}),
     Effect.catch((cause) =>
-      Effect.sync(() => signal.aborted || console.warn('[conciv] reporting the browser tab failed', cause)),
+      Effect.sync(
+        () =>
+          signal.aborted ||
+          log.warn({action: 'browser tab', message: 'reporting the browser tab failed', error: cause}),
+      ),
     ),
     Effect.asVoid,
   )
@@ -145,7 +150,9 @@ export const openBrowserTab = Effect.fn('BrowserTab.open')(function* (input: Ope
     Effect.catchCause((cause) =>
       Cause.hasInterruptsOnly(cause) || signal.aborted
         ? Effect.void
-        : Effect.sync(() => console.warn('[conciv] the browser tab could not open', Cause.pretty(cause))),
+        : Effect.sync(() =>
+            log.warn({action: 'browser tab', message: 'the browser tab could not open', error: Cause.pretty(cause)}),
+          ),
     ),
     Effect.forkScoped,
   )

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createMemo, For, Match, Show, Switch, untrack, type JSX} from 'solid-js'
 import {
   ComposerPill,
@@ -56,7 +57,9 @@ function PluginPill(props: {plugin: string; pill: ComposerPill; input: ComposerP
   const view = createMemo(() => props.pill.show(props.input))
 
   const run = (action: () => void) =>
-    void Promise.try(action).catch((cause: unknown) => console.error(`[plugin] ${props.plugin}`, cause))
+    void Promise.try(action).catch((cause: unknown) =>
+      log.error({action: 'plugin', message: 'a composer pill action failed', plugin: props.plugin, error: cause}),
+    )
 
   return (
     <Show when={view()}>

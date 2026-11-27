@@ -1,8 +1,11 @@
 import {readFile, readdir} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
+import {Effect} from 'effect'
 import {Hash} from '../util/hash.js'
 
-export function createPluginSources(watch: (file: string) => Promise<void>) {
+type Run = <A>(effect: Effect.Effect<A>) => Promise<A>
+
+export function createPluginSources(run: Run, watch: (file: string) => Effect.Effect<void>) {
   const sources = new Map<string, Source>()
   const cleanups: Array<() => void> = []
   const watching = new Set<Promise<void>>()
@@ -10,15 +13,21 @@ export function createPluginSources(watch: (file: string) => Promise<void>) {
     read: async (entrypoint: string) => {
       await Promise.all(watching)
       const previous = sources.get(entrypoint)
-      if (previous && (await unchanged(previous.files))) return previous.loaded
+      if (previous && (await unchanged(run, previous.files))) return previous.loaded
 
       const files: Source['files'] = new Map()
       const track = (file: string, directory = false) => {
         if (files.has(file)) return
-        files.set(file, {digest: digest(file, directory), directory})
-        const pending = watch(file).finally(() => watching.delete(pending))
+        files.set(file, {digest: run(digest(file, directory)), directory})
+        const pending = run(watch(file)).finally(() => watching.delete(pending))
+        void pending.catch((error: unknown) =>
+          run(
+            Effect.logDebug('[plugin] watching a plugin source file failed; the plugin load reports it').pipe(
+              Effect.annotateLogs({file, error}),
+            ),
+          ),
+        )
         watching.add(pending)
-        void pending.catch(() => {})
       }
       track(fileURLToPath(entrypoint))
       const {prepareSource} = await import('./source.node.js')
@@ -43,16 +52,23 @@ type Source = {
   files: Map<string, {digest: Promise<string>; directory: boolean}>
 }
 
-async function unchanged(files: Source['files']) {
+async function unchanged(run: Run, files: Source['files']) {
   const same = await Promise.all(
-    [...files].map(async ([file, item]) => (await item.digest) === (await digest(file, item.directory))),
+    [...files].map(async ([file, item]) => (await item.digest) === (await run(digest(file, item.directory)))),
   )
   return same.every(Boolean)
 }
 
-async function digest(file: string, directory: boolean) {
-  const content = await (
+function digest(file: string, directory: boolean): Effect.Effect<string> {
+  const read = (): Promise<string | Buffer> =>
     directory ? readdir(file).then((entries) => JSON.stringify(entries.toSorted())) : readFile(file)
-  ).catch(() => undefined)
-  return content === undefined ? 'missing' : Hash.sha256(content)
+  return Effect.tryPromise(read).pipe(
+    Effect.map((content) => Hash.sha256(content)),
+    Effect.catch((error) =>
+      Effect.logDebug('[plugin] a plugin source file could not be read, so it counts as missing').pipe(
+        Effect.annotateLogs({file, error}),
+        Effect.as('missing'),
+      ),
+    ),
+  )
 }

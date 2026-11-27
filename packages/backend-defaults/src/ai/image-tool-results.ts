@@ -19,6 +19,8 @@ import {z} from 'zod'
 import {imageBlocks, imagesIn, withoutImages} from '@conciv/types/chat-message-types'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types/harness-types'
 import {inSpan, type SpanAttributes, type Tracer} from './spans.js'
+import {Effect} from 'effect'
+import type {EngineRuntime} from '../engine/lib/logging.js'
 
 export type AskPermission = (
   threadId: string,
@@ -131,14 +133,18 @@ function requestSignal(response: ServerResponse, run: AbortSignal | undefined): 
   return run === undefined ? closed.signal : AbortSignal.any([closed.signal, run])
 }
 
-export function askingToolProvisioner(ask: AskPermission, tracer: Tracer | undefined): ToolBridgeProvisioner {
+export function askingToolProvisioner(
+  ask: AskPermission,
+  tracer: Tracer | undefined,
+  runtime: EngineRuntime,
+): ToolBridgeProvisioner {
   return {
     provision: (tools, {provider, ...options}) =>
       inSpan(
         tracer,
         'ToolServer.provision',
         {'conciv.session.id': options.threadId, 'conciv.tool.count': tools.length},
-        () => provisionToolServer(tools, provider, options, ask, tracer),
+        () => provisionToolServer(tools, provider, options, ask, tracer, runtime),
       ),
   }
 }
@@ -149,6 +155,7 @@ async function provisionToolServer(
   options: ToolBridgeCoreOptions,
   ask: AskPermission,
   tracer: Tracer | undefined,
+  runtime: EngineRuntime,
 ): Promise<ProvisionedBridge> {
   const token = randomBytes(24).toString('hex')
   const server = createServer((request, response) => {
@@ -162,7 +169,7 @@ async function provisionToolServer(
       permission: promptPermission(options.permission, ask, options.threadId, signal, tracer),
     })
     answer(core, request, response, tracer).catch((error: unknown) => {
-      console.error(`[ai] the tool bridge request failed: ${String(error)}`)
+      runtime.runFork(Effect.logError('[ai] the tool bridge request failed', {error}))
       if (!response.headersSent) response.writeHead(500)
       response.end()
     })

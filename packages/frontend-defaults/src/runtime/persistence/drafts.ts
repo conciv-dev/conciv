@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {AsyncStorage} from '@solid-primitives/storage'
 import {z} from 'zod'
 import {
@@ -360,7 +361,12 @@ export function createDraftStore(driver: Driver, options: {grace?: number} = {})
     const unrestored = missing.filter((id) => !renamed.has(id))
 
     if (unrestored.length)
-      console.error(`[persistence] draft ${key} references blobs with no bytes to restore`, unrestored)
+      log.error({
+        action: 'persistence',
+        message: 'the draft references blobs with no bytes to restore',
+        key,
+        blobs: unrestored,
+      })
     const final = rename(encoded, renamed)
     await driver.set(key, JSON.stringify(final), false)
 
@@ -394,7 +400,12 @@ export function createDraftStore(driver: Driver, options: {grace?: number} = {})
       const parsed = StoredDocumentSchema.safeParse(value)
 
       if (!parsed.success) {
-        console.error(`[persistence] draft ${key} is not a stored document, read as absent`, parsed.error)
+        log.error({
+          action: 'persistence',
+          message: 'the draft is not a stored document, read as absent',
+          key,
+          error: parsed.error,
+        })
         return null
       }
       dispatch({type: 'load.succeeded', storeId, key, revision, ids: imageIDs(parsed.data), graceMs: grace})
@@ -437,7 +448,7 @@ export function openBrowserDraftStore(writable: () => boolean): DraftStore | und
   try {
     return createBrowserDraftStore(writable)
   } catch (error) {
-    console.error('[conciv] drafts stay engine-only', error)
+    log.error({action: 'persistence', message: 'drafts stay engine-only', error})
     return undefined
   }
 }
@@ -474,7 +485,7 @@ function createBrowserDraftStore(writable: () => boolean): DraftStore {
     request.addEventListener('error', () => reject(request.error))
   })
   db.catch((error: unknown) => {
-    console.error('[persistence] the draft database did not open; drafts stay engine-only', error)
+    log.error({action: 'persistence', message: 'the draft database did not open; drafts stay engine-only', error})
   })
 
   const get = async (store: string, key: string) => {

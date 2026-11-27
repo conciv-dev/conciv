@@ -1,5 +1,6 @@
 import {stat} from 'node:fs/promises'
 import {EventType} from '@tanstack/ai'
+import {Effect, Logger} from 'effect'
 import {describe, expect, it} from 'vitest'
 import type {ChatEvent} from '@conciv/types/chat-event-types'
 import {makeTextAdapter} from '@conciv/harness/adapters'
@@ -30,7 +31,7 @@ describe('the run guard', () => {
         ended.abort({type: EventType.RUN_ERROR, message: 'the run was ended'})
       },
       stop: () => stopped.abort(),
-      log: () => undefined,
+      runtime: {runFork: () => undefined},
     })
 
     const events = await runAdapterTurn(adapter, [{role: 'user', content: 'Hello'}])
@@ -66,7 +67,7 @@ describe('the run guard', () => {
       onNotStarted: () => undefined,
       onSilence: () => undefined,
       stop: () => stopped.abort(),
-      log: () => undefined,
+      runtime: {runFork: () => undefined},
     })
 
     const events = await runAdapterTurn(adapter, [{role: 'user', content: 'Hello'}])
@@ -78,7 +79,7 @@ describe('the run guard', () => {
   it('ends a run whose adapter cleanup never settles once the close limit passes, and says so', async () => {
     const ended = new AbortController()
     const stopped = new AbortController()
-    const logged: string[] = []
+    const logged: unknown[] = []
     async function* cleanupNeverSettles(): AsyncGenerator<ChatEvent> {
       try {
         yield started
@@ -98,12 +99,15 @@ describe('the run guard', () => {
       onNotStarted: () => undefined,
       onSilence: () => undefined,
       stop: () => stopped.abort(),
-      log: (message) => logged.push(message),
+      runtime: {
+        runFork: (effect) =>
+          Effect.runSync(effect.pipe(Effect.provide(Logger.layer([Logger.make(({message}) => logged.push(message))])))),
+      },
     })
 
     const events = await runAdapterTurn(adapter, [{role: 'user', content: 'Hello'}])
 
     expect(events.map((event) => event.type)).toEqual([EventType.RUN_STARTED, EventType.RUN_FINISHED])
-    expect(logged).toEqual(['[ai] the adapter stream did not close within 5ms'])
+    expect(logged).toEqual([['[ai] the adapter stream did not close in time', {closeMs: 5}]])
   })
 })

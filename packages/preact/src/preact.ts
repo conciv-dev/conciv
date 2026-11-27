@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createElement, Fragment, type ComponentChild, type JSX} from 'preact'
 import {createPortal} from 'preact/compat'
 import {useEffect, useRef, useState} from 'preact/hooks'
@@ -27,13 +28,14 @@ export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
   const [portals, setPortals] = useState<readonly Portal[]>([])
   const nextKey = useRef(0)
-  const configKey = JSON.stringify({apiBase: props.apiBase, settings: props.settings})
+  const configKey = JSON.stringify({apiBase: props.apiBase, settings: props.settings, logLevel: props.logLevel})
   const init: ConcivInit = {
     apiBase: props.apiBase,
     settings: props.settings,
     plugins: props.plugins,
     grabProvider: props.grabProvider,
     engineToken: props.engineToken,
+    logLevel: props.logLevel,
   }
   const [config, setConfig] = useState({key: configKey, init})
   if (config.key !== configKey || REFERENCE_FIELDS.some((field) => config.init[field] !== props[field]))
@@ -47,7 +49,9 @@ export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
       return () => setPortals((current) => current.filter((entry) => entry !== portal))
     })
     const handle = createConciv(config.init)
-    handle.mount(host).catch((error: unknown) => console.error('conciv widget failed to mount', error))
+    handle
+      .mount(host)
+      .catch((error: unknown) => log.error({action: 'widget', message: 'the widget failed to mount', error}))
     return () => {
       handle.unmount()
       stopListening()

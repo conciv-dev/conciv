@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@zag-js/highlight-word": "catalog:",
+    "evlog": "catalog:",
     "marked": "catalog:",
     "rehype-harden": "catalog:",
     "rehype-raw": "catalog:",

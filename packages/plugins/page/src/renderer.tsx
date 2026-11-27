@@ -3,7 +3,15 @@ import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import {createScopedRuntime, createKeyed, Plugin, Slot, Style, ToolRegistry} from '@conciv/frontend-plugin-api'
+import {
+  createScopedRuntime,
+  createKeyed,
+  Plugin,
+  Slot,
+  Style,
+  ToolRegistry,
+  type BaseContext,
+} from '@conciv/frontend-plugin-api'
 import {NoteCard, OpaqueNoteCard} from '@internal/frontend-app-api'
 import {BrowserTabUrl, Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
@@ -50,6 +58,7 @@ export default Plugin.define({
         session: () => routed()?.id ?? null,
         running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
         taskTimeoutMs: () => PageOptionsSchema.parse(ctx.options).taskTimeoutMs,
+        log: ctx.log,
         onStop: (sessionId) => {
           const session = routed()
 
@@ -57,13 +66,14 @@ export default Plugin.define({
         },
       }).pipe(Scope.provide(scope)),
     )
-    const tracker = makeTracker()
+    const tracker = makeTracker(ctx.log)
     onCleanup(tracker.dispose)
     const operations = makePageOperations(
       [highlight.effect],
       simulator,
       tracker,
       (title) => void ctx.toast.show({title, variant: 'error'}),
+      ctx.log,
     )
 
     createKeyed(
@@ -74,7 +84,7 @@ export default Plugin.define({
       },
       (session) => {
         const answering = Effect.runFork(
-          answerCommands({session, operations, registered: () => ctx.list(PageOperation)}),
+          answerCommands({session, operations, registered: () => ctx.list(PageOperation), log: ctx.log}),
         )
 
         onCleanup(() => void Effect.runFork(Fiber.interrupt(answering)))
@@ -123,7 +133,7 @@ export default Plugin.define({
         }),
       ),
     )
-    const grab = createReactGrab()
+    const grab = createReactGrab(ctx.log)
     ctx.add(
       GrabPicker,
       makeGrabNotePicker(grab.api, {
@@ -143,7 +153,7 @@ export default Plugin.define({
       pick: () => grab.api.comment(),
       symbolicate: (input) => symbolicate(input.frames),
     })
-    ctx.provide(ReactTree, makeReactTree())
+    ctx.provide(ReactTree, makeReactTree(ctx.log))
     ctx.add(BrowserTabUrl, {redact: redactedUrl})
 
     return () => {
@@ -153,13 +163,13 @@ export default Plugin.define({
   },
 })
 
-export function makeReactTree(): ReactTree {
+export function makeReactTree(log: BaseContext['log']): ReactTree {
   const refs: Refs = {map: new Map(), n: 0}
   return {
     rootFibers,
     dehydrate,
     describe,
     locate: (element) => locate(element, (found) => addRef(found, refs)),
-    frames: reactBridge.framesForElement,
+    frames: (element) => reactBridge.framesForElement(element, log),
   }
 }

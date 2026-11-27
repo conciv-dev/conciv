@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {Show, type Component, type JSX, children, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import Paperclip from 'lucide-solid/icons/paperclip'
@@ -51,7 +52,7 @@ const QUEUE_ROW =
 const QUEUE_ACTION = `${FOCUS} shrink-0 px-1.5 py-0.5 rounded-chat-sm bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-xs)] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)]`
 
 function reportRemoveFailed(error: unknown): void {
-  console.error('[conciv] could not remove the attachment', error)
+  log.error({action: 'composer', message: 'could not remove the attachment', error})
 }
 
 export function ComposerAttachment(props: {

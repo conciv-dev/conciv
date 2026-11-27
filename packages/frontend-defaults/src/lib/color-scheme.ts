@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createEffect, createMemo, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {createMutationObserver} from '@solid-primitives/mutation-observer'
@@ -98,9 +99,11 @@ export function createHostTheme(mountHost: Element | undefined, choice: Accessor
   createEffect(() => {
     const declared = host.declaredSkin
     if (declared.length === 0 || isSkinName(declared)) return
-    console.warn(
-      `[conciv] unknown ${SKIN_PROPERTY} value "${declared}"; falling back to the "${DEFAULT_SKIN_NAME}" skin.`,
-    )
+    log.warn({
+      action: 'skin',
+      message: `unknown ${SKIN_PROPERTY} value; falling back to the "${DEFAULT_SKIN_NAME}" skin.`,
+      skin: declared,
+    })
   })
   const theme = createMemo<HostTheme>(() => {
     const chosen = choice()

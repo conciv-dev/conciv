@@ -42,6 +42,7 @@
   "dependencies": {
     "@conciv/app": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
+    "evlog": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {

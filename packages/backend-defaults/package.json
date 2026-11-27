@@ -95,6 +95,7 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "fuzzysort": "catalog:",
     "hono": "catalog:",
     "js-yaml": "catalog:",

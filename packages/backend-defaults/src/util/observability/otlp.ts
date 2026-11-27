@@ -1,5 +1,6 @@
 import {Effect, Layer, Scope} from 'effect'
 import {OtlpLogger} from 'effect/observability'
+import {gate, type Enabled} from './log-level.js'
 import {makeRunId} from './shared.js'
 
 export interface Options {
@@ -63,14 +64,14 @@ export function resource(
   }
 }
 
-export function loggers(options: Options | undefined, app: App, run: string) {
+export function loggers(options: Options | undefined, app: App, run: string, enabled: Enabled) {
   if (!options?.endpoint) return []
   return [
     OtlpLogger.make({
       url: `${options.endpoint}/v1/logs`,
       resource: resource(app, run),
       headers: parseHeaders(options.headers),
-    }),
+    }).pipe(Effect.map((logger) => gate(enabled, logger))),
   ]
 }
 

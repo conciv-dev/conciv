@@ -6,7 +6,7 @@ import {safeStringify} from '@conciv/protocol'
 import {Effect} from 'effect'
 import type {Maker} from '@conciv/protocol/schema/identifier'
 import {CallId} from '@conciv/protocol/schema/tool'
-import type {Log} from '../lib/logging.js'
+import type {EngineRuntime} from '../lib/logging.js'
 
 const HubOriginSchema = z.object({
   origin: z.enum(['hub']).optional().catch(undefined),
@@ -23,7 +23,7 @@ type MirrorSink = {
   publish: (chunk: ChatEvent) => void
   record: (chunks: readonly ChatEvent[]) => Promise<void>
   driving: () => boolean
-  log: Log
+  runtime: EngineRuntime
 }
 
 export function callTrace(header: (name: string) => string | null, ids: Maker) {
@@ -65,11 +65,11 @@ function mirrorRun(run: CallRun, saved: boolean, sink: MirrorSink) {
   const recorded: ChatEvent[] = []
   const order = {published: Promise.resolve(), deferred: false}
   const save = (): Promise<void> =>
-    sink
-      .record([...recorded])
-      .catch((error: unknown) =>
-        sink.log(Effect.logError('[hub] saving an outside call to the chat failed', {threadId: run.threadId, error})),
+    sink.record([...recorded]).catch((error: unknown) => {
+      sink.runtime.runFork(
+        Effect.logError('[hub] saving an outside call to the chat failed', {threadId: run.threadId, error}),
       )
+    })
   const send = (chunks: readonly ChatEvent[]): void => chunks.forEach((chunk) => sink.publish(chunk))
   const savedThenSent = async (chunks: readonly ChatEvent[]): Promise<void> => {
     if (sink.driving()) order.deferred = true

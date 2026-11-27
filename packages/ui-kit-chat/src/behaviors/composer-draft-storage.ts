@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {z} from 'zod'
 import {uniqBy} from 'es-toolkit'
 import type {WebStorage} from '@conciv/storage-history'
@@ -85,7 +86,12 @@ export type EncodableAttachment = Pick<BaseAttachment, 'id' | 'type' | 'name'> &
 async function encodeAttachment(attachment: EncodableAttachment, budget: number): Promise<PersistedAttachment[]> {
   if (!attachment.file) return []
   const source = await fileToDataSource(attachment.file).catch((error: unknown) => {
-    console.error(`[conciv] could not read ${attachment.name}, so the saved draft leaves it out`, error)
+    log.error({
+      action: 'composer',
+      message: 'could not read an attachment, so the saved draft leaves it out',
+      name: attachment.name,
+      error,
+    })
     return null
   })
   if (!source || source.value.length > budget) return []

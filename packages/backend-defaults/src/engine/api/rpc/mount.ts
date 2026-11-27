@@ -43,7 +43,9 @@ import type {FileSystem, SessionInbox, SkillInstructions} from '../../../backend
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
 import type * as EventFeed from '../../event-feed.js'
 import type {PersistentPtys} from '../../pty/persistent-ptys.js'
-import type {Log} from '../../lib/logging.js'
+import type {EngineRuntime} from '../../lib/logging.js'
+import type * as LogLevel from '../../../util/observability/log-level.js'
+import type * as LogStore from '../../../util/observability/log-store.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -67,6 +69,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Session.Interface
   | Tab.Interface
   | Job.Interface
+  | LogLevel.Interface
+  | LogStore.Interface
   | Identifier.Maker,
   never
 >
@@ -81,7 +85,7 @@ export type ChatContext = {
   rows: RowScope
   plane: ChatPlane
   signal: AbortSignal
-  log: Log
+  runtime: EngineRuntime
   tracer: Tracer | undefined
 }
 
@@ -195,6 +199,10 @@ const PTY_PROCEDURES: readonly string[] = [
 
 const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"
 
+const WIDGET_LOG_PROCEDURES: readonly string[] = ['logs.write']
+
+const OUTSIDE_WIDGET_LOG_REFUSAL = "outside agents can't write the widget's logs"
+
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = hubOrigin((header) => rpcHeader(context, header))
@@ -215,6 +223,8 @@ async function refuseOutside(deps: RpcDeps, client: string | null, procedure: st
   if (EVENT_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_EVENT_REFUSAL})
   if (PLUGIN_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PLUGIN_REFUSAL})
   if (PTY_PROCEDURES.includes(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PTY_REFUSAL})
+  if (WIDGET_LOG_PROCEDURES.includes(procedure))
+    throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_WIDGET_LOG_REFUSAL})
 }
 
 async function admitHubCaller(

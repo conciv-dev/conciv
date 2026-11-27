@@ -26,7 +26,7 @@ import {sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {sessions} from '@conciv/backend-app-api/core/session/sql'
 import type {ConcivDb} from '../../db/connection.js'
-import type {Log} from '../lib/logging.js'
+import type {EngineRuntime} from '../lib/logging.js'
 import type {SessionsChange} from '@conciv/protocol'
 import type {Found, NativePage} from './session-rows.js'
 import type {SearchIndexRouter} from './search-index-worker.js'
@@ -35,7 +35,7 @@ type SessionSearchDeps = {
   db: ConcivDb
   cwd: string
   harnesses: readonly HarnessAdapter[]
-  log: Log
+  runtime: EngineRuntime
   tracer: Tracer | undefined
 }
 
@@ -128,7 +128,9 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     started: true,
     onError: (error) => {
       if (state.running?.stopped.signal.aborted) return
-      deps.log(Effect.logError('[core] indexing the sessions for search failed, a later search retries', {error}))
+      deps.runtime.runFork(
+        Effect.logError('[core] indexing the sessions for search failed, a later search retries', {error}),
+      )
     },
   })
 
@@ -169,7 +171,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const indexedIds = (await statesOwned(unscoped.folders)).map((row) => row.id)
       const mismatched = xor(indexedIds, listedIds)
       if (mismatched.length > 0) {
-        deps.log(
+        deps.runtime.runFork(
           Effect.logError('[core] the search index and its session list disagree', {
             harness: source.harness.id,
             mismatched,
@@ -179,7 +181,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       return {changed: gone.length > 0 || retitled.length > 0, unread: listed.filter(unreadNow)}
     } catch (error) {
       if (!signal.aborted) {
-        deps.log(
+        deps.runtime.runFork(
           Effect.logError('[core] indexing the sessions for search failed, a later search retries', {
             harness: source.harness.id,
             error,
@@ -209,7 +211,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     const current = entry.current
     const text = await entry.source.history.messages(entry.cwd, entry.meta.id).then(readText, (error: unknown) => {
       if (current === undefined || current.read || current.readAt === 0) {
-        deps.log(
+        deps.runtime.runFork(
           Effect.logError(
             '[core] reading a session for search failed, it is found by its title until a later search reads it',
             {harness: entry.source.harness.id, nativeId: entry.meta.id, error},
@@ -264,10 +266,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         running.stopped.abort()
         state.running = null
         state.everywhere = null
-      }, deps.log)
+      }, deps.runtime)
       state.running = running
       void inSpan(deps.tracer, 'SessionSearch.startWorker', {}, async () => once(running.worker, 'online')).catch(
-        (error: unknown) => deps.log(Effect.logError('[core] the session search index worker did not start', {error})),
+        (error: unknown) =>
+          deps.runtime.runFork(Effect.logError('[core] the session search index worker did not start', {error})),
       )
       setImmediate(refresh)
     },
@@ -318,10 +321,12 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   }
 }
 
-function startIndex(exited: () => void, log: Log): Running {
+function startIndex(exited: () => void, runtime: EngineRuntime): Running {
   const channel = new MessageChannel()
   const worker = new Worker(workerUrl(), {workerData: {port: channel.port2}, transferList: [channel.port2]})
-  worker.on('error', (error) => log(Effect.logError('[core] the session search index worker failed', {error})))
+  worker.on('error', (error) =>
+    runtime.runFork(Effect.logError('[core] the session search index worker failed', {error})),
+  )
   worker.on('exit', exited)
   worker.unref()
   channel.port1.unref()

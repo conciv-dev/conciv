@@ -24,6 +24,8 @@ import {
   type ReasoningEffort,
 } from '@conciv/types/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import {Effect} from 'effect'
+import type {EngineRuntime} from './engine/lib/logging.js'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types/harness-types'
 import type * as CodeModeCatalog from './core/codemode/catalog.js'
 import type {PluginHooks} from '@conciv/backend-app-api'
@@ -85,7 +87,7 @@ export type TurnDeps = {
     reset: InstructionReset,
     inventory: CodeModeCatalog.Inventory | undefined,
   ) => Promise<PluginInstructions>
-  log: (message: string) => void
+  runtime: EngineRuntime
   askPermission: (
     sessionId: SessionId,
     ask: HarnessPermissionAsk,
@@ -101,14 +103,19 @@ const TITLE_MAX_CHARS = 120
 export async function buildSystemText(
   sources: SystemPromptSources,
   mode: HarnessAdapter['capabilities']['systemPrompt'],
-  log: TurnDeps['log'],
+  runtime: EngineRuntime,
 ): Promise<string> {
   if (mode === 'none') return ''
   if (mode !== 'file' || sources.systemPromptFile === undefined) return sources.systemPromptText ?? ''
   try {
     return await readFile(sources.systemPromptFile, 'utf8')
   } catch (error) {
-    log(`[chat] system prompt file unreadable (${sources.systemPromptFile}), using inline text: ${String(error)}`)
+    runtime.runFork(
+      Effect.logError('[chat] the system prompt file is unreadable, using the inline text', {
+        file: sources.systemPromptFile,
+        error,
+      }),
+    )
     return sources.systemPromptText ?? ''
   }
 }
@@ -283,11 +290,14 @@ export function deletedSessionError(sessionId: SessionId): Error {
   return Object.assign(new Error(missingSession(sessionId)), {code: SESSION_DELETED_CODE})
 }
 
-async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, log: TurnDeps['log']): Promise<void> {
+async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, runtime: EngineRuntime): Promise<void> {
   const login = await resolveHarnessLogin(harness, {
     signal,
     refresh: false,
-    onError: (error) => log(`[chat] checking the ${harness.id} login failed, the turn runs: ${String(error)}`),
+    onError: (error) =>
+      runtime.runFork(
+        Effect.logError('[chat] checking the harness login failed, the turn runs', {harness: harness.id, error}),
+      ),
   })
   if (!login.loggedIn) throw new Error(login.message)
 }
@@ -304,8 +314,8 @@ export function turnHooks(
     plan: async (turn, runSignal) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
-      await refuseLoggedOut(harness, runSignal, deps.log)
-      const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+      await refuseLoggedOut(harness, runSignal, deps.runtime)
+      const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.runtime)
       const row = await deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null

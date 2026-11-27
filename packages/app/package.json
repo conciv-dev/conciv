@@ -60,6 +60,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {

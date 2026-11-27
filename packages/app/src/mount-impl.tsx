@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {untrack} from 'solid-js'
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -37,7 +38,7 @@ function queryCore(): string {
     const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
     if (loopback || url.origin === window.location.origin) return raw
   } catch {}
-  console.warn('[conciv] ignoring non-loopback cross-origin ?core= api base')
+  log.warn({action: 'widget', message: 'ignoring non-loopback cross-origin ?core= api base'})
   return ''
 }
 

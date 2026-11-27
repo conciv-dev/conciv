@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'solid-js'
 import {difference, partition, uniq} from 'es-toolkit'
 import {type QueryClient, useChatSession, type ChatSession} from '@conciv/client'
@@ -149,7 +150,11 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       connection?.trust.subscribe((status, previous) => {
         if (!becameTrusted(status, previous)) return
         if (session.loadFailed()) return retire(sessionId, session)
-        session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+        session
+          .refresh()
+          .catch((error: unknown) =>
+            log.error({action: 'sessions', message: 're-hydrating the chat failed', sessionId, error}),
+          )
       }) ?? (() => {})
     onCleanup(() => {
       stopTrust()

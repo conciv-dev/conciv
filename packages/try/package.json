@@ -44,7 +44,8 @@
     "@conciv/harness": "workspace:^",
     "@conciv/types": "workspace:^",
     "citty": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "evlog": "catalog:"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",

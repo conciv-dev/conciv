@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {
   createComputed,
   createMemo,
@@ -288,7 +289,12 @@ function MarkdownView(props: {node: MarkdownViewNode}): JSX.Element {
       <ErrorBoundary
         fallback={(error: unknown) => {
           onMount(() => {
-            console.error(`[streamdown] ${props.node.language ?? 'plain'} fence view failed`, error)
+            log.error({
+              action: 'streamdown',
+              message: 'fence view failed',
+              language: props.node.language ?? 'plain',
+              error,
+            })
             decline()
           })
           return null

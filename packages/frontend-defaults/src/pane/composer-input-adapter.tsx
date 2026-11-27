@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {useComposer, useComposerContext, useComposerHandlers} from '@conciv/ui-kit-chat'
@@ -57,7 +58,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
     const last = context.attachments().at(-1)
     if (!last) return false
     context.removeAttachment(last.id).catch((error: unknown) => {
-      console.error('[conciv] could not remove the attachment', error)
+      log.error({action: 'composer', message: 'could not remove the attachment', error})
     })
     return true
   }

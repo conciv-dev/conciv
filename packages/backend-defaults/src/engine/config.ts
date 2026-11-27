@@ -1,5 +1,11 @@
 import {CHAT_SYSTEM_PROMPT} from './lib/chat-system-prompt.js'
-import type {ConcivConfig} from '@conciv/types/config-types'
+import {
+  parseRetention,
+  readLogLevel,
+  type ConcivConfig,
+  type LogLevel,
+  type Retention,
+} from '@conciv/types/config-types'
 import {
   isHarnessSessionId,
   isSessionId,
@@ -7,7 +13,7 @@ import {
   type HubAccess,
   type SessionId,
 } from '@conciv/types/chat-types'
-import {Config, type ConfigProvider, Effect, Option} from 'effect'
+import {Config, type ConfigProvider, Effect, Option, Result} from 'effect'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
 
 export type {ConcivConfig} from '@conciv/types/config-types'
@@ -24,6 +30,8 @@ export interface ResolvedConcivConfig {
   plugins: NonNullable<ConcivConfig['plugins']>
   policies: NonNullable<ConcivConfig['policies']>
   permissions: NonNullable<ConcivConfig['permissions']>
+  logLevel: LogLevel
+  logRetention: Retention
   simulate: boolean
 }
 
@@ -67,6 +75,12 @@ function resolveSystemPrompt(value: string | boolean | undefined): string {
   return CHAT_SYSTEM_PROMPT
 }
 
+function resolveRetention(value: string | undefined): Retention {
+  const parsed = parseRetention(value ?? '7d')
+  if (Result.isFailure(parsed)) throw new Error(`conciv: logRetention: ${parsed.failure}`)
+  return parsed.success
+}
+
 function envValue(name: string): Config.Config<string | undefined> {
   return Config.option(Config.String(name)).pipe(Config.map(Option.getOrUndefined))
 }
@@ -76,6 +90,7 @@ const EnvFallbacksConfig = Config.all({
   CONCIV_HARNESS: envValue('CONCIV_HARNESS'),
   CONCIV_SESSION_ID: envValue('CONCIV_SESSION_ID'),
   CONCIV_CLAUDE_SESSION_ID: envValue('CONCIV_CLAUDE_SESSION_ID'),
+  CONCIV_LOG_LEVEL: envValue('CONCIV_LOG_LEVEL'),
   CONCIV_SIMULATE: Config.Boolean('CONCIV_SIMULATE').pipe(Config.withDefault(false)),
 })
 
@@ -96,6 +111,8 @@ export function resolveConfig(
     plugins: options.plugins ?? [],
     policies: options.policies ?? [],
     permissions: [...shortPermissions(options.permission), ...(options.permissions ?? [])],
+    logLevel: readLogLevel({env: env.CONCIV_LOG_LEVEL, config: options.logLevel}),
+    logRetention: resolveRetention(options.logRetention),
     simulate: env.CONCIV_SIMULATE,
   }
 }

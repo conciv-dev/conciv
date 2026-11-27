@@ -1,7 +1,5 @@
 import {spawn} from 'node:child_process'
 import {once} from 'node:events'
-import {readFile} from 'node:fs/promises'
-import path from 'node:path'
 import {text} from 'node:stream/consumers'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, test} from 'vitest'
@@ -56,7 +54,7 @@ describe('resource', () => {
   })
 })
 
-test('falls back to local logging when OTLP initialization fails', async () => {
+test('falls back to the local logs when OTLP initialization fails: with no host sink the line reaches stderr', async () => {
   const log = tempDir('conciv-observability-test-')
   const child = spawn(
     process.execPath,
@@ -68,17 +66,17 @@ test('falls back to local logging when OTLP initialization fails', async () => {
         import {Global} from '@conciv/backend-app-api'
         import {Observability} from '@conciv/backend-defaults'
         const roots = Global.layerWith({cache: process.env.LOG_ROOT, config: process.env.LOG_ROOT, state: process.env.LOG_ROOT, log: process.env.LOG_ROOT})
-        await Effect.logInfo('after the fallback').pipe(Effect.provide(Observability.layer({endpoint: '://invalid'}).pipe(Layer.provide(roots))), Effect.scoped, Effect.runPromise)
+        await Effect.logInfo('after the fallback').pipe(Effect.provide(Observability.layer({endpoint: '://invalid', level: 'info'}).pipe(Layer.provide(roots))), Effect.scoped, Effect.runPromise)
       `,
     ],
     {
       cwd: fileURLToPath(new URL('../..', import.meta.url)),
-      env: {...process.env, LOG_ROOT: log, CONCIV_PRINT_LOGS: ''},
+      env: {...process.env, LOG_ROOT: log},
       stdio: ['ignore', 'ignore', 'pipe'],
     },
   )
   const [stderr, [exitCode]] = await Promise.all([text(child.stderr), once(child, 'exit')])
 
-  expect({exitCode, stderr}).toEqual({exitCode: 0, stderr: ''})
-  expect(await readFile(path.join(log, 'conciv-local.log'), 'utf8')).toContain('message="after the fallback"')
+  expect(exitCode).toBe(0)
+  expect(stderr).toContain('message="after the fallback"')
 })

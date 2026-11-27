@@ -2,6 +2,7 @@ import {intro, log, note, outro, spinner} from '@clack/prompts'
 import {defineCommand, runMain} from 'citty'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
 import {runConnect, type ConnectEvent} from './connect.js'
+import {startTryLog} from './log.js'
 
 export function attachCommand(port: number, token: string): string {
   const url = new URL(`http://127.0.0.1:${port}/api/mcp`)
@@ -93,5 +94,6 @@ const main = defineCommand({
 })
 
 export function runCli(): void {
+  startTryLog()
   void runMain(main)
 }

@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import type {SettingsScope} from '@conciv/protocol'
 import type {ConcivClient} from '@conciv/client'
 import type {EnableState} from './installed'
@@ -16,7 +17,7 @@ export function createManager(client: ConcivClient, builtins: readonly string[])
       const controller = new AbortController()
       follow(client, controller.signal, listener).catch((error: unknown) => {
         if (controller.signal.aborted) return
-        console.error('[plugins] following the plugin enable state failed', error)
+        log.error({action: 'plugins', message: 'following the plugin enable state failed', error})
         failed?.(error)
       })
       return () => controller.abort()

@@ -1,9 +1,10 @@
+import {log} from 'evlog'
 import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
 import {access, readFile, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir, createConcivStateDir} from '@conciv/types/state-types'
 import type {Engine, LogEntry} from '@conciv/backend/start'
-import type {ConcivConfig, ConcivSettingsInit} from '@conciv/types/config-types'
+import type {ConcivConfig, ConcivSettingsInit, LogLevel} from '@conciv/types/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {readEngineLine} from './engine-log.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
@@ -89,9 +90,11 @@ async function writeScanEntry(root: string, files: readonly string[]): Promise<r
     return [path]
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)
-    console.warn(
-      `conciv: could not write ${path}, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
-    )
+    log.warn({
+      action: 'unplugin',
+      message: `could not write the file, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
+      path,
+    })
     return files
   }
 }
@@ -205,7 +208,7 @@ function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine
   const closing = Promise.withResolvers<void>()
   const stopped = closing.promise
     .then(() => engine.stop())
-    .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+    .catch((error: unknown) => log.error({action: 'unplugin', message: 'stopping the engine failed', error}))
   server.httpServer?.once('close', () => closing.resolve())
   return {
     ...engine,
@@ -300,7 +303,11 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
   return {...widget, launcher: false, defaultOpen: true, surface: 'dock'}
 }
 
-export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
+export function makeViteHook(
+  options: ConcivConfig = {},
+  builtins: Builtins = {},
+  logLevel: LogLevel = 'off',
+): DevToolsPlugin {
   const engines: Engine[] = []
   const deadlines: (() => void)[] = []
   const shutdown = createShutdownTracker()
@@ -385,7 +392,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       return resolveWidgetModule(id)
     },
     load(id) {
-      return loadWidgetModule(id, apiBase, builtins.embedEntry)
+      return loadWidgetModule(id, {apiBase, embedEntry: builtins.embedEntry ?? '@conciv/app', logLevel})
     },
     transform(code, id) {
       if (options.enabled === false || testing) return null

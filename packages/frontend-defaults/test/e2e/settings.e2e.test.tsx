@@ -35,7 +35,7 @@ describe('moving around settings', () => {
 })
 
 describe('settings for this project and for all projects', () => {
-  test('a value saved for all projects shows here until this project overrides it, also when another client writes it', async () => {
+  test('a value saved for all projects shows here until this project overrides it, also when another client writes it, and that client turns the widget logs on and reads them back after a reconnect', async () => {
     const user = userEvent.setup()
     const engine = shellEngine(createFakeEngine({settings: {'global:conciv': {colorScheme: 'dark'}}}))
     const otherClient = createORPCClient<EngineClient>(engine.connect().link)
@@ -57,6 +57,25 @@ describe('settings for this project and for all projects', () => {
     await user.click(screen.getByRole('switch', {name: 'All projects'}))
     expect(await screen.findByRole('radio', {name: 'Light'})).toBeChecked()
     expect(screen.queryByText('From all projects')).not.toBeInTheDocument()
+
+    const stored = await otherClient.logs.tail({source: 'client'})
+    expect(await otherClient.logs.setLevel({level: 'debug', scope: 'widget'})).toEqual({
+      engine: 'off',
+      widget: 'debug',
+      dropped: 0,
+    })
+    expect((await stored.next()).value).toMatchObject({
+      level: 'debug',
+      source: 'client',
+      service: 'conciv-widget',
+      message: 'the widget log level is in force',
+    })
+
+    engine.reconnect()
+    const afterReconnect = createORPCClient<EngineClient>(engine.connect().link)
+    await expect
+      .poll(async () => (await afterReconnect.logs.query({text: 'the widget log level is in force', limit: 10})).events)
+      .toHaveLength(2)
   })
 })
 

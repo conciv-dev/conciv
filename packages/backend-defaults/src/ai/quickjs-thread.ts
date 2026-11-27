@@ -7,7 +7,9 @@ import {RPCHandler} from '@orpc/server/message-port'
 import {move, Piscina, transferableSymbol, valueSymbol} from 'piscina'
 import {z} from 'zod'
 import type {ExecutionResult, IsolateConfig, IsolateContext, IsolateDriver} from '@tanstack/ai-code-mode'
+import {Effect} from 'effect'
 import type {QuickJSTask} from './quickjs-worker.js'
+import type {EngineRuntime} from '../engine/lib/logging.js'
 
 const HARD_STOP_GRACE_MS = 1000
 
@@ -20,8 +22,6 @@ const CLOSE_PASSES = 3
 const WORKER_FILE = new URL(`./quickjs-worker${extname(fileURLToPath(import.meta.url))}`, import.meta.url)
 
 type QuickJSThreadLimits = {timeout: number; memoryLimit: number; maxStackSize: number}
-
-type Log = (message: string) => void
 
 export type OpenPool = {pool: Piscina<ReturnType<typeof move>, ExecutionResult>; closed: AbortController}
 
@@ -61,34 +61,34 @@ export type ToolRouter = typeof toolRouter
 
 const toolHandler = new RPCHandler(toolRouter)
 
-export function quickJSThreadDriver(limits: QuickJSThreadLimits, log: Log): CodeDriver {
-  const held: {open: OpenPool | null} = {open: openPool(log)}
+export function quickJSThreadDriver(limits: QuickJSThreadLimits, runtime: EngineRuntime): CodeDriver {
+  const held: {open: OpenPool | null} = {open: openPool(runtime)}
   const current = (): OpenPool => {
-    held.open ??= openPool(log)
+    held.open ??= openPool(runtime)
     return held.open
   }
   return {
-    createContext: async (config) => threadContext(config, limits, current, log),
+    createContext: async (config) => threadContext(config, limits, current, runtime),
     dispose: async () => {
       const closing = held.open
       held.open = null
-      if (closing !== null) await closePool(closing, log)
+      if (closing !== null) await closePool(closing, runtime)
     },
   }
 }
 
-export function openPool(log: Log): OpenPool {
+export function openPool(runtime: EngineRuntime): OpenPool {
   const pool = new Piscina<ReturnType<typeof move>, ExecutionResult>({
     filename: WORKER_FILE.href,
     minThreads: 1,
     maxThreads: Math.max(2, availableParallelism()),
     idleTimeout: SPARE_IDLE_MS,
   })
-  pool.on('error', (error: Error) => log(`[ai] the QuickJS worker failed: ${error.name}: ${error.message}`))
+  pool.on('error', (error: Error) => runtime.runFork(Effect.logError('[ai] the QuickJS worker failed', {error})))
   return {pool, closed: new AbortController()}
 }
 
-export async function closePool(open: OpenPool, log: Log, passes = CLOSE_PASSES): Promise<void> {
+export async function closePool(open: OpenPool, runtime: EngineRuntime, passes = CLOSE_PASSES): Promise<void> {
   open.closed.abort()
   const threads = open.pool.threads
   await Promise.all([open.pool.destroy(), ...threads.map(waitForExit)])
@@ -96,10 +96,14 @@ export async function closePool(open: OpenPool, log: Log, passes = CLOSE_PASSES)
   if (left.length === 0) return
   const respawned = left.some((thread) => !threads.includes(thread))
   if (respawned && passes > 1) {
-    await closePool(open, log, passes - 1)
+    await closePool(open, runtime, passes - 1)
     return
   }
-  log(`[ai] the QuickJS pool still held ${left.length} worker(s) after shutting down; terminating them`)
+  runtime.runFork(
+    Effect.logWarning('[ai] the QuickJS pool still held workers after shutting down; terminating them', {
+      workers: left.length,
+    }),
+  )
   await Promise.all(left.map(async (thread) => thread.terminate()))
 }
 
@@ -107,13 +111,13 @@ function threadContext(
   config: IsolateConfig,
   limits: QuickJSThreadLimits,
   current: () => OpenPool,
-  log: Log,
+  runtime: EngineRuntime,
 ): IsolateContext {
   current()
   const disposed = new AbortController()
   return {
     execute: async <T>(code: string): Promise<ExecutionResult<T>> => {
-      const result = await run(current(), config, limits, code, disposed.signal, log)
+      const result = await run(current(), config, limits, code, disposed.signal, runtime)
       return {...result, value: z.custom<T>().parse(result.value)}
     },
     dispose: async () => disposed.abort(),
@@ -126,7 +130,7 @@ async function run(
   limits: QuickJSThreadLimits,
   code: string,
   disposed: AbortSignal,
-  log: Log,
+  runtime: EngineRuntime,
 ): Promise<ExecutionResult> {
   const timeout = config.timeout ?? limits.timeout
   const {port1, port2} = new MessageChannel()
@@ -162,7 +166,7 @@ async function run(
   try {
     return await pool.run(move({[transferableSymbol]: [port2], [valueSymbol]: task}), {signal})
   } catch (error) {
-    if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(error, log)
+    if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(error, runtime)
     await exited(pool, aborting.threads)
     return abortedWith(signal.reason, {notStarted: notStarted.signal, hardStop: hardStop.signal}, retired)
   } finally {
@@ -185,9 +189,9 @@ function waitForExit(thread: Worker): Promise<void> {
   return new Promise((exit) => thread.once('exit', () => exit()))
 }
 
-function workerFailure(error: unknown, log: Log): ExecutionResult {
+function workerFailure(error: unknown, runtime: EngineRuntime): ExecutionResult {
   const {name, message} = error instanceof Error ? error : {name: 'WorkerError', message: String(error)}
-  log(`[ai] the QuickJS worker failed: ${name}: ${message}`)
+  runtime.runFork(Effect.logError('[ai] the QuickJS worker failed', {name, message}))
   return failure(name, message)
 }
 
