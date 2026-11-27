@@ -3,10 +3,10 @@ title: Add settings
 description: Read options from the project's conciv config, and add a setting the user changes in the widget.
 ---
 
-A plugin has two kinds of settings. **Options** are set in the project's conciv config, so the team shares them
-through the repo. **A setting in the widget** is changed by the user, and stays on their machine.
+A plugin has two kinds of settings. **Options** live in the project's conciv config. The team shares them
+through the repo. **A setting in the widget** is one the user changes. It stays on their machine.
 
-## Basic
+## Pass options from the config
 
 A plugin in `conciv/plugins` loads with no options. To pass some, list its folder in the `plugins` option as
 `[path, options]`:
@@ -116,7 +116,7 @@ A few things to notice:
 
 ## Add a setting to the widget
 
-Declare a store for the value, then add a row to the widget's settings. The browser part is written with Solid
+Declare a store for the value, then add a row to the widget's settings. You write the browser part with Solid
 components and plain async functions:
 
 ```tsx twoslash title="conciv/plugins/tickets/plugin-experimental.tsx"
@@ -163,7 +163,7 @@ export default Plugin.define({
 A few things to notice:
 
 - `usePlugin` gives a component your plugin's context. `ctx.stores.prefs` is typed from the declaration.
-- `prefs.value` is the stored value, and `prefs.set` replaces it. The widget saves it for you.
+- `prefs.value` is the stored value. `prefs.set` replaces it. The widget saves it for you.
 - `ctx.ui` holds the widget's own components, so the row looks like the widget's own settings.
 - `entries` is what the settings search finds.
 - With no `page`, the entry is a page of its own. With only `page: 'general'`, it is a section on the General page.
@@ -171,10 +171,10 @@ A few things to notice:
 Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 <Accordions>
-<Accordion title="Can a value be per project or per session?">
+<Accordion title="A value per project or per session">
 
-Yes. `Store.project` keeps one value for the project the engine runs in. `Store.session` keeps one value per session,
-and you call it with the session:
+`Store.project` keeps one value for the project the engine runs in. `Store.session` keeps one value per session.
+You call it with the session:
 
 ```tsx twoslash title="conciv/plugins/tickets/plugin-experimental.tsx"
 // @jsx: preserve
