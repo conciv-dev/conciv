@@ -264,9 +264,12 @@ function directCall(name: string, input: unknown, context: Tool.Context): Parame
   }
 }
 
+const CARRIER_CODES: readonly string[] = [aiErrors.TOOL_FAILED.code, aiErrors.APPROVAL_DENIED.code]
+
 function readDeclaredCode(error: unknown): string | null {
   if (!(error instanceof Error)) return null
-  if (EvlogError.isEvlogError(error)) return error.code === undefined || error.code === '' ? null : error.code
+  if (EvlogError.isEvlogError(error))
+    return error.code === undefined || error.code === '' || CARRIER_CODES.includes(error.code) ? null : error.code
   if (!('code' in error) || typeof error.code !== 'string' || error.code === '') return null
   return error.code
 }
