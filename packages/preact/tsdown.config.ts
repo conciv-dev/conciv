@@ -6,5 +6,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: false,
-  external: [/^@conciv\//, 'preact', 'preact/hooks'],
+  external: [/^@conciv\//, 'preact', 'preact/hooks', 'preact/compat', 'solid-js'],
 })
