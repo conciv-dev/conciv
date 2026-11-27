@@ -34,8 +34,7 @@ module.exports = {
 }
 ```
 
-A CommonJS `require` gets the plugin as `.default`. Options go in its one argument. Learn more in the [Configuration
-documentation](/docs/reference/configuration).
+A CommonJS `require` gets the plugin as `.default`. Options go in its one argument. Learn more in [Configuration](/docs/reference/configuration).
 
 Start your dev server with `npx webpack serve`, or a build in watch mode with `--watch`.
 Open your app, click the conciv button, and type the 6-digit code your dev server prints.
@@ -76,8 +75,8 @@ export default {
   </Accordion>
   <Accordion id="port" title="The port the engine uses">
     The plugin picks the engine port before the first watch build. It builds the widget with that port. When the port is
-    in use, the plugin takes a free one, with no warning. Learn more in the [Configuration
-    documentation](/docs/reference/configuration#port).
+    in use, the plugin takes a free one, with no warning. Learn more in
+    [Configuration](/docs/reference/configuration#port).
   </Accordion>
   <Accordion id="fails" title="The build fails with: conciv: the engine failed to start">
     The engine could not start. The reason follows the message in the build output. Stopping the watch, or closing the

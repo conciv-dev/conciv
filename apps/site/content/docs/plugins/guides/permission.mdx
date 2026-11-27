@@ -174,8 +174,7 @@ The last rule that matches wins. The engine reads them in this order:
 3. the session's own rules;
 4. saved answers.
 
-A `deny` among the first three always wins. Learn more in the [Agents and permissions
-documentation](/docs/agents-and-permissions).
+A `deny` among the first three always wins. Learn more in [Agents and permissions](/docs/agents-and-permissions).
 
 An `ask` rule you push onto an agent with `ctx.agent.transform` beats the catch-all rules before it. A saved
 Allow always answer still wins, because it comes after. Leaving out `save` is the way to ask on every call.

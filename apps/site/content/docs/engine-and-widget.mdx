@@ -35,12 +35,12 @@ export default defineConfig({
 ## Build plugin
 
 The build plugin is `@conciv/it` in your bundler config. In development it starts the engine and adds the widget to
-every page. A production build leaves both out. Learn more in the [Bundlers documentation](/docs/bundlers).
+every page. A production build leaves both out. Learn more in [Bundlers](/docs/bundlers).
 
 ## Engine
 
 The engine is a node server inside your dev server's process. It listens on `127.0.0.1` only, on a port of its own. It
-answers only browsers that logged in. Learn more in the [Logging in documentation](/docs/usage/logging-in).
+answers only browsers that logged in. Learn more in [Logging in](/docs/usage/logging-in).
 
 ## Widget
 
@@ -50,7 +50,7 @@ styles stay apart. It talks to the engine over one websocket.
 ## Harness
 
 A harness is the agent CLI the engine runs a turn with, such as Claude Code. It runs on your machine, with your own
-login. Learn more in the [Harnesses documentation](/docs/harnesses).
+login. Learn more in [Harnesses](/docs/harnesses).
 
 ## A turn
 
@@ -62,8 +62,8 @@ A turn is one message from you and everything the agent does to answer it:
 4. A risky call waits on a permission card in the panel. It goes on once you answer.
 5. Text, tool calls and cards stream back into the panel.
 
-If the socket drops, the widget dials again. A running turn picks up from its last event. Learn more in the [Tools and
-code mode documentation](/docs/tools-and-code-mode).
+If the socket drops, the widget dials again. A running turn picks up from its last event. Learn more in [Tools and
+code mode](/docs/tools-and-code-mode).
 
 <Playground
   page="vite-react"
@@ -74,7 +74,7 @@ code mode documentation](/docs/tools-and-code-mode).
 ## Outside agents
 
 An agent CLI in your own terminal can reach the engine too, over MCP. It drives your open tabs with the same tools.
-Learn more in the [Agents documentation](/docs/agents).
+Learn more in [Agents](/docs/agents).
 
 ## Where state lives
 
@@ -105,8 +105,8 @@ everything except `settings/`.
 - `bin/conciv` is the conciv command. It comes first on the `PATH` of the agents the engine starts.
 
 <Callout type="info" title="Move the folder">
-  Set `stateRoot` to keep `.conciv/` somewhere else. Learn more in the [Configuration
-  documentation](/docs/reference/configuration#stateroot).
+  Set `stateRoot` to keep `.conciv/` somewhere else. Learn more in
+  [Configuration](/docs/reference/configuration#stateroot).
 </Callout>
 
 ## Next steps

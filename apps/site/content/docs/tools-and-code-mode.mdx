@@ -50,7 +50,7 @@ returns, not every tool's whole output.
 
 Inside a code-mode program, a tool is a function named `external_` plus the tool's name. A tool in a namespace joins
 the two names with `_`, so `read` in the `ticket` namespace is `external_ticket_read`. These are the names you see in
-the code card. Learn more in the [Add a tool documentation](/docs/plugins/guides/tool).
+the code card. Learn more in [Add a tool](/docs/plugins/guides/tool).
 
 ## The catalog
 
@@ -70,13 +70,12 @@ any error. Every tool the program called ran inside it, so a plugin's own card n
 ## A tool's own card
 
 A direct call gets a card of its own. Without a plugin card, it is a generic card with the input and the output. A
-plugin can draw its own card for its direct tools. Learn more in the [Build your first plugin
-documentation](/docs/plugins/first-plugin).
+plugin can draw its own card for its direct tools. Learn more in [Build your first plugin](/docs/plugins/first-plugin).
 
 <Callout type="info" title="Turn code mode off">
   A deny rule for the `execute` action turns code mode off: every tool becomes direct. A deny rule for one tool's
-  action, on every resource, hides that tool. Learn more in the [Agents and permissions
-  documentation](/docs/agents-and-permissions#rules).
+  action, on every resource, hides that tool. Learn more in [Agents and
+  permissions](/docs/agents-and-permissions#rules).
 </Callout>
 
 ## Next steps

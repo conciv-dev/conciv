@@ -15,7 +15,7 @@ your dev server's terminal, or from the CLI. When nothing shows at all, start wi
 **Cause.** conciv adds the widget in development only, and only when it is turned on.
 
 **Fix.** Run the dev server, not a production build. Check that your options set neither `enabled` nor `widget` to
-`false`. Learn more in the [Configuration documentation](/docs/reference/configuration#enabled).
+`false`. Learn more in [Configuration](/docs/reference/configuration#enabled).
 
 ### No answer in the chat
 
@@ -24,11 +24,11 @@ your dev server's terminal, or from the CLI. When nothing shows at all, start wi
 **Cause.** The default harness runs the `claude` CLI. The dev server cannot find it, or it is not logged in.
 
 **Fix.** Install Claude Code and log in to it. Make sure `claude` is on the `PATH` of the shell that starts your dev
-server. Learn more in the [Harnesses documentation](/docs/harnesses).
+server. Learn more in [Harnesses](/docs/harnesses).
 
 ## In the panel
 
-The login messages live on this page only. Learn more in the [Logging in documentation](/docs/usage/logging-in).
+The login messages live on this page only. Learn more in [Logging in](/docs/usage/logging-in).
 
 ### Not logged in
 
@@ -109,8 +109,7 @@ code**.
 
 **Cause.** The session runs the Pi harness, which has no chat in conciv yet.
 
-**Fix.** Pick a model of another harness in the model menu. Learn more in the [Harnesses
-documentation](/docs/harnesses#pi).
+**Fix.** Pick a model of another harness in the model menu. Learn more in [Harnesses](/docs/harnesses#pi).
 
 ### A path with a space
 
@@ -136,8 +135,7 @@ documentation](/docs/harnesses#pi).
 
 **Cause.** The `sessionId` option is not a conciv session id, so the engine does not start.
 
-**Fix.** Use an id that starts with `ses_`, or remove the option. Learn more in the [Configuration
-documentation](/docs/reference/configuration#sessionid-and-claudesessionid).
+**Fix.** Use an id that starts with `ses_`, or remove the option. Learn more in [Configuration](/docs/reference/configuration#sessionid-and-claudesessionid).
 
 ### Unknown harness
 
@@ -145,7 +143,7 @@ documentation](/docs/reference/configuration#sessionid-and-claudesessionid).
 
 **Cause.** The `harness` option names a harness conciv does not have.
 
-**Fix.** Use one of the ids the message lists. Learn more in the [Harnesses documentation](/docs/harnesses).
+**Fix.** Use one of the ids the message lists. Learn more in [Harnesses](/docs/harnesses).
 
 ### Plugin path is a file
 
@@ -153,13 +151,11 @@ documentation](/docs/reference/configuration#sessionid-and-claudesessionid).
 
 **Cause.** A path in `plugins` points at a file. A plugin loaded by path is a folder.
 
-**Fix.** Point the path at the plugin's folder. Learn more in the [Debug a plugin that does not load
-recipe](/docs/recipes/debug-a-plugin-that-does-not-load).
+**Fix.** Point the path at the plugin's folder. Learn more in [Debug a plugin that does not load](/docs/recipes/debug-a-plugin-that-does-not-load).
 
 ## In simulation
 
-These show when the engine runs with a driver. Learn more in the [Drive the widget from a script
-recipe](/docs/recipes/drive-the-widget-from-a-script).
+These show when the engine runs with a driver. Learn more in [Drive the widget from a script](/docs/recipes/drive-the-widget-from-a-script).
 
 ### No driver
 

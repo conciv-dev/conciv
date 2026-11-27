@@ -46,7 +46,7 @@ conciv/
   name.
 - A path to a single file is refused with `configured plugin path must be a directory`.
 
-Learn more in the [Add plugins documentation](/docs/usage/add-plugins).
+Learn more in [Add plugins](/docs/usage/add-plugins).
 
 ### The tools are missing
 
@@ -57,13 +57,12 @@ npx @conciv/cli tools --help
 ```
 
 A tool in the list is there for the agent. A tool in code mode is called `external_` plus its name, inside the code
-card. Learn more in the [Tools and code mode documentation](/docs/tools-and-code-mode).
+card. Learn more in [Tools and code mode](/docs/tools-and-code-mode).
 
 ### The card or panel is missing
 
 The browser part loads from `plugin-experimental.cjs` in the plugin folder. The engine looks for exactly that name. A source file next to it is not enough. Build it, then reload the page. A
-code-mode call never shows your card. Only a direct tool's call does. Learn more in the [Build the browser part
-documentation](/docs/plugins/first-plugin#build-the-browser-part).
+code-mode call never shows your card. Only a direct tool's call does. Learn more in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part).
 
 <Accordions>
   <Accordion title="It says Duplicate plugin ID">

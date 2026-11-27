@@ -90,7 +90,7 @@ conciv({widget: {modal: {position: 'top-left'}, quickTerminal: {hotkey: 'Alt+k'}
 - `false` for a layout turns it off.
 
 Set `widget: false` when you render the widget yourself with `<ConcivWidget />`. The engine still runs, and the page
-does not get two widgets. Learn more in the [Quick terminal documentation](/docs/usage/quick-terminal).
+does not get two widgets. Learn more in [Quick terminal](/docs/usage/quick-terminal).
 
 ### plugins
 
@@ -107,7 +107,7 @@ conciv({plugins: ['@conciv/plugin-test-runner', ['./my-plugin', {team: 'core'}]]
 - A path starts with `./` or `../` (from the project folder), or is absolute. Anything else is a package name.
 - A name with a leading `-` removes that plugin.
 
-Learn more in the [Add plugins documentation](/docs/usage/add-plugins).
+Learn more in [Add plugins](/docs/usage/add-plugins).
 
 ### harness
 
@@ -119,7 +119,7 @@ import conciv from '@conciv/it/plugin/vite'
 conciv({harness: 'opencode'})
 ```
 
-You can still switch harness from the model menu. Learn more in the [Harnesses documentation](/docs/harnesses).
+You can still switch harness from the model menu. Learn more in [Harnesses](/docs/harnesses).
 
 ### systemPrompt
 
@@ -153,8 +153,7 @@ conciv({permission: {page_eval: 'allow'}})
 - One effect per action: `{page_eval: 'deny'}`.
 - One effect per action and resource: `{page_eval: {'document.title': 'allow'}}`.
 
-The effect is `allow`, `deny` or `ask`. Learn more in the [Agents and permissions
-documentation](/docs/agents-and-permissions).
+The effect is `allow`, `deny` or `ask`. Learn more in [Agents and permissions](/docs/agents-and-permissions).
 
 ### permissions
 
@@ -205,7 +204,7 @@ conciv({hubAccess: 'project'})
 - `open`, the default, lets a connected agent into every open tab.
 - `project` shows a card in the tab the first time an outside agent calls it. You allow it once, always, or not at all.
 
-Learn more in the [Agents documentation](/docs/agents).
+Learn more in [Agents](/docs/agents).
 
 ### stateRoot
 
@@ -252,7 +251,7 @@ conciv({claudeSessionId: 'release-notes'})
 - `sessionId` is a conciv session id (`ses_...`). Any other value stops the engine with an error.
 - `claudeSessionId` is a harness session id: up to 128 letters, digits, `_` and `-`.
 
-The engine makes sure the session exists when it starts. Learn more in the [Sessions documentation](/docs/sessions).
+The engine makes sure the session exists when it starts. Learn more in [Sessions](/docs/sessions).
 
 ## Set an option from the environment
 

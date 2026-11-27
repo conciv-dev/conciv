@@ -33,14 +33,13 @@ export default defineConfig({
 ## Agent profile
 
 The engine starts with one profile, `build`. It allows every action. It asks before it reads a `.env` file, but not
-`.env.example`. Plugins can change a profile. The engine adds your config rules to every profile. Learn more in the
-[Ask for permission documentation](/docs/plugins/guides/permission).
+`.env.example`. Plugins can change a profile. The engine adds your config rules to every profile. Learn more in
+[Ask for permission](/docs/plugins/guides/permission).
 
 ## Rules
 
 A rule has an action, a resource and an effect. The action is the tool's name, such as `page_eval`. The resource is
-what it acts on, such as the code it would run. Both take `*` as a wildcard. Learn more in the [Configuration
-documentation](/docs/reference/configuration#permission).
+what it acts on, such as the code it would run. Both take `*` as a wildcard. Learn more in [Configuration](/docs/reference/configuration#permission).
 
 ## The order rules apply in
 
@@ -68,7 +67,7 @@ An `ask` shows a **Permission** card in the chat. The call waits until you answe
 - **Deny** (Escape) refuses the call. Every other card waiting in the same session is refused with it.
 
 Your agent CLI's own asks, from Claude Code or Gemini CLI, use the same card. They can be allowed once or denied, never
-allowed always. Learn more in the [Approvals documentation](/docs/usage/approvals).
+allowed always. Learn more in [Approvals](/docs/usage/approvals).
 
 ## Saved answers
 
@@ -102,13 +101,12 @@ The engine reads saved answers on every check, so the next call asks again.
 
 A tool that asks fails its call when you deny. In a Promise plugin, the ask rejects. In an Effect plugin, a deny rule
 fails it with a `Tool.Error`. A plain **Deny** on the card is different: it interrupts the effect as a defect, so
-`catchTag` never sees it. Learn more in the [Ask for permission documentation](/docs/plugins/guides/permission).
+`catchTag` never sees it. Learn more in [Ask for permission](/docs/plugins/guides/permission).
 
 ## Outside agents
 
 An agent connected from your own terminal can use your open tabs. With `hubAccess: 'project'`, its first call shows a
-card in the tab. An outside agent can never answer a card itself. Learn more in the [Configuration
-documentation](/docs/reference/configuration#hubaccess).
+card in the tab. An outside agent can never answer a card itself. Learn more in [Configuration](/docs/reference/configuration#hubaccess).
 
 ## Next steps
 
