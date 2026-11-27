@@ -14,7 +14,7 @@ npm install -D @conciv/it
 ## Interface
 
 - `package.json:exports["."]` - `dist/ui-kit-tap.js` with types in `dist/ui-kit-tap.d.ts`.
-- `vite.config.ts` - library entry `src/ui-kit-tap.tsx`, ES format; `solid-js`, `@ark-ui/*`, `@conciv/*`, `@tiptap/*`, `prosemirror-*` and `@floating-ui/*` external.
+- `tsdown.config.ts` - library entry `src/ui-kit-tap.tsx`, ES format; its dependencies (`@conciv/ui-kit-system`, `@tiptap/*`, `@floating-ui/dom`) and the `solid-js` peer stay external (tsdown's default).
 - `uno.config.ts` - `presetConciv()`, scanning `src` and `../ui-kit-system/src`, without tests, specs and stories.
 - `postcss.config.mjs` - the `@unocss/postcss` plugin.
 - Source: [src](./src/README.md).

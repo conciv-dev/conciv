@@ -1,0 +1,30 @@
+{
+  "name": "@internal/build-plugins",
+  "version": "0.0.24",
+  "private": true,
+  "description": "Rolldown plugins the tsdown library builds share: the plugin UnoCSS sheet and the Vite-style inline imports.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/build-plugins"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/build-plugins.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@internal/uno-preset": "workspace:*",
+    "tsdown": "catalog:",
+    "unocss": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

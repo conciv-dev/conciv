@@ -8,12 +8,12 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 - [src/README.md](./src/README.md): the components and the highlight worker pool.
 - `exports["."]` -> `./dist/solid-diffs.js` + `./dist/solid-diffs.d.ts`; `files: ["dist"]`; peer `solid-js`; deps `@pierre/diffs` 1.6.2, `@tanstack/solid-pacer` (`package.json`).
-- `vite.config.ts`: `libConfig` from `@internal/vite-config`, entry `src/solid-diffs.tsx`.
-- Scripts: `build` (`vite build`), `typecheck`, `publint`, `attw` (`--profile esm-only`). No `test` script.
+- `tsdown.config.ts`: entry `src/solid-diffs.tsx`, with `unplugin-solid/rolldown`.
+- Scripts: `build` (`tsdown`), `typecheck`, `publint`, `attw` (`--profile esm-only`). No `test` script.
 
 ## Invariants
 
-- The `@pierre/diffs` worker (`?worker` import) is bundled inline; other `@pierre/diffs` imports, `solid-js`, `shiki`, `@shikijs/*` and `@tanstack/solid-pacer` stay external (`vite.config.ts`).
+- The `@pierre/diffs` highlight worker (`?worker&inline`) is bundled inline by `inlineImports()` (`@internal/build-plugins`); every other `@pierre/diffs` import, `solid-js` and `@tanstack/solid-pacer` stay external, because they are its dependencies and peer (tsdown's default).
 - `tsconfig.build.json` emits declarations only, excluding `*.stories.*`, `fixtures.*` and `*.test.*`.
 
 ## Side Effects

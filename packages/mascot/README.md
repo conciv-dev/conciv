@@ -111,8 +111,8 @@ starts.
 ## Interface
 
 - `package.json:exports` - `.`, `./solid`, `./adapter`, and `./effects/<name>` for binary, matrix, thought-cloud, pixel-bubbles, signal-rings, speech-bubble, steam, spark, spark-burst, spark-fountain, satellite, led-cone, tick-ring, signal-bars, heart, notes.
-- `vite.config.ts` `server` environment - `src/core/core.ts`, `src/core/style-merge.ts`, `src/core/adapter.ts`, `src/solid/solid.ts` and each `src/core/effects/<name>.ts` (one file per module, ESM, `vite-plugin-solid`).
-- `vite.config.ts` `source` environment - `src/solid/solid.ts` to `dist/solid` with `.jsx` output (`jsx: 'preserve'`) (the `solid` export condition).
+- `tsdown.config.ts` first build (the library) - `src/core/core.ts`, `src/core/style-merge.ts`, `src/core/adapter.ts`, `src/solid/solid.ts` and each `src/core/effects/<name>.ts` (one file per module, `unbundle: true`, ESM, `unplugin-solid/rolldown`).
+- `tsdown.config.ts` second build - `src/solid/solid.ts` to `dist/solid` with `.jsx` output (`jsx: 'preserve'`) (the `solid` export condition).
 - Source: [src](./src/README.md).
 
 ## Invariants

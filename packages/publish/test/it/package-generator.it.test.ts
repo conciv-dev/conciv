@@ -8,8 +8,8 @@ describe('turbo gen package', () => {
   const GENERATORS = 'packages/publish/turbo/generators'
   const LINKED_DEPENDENCIES = ['node_modules', 'packages/publish/node_modules']
   const TEST_FOLDERS = ['e2e', 'fixtures', 'it', 'unit', 'utils'].map((folder) => `test/${folder}/.gitkeep`)
-  const SOURCE_FILES = ['README.md', 'package.json', 'tsconfig.json', 'vite.config.ts', ...TEST_FOLDERS]
-  const BUILT_FILES = [...SOURCE_FILES, 'tsconfig.build.json']
+  const SOURCE_FILES = ['README.md', 'package.json', 'tsconfig.json', 'vitest.config.ts', ...TEST_FOLDERS]
+  const BUILT_FILES = [...SOURCE_FILES, 'tsconfig.build.json', 'tsdown.config.ts']
 
   const output = Effect.fn('output')(function* (cwd: string, command: string, args: string[]) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
@@ -136,7 +136,7 @@ describe('turbo gen package', () => {
         publishConfig: {access: 'public'},
         exports: {'.': {types: './dist/gen-check-node.d.ts', import: './dist/gen-check-node.js'}},
         scripts: {build: expect.any(String), publint: 'publint', attw: expect.any(String)},
-        devDependencies: {'@types/node': 'catalog:', '@internal/vite-config': 'workspace:*'},
+        devDependencies: {'@types/node': 'catalog:', tsdown: 'catalog:'},
       })
       expect(publishedManifest).not.toHaveProperty('private')
       const browserManifest = yield* readJson(path.join(packages, 'gen-check-web/package.json'))
@@ -154,7 +154,7 @@ describe('turbo gen package', () => {
         expect(manifest).not.toHaveProperty('types')
         expect(manifest).not.toHaveProperty('publishConfig')
         expect(manifest).not.toHaveProperty('scripts.build')
-        expect(manifest).not.toHaveProperty(['devDependencies', '@internal/vite-config'])
+        expect(manifest).not.toHaveProperty(['devDependencies', 'tsdown'])
       }
       for (const manifest of [publishedManifest, browserManifest, bothManifest]) {
         expect(manifest).toMatchObject({
@@ -164,14 +164,14 @@ describe('turbo gen package', () => {
         expect(manifest).not.toHaveProperty('scripts.test')
       }
 
-      expect(yield* read('packages/gen-check-node/vite.config.ts')).toContain("entries: ['src/gen-check-node.ts']")
+      expect(yield* read('packages/gen-check-node/tsdown.config.ts')).toContain("entry: ['src/gen-check-node.ts']")
       expect(yield* read('packages/gen-check-node/tsconfig.json')).toContain('@internal/tsconfig/tsconfig.base.json')
       expect(yield* read('packages/gen-check-web/tsconfig.json')).toContain('@internal/tsconfig/tsconfig.web.json')
       expect(yield* read('packages/gen-check-both/tsconfig.json')).toMatch(/tsconfig\.web\.json[\s\S]*"node"/)
-      expect(yield* read('packages/gen-check-both/vite.config.ts')).toContain('@internal/vitest-config/conciv-test')
-      expect(yield* read('packages/gen-check-web/vite.config.ts')).toContain('browser: true')
-      expect(yield* read('packages/gen-check-both/vite.config.ts')).toContain('browser: true')
-      expect(yield* read('packages/gen-check-node/vite.config.ts')).not.toContain('browser: true')
+      expect(yield* read('packages/gen-check-both/vitest.config.ts')).toContain('@internal/vitest-config/conciv-test')
+      expect(yield* read('packages/gen-check-web/vitest.config.ts')).toContain('browser: true')
+      expect(yield* read('packages/gen-check-both/vitest.config.ts')).toContain('browser: true')
+      expect(yield* read('packages/gen-check-node/vitest.config.ts')).not.toContain('browser: true')
 
       const guards = yield* read('packages/publish/src/guards.ts')
       const fallow = yield* read('.fallowrc.json')

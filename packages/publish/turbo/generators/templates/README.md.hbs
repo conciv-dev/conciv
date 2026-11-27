@@ -10,7 +10,8 @@
 - Private to conciv and never published: its exports point at `src`, nothing builds it, and the packages that use it
   inline it into their own builds.
 {{else}}
-- `vite build` emits the JavaScript and the declarations (`libConfig` from `@internal/vite-config`, types from `tsconfig.build.json`).
+- `tsdown` (`tsdown.config.ts`) emits the JavaScript and the declarations (types from `tsconfig.build.json`); its
+  dependencies and peerDependencies stay external.
 {{/if}}
 
 ## Side Effects
@@ -25,5 +26,5 @@
 
 - Typecheck and lint: run the `typecheck` script in `{{directory}}`, then `pnpm lint` at the repo root.
 - Tests: the package has no `test` script yet, because `vitest run` with no test file fails. Add
-  `"test": "vitest run"` to `package.json` with the first test. `vite.config.ts` runs `test/unit/**/*.unit.test.ts`
+  `"test": "vitest run"` to `package.json` with the first test. `vitest.config.ts` runs `test/unit/**/*.unit.test.ts`
   and `test/it/**/*.it.test.ts`{{#if browserTests}}, and `test/e2e/**/*.e2e.test.tsx` in browser mode{{/if}}.

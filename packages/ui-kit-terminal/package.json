@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
@@ -45,16 +45,17 @@
     "@xterm/xterm": "^6.0.0"
   },
   "devDependencies": {
+    "@internal/build-plugins": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
-    "vite": "catalog:",
-    "vite-plugin-solid": "catalog:"
+    "unplugin-solid": "catalog:",
+    "vite": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

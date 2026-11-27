@@ -1,7 +1,6 @@
-import {defineConfig, mergeConfig, type Plugin} from 'vite'
+import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {libConfig} from '@internal/vite-config'
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
 function classicScriptLoaders(): Plugin {
@@ -21,14 +20,18 @@ function classicScriptLoaders(): Plugin {
   }
 }
 
-export default defineConfig(
-  mergeConfig(
-    libConfig({
-      root: import.meta.url,
-      plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest({browser: true})],
-      environments: {
-        client: {
-          entries: ['src/mount.ts'],
+export default defineConfig({
+  plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest({browser: true})],
+  define: {'define.amd': 'false'},
+  server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}},
+  builder: {},
+  environments: {
+    client: {
+      build: {
+        lib: {entry: {mount: 'src/mount.ts'}, formats: ['es']},
+        emptyOutDir: false,
+        sourcemap: true,
+        rolldownOptions: {
           external: [
             /^solid-js(\/|$)(?!.*\?inline)/,
             /^effect(\/|$)(?!.*\?inline)/,
@@ -36,14 +39,26 @@ export default defineConfig(
             /^@conciv\/(?!plugin-page\/builtins)(?!.*\?inline)/,
           ],
         },
-        widget: {
-          consumer: 'client',
-          entries: {'conciv-widget': 'src/global-entry.ts', 'conciv-widget-native': 'src/native-entry.ts'},
-          define: {'process.env.NODE_ENV': '"production"'},
-          bundleDir: 'widget',
+      },
+    },
+    widget: {
+      consumer: 'client',
+      define: {'process.env.NODE_ENV': '"production"'},
+      build: {
+        lib: {
+          entry: {'conciv-widget': 'src/global-entry.ts', 'conciv-widget-native': 'src/native-entry.ts'},
+          formats: ['es'],
+        },
+        emptyOutDir: false,
+        rolldownOptions: {
+          output: {
+            entryFileNames: 'widget/[name]-[hash].js',
+            chunkFileNames: 'widget/[name]-[hash].js',
+            assetFileNames: 'widget/[name]-[hash][extname]',
+            minify: true,
+          },
         },
       },
-    }),
-    {define: {'define.amd': 'false'}, server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}}},
-  ),
-)
+    },
+  },
+})

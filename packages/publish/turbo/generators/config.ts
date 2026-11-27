@@ -127,12 +127,12 @@ function publishedManifest(spec: Spec, version: string): object {
     exports: {'.': {types: `./dist/${spec.name}.d.ts`, import: `./dist/${spec.name}.js`}},
     publishConfig: {access: 'public'},
     scripts: {
-      build: 'vite build',
+      build: 'tsdown',
       typecheck: 'tsc -p tsconfig.json --noEmit',
       publint: 'publint',
       attw: 'attw --pack . --profile esm-only',
     },
-    devDependencies: devDependencies(spec, {'@internal/vite-config': 'workspace:*'}),
+    devDependencies: devDependencies(spec, {tsdown: 'catalog:'}),
   }
 }
 
@@ -148,10 +148,15 @@ function manifest(spec: Spec, version: string): object {
 function templatedFiles(spec: Spec): Array<[string, string]> {
   const shared: Array<[string, string]> = [
     [`src/${spec.name}.ts`, 'entry.ts'],
-    ['vite.config.ts', 'vite.config.ts'],
+    ['vitest.config.ts', 'vitest.config.ts'],
     ['README.md', 'README.md'],
   ]
-  return shared
+  switch (spec.kind) {
+    case 'internal':
+      return shared
+    case 'published':
+      return [...shared, ['tsdown.config.ts', 'tsdown.config.ts']]
+  }
 }
 
 function jsonFiles(spec: Spec, version: string): Array<[string, object]> {
@@ -177,6 +182,8 @@ function templateData(spec: Spec): object {
     directory: directory(spec),
     sourceOnly: spec.kind === 'internal',
     browserTests: spec.runtime !== 'node',
+    platform: {node: 'node', browser: 'browser', both: 'neutral'}[spec.runtime],
+    nodeTarget: spec.runtime === 'node',
   }
 }
 

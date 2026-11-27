@@ -19,7 +19,6 @@
     "e2e/vite-solid/**",
     "e2e/vite-vanilla/**",
     "**/vitest.config.ts",
-    "packages/backend/vite.config.ts",
     "**/*.stories.tsx",
     "**/*.fixtures.ts",
     "**/*.fixtures.tsx"
@@ -414,6 +413,7 @@
   },
   "overrides": [],
   "ignoreDependencies": [
+    "@orpc/contract",
     "@internal/test-utils",
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",

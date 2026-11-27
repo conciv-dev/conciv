@@ -167,7 +167,6 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",

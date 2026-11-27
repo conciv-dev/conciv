@@ -345,8 +345,8 @@ job (`apps/site/content/docs/plugins/testing.mdx`). Test the engine part in node
 
 Export `.` and `./server` (the engine part), `./rpc` and `./plugin-experimental` (the `.cjs`), as the
 test runner does (`packages/plugins/test-runner/package.json`). The test runner builds with
-`vite build`: one `vite.config.ts` with a server environment (the engine part) and `experimental()` for the
-client environment. `@conciv/backend-plugin-api` and
+`tsdown && vite build`: `tsdown.config.ts` builds the engine part and the bundle's types, then `vite.config.ts`
+builds the `./plugin-experimental` bundle with `experimental()`. `@conciv/backend-plugin-api` and
 `@conciv/frontend-plugin-api` are peer dependencies (and dev dependencies); `effect`, `zod` and
 `@conciv/protocol` are dependencies.
 

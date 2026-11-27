@@ -19,11 +19,6 @@
       "types": "./src/uno-preset.ts",
       "import": "./dist/uno-preset.js",
       "default": "./dist/uno-preset.js"
-    },
-    "./inline-sheet": {
-      "types": "./src/inline-sheet.ts",
-      "import": "./dist/inline-sheet.js",
-      "default": "./dist/inline-sheet.js"
     }
   },
   "scripts": {

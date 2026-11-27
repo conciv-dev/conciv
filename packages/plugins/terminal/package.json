@@ -22,7 +22,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -43,19 +43,21 @@
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/plugin-page": "workspace:*",
+    "@internal/build-plugins": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
     "playwright": "catalog:",
     "solid-js": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
+    "unplugin-solid": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

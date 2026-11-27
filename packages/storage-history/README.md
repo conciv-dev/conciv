@@ -6,7 +6,7 @@ A @tanstack/history RouterHistory whose entries and index persist in Web Storage
 
 ## Invariants
 
-- `vite build` emits the JavaScript and the declarations (`vite.config.ts`).
+- `tsdown` emits the JavaScript and the declarations (`tsdown.config.ts`).
 
 ## Side Effects
 

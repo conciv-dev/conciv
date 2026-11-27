@@ -1,0 +1,23 @@
+import {defineConfig} from 'tsdown'
+
+export default defineConfig({
+  entry: [
+    'src/unplugin.ts',
+    'src/vite.ts',
+    'src/webpack.ts',
+    'src/rspack.ts',
+    'src/rollup.ts',
+    'src/esbuild.ts',
+    'src/nextjs.ts',
+    'src/nextjs-edge.ts',
+    'src/nextjs-widget.ts',
+    'src/core/boot.ts',
+    'src/core/widget-start.ts',
+    'src/core/vite-bridge.ts',
+  ],
+  platform: 'node',
+  tsconfig: 'tsconfig.build.json',
+  dts: true,
+  sourcemap: true,
+  fixedExtension: false,
+})

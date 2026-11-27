@@ -1,6 +1,6 @@
 import {defineConfig} from 'tsdown'
 import solid from 'unplugin-solid/rolldown'
-import {inlineSheet} from '@internal/uno-preset/inline-sheet'
+import {inlineSheet} from '@internal/build-plugins'
 
 export default defineConfig({
   entry: ['src/plugin-experimental.tsx'],

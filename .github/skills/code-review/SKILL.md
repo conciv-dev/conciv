@@ -183,8 +183,8 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - No tests under `apps/examples/*` (example apps are demos), except the handful of demo tests in
   `apps/examples/tanstack-start`. Behaviour is verified by the owning package's tests,
   its test utilities, or an `e2e/` consumer app.
-- A package's tests are configured only through `concivTest(...)` in its one `vite.config.ts` (no
-  `vitest*.config` file); `test/unit` runs in node unless the package passes `environment: 'happy-dom'`.
+- A package's tests are configured only through `concivTest(...)` in its `vitest.config.ts`, or in its
+  `vite.config.ts` when the package has a Vite app config (never both); `test/unit` runs in node unless the package passes `environment: 'happy-dom'`.
   Flag a hand-written test project or environment.
 - A bug fix ships with a regression test that fails without the fix.
 - A flaky-test "fix" that only bumps a timeout or adds a retry is not acceptable. The mechanism gets

@@ -34,7 +34,6 @@ export default defineConfig({
     'src/simulation.ts',
   ],
   platform: 'node',
-  target: 'node22',
   tsconfig: 'tsconfig.build.json',
   dts: true,
   sourcemap: true,
