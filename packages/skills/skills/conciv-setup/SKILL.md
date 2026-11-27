@@ -16,7 +16,7 @@ entries exist but do nothing (`packages/unplugin/src/unplugin.ts:157-158`,
 `apps/site/content/docs/bundlers.mdx`).
 
 The fastest path is `npx @conciv/cli@latest init` in the app's folder: it finds the framework, installs
-`@conciv/it` and wires the config (`apps/site/content/docs/getting-started/index.mdx`).
+`@conciv/it` and wires the config (`apps/site/content/docs/getting-started.mdx`).
 
 conciv runs in the dev server only. The Vite plugin applies to `vite dev` alone (`apply: 'serve'`,
 `packages/unplugin/src/core/vite.ts:313`). webpack and Rspack do nothing in a `production` mode build,
@@ -214,7 +214,7 @@ conciv({widget: {modal: false}})
 - `e2e/vite-solid-component/src/vite-solid-component.tsx`
 - `e2e/nextjs-component/app/conciv-widget-client.tsx`
 - `apps/site/src/lib/mount-live-widget.ts`
-- `apps/site/content/docs/getting-started/index.mdx`
+- `apps/site/content/docs/getting-started.mdx`
 - `apps/site/content/docs/bundlers/vite.mdx`
 - `apps/site/content/docs/bundlers/nextjs.mdx`
 - `apps/site/content/docs/bundlers/webpack.mdx`

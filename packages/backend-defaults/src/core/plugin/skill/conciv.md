@@ -33,7 +33,7 @@ For installing conciv in an app, fetch the [Quick start](https://conciv.dev/docs
 `conciv init`, wires an app; the page also links the guide for each bundler:
 [Vite](https://conciv.dev/docs/bundlers/vite), [Next.js](https://conciv.dev/docs/bundlers/nextjs),
 [webpack](https://conciv.dev/docs/bundlers/webpack), [Rspack](https://conciv.dev/docs/bundlers/rspack),
-[Rollup](https://conciv.dev/docs/getting-started/rollup), [esbuild](https://conciv.dev/docs/getting-started/esbuild), and a native
+[Rollup and esbuild](https://conciv.dev/docs/bundlers), and a native
 [iOS](https://conciv.dev/docs/bundlers/ios) app in the simulator. Fetch the page for the bundler in front of
 you; do not adapt one bundler's steps to another. Not every bundler is fully supported: the page says what works.
 
