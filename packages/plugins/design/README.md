@@ -12,8 +12,9 @@ The options are the design check's settings: `comparator`, `color`, `pairer`, `r
 
 ## Invariants
 
-- One `vite build` (`pnpm build`) emits all three outputs: the engine JavaScript and its declarations through the
-  `libConfig` environments, and the browser part (`./plugin-experimental`) through `experimental()`.
+- `build` is `tsdown && vite build`: `tsdown.config.ts` emits the engine JavaScript and its declarations and the
+  browser part's declarations, then `vite.config.ts` builds the browser part (`./plugin-experimental`) with
+  `experimental()`.
 
 ## Side Effects
 

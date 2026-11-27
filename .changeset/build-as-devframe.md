@@ -15,6 +15,7 @@
 '@conciv/it': patch
 '@conciv/mascot': patch
 '@conciv/mascot-react': patch
+'@conciv/plugin-design': patch
 '@conciv/plugin-ios': patch
 '@conciv/plugin-page': patch
 '@conciv/plugin-recorder': patch

@@ -95,7 +95,7 @@ Rules that hold the layout:
   through tsdown's `deps` (`alwaysBundle`, `neverBundle`, `onlyImport`), never a hand-written list. A library that
   bundles dependencies on purpose builds its JS bundled and its declarations in a second `dts: {dtsOnly: true}` config.
   A plugin's UnoCSS sheet is generated before tsdown, as devframe's `build:css`: `scripts/build-css.ts` calls
-  `buildShadowCss` (`@internal/uno-preset/build-shadow-css`) with the plugin's `uno.config.ts` over its `src`, which
+  `buildShadowCss` (`@internal/uno-preset/build-shadow-css`) with `pluginSheetConfig` over its `src`, which
   writes `src/.generated/css.ts` (`export default "<css>"`, gitignored); `build` runs `build:css` first, the browser
   part imports `./.generated/css.js`, and the turbo `build:css` task (outputs `src/.generated/**`, also a `build`
   output) runs before `typecheck`. The script runs on Node 22.18+ type stripping, so it stays erasable-only TS. The three kits that use Vite's inline imports (`?worker&inline`, `.css?inline`, the
