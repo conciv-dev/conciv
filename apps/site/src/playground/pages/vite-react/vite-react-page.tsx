@@ -27,7 +27,7 @@ function Ticks() {
 
 export function ViteReactPage({page, onCount}: {page: PageState; onCount: () => void}) {
   return (
-    <div className="min-h-svh bg-white text-[18px] leading-[145%] tracking-[0.18px] text-[#6b6375] dark:bg-[#16171d] dark:text-[#9ca3af]">
+    <div className="min-h-svh bg-white pr-134 text-[18px] leading-[145%] tracking-[0.18px] text-[#6b6375] dark:bg-[#16171d] dark:text-[#9ca3af]">
       <div className="mx-auto flex min-h-svh w-[1126px] max-w-full flex-col border-x border-[#e5e4e7] text-center dark:border-[#2e303a]">
         <section className="flex grow flex-col place-content-center place-items-center gap-6 max-lg:px-5 max-lg:pt-8 max-lg:pb-6">
           <div className="relative">

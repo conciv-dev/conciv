@@ -109,7 +109,7 @@ export function Playground(props: {
   )
   const title = playgroundScripts[script].title
   return (
-    <figure className="@container not-prose my-6 flex flex-col gap-2">
+    <figure className="@container not-prose my-6 flex flex-col gap-2 xl:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]">
       <div className="overflow-hidden rounded-xl border bg-fd-card">
         {live ? (
           <iframe
