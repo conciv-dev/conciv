@@ -97,7 +97,7 @@ A test lives in the package whose code it tests. The repo's `AGENTS.md` has the 
     this. So a package builds only on the ones below it: the plugin API never needs the engine, and the engine never
     needs a plugin.
   </Accordion>
-  <Accordion title="Where the home folder is">
+  <Accordion id="the-home-folder" title="Where the home folder is">
     The home folder is `CONCIV_HOME` when set. Otherwise it is `~/Library/Application Support/conciv` on macOS,
     `~/.local/share/conciv` on Linux, and `%LOCALAPPDATA%\conciv\Data` on Windows. The engine also keeps its global
     settings there.
