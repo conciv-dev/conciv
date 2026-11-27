@@ -3,51 +3,32 @@ title: iOS
 description: Attach conciv to a native iOS app running in the simulator.
 ---
 
-<Callout type="warn">
-  Early alpha. The Swift API can change without notice. The iOS simulator is the only supported target.
+conciv for iOS floats the widget over your native app in the simulator, served by a web dev server that runs the
+engine.
+
+<Callout type="warn" title="Early alpha">
+  The Swift API can change without notice. The iOS simulator is the only supported target.
 </Callout>
 
-Copy this prompt into your coding agent. It sets conciv up for your iOS app:
+<Callout type="success" title="Prefer to let your agent do it?">
+  Copy this prompt into your coding agent. It sets up the dev server and the Swift package for you.
 
-<SetupPrompt framework="ios" />
+  <SetupPrompt framework="ios" />
+</Callout>
 
-What you get:
+## Basic
 
-- A web dev server with conciv in its config. It runs the engine.
-- The `ConcivWidget` Swift package in your app.
-- The conciv button floating over your own UI in the simulator.
-
-## Set up by hand
-
-<Accordions>
-<Accordion id="by-hand" title="Add the Swift package yourself">
-
-<Steps>
-<Step>
-
-### Set up the dev server
-
-conciv for iOS loads the widget from an engine. A web dev server with conciv runs it. Set one up with the
-[Vite](/docs/bundlers/vite) steps, then start it.
-
-</Step>
-<Step>
-
-### Add the package
+First set up a web dev server with conciv, as on the [Vite page](/docs/bundlers/vite), and start it. The app loads the
+widget from the engine that server runs.
 
 In Xcode, use File > Add Package Dependencies and paste this URL:
 
-```text
+```text title="Package URL"
 https://github.com/conciv-dev/conciv-swift.git
 ```
 
-Pick the version that matches your `@conciv/it` version. Add the `ConcivWidget` product to the target that shows
-your UI. The package needs iOS 17.
-
-</Step>
-<Step>
-
-### Attach the widget
+Pick the version that matches your `@conciv/it` version. Add the `ConcivWidget` product to the target that shows your
+UI. The package needs iOS 17.
 
 Call `attach()` once at app start:
 
@@ -69,33 +50,19 @@ struct MyApp: App {
 }
 ```
 
-- `attach()` finds the key window itself, so `App.init` is early enough.
-- It finds the engine on its own. See "How the app finds the engine" below.
-- In a Release build it does nothing. Run a Debug build to see the widget.
+`attach()` finds the key window and the engine itself, so `App.init` is early enough. Build and run a Debug build in
+the simulator, tap the conciv button, and type the 6-digit code your dev server prints.
 
-</Step>
-<Step>
+## What works
 
-### Run the app and log in
-
-Build and run a Debug build in the simulator. Tap the conciv button. Type the 6-digit code your dev server prints in
-its terminal.
-
-</Step>
-</Steps>
-
-</Accordion>
-</Accordions>
+- The chat and the panel over your own UI, and pick mode, which hands a native view to the agent.
+- A Release build shows no widget.
+- A Swift edit reaches the screen only after a build and a run. There is no hot reload.
 
 ## Let the agent build and run the app
 
-Add `@conciv/plugin-ios`, and the agent can build, launch, screenshot and read the logs of your app:
-
-```package-install
-npm install -D @conciv/plugin-ios
-```
-
-Then add it to the plugins in your conciv config:
+Add the iOS plugin to the plugins of your conciv config. The engine installs it from npm, so there is nothing to
+install:
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -113,85 +80,23 @@ export default defineConfig({
 - `projectRoot` is the folder of your Xcode project, relative to the dev server.
 - `bundleId` is the bundle id the agent installs and launches.
 
-What the agent gets:
+The agent then gets four tools, named `ios_*`: build, run, screenshot and logs. The first two ask you first, with a
+[Permission card](/docs/usage/approvals). Without options, every tool answers that the plugin is not configured.
 
-- `ios_build` builds the app. It asks you first.
-- `ios_run` installs and launches it in the simulator. It asks you first.
-- `ios_screenshot` takes a screenshot of the simulator.
-- `ios_logs` reads the app's logs.
-
-A Swift edit reaches the screen only after `ios_build` and `ios_run`. There is no hot reload. See
-[Approvals](/docs/usage/approvals) for the ask.
-
-## What it looks like
-
-<div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-  <figure className="m-0">
-    <ImageZoom
-      src="/screenshots/ios-launcher-focus.png"
-      alt="The conciv launcher floating over a native iOS app in the simulator"
-      width={1206}
-      height={2622}
-    />
-    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
-      The mascot button, from <code>attach()</code>
-    </figcaption>
-  </figure>
-  <figure className="m-0">
-    <ImageZoom
-      src="/screenshots/ios-panel.png"
-      alt="The conciv agent panel open over the native app with a conversation in progress"
-      width={1206}
-      height={2622}
-    />
-    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">The panel over your app</figcaption>
-  </figure>
-  <figure className="m-0">
-    <ImageZoom
-      src="/screenshots/ios-pick-focus.png"
-      alt="Native pick mode highlighting a selected view in the running iOS app"
-      width={1206}
-      height={2622}
-    />
-    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
-      Pick hands a native view to the agent
-    </figcaption>
-  </figure>
-</div>
-
-## Edge cases
-
-<Accordions>
-<Accordion id="finds-engine" title="How the app finds the engine">
+<Accordions type="single">
+<Accordion id="finds-engine" title="How does the app find the engine?">
 
 With `CONCIV_URL` set, the app uses that address, for example `http://127.0.0.1:4599`. Leave `/widget` off the end.
+Without it, the app reads `~/.conciv/dev-endpoint.json`, which the engine writes when it starts. Otherwise it tries
+`http://127.0.0.1` on ports 4599, 8787 and 3000.
 
-Without it, the app:
-
-1. Reads `~/.conciv/dev-endpoint.json`. The engine writes this file when it starts.
-2. Otherwise tries `http://127.0.0.1` on ports 4599, 8787 and 3000.
-
-`ios_run` passes the address for you. A fixed `port` in your conciv config keeps it the same across restarts.
+`ios_run` passes the address for you. A fixed `port` in your conciv config keeps it the same across restarts. With
+`devEndpointDir` set, the engine writes the file elsewhere, so set `CONCIV_URL` to be sure.
 
 </Accordion>
-<Accordion id="dev-endpoint-dir" title="Your config sets devEndpointDir">
+<Accordion id="scene-delegate" title="A UIKit app with a scene delegate?">
 
-The app reads only `~/.conciv/dev-endpoint.json`. With `devEndpointDir` set, the engine writes the file elsewhere. The
-app falls back to the port probe. Set `CONCIV_URL` to be sure which engine it uses.
-
-</Accordion>
-<Accordion id="launcher" title="A native button instead of the mascot">
-
-The button is the animated mascot by default. Pass `.native` for a round native button:
-
-```swift
-ConcivWidget.attach(launcher: .native)
-```
-
-</Accordion>
-<Accordion id="scene-delegate" title="A UIKit app with a scene delegate">
-
-Call `attach()` in `scene(_:willConnectTo:options:)`, before or after `makeKeyAndVisible()`:
+Call `attach()` in your scene delegate's willConnectTo method, before or after the window becomes key:
 
 ```swift title="SceneDelegate.swift"
 import UIKit
@@ -206,8 +111,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 }
 ```
 
+For a round native button instead of the mascot, call `ConcivWidget.attach(launcher: .native)`.
+
 </Accordion>
-<Accordion id="options" title="More plugin options">
+<Accordion id="options" title="More plugin options?">
 
 - `scheme`: the Xcode scheme to build. Unset, it comes from the end of `bundleId`.
 - `simulator`: the simulator to boot. Default `iPhone 17 Pro`.
@@ -219,7 +126,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Usage](/docs/usage): what the agent can do in your app.
-- [Approvals](/docs/usage/approvals): the ask before `ios_build` and `ios_run`.
+- **[Use conciv](/docs/usage):** what the agent can do in your app.
+- **[Approvals](/docs/usage/approvals):** the ask before a build and a run.
