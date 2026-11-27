@@ -3,8 +3,8 @@ import {createFileRoute, notFound} from '@tanstack/react-router'
 import {RotateCcw} from 'lucide-react'
 import {ViteReactPage} from '@/playground/pages/vite-react/vite-react-page'
 import {isPlaygroundPage, isPlaygroundScriptId} from '@/playground/playground-scripts'
-import {INITIAL_PAGE, type PageEdit, type PageState} from '@/playground/script'
-import {loadPlayground} from '@/playground/shell-api'
+import {INITIAL_PAGE, type PageEdit, type PageState, type PlaygroundProgress} from '@/playground/script'
+import {loadPlayground, PlaygroundCommand, playgroundReport, type Playback} from '@/playground/shell-api'
 
 export const Route = createFileRoute('/playground/$page/$')({
   loader: ({params}) => {
@@ -20,6 +20,13 @@ function describeFailure(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function freezeAnimations(host: HTMLElement, command: 'hold' | 'resume'): void {
+  const animations = [...document.getAnimations(), ...(host.shadowRoot?.getAnimations() ?? [])]
+  animations
+    .filter((animation) => animation.playState === (command === 'hold' ? 'running' : 'paused'))
+    .forEach((animation) => (command === 'hold' ? animation.pause() : animation.play()))
+}
+
 function PlaygroundFrame() {
   const {script} = Route.useLoaderData()
   const [page, setPage] = useState<PageState>(INITIAL_PAGE)
@@ -28,26 +35,41 @@ function PlaygroundFrame() {
   const mount = useCallback(
     (host: HTMLDivElement | null) => {
       if (host === null) return
-      const state = {closed: false, stop: (): void => undefined}
+      const state: {closed: boolean; playback: Playback | undefined} = {closed: false, playback: undefined}
+      const listening = new AbortController()
       const editPage = (edit: PageEdit): void => setPage((current) => ({...current, ...edit}))
+      const onProgress = (progress: PlaygroundProgress): void =>
+        window.parent.postMessage(playgroundReport(progress), location.origin)
+      window.addEventListener(
+        'message',
+        (event: MessageEvent<unknown>) => {
+          if (event.source !== window.parent || event.origin !== location.origin) return
+          const parsed = PlaygroundCommand.safeParse(event.data)
+          if (!parsed.success || state.playback === undefined) return
+          state.playback[parsed.data.command]()
+          freezeAnimations(host, parsed.data.command)
+        },
+        {signal: listening.signal},
+      )
       loadPlayground()
         .then((startPlayground) => {
           if (state.closed) return
           const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-          state.stop = startPlayground({host, script, reducedMotion, editPage})
+          state.playback = startPlayground({host, script, reducedMotion, editPage, onProgress})
         })
         .catch((error: unknown) => {
           if (!state.closed) setFailure(describeFailure(error))
         })
       return () => {
         state.closed = true
-        state.stop()
+        listening.abort()
+        state.playback?.stop()
       }
     },
     [script],
   )
   return (
-    <>
+    <div className="h-svh overflow-clip">
       <ViteReactPage page={page} onCount={count} />
       {failure === undefined ? (
         <div ref={mount} />
@@ -70,6 +92,6 @@ function PlaygroundFrame() {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

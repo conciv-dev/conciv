@@ -3,13 +3,20 @@ import {z} from 'zod'
 import {contract} from '@conciv/protocol'
 import {WidgetDrive} from '@conciv/protocol/simulation'
 import type {EngineConnection} from '@conciv/client'
-import {PLAYGROUND_LABELS, type PageEdit, type PlaygroundScript, type Turn, type UiStep} from '../script'
+import {
+  PLAYGROUND_LABELS,
+  type PageEdit,
+  type PlaygroundProgress,
+  type PlaygroundScript,
+  type Turn,
+  type UiStep,
+} from '../script'
 import {createChat} from './demo-chat'
 import {createDrive, type Drive} from './demo-drive'
 import {createEvents} from './demo-events'
 import {buildRouter, demoConnection, type EngineHandlers} from './demo-router'
 import {createSessions, createSettings, createTabs, HARNESS_ID} from './demo-store'
-import {aborted, createPace} from './demo-time'
+import {aborted, createHold, createPace} from './demo-time'
 
 export type DemoBundle = {
   readonly id: string
@@ -27,6 +34,7 @@ export type DemoEngineOptions = {
   readonly script: PlaygroundScript
   readonly reducedMotion: boolean
   readonly editPage: (edit: PageEdit) => void
+  readonly onProgress: (progress: PlaygroundProgress) => void
   readonly bundles: readonly DemoBundle[]
   readonly rpc: readonly DemoRpc[]
   readonly serverBuiltins: readonly string[]
@@ -37,6 +45,8 @@ export type DemoEngine = {
   readonly apiBase: string
   readonly connection: EngineConnection
   readonly play: (signal: AbortSignal) => Promise<void>
+  readonly hold: () => void
+  readonly resume: () => void
   readonly dispose: () => void
 }
 
@@ -92,7 +102,8 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
     options.rpc.forEach((provider) => provider.observe?.(type, data))
     events.publish(type, data)
   }
-  const pace = createPace(options.reducedMotion)
+  const hold = createHold()
+  const pace = createPace(options.reducedMotion, hold)
   const drive = createDrive(events.publish)
   const labels = options.script.labels ?? PLAYGROUND_LABELS
   const store = createSessions(labels.session)
@@ -225,6 +236,8 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
   const playTurn = async (turn: Turn, index: number, signal: AbortSignal): Promise<void> => {
     await performSteps(turn.before, signal)
     if (turn.queued !== true) await waitFor(finished[index - 1], signal)
+    if (signal.aborted) return
+    options.onProgress({turn: index + 1, turns: options.script.turns.length, ended: false})
     await pace.beat(signal)
     if (signal.aborted) return
     await drive.send(turn.prompt, signal)
@@ -232,12 +245,18 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
     await performSteps(turn.after, signal)
   }
   const play = async (signal: AbortSignal): Promise<void> => {
-    for (const [index, turn] of options.script.turns.entries()) await playTurn(turn, index, signal)
+    const {turns} = options.script
+    options.onProgress({turn: 1, turns: turns.length, ended: false})
+    for (const [index, turn] of turns.entries()) await playTurn(turn, index, signal)
+    await waitFor(finished.at(-1), signal)
+    if (!signal.aborted) options.onProgress({turn: turns.length, turns: turns.length, ended: true})
   }
   return {
     apiBase: 'https://playground.conciv.invalid',
     connection: demoConnection(buildRouter(contract, handlers), options.version),
     play,
+    hold: hold.hold,
+    resume: hold.resume,
     dispose: chat.dispose,
   }
 }

@@ -105,6 +105,7 @@ export const startPlayground: StartPlayground = (options) => {
     serverBuiltins: builtins.serverBuiltins,
     reducedMotion: options.reducedMotion,
     editPage: options.editPage,
+    onProgress: options.onProgress ?? (() => undefined),
     bundles: served.map((plugin) => plugin.bundle),
     rpc: [createPageRpc(), ...served.map((plugin) => plugin.rpc())],
     version: shell.version,
@@ -133,11 +134,15 @@ export const startPlayground: StartPlayground = (options) => {
   const hostRouter = window.__TSR_ROUTER__
   const dispose = render(() => createComponent(ConcivApp, {platform}), container)
   window.__TSR_ROUTER__ = hostRouter
-  return () => {
-    director.abort()
-    engine.dispose()
-    dispose()
-    container.remove()
-    window.__TSR_ROUTER__ = hostRouter
+  return {
+    stop: () => {
+      director.abort()
+      engine.dispose()
+      dispose()
+      container.remove()
+      window.__TSR_ROUTER__ = hostRouter
+    },
+    hold: engine.hold,
+    resume: engine.resume,
   }
 }

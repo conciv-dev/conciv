@@ -1,5 +1,5 @@
-import {useCallback, useId, useState, type CSSProperties} from 'react'
-import {Play, Square} from 'lucide-react'
+import {useCallback, useId, useRef, useState, type CSSProperties} from 'react'
+import {Play} from 'lucide-react'
 import {useMediaQuery} from '@/lib/use-media-query'
 import {cn} from '@/lib/utils'
 import {
@@ -9,13 +9,15 @@ import {
   type PlaygroundPage,
   type PlaygroundScriptId,
 } from '@/playground/playground-scripts'
+import type {PlaygroundProgress} from '@/playground/script'
+import {PlaygroundReport, playgroundCommand} from '@/playground/shell-api'
 import {Button} from './ui/button'
+import {PlaygroundBar} from './playground-bar'
 import {PanelStill} from './playground-still'
 
 const CHANNEL = 'conciv-playground'
 
-const BUTTON =
-  'inline-flex items-center gap-1.5 rounded-md border bg-fd-secondary px-3 py-1.5 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent'
+const BAR_HEIGHT = 40
 
 function readPlayground(page: string, script: string): {page: PlaygroundPage; script: PlaygroundScriptId} {
   if (!isPlaygroundPage(page)) throw new Error(`no playground page ${page}`)
@@ -39,15 +41,15 @@ function Still(props: {
   poster: boolean
   onPlay: () => void
 }) {
+  const frameHeight: CSSProperties & Record<'--frame-height', string> = {'--frame-height': `${props.height}px`}
   return (
     <div
       className="relative flex flex-col gap-4 bg-fd-background p-4 @md:h-(--frame-height) @md:flex-row @md:items-stretch @md:gap-6 @md:pt-9 @md:pr-5 @md:pb-21 @md:pl-8"
-      style={{'--frame-height': `${props.height}px`} as CSSProperties}
+      style={frameHeight}
     >
       <div
         className={cn('flex flex-col gap-2 @md:flex-1 @md:justify-center @md:gap-4', props.poster && '@md:invisible')}
       >
-        <p className="text-lg font-semibold text-fd-foreground @md:text-2xl">{props.title}</p>
         <p className="text-sm text-fd-muted-foreground">
           A scripted session in the real panel. It plays in your browser, with no server.
         </p>
@@ -83,51 +85,99 @@ export function Playground(props: {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const wide = useMediaQuery('(min-width: 48rem)')
   const [chosen, setChosen] = useState<'play' | 'stop' | undefined>(undefined)
+  const [run, setRun] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [progress, setProgress] = useState<PlaygroundProgress | undefined>(undefined)
+  const frame = useRef<HTMLIFrameElement | null>(null)
   const live = chosen === 'play' || (chosen === undefined && props.autoplay === true && wide && !reducedMotion)
   const claim = useCallback(
-    (frame: HTMLIFrameElement | null) => {
-      if (frame === null) return
+    (element: HTMLIFrameElement | null) => {
+      if (element === null) return
+      frame.current = element
+      const listening = new AbortController()
       const channel = new BroadcastChannel(CHANNEL)
       channel.addEventListener('message', (event: MessageEvent<unknown>) => {
         if (typeof event.data === 'string' && event.data !== instance) setChosen('stop')
       })
       channel.postMessage(instance)
-      return () => channel.close()
+      window.addEventListener(
+        'message',
+        (event: MessageEvent<unknown>) => {
+          if (event.source !== element.contentWindow || event.origin !== location.origin) return
+          const report = PlaygroundReport.safeParse(event.data)
+          if (report.success) setProgress(report.data.progress)
+        },
+        {signal: listening.signal},
+      )
+      return () => {
+        channel.close()
+        listening.abort()
+        frame.current = null
+      }
     },
     [instance],
   )
+  const command = (name: 'hold' | 'resume'): void => {
+    frame.current?.contentWindow?.postMessage(playgroundCommand(name), location.origin)
+    setPaused(name === 'hold')
+  }
+  const reset = (): void => {
+    setPaused(false)
+    setProgress(undefined)
+  }
+  const restart = (): void => {
+    reset()
+    setRun((current) => current + 1)
+  }
+  const height = props.height ?? 750
   const title = playgroundScripts[script].title
   return (
     <figure className="@container not-prose my-6 flex flex-col gap-2 xl:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]">
       <div className="overflow-hidden rounded-xl border bg-fd-card">
+        <PlaygroundBar
+          title={title}
+          controls={
+            live
+              ? {
+                  progress,
+                  paused,
+                  onPause: () => command('hold'),
+                  onResume: () => command('resume'),
+                  onRestart: restart,
+                  onTranscript: () => {
+                    reset()
+                    setChosen('stop')
+                  },
+                }
+              : undefined
+          }
+        />
         {live ? (
           <iframe
+            key={run}
             ref={claim}
             title={title}
             src={`/playground/${page}/${script}`}
             loading="lazy"
             className="block w-full border-0"
-            style={{height: props.height ?? 750}}
+            style={{height: height - BAR_HEIGHT}}
           />
         ) : (
           <Still
             script={script}
             title={title}
-            height={props.height ?? 750}
+            height={height - BAR_HEIGHT}
             poster={props.look === 'poster'}
-            onPlay={() => setChosen('play')}
+            onPlay={() => {
+              reset()
+              setChosen('play')
+            }}
           />
         )}
       </div>
-      <figcaption className="flex items-center justify-between gap-3 text-sm text-fd-muted-foreground">
-        <span>{props.caption}</span>
-        {live ? (
-          <button type="button" className={BUTTON} onClick={() => setChosen('stop')}>
-            <Square className="size-4" aria-hidden="true" />
-            Show the transcript
-          </button>
-        ) : null}
-      </figcaption>
+      {props.caption === undefined ? null : (
+        <figcaption className="text-sm text-fd-muted-foreground">{props.caption}</figcaption>
+      )}
     </figure>
   )
 }

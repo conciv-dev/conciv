@@ -48,6 +48,12 @@ export type Turn = {
   readonly after?: readonly UiStep[]
 }
 
+export type PlaygroundProgress = {
+  readonly turn: number
+  readonly turns: number
+  readonly ended: boolean
+}
+
 export type PlaygroundPluginId = 'test-runner' | 'project-version' | 'shelf'
 
 export type PlaygroundLabels = {
