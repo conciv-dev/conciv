@@ -1,86 +1,29 @@
 ---
 title: Use conciv
-description: Open the widget in your dev app and ask the agent for what you want, in plain words.
+description: Everything you do with the widget in your running app, one task per page.
 ---
 
-Start your dev server and open your app. A conciv button sits in the corner of the page.
+The widget is the conciv button and chat panel in the corner of your dev app. You open it, ask for an outcome in
+plain words, and the agent works on the page you see and in your source. These pages cover one task each.
 
-<ImageZoom
-  src="/screenshots/widget-fab.png"
-  alt="The conciv robot button in the corner of a running app"
-  width={1920}
-  height={1080}
-/>
+## First steps
 
-Click it to open the chat. Then ask for the outcome you want, about the page you are looking at:
+- [Logging in](/docs/usage/logging-in): let a browser in once, with the code your dev server prints.
+- [Chat](/docs/usage/chat): send a message, queue the next one, switch sessions and models.
 
-```text
-Make the heading on this page larger and save it to the source.
-```
+## Work on your app
 
-The agent reads the page, changes it, and edits your source file. A risky action shows a card first, and waits for
-you to allow it.
+- [Page control](/docs/usage/page-control): point at an element and have the agent change it.
+- [Dev server](/docs/usage/dev-server): ask how an import resolves, what a file pulls in, or restart the server.
+- [Live tests](/docs/usage/live-tests): run your tests from the chat and read the result.
+- [Quick terminal](/docs/usage/quick-terminal): drop the chat from the top of the page and split it into panes.
 
-<ImageZoom src="/screenshots/panel-open.png" alt="The conciv chat panel open over the app" width={1920} height={1080} />
+## Stay in control
 
-## Pick a task
+- [Approvals](/docs/usage/approvals): allow or deny a risky action before it runs.
+- [Skills](/docs/skills): write the steps once, and the agent follows them.
 
-<Cards>
-  <Card
-    title="Log in"
-    href="/docs/usage/logging-in"
-    description="Let a browser in once, with a code from your terminal."
-  />
-  <Card
-    title="Chat"
-    href="/docs/usage/chat"
-    description="Send a message, queue the next one, switch sessions and models."
-  />
-  <Card
-    title="Quick terminal"
-    href="/docs/usage/quick-terminal"
-    description="Drop the chat from the top of the page on a hotkey, and split it into panes."
-  />
-  <Card
-    title="Page control"
-    href="/docs/usage/page-control"
-    description="Point at an element and have the agent change it, live and in your source."
-  />
-  <Card
-    title="Dev server"
-    href="/docs/usage/dev-server"
-    description="Ask how an import resolves, what a file pulls in, or restart the server."
-  />
-  <Card
-    title="Live tests"
-    href="/docs/usage/live-tests"
-    description="Run your tests from the chat and read the result."
-  />
-  <Card
-    title="Whiteboard"
-    href="/docs/usage/whiteboard"
-    description="Sketch a layout on a canvas over the app, and the agent draws back."
-  />
-  <Card title="Approvals" href="/docs/usage/approvals" description="Allow or deny an action before it runs." />
-  <Card title="Skills" href="/docs/skills" description="Write the steps once, and the agent follows them." />
-</Cards>
+## Add more
 
-## Add what is not built in
-
-These come with conciv, with nothing to add:
-
-- the chat, sessions and the quick terminal
-- logging in, approvals and settings
-- page control and the element picker
-- the dev server tools
-- the **Terminal** tab, on a harness that has one
-
-Live tests, the whiteboard, the recorder, the TanStack tools and the iOS simulator come from plugins. Add the ones you
-want to `plugins` in your conciv config. [Plugins conciv ships](/docs/usage/add-plugins) names each one and its
-package.
-
-## Next
-
-- [Log in](/docs/usage/logging-in): the first step in a new browser.
-- [Chat](/docs/usage/chat): everything the composer does.
-- [Plugins](/docs/plugins): add a plugin, or write your own.
+- [Add plugins](/docs/usage/add-plugins): the `plugins` option, and the plugins conciv ships.
+- [Whiteboard](/docs/usage/whiteboard): a shared canvas over the app, in the example apps only for now.

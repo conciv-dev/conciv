@@ -1,7 +1,6 @@
 {
   "title": "Use conciv",
   "pages": [
-    "index",
     "chat",
     "logging-in",
     "page-control",
