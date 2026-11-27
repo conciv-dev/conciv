@@ -126,9 +126,9 @@ function readRebindApiBase(apiBase: string): string | undefined {
   }
 }
 
-function followWidgetLog(client: EngineClient): void {
+function followWidgetLog(client: EngineClient, connection: EngineConnection | undefined): void {
   const logs = new AbortController()
-  startWidgetLog(client, logs.signal)
+  startWidgetLog(client, connection, logs.signal)
   onCleanup(() => logs.abort())
 }
 
@@ -148,7 +148,7 @@ function BoundApp(props: AppParts & {binding: EngineBinding}): JSX.Element {
   const connection = (): EngineConnection => binding().connection
   const session = {read: (): string | null => null}
   const client = makeEngineRpcClient(connection, () => session.read())
-  followWidgetLog(client)
+  followWidgetLog(client, connection())
   const login = createEngineLogin(connection)
   startEngineLogin(login)
   const connectionGeneration = createMemo(
@@ -215,7 +215,7 @@ function ServersApp(props: AppParts): JSX.Element {
   const connection = (): EngineConnection | undefined => binding()?.connection
   const session = {read: (): string | null => null}
   const client = makeEngineRpcClient(connection, () => session.read())
-  followWidgetLog(client)
+  followWidgetLog(client, connection())
   const router = createConcivRouter({
     ...routerConfig(
       {
