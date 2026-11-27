@@ -363,7 +363,7 @@ jobs:
           # An empty baseline is worse than none: it used to crash the size gate on a fetch miss.
           [ -s bundle-size-baseline.json ] || rm -f bundle-size-baseline.json
       # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
-      # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
+      # worker's uncompressed upload exceeds Cloudflare's 64 MiB Worker size limit (gzip is info only).
       - run: pnpm conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'

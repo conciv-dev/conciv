@@ -2,7 +2,7 @@
 
 ## Overview
 
-CLI and library that gzip-measure every non-private package's dist JS/CSS (under `packages/` and `packages/plugins/`), the widget bundle of `@conciv/app` (its first load and its lazy chunks as two rows), and the apps/site worker (through a wrangler dry-run). The CLI renders a markdown size table with deltas against a baseline JSON file and fails when the worker exceeds a 3 MiB gzip budget.
+CLI and library that gzip-measure every non-private package's dist JS/CSS (under `packages/` and `packages/plugins/`), the widget bundle of `@conciv/app` (its first load and its lazy chunks as two rows), and the apps/site worker (through a wrangler dry-run). The CLI renders a markdown size table with deltas against a baseline JSON file and fails when the worker's uncompressed upload (wrangler's `Total Upload`) exceeds Cloudflare's 64 MiB Worker size limit. The gzip figure is reported for reference only: Cloudflare removed its compressed limit on 2026-09-04.
 
 ## Interface
 
@@ -15,7 +15,7 @@ CLI and library that gzip-measure every non-private package's dist JS/CSS (under
 - `measureSizes` (`measure.ts`): drops packages with 0 dist files; the two widget rows are included only if `packages/app/dist/conciv-widget.global.js` and `packages/app/dist/widget` exist; the first-load row is the loader plus the static-import closure of its entry chunk and the `mount-impl` chunk, the lazy row every other `dist/widget` chunk
 - `parseSizes` (`measure.ts`): invalid JSON or a non-array gives []; entries without a string name are dropped; non-number raw/gzip/files default to 0
 - `parseWorkerSize` (`measure.ts`): throws unless exactly one wrangler size line matches, and on non-finite numbers
-- The worker budget is 3 MiB gzip (`WORKER_LIMIT_KIB`); `measureWorker` (`measure.ts`) throws if apps/site/dist/server/wrangler.json is missing, naming `pnpm exec turbo run build --filter=site`
+- The worker budget is 64 MiB uncompressed (`WORKER_LIMIT_KIB`), checked against `Total Upload`, not gzip; `measureWorker` (`measure.ts`) throws if apps/site/dist/server/wrangler.json is missing, naming `pnpm exec turbo run build --filter=site`
 - `cli.ts`: measureWorker runs unconditionally, so the CLI throws when the site worker is not built; a missing baseline file means no baseline
 
 ## Side Effects
