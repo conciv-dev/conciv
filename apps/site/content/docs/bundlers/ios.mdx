@@ -3,8 +3,8 @@ title: iOS
 description: Attach conciv to a native iOS app running in the simulator.
 ---
 
-conciv for iOS floats the widget over your native app in the simulator, served by a web dev server that runs the
-engine.
+conciv for iOS floats the widget over your native app in the simulator. A web dev server runs the engine and serves
+the widget.
 
 <Callout type="warn" title="Early alpha">
   The Swift API can change without notice. The iOS simulator is the only supported target.
@@ -16,7 +16,7 @@ engine.
   <SetupPrompt framework="ios" />
 </Callout>
 
-## Basic
+## Attach conciv to your app
 
 First set up a web dev server with conciv, as on the [Vite page](/docs/bundlers/vite), and start it. The app loads the
 widget from the engine that server runs.
@@ -51,11 +51,12 @@ struct MyApp: App {
 ```
 
 `attach()` finds the key window and the engine itself, so `App.init` is early enough. Build and run a Debug build in
-the simulator, tap the conciv button, and type the 6-digit code your dev server prints.
+the simulator. Tap the conciv button and type the 6-digit code your dev server prints.
 
 ## What works
 
-- The chat and the panel over your own UI, and pick mode, which hands a native view to the agent.
+- The chat and the panel over your own UI.
+- Pick mode, which hands a native view to the agent.
 - A Release build shows no widget.
 - A Swift edit reaches the screen only after a build and a run. There is no hot reload.
 
@@ -84,17 +85,17 @@ The agent then gets four tools, named `ios_*`: build, run, screenshot and logs. 
 [Permission card](/docs/usage/approvals). Without options, every tool answers that the plugin is not configured.
 
 <Accordions type="single">
-<Accordion id="finds-engine" title="How does the app find the engine?">
+<Accordion id="finds-engine" title="How the app finds the engine">
 
 With `CONCIV_URL` set, the app uses that address, for example `http://127.0.0.1:4599`. Leave `/widget` off the end.
-Without it, the app reads `~/.conciv/dev-endpoint.json`, which the engine writes when it starts. Otherwise it tries
+Without it, the app reads `~/.conciv/dev-endpoint.json`. The engine writes that file when it starts. Otherwise it tries
 `http://127.0.0.1` on ports 4599, 8787 and 3000.
 
 `ios_run` passes the address for you. A fixed `port` in your conciv config keeps it the same across restarts. With
-`devEndpointDir` set, the engine writes the file elsewhere, so set `CONCIV_URL` to be sure.
+`devEndpointDir` set, the engine writes the file elsewhere. Set `CONCIV_URL` in that case.
 
 </Accordion>
-<Accordion id="scene-delegate" title="A UIKit app with a scene delegate?">
+<Accordion id="scene-delegate" title="A UIKit app with a scene delegate">
 
 Call `attach()` in your scene delegate's willConnectTo method, before or after the window becomes key:
 
@@ -114,7 +115,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 For a round native button instead of the mascot, call `ConcivWidget.attach(launcher: .native)`.
 
 </Accordion>
-<Accordion id="options" title="More plugin options?">
+<Accordion id="options" title="More plugin options">
 
 - `scheme`: the Xcode scheme to build. Unset, it comes from the end of `bundleId`.
 - `simulator`: the simulator to boot. Default `iPhone 17 Pro`.
