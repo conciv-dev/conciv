@@ -77,6 +77,10 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
           options.connection?.onRunError?.()
           session.onRunError()
         },
+        onRunEnded: (runId) => {
+          options.connection?.onRunEnded?.(runId)
+          session.onRunEnded(runId)
+        },
         onLiveAgain: () => {
           options.connection?.onLiveAgain?.()
           session.onLiveAgain()

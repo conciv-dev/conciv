@@ -68,6 +68,7 @@ export type ChatConnectionOptions = {
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onApprovalSettled?: (approvalId: string) => void
   onRunError?: () => void
+  onRunEnded?: (runId: string | undefined) => void
   onLiveAgain?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
 }
@@ -317,6 +318,8 @@ function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
   const settled = readApprovalSettled(chunk)
   if (settled) options.onApprovalSettled?.(settled)
   if (chunk.type === ChatEventType.RUN_ERROR || idleFailedEvent.parse(chunk) !== null) options.onRunError?.()
+  if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR)
+    options.onRunEnded?.(chunk.runId)
 }
 
 async function* noticing(source: AsyncIterable<ChatEvent>, options: ChatConnectionOptions): AsyncGenerator<ChatEvent> {
