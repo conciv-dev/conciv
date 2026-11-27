@@ -91,6 +91,7 @@ Rules that hold the layout:
   nothing: the `unocss/order` rule reads the one root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`),
   which loads the preset from its source, and the order the preset gives is the same in every package. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with tsdown and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).

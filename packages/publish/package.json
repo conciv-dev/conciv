@@ -16,7 +16,7 @@
   },
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p turbo/generators/tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -31,10 +31,15 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@internal/tsconfig": "workspace:*",
     "@internal/vitest-config": "workspace:*",
+    "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
+    "effect": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }
