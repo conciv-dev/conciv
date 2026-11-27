@@ -1,48 +1,25 @@
 ---
 title: webpack
-description: Add conciv to a webpack app.
+description: Add conciv to a webpack app, as a plugin in your development build.
 ---
 
-Copy this prompt into your coding agent. It sets conciv up in your webpack app:
+conciv runs in a webpack development build through the plugin from `@conciv/it/plugin/webpack`.
 
-<SetupPrompt framework="webpack" />
+<Callout type="success" title="Prefer to let your agent do it?">
+  Copy this prompt into your coding agent. It runs conciv's init command, which makes the same changes as below.
 
-What you get:
-
-- The dev server, or a watch build, adds a conciv button to every page and starts the engine.
-- A one-off development build adds the button only. The engine does not start.
-- A production build leaves conciv out.
-
-<Callout title="Set the mode">
-  conciv runs only when your config is not a production build:
-
-- `mode: 'development'`: conciv is on.
-- `mode: 'none'`: conciv is on.
-- `mode: 'production'`: conciv is off.
-- No `mode`: webpack builds for production, so conciv is off.
-
+  <SetupPrompt framework="webpack" />
 </Callout>
 
-## Set up by hand
+## Basic
 
-<Accordions>
-<Accordion id="by-hand" title="Install and wire conciv yourself">
-
-<Steps>
-<Step>
-
-### Install
+Install `@conciv/it` as a dev dependency:
 
 ```package-install
 npm install -D @conciv/it
 ```
 
-</Step>
-<Step>
-
-### Add the plugin
-
-Add the `require`, the plugin call and a development mode:
+Add the plugin and a development mode to your config:
 
 ```js title="webpack.config.js"
 const HtmlWebpackPlugin = require('html-webpack-plugin')
@@ -57,46 +34,25 @@ module.exports = {
 }
 ```
 
-- `@conciv/it/plugin/webpack` is the webpack plugin. A CommonJS `require` gets it as `.default`.
-- `mode: 'development'` turns conciv on. Skip it if you pass `--mode development` on the command line.
-- Your other plugins stay as they are.
+A CommonJS `require` gets the plugin as `.default`. Options go in its one argument. Learn more in the [Configuration
+documentation](/docs/reference/configuration).
 
-</Step>
-<Step>
+Start your dev server with `npx webpack serve`, or a build in watch mode with `--watch`.
+Open your app, click the conciv button, and type the 6-digit code your dev server prints.
 
-### Start your dev server
-
-```bash
-npx webpack serve
-```
-
-Or run a build in watch mode with `--watch`.
-
-</Step>
-<Step>
-
-### Open your app and log in
-
-Click the conciv button in the corner. Type the 6-digit code your dev server prints in its terminal. See
-[Logging in](/docs/usage/logging-in).
-
-</Step>
-</Steps>
-
-</Accordion>
-</Accordions>
+<Callout type="warn" title="conciv runs only outside production">
+  The development and none modes turn conciv on. The production mode turns it off. So does a config with no `mode`,
+  because webpack then builds for production. Passing `--mode development` on the command line works too.
+</Callout>
 
 ## What works
 
-<Callout>
-  webpack gives the agent less than [Vite](/docs/bundlers/vite) does. The chat and the page tools work. The agent cannot
-  read your dev server's config or module graph. Its `server_*` tools answer that no dev server is attached.
-</Callout>
+- The dev server, or a watch build, adds the conciv button to every page and starts the engine.
+- A one-off development build adds the button only. The engine does not start.
+- The chat, the page tools and the plugins work. The [dev server tools](/docs/usage/dev-server) do not: they answer
+  that no dev server is attached.
 
-## Edge cases
-
-<Accordions>
-<Accordion id="esm" title="An ES module config">
+## An ES module config
 
 In an ES module config, import the plugin and call it directly. init writes this form when your config uses `import`:
 
@@ -113,28 +69,23 @@ export default {
 }
 ```
 
-</Accordion>
-<Accordion id="card" title="init printed a snippet instead of editing the config">
-
-init edits only a config it can read as CommonJS or as an ES module. Otherwise it prints the CommonJS snippet. Add it
-as in the manual steps above.
-
-</Accordion>
-<Accordion id="port" title="The engine port">
-
-The plugin picks the engine port before the first watch build. It builds the widget with that port. See
-[Configuration](/docs/reference/configuration#port) for how the port is chosen.
-
-</Accordion>
-<Accordion id="fails" title="The build fails with: conciv: the engine failed to start">
-
-The engine could not start. The reason follows the message in the build output. Stopping the watch, or closing the
-compiler, stops the engine.
-
-</Accordion>
+<Accordions type="single">
+  <Accordion id="card" title="init printed a snippet instead of editing the config?">
+    init edits only a config it can read as CommonJS or as an ES module. Otherwise it prints the CommonJS snippet. Add
+    it as in Basic above.
+  </Accordion>
+  <Accordion id="port" title="Which port does the engine use?">
+    The plugin picks the engine port before the first watch build, and builds the widget with it. A port in use is
+    swapped for a free one, with no warning. Learn more in the [Configuration
+    documentation](/docs/reference/configuration#port).
+  </Accordion>
+  <Accordion id="fails" title="The build fails with: conciv: the engine failed to start?">
+    The engine could not start. The reason follows the message in the build output. Stopping the watch, or closing the
+    compiler, stops the engine.
+  </Accordion>
 </Accordions>
 
-## Next
+## Next steps
 
-- [Usage](/docs/usage): what the agent can do in your app.
-- [Configuration](/docs/reference/configuration): the options the plugin takes.
+- **[Use conciv](/docs/usage):** what the agent can do in your app.
+- **[Configuration](/docs/reference/configuration):** the options the plugin takes.
