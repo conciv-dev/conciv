@@ -1,6 +1,8 @@
-import {Effect, Schema} from 'effect'
+import {Effect, FileSystem, Schema} from 'effect'
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
+import type {KeyMap} from './com/key-map.js'
+import {stampJsx} from './com/stamp.js'
 
 const InvalidOptions = Schema.TaggedStruct('Design.InvalidOptions', {message: Schema.String})
 
@@ -60,5 +62,11 @@ export default Plugin.define({
   effect: (ctx) =>
     Effect.gen(function* () {
       yield* readOptions(ctx.options)
+      const services = yield* Effect.context<FileSystem.FileSystem>()
+      const keys: KeyMap = new Map()
+      const root = ctx.location.directory
+      yield* ctx.bundler.transform((editor) =>
+        editor.add({transform: (code, id) => stampJsx({keys, root, code, id}).pipe(Effect.provide(services))}),
+      )
     }),
 })

@@ -47,13 +47,17 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "diff": "catalog:",
     "effect": "catalog:",
+    "magic-string": "^1.4.5",
+    "oxc-parser": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
+    "@effect/platform-node": "catalog:",
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/vitest-config": "workspace:*",
