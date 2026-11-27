@@ -1,25 +1,13 @@
-import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
+import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope} from 'effect'
+import type {EvlogError} from 'evlog'
+import {z} from 'zod'
 import type {Context} from '@conciv/frontend-plugin-api'
 import {makeMachineDriver} from './machine-driver.js'
 import {RecorderPanelMachine} from './panel-machine.js'
 import {Recorder} from './rpc.js'
+import {causeOverrides, recorderErrors} from './errors/errors.js'
 
-const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cause: Schema.Defect()})
-type PresenceFailed = typeof PresenceFailed.Type
-
-export const ExportFailed = Schema.TaggedStruct('RecorderExportFailed', {cause: Schema.Defect()})
-export type ExportFailed = typeof ExportFailed.Type
-
-const SendFailed = Schema.TaggedStruct('RecorderSendFailed', {cause: Schema.Defect()})
-type SendFailed = typeof SendFailed.Type
-
-const SaveRefused = Schema.TaggedStruct('RecorderSaveRefused', {
-  reason: Schema.Literals(['empty', 'too-large', 'io-error']),
-})
-type SaveRefused = typeof SaveRefused.Type
-
-const ResetFailed = Schema.TaggedStruct('RecorderResetFailed', {cause: Schema.Defect()})
-type ResetFailed = typeof ResetFailed.Type
+const SaveRefusal = z.object({reason: z.enum(['empty', 'too-large', 'io-error'])})
 
 const VIEWER_RENEW = '7 seconds'
 
@@ -29,7 +17,7 @@ const SAVE_REFUSALS: Record<RecorderPanelMachine.SaveFailure, string> = {
   'io-error': 'Could not write the recording to the project folder. Try again.',
 }
 
-type PanelWork = Effect.Effect<void, ExportFailed | SendFailed | SaveRefused | ResetFailed>
+type PanelWork = Effect.Effect<void, EvlogError>
 
 export type Panel = {
   readonly state: SubscriptionRef.SubscriptionRef<RecorderPanelMachine.PanelState>
@@ -42,10 +30,10 @@ export type Panel = {
 }
 
 export const openPanel = Effect.fn('recorder.panel')(function* (options: {
-  readonly presence: (live: boolean) => Effect.Effect<void, PresenceFailed>
-  readonly exportRecording: Effect.Effect<void, ExportFailed | SaveRefused>
-  readonly sendToAgent: Effect.Effect<void, SendFailed | SaveRefused>
-  readonly reset: Effect.Effect<void, ResetFailed>
+  readonly presence: (live: boolean) => Effect.Effect<void, EvlogError>
+  readonly exportRecording: Effect.Effect<void, EvlogError>
+  readonly sendToAgent: Effect.Effect<void, EvlogError>
+  readonly reset: Effect.Effect<void, EvlogError>
   readonly report: (title: string) => Effect.Effect<void>
 }): Effect.fn.Return<Panel, never, Scope.Scope> {
   const running = yield* FiberSet.make()
@@ -54,11 +42,7 @@ export const openPanel = Effect.fn('recorder.panel')(function* (options: {
   const presence = (live: boolean) =>
     options
       .presence(live)
-      .pipe(
-        Effect.catchTag('RecorderPresenceFailed', (error) =>
-          Effect.logWarning('recorder: the viewer lease could not be renewed', error.cause),
-        ),
-      )
+      .pipe(Effect.catch((error) => Effect.logWarning('recorder: the viewer lease could not be renewed', error)))
 
   const settle = (
     work: PanelWork,
@@ -67,7 +51,10 @@ export const openPanel = Effect.fn('recorder.panel')(function* (options: {
   ) =>
     work.pipe(
       Effect.andThen(dispatch({type: 'settled', attempt})),
-      Effect.catchTag('RecorderSaveRefused', (refused) => dispatch({type: 'failed', attempt, refused: refused.reason})),
+      Effect.catchIf(
+        (error) => error.code === recorderErrors.SAVE_REFUSED.code,
+        (refused) => dispatch({type: 'failed', attempt, refused: SaveRefusal.safeParse(refused.internal).data?.reason}),
+      ),
       Effect.catch((error) =>
         Effect.andThen(Effect.logError('recorder: a panel action failed', error), dispatch({type: 'failed', attempt})),
       ),
@@ -117,13 +104,15 @@ type SaveOutput =
       readonly error: RecorderPanelMachine.SaveFailure
     }
 
-function saveRecording<Failure>(options: {
+function saveRecording(options: {
   readonly flush: Effect.Effect<void>
-  readonly save: Effect.Effect<SaveOutput, Failure>
-}): Effect.Effect<SavedRecording, Failure | SaveRefused> {
+  readonly save: Effect.Effect<SaveOutput, EvlogError>
+}): Effect.Effect<SavedRecording, EvlogError> {
   return Effect.andThen(options.flush, options.save).pipe(
     Effect.flatMap((stored) =>
-      stored.saved ? Effect.succeed(stored) : Effect.fail(SaveRefused.make({reason: stored.error})),
+      stored.saved
+        ? Effect.succeed(stored)
+        : Effect.fail(recorderErrors.SAVE_REFUSED({internal: {reason: stored.error}})),
     ),
   )
 }
@@ -134,14 +123,14 @@ function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
 
 export function exportRecording<Failure>(options: {
   readonly save: Effect.Effect<{readonly recordingId: string}, Failure>
-  readonly readPiece: (id: string, offset: number) => Effect.Effect<VideoPiece, ExportFailed>
+  readonly readPiece: (id: string, offset: number) => Effect.Effect<VideoPiece, EvlogError>
   readonly saveFile: (file: File) => Effect.Effect<void>
-}): Effect.Effect<void, Failure | ExportFailed> {
+}): Effect.Effect<void, Failure | EvlogError> {
   const readVideo = (
     id: string,
     offset: number,
     parts: readonly Uint8Array<ArrayBuffer>[],
-  ): Effect.Effect<File, ExportFailed> =>
+  ): Effect.Effect<File, EvlogError> =>
     Effect.flatMap(options.readPiece(id, offset), (piece) => {
       const bytes = base64Bytes(piece.data)
       if (piece.eof) return Effect.succeed(new File([...parts, bytes], piece.name, {type: piece.mime}))
@@ -161,12 +150,12 @@ export function recorderPanelCalls(options: {
   readonly viewerId: string
   readonly refresh: () => Promise<void>
   readonly flush: Effect.Effect<void>
-  readonly readPiece: (id: string, offset: number) => Effect.Effect<VideoPiece, ExportFailed>
+  readonly readPiece: (id: string, offset: number) => Effect.Effect<VideoPiece, EvlogError>
   readonly saveFile: (file: File) => Effect.Effect<void>
   readonly noteSaved: (saved: SavedRecording) => void
 }) {
   const recorder = () => options.client().rpc(Recorder)
-  const save = <Failure>(failure: (cause: unknown) => Failure) =>
+  const save = (failure: (cause: unknown) => EvlogError) =>
     saveRecording({
       flush: options.flush,
       save: Effect.tryPromise({
@@ -179,19 +168,19 @@ export function recorderPanelCalls(options: {
       Effect.asVoid(
         Effect.tryPromise({
           try: () => recorder().presence({viewerId: options.viewerId, live}),
-          catch: (cause) => PresenceFailed.make({cause}),
+          catch: (cause) => recorderErrors.PRESENCE_FAILED(causeOverrides(cause)),
         }),
       ),
     exportRecording: exportRecording({
-      save: save((cause) => ExportFailed.make({cause})),
+      save: save((cause) => recorderErrors.EXPORT_FAILED(causeOverrides(cause))),
       readPiece: options.readPiece,
       saveFile: options.saveFile,
     }),
-    sendToAgent: save((cause) => SendFailed.make({cause})).pipe(
+    sendToAgent: save((cause) => recorderErrors.SEND_FAILED(causeOverrides(cause))).pipe(
       Effect.flatMap((saved) =>
         Effect.try({
           try: () => options.noteSaved(saved),
-          catch: (cause) => SendFailed.make({cause}),
+          catch: (cause) => recorderErrors.SEND_FAILED(causeOverrides(cause)),
         }),
       ),
     ),
@@ -200,7 +189,7 @@ export function recorderPanelCalls(options: {
         await options.reset()
         await options.refresh()
       },
-      catch: (cause) => ResetFailed.make({cause}),
+      catch: (cause) => recorderErrors.RESET_FAILED(causeOverrides(cause)),
     }),
   }
 }

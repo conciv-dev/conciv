@@ -1,14 +1,15 @@
 import {z} from 'zod'
-import {Effect, Schema} from 'effect'
+import {Effect} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {Live} from '@conciv/frontend-plugin-api'
 import type {ReactTree} from '@conciv/frontend-plugin-api/page'
 import {ErrorRingService, type ErrorRing} from './error-ring.js'
-import {invalidateQuery, readQueryCache, refetchQuery, type QueryClientNotFound} from './query-adapter.js'
+import {tanstackErrors} from './errors/errors.js'
+import {invalidateQuery, readQueryCache, refetchQuery} from './query-adapter.js'
 import {Action, SHORT_MAX, type Method, type Reply} from './rpc.js'
 import {
   failureMessage,
   goBack,
-  type HandlerFailed,
   invalidateRouter,
   invalidateRouterMatch,
   navigateTo,
@@ -17,24 +18,15 @@ import {
   readLoaderData,
   readRouterState,
   readRouteTree,
-  type RouterNotFound,
 } from './router-adapter.js'
 
-const PagePending = Schema.TaggedStruct('Tanstack.PagePending', {})
-const PageDisabled = Schema.TaggedStruct('Tanstack.PageDisabled', {})
-const PageFailed = Schema.TaggedStruct('Tanstack.PageFailed', {})
-const InvalidAction = Schema.TaggedStruct('Tanstack.InvalidAction', {message: Schema.String})
-const ResultTooLarge = Schema.TaggedStruct('Tanstack.ResultTooLarge', {})
-
-type OperationError =
-  | typeof PagePending.Type
-  | typeof PageDisabled.Type
-  | typeof PageFailed.Type
-  | typeof InvalidAction.Type
-  | typeof ResultTooLarge.Type
-  | RouterNotFound
-  | QueryClientNotFound
-  | HandlerFailed
+const REPLY_CODES: Record<string, string> = {
+  [tanstackErrors.PAGE_PENDING.code]: 'page_pending',
+  [tanstackErrors.PAGE_DISABLED.code]: 'page_disabled',
+  [tanstackErrors.PAGE_FAILED.code]: 'page_failed',
+  [tanstackErrors.ROUTER_NOT_FOUND.code]: 'router_not_found',
+  [tanstackErrors.QUERY_CLIENT_NOT_FOUND.code]: 'query_client_not_found',
+}
 
 const JsonObject = z.record(z.string(), z.json())
 
@@ -43,10 +35,7 @@ const RESULT_MAX = 512_000
 type ActionMap = {[Entry in Action as Entry['type']]: Entry}
 
 type Handlers = {
-  [Type in keyof ActionMap]: (
-    tree: ReactTree,
-    action: ActionMap[Type],
-  ) => Effect.Effect<unknown, OperationError, ErrorRing>
+  [Type in keyof ActionMap]: (tree: ReactTree, action: ActionMap[Type]) => Effect.Effect<unknown, EvlogError, ErrorRing>
 }
 
 const readErrors = Effect.fn('tanstack.operations.errors')(function* () {
@@ -75,18 +64,26 @@ function perform<Type extends keyof ActionMap>(tree: ReactTree, type: Type, acti
 }
 
 function invalidAction(cause: unknown) {
-  return InvalidAction.make({message: failureMessage(cause)})
+  return tanstackErrors.INVALID_ACTION({
+    detail: failureMessage(cause),
+    cause: cause instanceof Error ? cause : undefined,
+  })
 }
 
-function requireTree(live: Live<ReactTree>): Effect.Effect<ReactTree, OperationError> {
+function requireTree(live: Live<ReactTree>): Effect.Effect<ReactTree, EvlogError> {
   if (live.status === 'active') return Effect.succeed(live.value)
-  if (live.status === 'pending') return Effect.fail(PagePending.make({}))
-  if (live.reason === 'disabled') return Effect.fail(PageDisabled.make({}))
-  return Effect.fail(PageFailed.make({}))
+  if (live.status === 'pending') return Effect.fail(tanstackErrors.PAGE_PENDING())
+  if (live.reason === 'disabled') return Effect.fail(tanstackErrors.PAGE_DISABLED())
+  return Effect.fail(tanstackErrors.PAGE_FAILED())
 }
 
 function failure(code: string, message: string): Reply {
   return {type: 'failure', code, message: message.slice(0, SHORT_MAX)}
+}
+
+function errorReply(error: EvlogError): Reply {
+  const message = error.fix ? `${error.message} ${error.fix}` : error.message
+  return failure(REPLY_CODES[error.code ?? ''] ?? 'handler_error', message)
 }
 
 const run = Effect.fn('tanstack.operations.run')(function* (name: Method, input: unknown, live: Live<ReactTree>) {
@@ -97,7 +94,7 @@ const run = Effect.fn('tanstack.operations.run')(function* (name: Method, input:
   })
   const result = yield* perform(tree, action.type, action)
   const value = yield* Effect.try({try: () => z.json().parse(result), catch: invalidAction})
-  if ((JSON.stringify(value) ?? '').length > RESULT_MAX) return yield* Effect.fail(ResultTooLarge.make({}))
+  if ((JSON.stringify(value) ?? '').length > RESULT_MAX) return yield* Effect.fail(tanstackErrors.RESULT_TOO_LARGE())
   const reply: Reply = {type: 'success', value}
   return reply
 })
@@ -108,41 +105,7 @@ export const execute = Effect.fn('tanstack.operations.execute')(function* (
   live: Live<ReactTree>,
 ) {
   return yield* run(name, input, live).pipe(
-    Effect.catchTags({
-      'Tanstack.PagePending': () =>
-        Effect.succeed(
-          failure(
-            'page_pending',
-            'The page plugin is still starting in this tab; no action ran. Call tanstack.tabs.list({}) once it finishes starting, then retry.',
-          ),
-        ),
-      'Tanstack.PageDisabled': () =>
-        Effect.succeed(
-          failure(
-            'page_disabled',
-            'The page plugin is disabled in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to enable the page plugin, then call tanstack.tabs.list({}).',
-          ),
-        ),
-      'Tanstack.PageFailed': () =>
-        Effect.succeed(
-          failure(
-            'page_failed',
-            'The page plugin failed to start in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to reload the page, then call tanstack.tabs.list({}).',
-          ),
-        ),
-      'Tanstack.RouterNotFound': () => Effect.succeed(failure('router_not_found', 'TanStack router not found on page')),
-      'Tanstack.QueryClientNotFound': () =>
-        Effect.succeed(failure('query_client_not_found', 'TanStack QueryClient not found on page')),
-      'Tanstack.ResultTooLarge': () =>
-        Effect.succeed(
-          failure(
-            'handler_error',
-            'TanStack result exceeds 512000 JSON characters. Ask for one route with loader_data, or a single query key, instead of the whole cache. Repeating the same request will not reduce its output.',
-          ),
-        ),
-      'Tanstack.InvalidAction': (error) => Effect.succeed(failure('handler_error', error.message)),
-      'Tanstack.HandlerFailed': (error) => Effect.succeed(failure('handler_error', error.message)),
-    }),
+    Effect.catch((error) => Effect.succeed(errorReply(error))),
     Effect.catchDefect((defect) => Effect.succeed(failure('handler_error', failureMessage(defect)))),
   )
 })

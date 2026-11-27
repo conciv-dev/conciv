@@ -1,10 +1,11 @@
 import {createRequire} from 'node:module'
 import {pathToFileURL} from 'node:url'
-import {Effect, Schema} from 'effect'
+import {Effect} from 'effect'
 import {Path} from 'effect/Path'
 import {z} from 'zod'
 import {countStates, parseFailure, type TestCaseLike, type TestError, type TestRow} from './events.js'
 import {sendChildMessage, type ChildArgs} from './child-main.js'
+import {causeOverrides, testRunnerErrors} from './errors/errors.js'
 
 type TestModuleLike = {
   moduleId: string
@@ -21,22 +22,8 @@ type VitestLike = {
 }
 type TestCaseWithDiagnostic = TestCaseLike & {diagnostic?: () => {duration?: number} | undefined}
 
-const VitestLoadFailed = Schema.TaggedStruct('TestRunner.VitestLoadFailed', {message: Schema.String})
-type VitestLoadFailed = typeof VitestLoadFailed.Type & globalThis.Error
-const makeVitestLoadFailed = (fields: Omit<typeof VitestLoadFailed.Type, '_tag'>): VitestLoadFailed =>
-  Object.assign(new globalThis.Error(fields.message), VitestLoadFailed.make(fields), {
-    name: 'TestRunner.VitestLoadFailed',
-  })
-
-const VitestRunFailed = Schema.TaggedStruct('TestRunner.VitestRunFailed', {message: Schema.String})
-type VitestRunFailed = typeof VitestRunFailed.Type & globalThis.Error
-const makeVitestRunFailed = (fields: Omit<typeof VitestRunFailed.Type, '_tag'>): VitestRunFailed =>
-  Object.assign(new globalThis.Error(fields.message), VitestRunFailed.make(fields), {
-    name: 'TestRunner.VitestRunFailed',
-  })
-
-function describeCause(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
+function failureOverrides(cause: unknown) {
+  return {message: cause instanceof Error ? cause.message : String(cause), ...causeOverrides(cause)}
 }
 
 function toState(state: string): 'pass' | 'fail' | 'skip' {
@@ -89,7 +76,7 @@ const reporter = {
 }
 
 function loadVitest(cwd: string, path: Path) {
-  const failed = (cause: unknown) => makeVitestLoadFailed({message: describeCause(cause)})
+  const failed = (cause: unknown) => testRunnerErrors.VITEST_LOAD_FAILED(failureOverrides(cause))
   return Effect.tryPromise({
     try: () => import(pathToFileURL(createRequire(path.join(cwd, 'noop.js')).resolve('vitest/node')).href),
     catch: failed,
@@ -98,7 +85,7 @@ function loadVitest(cwd: string, path: Path) {
       const parsed = VitestNodeModuleSchema.safeParse(module)
       return parsed.success
         ? Effect.succeed(parsed.data)
-        : Effect.fail(makeVitestLoadFailed({message: 'vitest/node did not expose createVitest'}))
+        : Effect.fail(testRunnerErrors.VITEST_LOAD_FAILED({message: 'vitest/node did not expose createVitest'}))
     }),
     Effect.flatMap((vitestNode) =>
       Effect.tryPromise({
@@ -111,7 +98,7 @@ function loadVitest(cwd: string, path: Path) {
 }
 
 function useVitest<A>(run: () => Promise<A>) {
-  return Effect.tryPromise({try: run, catch: (cause) => makeVitestRunFailed({message: describeCause(cause)})})
+  return Effect.tryPromise({try: run, catch: (cause) => testRunnerErrors.VITEST_RUN_FAILED(failureOverrides(cause))})
 }
 
 function closeVitest(vitest: VitestLike) {

@@ -1,6 +1,7 @@
 import {Effect, Fiber, Scope, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
 import {createMemo, from, onCleanup, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
+import type {EvlogError} from 'evlog'
 import {createKeyed, type MountedSession, type SetupContext} from '@conciv/frontend-plugin-api'
 import type {Grab} from '@conciv/frontend-plugin-api/grab'
 import type {terminalDeclarations} from './stores.js'
@@ -9,8 +10,6 @@ import type {LiveTerminal, TerminalEvent} from './terminal-machine.js'
 import {rpcTerminalTransport, type HeldPty, type PtyClient} from './terminal-transport.js'
 
 export const PANEL_KEY = 'terminal:terminal'
-
-export const OPEN_FAILED = 'Couldn’t open the terminal.'
 
 export type TerminalContext = SetupContext<typeof terminalDeclarations>
 
@@ -115,11 +114,11 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
     locked,
     failure: (sessionId: string) => {
       const failure = run().failure
-      return failure?.key === key(sessionId) ? failure.message : null
+      return failure?.key === key(sessionId) ? failure.error : null
     },
     opened: (live: LiveTerminal) => send({type: 'opened', live}),
     closed: (terminalKey: string) => send({type: 'closed', key: terminalKey}),
-    fail: (terminalKey: string, message: string) => send({type: 'failed', key: terminalKey, message}),
+    fail: (terminalKey: string, error: EvlogError) => send({type: 'failed', key: terminalKey, error}),
     retry: () => send({type: 'retried'}),
     restart,
     held: () => held.grabs,

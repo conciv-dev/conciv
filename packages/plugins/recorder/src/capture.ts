@@ -1,8 +1,10 @@
-import {Effect, type Scope, Schema} from 'effect'
+import {Effect, type Scope} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {record} from 'rrweb'
 import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
 import type {RecorderConfig, RrwebEvent} from './rpc.js'
+import {causeOverrides, recorderErrors} from './errors/errors.js'
 
 const CHECKOUT_MS = 60_000
 
@@ -17,14 +19,9 @@ function maskingOptions(masking: RecorderConfig['masking']): {
 
 type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof getRecordConsolePlugin}
 
-const CaptureLibraryLoadFailed = Schema.TaggedStruct('RecorderCaptureLibraryLoadFailed', {
-  cause: Schema.Defect(),
-})
-type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type
-
-export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, CaptureLibraryLoadFailed> = Effect.tryPromise({
+export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, EvlogError> = Effect.tryPromise({
   try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),
-  catch: (cause) => CaptureLibraryLoadFailed.make({cause}),
+  catch: (cause) => recorderErrors.CAPTURE_LIBRARY_LOAD_FAILED(causeOverrides(cause)),
 }).pipe(
   Effect.map(([rrweb, consoleRecord]) => ({
     record: rrweb.record,

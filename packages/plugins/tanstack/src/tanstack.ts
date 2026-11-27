@@ -2,7 +2,7 @@ import {Effect, Layer} from 'effect'
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import {diagnosticsLayer} from './diagnostics.js'
-import {InvalidOptions, RpcRegisterFailed} from './failures.js'
+import {tanstackErrors} from './errors/errors.js'
 import {Definition} from './rpc.js'
 import {serverFnTraceLayer} from './serverfn-trace.js'
 import {capabilities, register} from './tools.js'
@@ -16,8 +16,8 @@ function failureMessage(cause: unknown): string {
 function readOptions(input: unknown) {
   const parsed = Options.safeParse(input)
   if (parsed.success) return Effect.succeed(parsed.data)
-  const message = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
-  return Effect.fail(InvalidOptions.make({message}))
+  const detail = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
+  return Effect.fail(tanstackErrors.INVALID_OPTIONS({detail}))
 }
 
 export default Plugin.define({
@@ -39,7 +39,14 @@ export default Plugin.define({
               .pipe(Effect.mapError((failure) => call.error('MANIFEST_UNREADABLE', failure.message, {}))),
           serverFnTrace: ({count}) => tanstack.serverFnTrace(count),
         })
-        .pipe(Effect.mapError((cause) => RpcRegisterFailed.make({message: failureMessage(cause)})))
+        .pipe(
+          Effect.mapError((cause) =>
+            tanstackErrors.RPC_REGISTER_FAILED({
+              detail: failureMessage(cause),
+              cause: cause instanceof Error ? cause : undefined,
+            }),
+          ),
+        )
       yield* register(ctx, tanstack)
     }),
 })

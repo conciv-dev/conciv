@@ -1,5 +1,5 @@
 import {Effect, FileSystem, Option, Path} from 'effect'
-import {ManifestUnreadable} from './failures.js'
+import {tanstackErrors} from './errors/errors.js'
 import type {RouteInfo, RouteInfoKind} from './rpc.js'
 
 const FILE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const
@@ -71,7 +71,7 @@ export const readRouteManifest = Effect.fn('tanstack.routeManifest.read')(functi
   const genPath = path.join(cwd, 'src', 'routeTree.gen.ts')
   const source = yield* fs
     .readFileString(genPath)
-    .pipe(Effect.mapError((cause) => ManifestUnreadable.make({message: cause.message, cause})))
+    .pipe(Effect.mapError((cause) => tanstackErrors.MANIFEST_UNREADABLE({detail: cause.message, cause})))
   const baseDir = path.dirname(genPath)
   const imports = collectImports(source)
   const root = yield* rootFrom(imports, baseDir)

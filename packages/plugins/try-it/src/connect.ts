@@ -1,4 +1,5 @@
-import {Effect, FiberHandle, Predicate, Schedule, Semaphore, SubscriptionRef} from 'effect'
+import {Effect, FiberHandle, Schedule, Semaphore, SubscriptionRef} from 'effect'
+import {tryItErrors} from './errors/errors.js'
 import {TryItConnectMachine} from './connect-machine.js'
 import {TryItProbe} from './probe.js'
 
@@ -21,7 +22,10 @@ export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInpu
 
   const sweep = Effect.fn('try-it.sweep')(function* (attempt: number, retry: boolean) {
     const spaced = probe.pipe(
-      Effect.retry({while: Predicate.isTagged('TryIt.ProbeSilent'), schedule: Schedule.spaced(input.timings.probeMs)}),
+      Effect.retry({
+        while: (error) => error.code === tryItErrors.PROBE_SILENT.code,
+        schedule: Schedule.spaced(input.timings.probeMs),
+      }),
     )
     yield* (retry ? spaced : probe).pipe(
       Effect.matchEffect({

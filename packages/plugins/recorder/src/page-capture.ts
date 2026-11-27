@@ -4,11 +4,12 @@ import type {Context} from '@conciv/frontend-plugin-api'
 import {Page} from '@conciv/frontend-plugin-api/page'
 import {Recorder, type RecorderControl} from './rpc.js'
 import type {RecorderBootMachine} from './boot-machine.js'
-import {ConfigReadFailed, StateReadFailed, runBoot} from './boot.js'
+import {runBoot} from './boot.js'
 import {loadCaptureLibrary, recordPage, takeFreshSnapshot} from './capture.js'
-import {ConfigReloadFailed, openCaptureSession} from './capture-session.js'
-import {FlushFailed, makeFlusher} from './flusher.js'
-import {FollowFailed, followRecording, type ReplaySource} from './player-follow.js'
+import {openCaptureSession} from './capture-session.js'
+import {makeFlusher} from './flusher.js'
+import {followRecording, type ReplaySource} from './player-follow.js'
+import {causeOverrides, recorderErrors} from './errors/errors.js'
 import {accessorStream, type RecorderRuntime} from './solid-runtime.js'
 
 const FLUSH_CUES: readonly [Window | Document, string][] = [
@@ -48,29 +49,31 @@ export function bootCapture(
   const hidden = Stream.fromEventListener(document, 'visibilitychange').pipe(
     Stream.map(() => document.visibilityState === 'hidden'),
   )
-  const readConfig = <Failure>(failure: (cause: unknown) => Failure) =>
-    Effect.tryPromise({try: (signal) => recorder.config(undefined, {signal}), catch: failure})
+  const readConfig = Effect.tryPromise({
+    try: (signal) => recorder.config(undefined, {signal}),
+    catch: (cause) => recorderErrors.CONFIG_READ_FAILED(causeOverrides(cause)),
+  })
 
   return Effect.gen(function* () {
     const flusher = yield* makeFlusher({
       send: (events) =>
         Effect.tryPromise({
           try: () => recorder.flush({clientId, events: [...events]}),
-          catch: (cause) => FlushFailed.make({cause}),
+          catch: (cause) => recorderErrors.FLUSH_FAILED(causeOverrides(cause)),
         }),
     })
     const boot = yield* runBoot({
       connected,
       readLive: Effect.tryPromise({
         try: (signal) => recorder.state(undefined, {signal}),
-        catch: (cause) => StateReadFailed.make({cause}),
+        catch: (cause) => recorderErrors.STATE_READ_FAILED(causeOverrides(cause)),
       }).pipe(Effect.map((current) => current.live)),
       controls,
       selector,
       prepare: (exclude) =>
         Effect.all({
           library: loadCaptureLibrary,
-          config: readConfig((cause) => ConfigReadFailed.make({cause})),
+          config: readConfig,
         }).pipe(Effect.map((prepared) => ({...prepared, exclude}))),
       open: (prepared, onFailed) =>
         Effect.asVoid(
@@ -82,7 +85,7 @@ export function bootCapture(
               (event) => void runtime.runSyncExit(flusher.push(event)),
             ),
             takeSnapshot: takeFreshSnapshot(prepared.library),
-            reloadConfig: readConfig((cause) => ConfigReloadFailed.make({cause})),
+            reloadConfig: readConfig,
             flusher,
             controls,
             flushCues,
@@ -110,7 +113,7 @@ export function followClient(ctx: Context, clientId: string): (cursor: number) =
       (subscription) =>
         Stream.fromAsyncIterable(
           ctx.client.event.subscribe({types: [APPENDED_EVENT], signal: subscription.signal}),
-          (cause) => FollowFailed.make({cause}),
+          (cause) => recorderErrors.FOLLOW_FAILED(causeOverrides(cause)),
         ),
     ),
   ).pipe(
@@ -125,7 +128,7 @@ export function followClient(ctx: Context, clientId: string): (cursor: number) =
       readSince: (from) =>
         Effect.tryPromise({
           try: (signal) => recorder.since({clientId, cursor: from}, {signal}),
-          catch: (cause) => FollowFailed.make({cause}),
+          catch: (cause) => recorderErrors.FOLLOW_FAILED(causeOverrides(cause)),
         }),
     })
 }
