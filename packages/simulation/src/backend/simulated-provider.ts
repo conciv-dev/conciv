@@ -142,10 +142,15 @@ const makeDriver = Effect.gen(function* () {
         Effect.asVoid,
       ),
     finish: (id: string, reason: FinishReason) =>
-      takeInvocation(id).pipe(
-        Effect.tap((invocation) => Queue.offer(invocation.responses, {type: 'finish', reason})),
-        Effect.flatMap((invocation) => Queue.end(invocation.responses)),
-        Effect.asVoid,
+      Effect.uninterruptibleMask((restore) =>
+        takeInvocation(id).pipe(
+          Effect.flatMap((invocation) =>
+            restore(Queue.offer(invocation.responses, {type: 'finish', reason})).pipe(
+              Effect.ensuring(Queue.end(invocation.responses)),
+            ),
+          ),
+          Effect.asVoid,
+        ),
       ),
     disconnect: (id: string) =>
       takeInvocation(id).pipe(
