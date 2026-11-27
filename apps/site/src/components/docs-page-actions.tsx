@@ -1,5 +1,5 @@
 import {FileText, MessagesSquare, SquarePen} from 'lucide-react'
-import {MarkdownCopyButton} from 'fumadocs-ui/layouts/notebook/page'
+import {MarkdownCopyButton, ViewOptionsPopover} from 'fumadocs-ui/layouts/notebook/page'
 import {SITE} from '@/lib/site-urls'
 
 const rowClass =
@@ -39,6 +39,15 @@ export function DocsPageActions({markdownUrl, githubUrl}: {markdownUrl: string; 
           {link.label}
         </a>
       ))}
+    </div>
+  )
+}
+
+export function DocsPageActionsRow({markdownUrl, githubUrl}: {markdownUrl: string; githubUrl: string}) {
+  return (
+    <div className="flex flex-row flex-wrap items-center gap-2 border-b pb-6 xl:hidden">
+      <MarkdownCopyButton markdownUrl={markdownUrl} />
+      <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl} pageUrl={`${SITE}${markdownUrl}`} />
     </div>
   )
 }

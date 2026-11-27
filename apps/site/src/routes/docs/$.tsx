@@ -7,8 +7,8 @@ import {DocsBody, DocsDescription, DocsPage, DocsTitle} from 'fumadocs-ui/layout
 import {baseOptions} from '@/lib/layout.shared'
 import {gitConfig, repoUrl} from '@/lib/shared'
 import {DocsSidebarSeparator} from '@/components/docs-sidebar-separator'
-import {DocsHeaderNav, docsHeaderMenuLinks} from '@/components/docs-header-nav'
-import {DocsPageActions} from '@/components/docs-page-actions'
+import {DocsDrawerTrigger, DocsHeaderNav, docsDrawerLinks} from '@/components/docs-header-nav'
+import {DocsPageActions, DocsPageActionsRow} from '@/components/docs-page-actions'
 import {buildDocsHead} from '@/lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
 import {Suspense} from 'react'
@@ -54,12 +54,7 @@ const clientLoader = browserCollections.docs.createClientLoader({
       path: string
     },
   ) {
-    const actions = (
-      <DocsPageActions
-        markdownUrl={markdownUrl}
-        githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/apps/site/content/docs/${path}`}
-      />
-    )
+    const githubUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/apps/site/content/docs/${path}`
 
     return (
       <DocsPage
@@ -67,13 +62,20 @@ const clientLoader = browserCollections.docs.createClientLoader({
         className="*:max-w-175 md:max-xl:pe-20"
         tableOfContent={{
           single: true,
-          footer: actions,
+          footer: <DocsPageActions markdownUrl={markdownUrl} githubUrl={githubUrl} />,
           container: {className: toc.length === 0 ? emptyTocClass : undefined},
+          list: {className: tocListClass},
         }}
-        tableOfContentPopover={{footer: actions}}
+        tableOfContentPopover={{
+          list: {className: tocListClass},
+          content: {className: 'pb-[max(--spacing(2),env(safe-area-inset-bottom))]'},
+        }}
       >
-        <DocsTitle className="od-display text-5xl leading-tight font-extrabold">{frontmatter.title}</DocsTitle>
-        <DocsDescription className="text-xl">{frontmatter.description}</DocsDescription>
+        <DocsTitle className="od-display text-5xl leading-tight font-extrabold max-sm:text-4xl">
+          {frontmatter.title}
+        </DocsTitle>
+        <DocsDescription className="text-xl max-sm:mb-4 max-sm:text-lg">{frontmatter.description}</DocsDescription>
+        <DocsPageActionsRow markdownUrl={markdownUrl} githubUrl={githubUrl} />
         <DocsBody className={path.startsWith('comparison') ? comparisonTableClass : undefined}>
           <MDX components={useMDXComponents()} />
         </DocsBody>
@@ -104,10 +106,24 @@ const comparisonTableClass = [
   '[&_td:first-child_a]:underline-offset-4',
 ].join(' ')
 
+const tocListClass = '[&_a:hover]:text-fd-foreground [&_a[data-active=true]:hover]:text-fd-primary'
+
 const emptyTocClass = '[&>#toc-title]:hidden [&>#toc-title+div]:hidden [&>div:last-child]:border-t-0'
 
 const sidebarClass = [
   'border-e',
+  'max-md:inset-s-0',
+  'max-md:inset-e-auto',
+  'max-md:top-(--fd-docs-row-2)',
+  'max-md:w-3/5',
+  'max-md:min-w-64',
+  'max-md:max-w-80',
+  'max-md:border-s-0',
+  'max-md:shadow-none',
+  'max-md:pb-[env(safe-area-inset-bottom)]',
+  'max-md:[--fd-sidebar-drawer-offset:-100%]',
+  'max-md:[&>div:first-child]:hidden',
+  'max-md:[&>div:last-child]:hidden',
   '[&_:is(a[data-active],button[aria-expanded])]:py-1.5',
   '[&_:is(a[data-active],button[aria-expanded])]:bg-transparent',
   '[&_:is(a[data-active=false],button[aria-expanded]):hover]:text-fd-foreground',
@@ -117,6 +133,17 @@ const sidebarClass = [
   '[&_a[data-active]:has([data-docs-icon])]:py-1',
 ].join(' ')
 
+const mobileHeaderClass = [
+  'max-md:[&>#nd-subnav]:z-50',
+  'max-md:[&_[data-header-body]>div:last-child_[aria-controls=nd-sidebar-mobile]]:hidden',
+  'max-md:[&_[data-header-body]>div:last-child>a]:inline-flex',
+  'max-md:[&_[data-header-body]>div:last-child>a]:order-1',
+  'max-md:[&_[data-header-body]>div:last-child>div:last-child]:flex',
+  'max-md:[&_[data-header-body]>div:last-child>div:last-child]:order-2',
+  'max-md:[&>div:has(+#nd-sidebar-mobile)]:bg-fd-background/60',
+  'max-md:[&>div:has(+#nd-sidebar-mobile)]:backdrop-blur-none',
+].join(' ')
+
 function Page() {
   const {path, pageTree, markdownUrl} = useFumadocsLoader(Route.useLoaderData())
   const base = baseOptions()
@@ -124,8 +151,18 @@ function Page() {
   return (
     <DocsLayout
       {...base}
-      nav={{...base.nav, mode: 'top', children: <DocsHeaderNav />}}
-      links={docsHeaderMenuLinks()}
+      nav={{
+        ...base.nav,
+        mode: 'top',
+        children: (
+          <>
+            <DocsDrawerTrigger />
+            <DocsHeaderNav />
+          </>
+        ),
+      }}
+      links={docsDrawerLinks()}
+      containerProps={{className: mobileHeaderClass}}
       githubUrl={repoUrl}
       sidebar={{collapsible: false, className: sidebarClass, components: {Separator: DocsSidebarSeparator}}}
       tree={pageTree}

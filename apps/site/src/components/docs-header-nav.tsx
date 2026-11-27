@@ -1,8 +1,16 @@
-import {ChevronDown} from 'lucide-react'
+import {ArrowUpRight, ChevronDown, Menu} from 'lucide-react'
 import {usePathname} from 'fumadocs-core/framework'
 import Link from 'fumadocs-core/link'
 import {Popover, PopoverContent, PopoverTrigger} from 'fumadocs-ui/components/ui/popover'
-import {isLinkItemActive, LinkItem, type MainItemType, type MenuItemType} from 'fumadocs-ui/layouts/shared'
+import {buttonVariants} from 'fumadocs-ui/components/ui/button'
+import {SidebarTrigger} from 'fumadocs-ui/layouts/notebook/slots/sidebar'
+import {
+  isLinkItemActive,
+  LinkItem,
+  type LinkItemType,
+  type MainItemType,
+  type MenuItemType,
+} from 'fumadocs-ui/layouts/shared'
 import {repoUrl} from '@/lib/shared'
 
 type SectionLink = MainItemType & {sections?: readonly string[]}
@@ -31,8 +39,50 @@ const headerLinks: HeaderLink[] = [
   more,
 ]
 
-export function docsHeaderMenuLinks() {
-  return headerLinks.map((link) => ({...link, on: 'menu' as const}))
+const drawerMoreItemClass =
+  'flex items-center justify-between gap-2 rounded-lg p-2 ps-3 text-fd-muted-foreground transition-colors hover:bg-fd-accent/50 hover:text-fd-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+
+function DrawerMore() {
+  return (
+    <div className="flex flex-col gap-0.5 pt-2">
+      <p className="p-2 text-fd-muted-foreground">{more.text}</p>
+      <div className="relative ms-2 flex flex-col gap-0.5 before:absolute before:inset-y-1 before:start-0 before:w-px before:bg-fd-border">
+        {more.items.map((item) =>
+          item.type === 'custom' ? null : (
+            <LinkItem key={item.url} item={item} className={drawerMoreItemClass}>
+              {item.text}
+              <ArrowUpRight />
+            </LinkItem>
+          ),
+        )}
+      </div>
+      <div role="separator" className="px-2 pt-4">
+        <span className="block h-px bg-fd-border" />
+      </div>
+    </div>
+  )
+}
+
+export function docsDrawerLinks(): LinkItemType[] {
+  return [
+    {...docs, on: 'menu'},
+    {...changelog, on: 'menu'},
+    {type: 'custom', on: 'menu', children: <DrawerMore />},
+  ]
+}
+
+export function DocsDrawerTrigger() {
+  return (
+    <SidebarTrigger
+      className={buttonVariants({
+        variant: 'ghost',
+        size: 'icon-sm',
+        className: 'order-first -ms-1.5 me-1.5 text-fd-muted-foreground md:hidden',
+      })}
+    >
+      <Menu />
+    </SidebarTrigger>
+  )
 }
 
 function isMenu(link: HeaderLink): link is MenuItemType {
