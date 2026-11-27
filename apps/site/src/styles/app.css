@@ -315,6 +315,11 @@ figure.twoslash:has(:focus-visible) .twoslash-hover {
 [data-sliding-tabs] > * > [role='tablist'] > [role='tab']:focus-visible {
   outline: none;
 }
+@media (hover: hover) {
+  [data-sliding-tabs] > * > [role='tablist'] > [role='tab'][data-state='inactive']:hover {
+    color: var(--color-fd-foreground);
+  }
+}
 [data-sliding-tabs] > * > [role='tablist'] > [role='tab']:focus-visible::before {
   content: '';
   position: absolute;
