@@ -36,7 +36,7 @@ export function Hero() {
               params={{_splat: 'getting-started'}}
               className="font-semibold text-primary hover:underline"
             >
-              Read the quick start →
+              Read Getting started →
             </Link>
           </p>
         ) : (
