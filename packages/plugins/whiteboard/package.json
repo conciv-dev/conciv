@@ -57,6 +57,7 @@
     "@takumi-rs/helpers": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "oxc-parser": "catalog:",
     "zod": "catalog:"
   },

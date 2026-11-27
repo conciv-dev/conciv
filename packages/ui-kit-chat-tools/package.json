@@ -43,6 +43,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },

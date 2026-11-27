@@ -25,6 +25,7 @@
   "dependencies": {
     "@testing-library/jest-dom": "catalog:",
     "@vitest/browser-playwright": "catalog:",
+    "evlog": "catalog:",
     "playwright": "catalog:",
     "unocss": "catalog:",
     "zod": "catalog:"

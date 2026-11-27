@@ -34,6 +34,7 @@
     "@orpc/client": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },

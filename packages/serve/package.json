@@ -43,6 +43,7 @@
     "@conciv/types": "workspace:*",
     "@hono/node-server": "catalog:",
     "@orpc/server": "catalog:",
+    "evlog": "catalog:",
     "hono": "catalog:",
     "semver": "catalog:",
     "ws": "catalog:",

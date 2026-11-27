@@ -35,6 +35,7 @@
     "@internal/test-utils": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

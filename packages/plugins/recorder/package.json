@@ -55,6 +55,7 @@
     "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "playwright-core": "catalog:",
     "rrweb": "catalog:",
     "zod": "catalog:"
