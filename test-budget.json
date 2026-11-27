@@ -42,5 +42,6 @@
   "@internal/frontend-app-api": 2,
   "@conciv/client": 9,
   "@conciv/frontend-plugin-api": 4,
-  "@conciv/protocol": 3
+  "@conciv/protocol": 3,
+  "@conciv/react": 1
 }
