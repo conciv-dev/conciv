@@ -49,6 +49,7 @@
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/harness": "workspace:*",
+    "@effect/vitest": "catalog:",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",

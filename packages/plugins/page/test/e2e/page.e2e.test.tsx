@@ -465,6 +465,14 @@ describe('the page plugin in the widget', () => {
   })
 
   describe('the user grabs an element for the agent', () => {
+    async function pictureCorner(webp: string): Promise<number[]> {
+      const bitmap = await createImageBitmap(await (await fetch(`data:image/webp;base64,${webp}`)).blob())
+      const canvas = new OffscreenCanvas(1, 1)
+      const context = canvas.getContext('2d')
+      context?.drawImage(bitmap, 0, 0)
+      return [...(context?.getImageData(0, 0, 1, 1).data ?? [])]
+    }
+
     test('the picked element is a note drawn with its picture in the composer, which takes focus, the agent gets its sentence and its picture with the message, and one sent alone reads as a note', async ({
       createEngine,
     }) => {
@@ -473,9 +481,11 @@ describe('the page plugin in the widget', () => {
       const engine = await openPage(createEngine)
       await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('That is the same button'))
       render(() => (
-        <button type="button" id="buy">
-          Buy the fern
-        </button>
+        <section style={{'background-color': 'rgb(17, 17, 17)', color: 'white'}}>
+          <button type="button" id="buy" style={{background: 'transparent', color: 'inherit'}}>
+            Buy the fern
+          </button>
+        </section>
       ))
 
       await user.click(await screen.findByRole('button', {name: 'More composer actions'}))
@@ -503,6 +513,11 @@ describe('the page plugin in the widget', () => {
           {type: 'image', source: {type: 'data', mimeType: 'image/webp', value: expect.any(String)}},
         ],
       })
+      const content = (await engine.requests()).at(-1)?.messages.at(-1)?.content
+      const picture = Array.isArray(content) ? content.find((part) => part.type === 'image') : undefined
+      const corner = await pictureCorner(picture?.type === 'image' ? picture.source.value : '')
+      expect(corner.slice(0, 3).every((channel) => channel < 40)).toBe(true)
+      expect(corner[3]).toBe(255)
 
       await user.click(screen.getByRole('button', {name: 'More composer actions'}))
       await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))

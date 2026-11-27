@@ -1,7 +1,8 @@
-import {ConfigProvider} from 'effect'
+import {ConfigProvider, Effect, Logger} from 'effect'
 import {describe, expect, test} from 'vitest'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
 import {tempDir} from '@internal/vitest-config/temp-dir'
 import {makeApp, withSavedModels} from '../../src/engine/app.js'
 import {resolveConfig} from '../../src/engine/config.js'
@@ -21,6 +22,16 @@ describe('the saved model list', () => {
     await first.settled()
 
     const failing = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
+    const logged: unknown[] = []
+    await Effect.runPromise(
+      failing.refresh.pipe(Effect.provide(Logger.layer([Logger.make(({message}) => logged.push(message))]))),
+    )
+    expect(logged).toEqual([
+      [
+        '[core] the model list could not be refreshed',
+        {harness: adapter.id, error: new Error('the CLI is signed out')},
+      ],
+    ])
     await expect(resolveHarnessModels(failing.harness, {signal})).resolves.toEqual(listed)
     await failing.settled()
 
@@ -29,7 +40,7 @@ describe('the saved model list', () => {
     await afterFailure.settled()
   })
 
-  test('the engine starts listing the models before anyone asks, and the first ask reuses that listing', async () => {
+  test('the engine starts listing the models once it is up, and the first ask reuses that listing', async () => {
     const signal = new AbortController().signal
     const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
     const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
@@ -43,7 +54,8 @@ describe('the saved model list', () => {
     const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, {
       runFork: () => undefined,
     })
-    expect(started).toEqual(['listing'])
+    expect(started).toEqual([])
+    Effect.runFork(warmed.refresh)
 
     const asked = resolveHarnessModels(warmed.harness, {signal})
     listing.resolve(listed)
@@ -52,13 +64,19 @@ describe('the saved model list', () => {
     await warmed.settled()
 
     const engineStarted: string[] = []
+    const engineListed = Promise.withResolvers<void>()
     const recorded = {
       ...adapter,
       models: () => {
         engineStarted.push('listing')
+        engineListed.resolve()
         return Promise.resolve(listed)
       },
     }
+    const activationRecorder = Plugin.define({
+      id: 'activation-recorder',
+      effect: () => Effect.sync(() => engineStarted.push('activated')),
+    })
     const root = tempDir('app-root-')
     const configProvider = ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')})
     const made = await makeApp({
@@ -70,8 +88,10 @@ describe('the saved model list', () => {
       harness: recorded,
       harnesses: [recorded],
       ids: makeMaker(),
+      plugins: [activationRecorder],
     })
-    expect(engineStarted).toEqual(['listing'])
+    await engineListed.promise
+    expect(engineStarted).toEqual(['activated', 'listing'])
     await made.dispose()
   })
 })

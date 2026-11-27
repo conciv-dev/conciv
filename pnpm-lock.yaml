@@ -4134,6 +4134,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:*
         version: link:../../harness
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/frontend-app-api':
         specifier: workspace:*
         version: link:../../frontend-app-api
@@ -4413,6 +4416,9 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -4456,9 +4462,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      effect:
-        specifier: 'catalog:'
-        version: 4.1.5
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

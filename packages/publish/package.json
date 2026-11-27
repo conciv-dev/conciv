@@ -22,6 +22,7 @@
   "dependencies": {
     "@changesets/parse": "^1.0.0",
     "citty": "catalog:",
+    "effect": "catalog:",
     "es-toolkit": "catalog:",
     "evlog": "catalog:",
     "execa": "^10.2.1",
@@ -38,7 +39,6 @@
     "@internal/vitest-config": "workspace:*",
     "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
-    "effect": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

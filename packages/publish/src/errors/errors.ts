@@ -102,6 +102,10 @@ export const publishErrors = defineErrorCatalog('publish', {
   REGISTRY_LOOKUP_FAILED: {
     message: ({name, status}: {name: string; status: number}) => `registry lookup for ${name} failed with ${status}`,
   },
+  SYNC_FAILED: {
+    message: ({names}: {names: string}) => `sync failed for ${names}; tags not pushed.`,
+    fix: 'Rerun sync, it is idempotent.',
+  },
   NO_VERSION_TO_TAG: {
     message: ({name}: {name: string}) => `${name}: no versioned manifest in the workspace to tag`,
   },

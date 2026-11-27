@@ -7,6 +7,12 @@ type ConnectTimings = {readonly probeMs: number; readonly holdMs: number; readon
 
 type ConnectInput = {readonly timings: ConnectTimings}
 
+const PROBE_BACK_OFF_CAP = 5
+
+function probeBackOff(probeMs: number) {
+  return Schedule.min([Schedule.exponential(probeMs), Schedule.spaced(probeMs * PROBE_BACK_OFF_CAP)])
+}
+
 type Connection = {
   readonly state: SubscriptionRef.SubscriptionRef<TryItConnectMachine.ConnectState>
   readonly dispatch: (event: TryItConnectMachine.ConnectEvent) => Effect.Effect<void>
@@ -24,7 +30,7 @@ export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInpu
     const spaced = probe.pipe(
       Effect.retry({
         while: (error) => error.code === tryItErrors.PROBE_SILENT.code,
-        schedule: Schedule.spaced(input.timings.probeMs),
+        schedule: probeBackOff(input.timings.probeMs),
       }),
     )
     yield* (retry ? spaced : probe).pipe(
@@ -40,12 +46,14 @@ export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInpu
     yield* dispatch(event)
   })
 
+  const deferred = {startImmediately: false}
+
   const perform = (effect: TryItConnectMachine.ConnectEffect) => {
-    if (effect.type === 'sweep') return FiberHandle.run(sweeper, sweep(effect.attempt, effect.retry))
+    if (effect.type === 'sweep') return FiberHandle.run(sweeper, sweep(effect.attempt, effect.retry), deferred)
     if (effect.type === 'startSlow')
-      return FiberHandle.run(slowHint, elapse(input.timings.slowMs, {type: 'slowElapsed'}))
+      return FiberHandle.run(slowHint, elapse(input.timings.slowMs, {type: 'slowElapsed'}), deferred)
     if (effect.type === 'stopSlow') return FiberHandle.clear(slowHint)
-    return FiberHandle.run(hold, elapse(input.timings.holdMs, {type: 'holdElapsed'}))
+    return FiberHandle.run(hold, elapse(input.timings.holdMs, {type: 'holdElapsed'}), deferred)
   }
 
   const dispatch: (event: TryItConnectMachine.ConnectEvent) => Effect.Effect<void> = Effect.fn('try-it.dispatch')(

@@ -1,5 +1,5 @@
 import type {ImagePreview, DomPreview} from '@conciv/grab'
-import {capturePlugins} from './screenshot.js'
+import {capturePlugins, paintedBackground} from './screenshot.js'
 import {pageErrors} from './errors/errors.js'
 
 const FIT_MIME = 'image/webp'
@@ -84,7 +84,12 @@ function readDataUrl(blob: Blob): Promise<string> {
 
 async function elementImage(el: Element): Promise<ImagePreview> {
   const {snapdom} = await import('@zumer/snapdom')
-  const capture = await snapdom(el, {dpr: 1, embedFonts: true, plugins: capturePlugins})
+  const capture = await snapdom(el, {
+    dpr: 1,
+    embedFonts: true,
+    plugins: capturePlugins,
+    backgroundColor: paintedBackground(el),
+  })
   const blob = await capture.toBlob({format: 'webp', quality: FIT_QUALITY})
   const bitmap = await createImageBitmap(blob)
   const {width, height} = bitmap
