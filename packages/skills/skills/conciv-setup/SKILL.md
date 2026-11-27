@@ -12,17 +12,17 @@ metadata:
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on the running
 app. An app installs one package, `@conciv/it`, as a dev dependency. It is a bundler plugin that starts
 the engine AND puts the widget on the page, on Vite, Next.js, webpack and Rspack. Its Rollup and esbuild
-entries exist but do nothing (`packages/unplugin/src/unplugin.ts:157-158`,
+entries exist but do nothing (`packages/unplugin/src/unplugin.ts:158-159`,
 `apps/site/content/docs/quick-start/other-bundlers.mdx`).
 
 The fastest path is `npx @conciv/cli@latest init` in the app's folder: it finds the framework, installs
 `@conciv/it` and wires the config (`apps/site/content/docs/quick-start/index.mdx`).
 
 conciv runs in the dev server only. The Vite plugin applies to `vite dev` alone (`apply: 'serve'`,
-`packages/unplugin/src/core/vite.ts:313`). webpack and Rspack do nothing in a `production` mode build,
-and an unset `mode` counts as production (`packages/unplugin/src/unplugin.ts:131`). Next.js starts no
-engine in production (`packages/unplugin/src/core/nextjs.ts:136`). `enabled: false` turns it off
-everywhere (default `true`, `packages/backend-defaults/src/engine/config.ts:87`).
+`packages/unplugin/src/core/vite.ts:314`). webpack and Rspack do nothing in a `production` mode build,
+and an unset `mode` counts as production (`packages/unplugin/src/unplugin.ts:132`). Next.js starts no
+engine in production (`packages/unplugin/src/core/nextjs.ts:137`). `enabled: false` turns it off
+everywhere (default `true`, `packages/backend-defaults/src/engine/config.ts:86`).
 
 ## Decision: which path
 
@@ -89,7 +89,7 @@ module.exports = {
 
 Set `mode: 'development'` (or pass `--mode development`). In any mode but production the plugin writes
 `.conciv/widget-client.<port>.gen.js` and adds it as an entry of every chunk, then starts the engine on
-the compiler's first watch run (`packages/unplugin/src/unplugin.ts:130-149`). A one-off build starts no
+the compiler's first watch run (`packages/unplugin/src/unplugin.ts:131-150`). A one-off build starts no
 engine. Rspack is the same with `@conciv/it/plugin/rspack`.
 
 ## Placing the widget yourself
@@ -134,7 +134,7 @@ is mounted. `rebind` does nothing unless the widget is mounted. `ConcivInit` is
 `mountConciv(plugins?)` is the one-shot form: it appends a `[data-conciv-script-root]` div to
 `document.body` and mounts there, and does nothing when that element already exists or inside a
 capture frame (`packages/app/src/mount.ts:132-146`). It returns no handle. conciv.dev mounts its own
-widget this way (`apps/site/src/lib/mount-live-widget.ts:65`).
+widget this way (`apps/site/src/lib/mount-live-widget.ts:66`).
 
 `@conciv/react`'s `ConcivWidget` is the reference wrapper: it creates the handle in an effect, mounts it
 on its own div, unmounts in the effect's cleanup, and makes a new handle only when its config changes

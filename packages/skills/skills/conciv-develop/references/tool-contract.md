@@ -25,7 +25,7 @@ The definition is `Tool.Info` and its options are `Tool.Options`
 `context` carries `sessionId`, `agent`, `messageId`, the call `id`, `origin` (`chat` or `hub`),
 `progress(update)` and an optional `cancel` effect (`packages/protocol/src/schema/tool.ts:14-22`).
 
-The test runner's tools, from `packages/plugins/test-runner/src/tools.ts:9-36`:
+The test runner's tools, from `packages/plugins/test-runner/src/tools.ts:10-37`:
 
 ```ts
 const codeMode = {namespace: 'test_runner', codemode: true}
@@ -61,8 +61,8 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
 ## Name rule
 
 Any character other than letters, digits, `_` and `-` becomes `_` (`normalizedName`,
-`packages/backend-app-api/src/core/tool/runtime.ts:267`), so `dotted.ping` is `dotted_ping`. A `-` is
-kept and then refused: `Invalid tool name: hyphen-ping` (`packages/backend-app-api/src/core/tool.ts:338-340`).
+`packages/backend-app-api/src/core/tool/runtime.ts:268`), so `dotted.ping` is `dotted_ping`. A `-` is
+kept and then refused: `Invalid tool name: hyphen-ping` (`packages/backend-app-api/src/core/tool.ts:331-332`).
 The engine logs `Skipping invalid tool registration`, leaves the tool out, and the plugin stays active.
 
 ## Results
@@ -70,7 +70,7 @@ The engine logs `Skipping invalid tool registration`, leaves the tool out, and t
 Succeed with `{output}` (checked against `output`), or `{content}` with text, plus optional `metadata`.
 `{output}` with no `output` schema fails the call with "Tool result declared output without an output
 schema", and a tool with an `output` schema that returns no `output` fails with "Tool did not return its
-declared output" (`packages/backend-app-api/src/core/tool/runtime.ts:32-41`).
+declared output" (`packages/backend-app-api/src/core/tool/runtime.ts:33-42`).
 
 ## Errors
 
@@ -94,8 +94,8 @@ becomes a `Tool.Error` with its message.
 
 A tool that changes real state asks first. Push an `ask` rule for its action to every agent, then assert
 inside `execute`; the assert succeeds once the user allows and fails the call on a deny. The iOS plugin,
-`ASKING_RULES` and `confirmed` from `packages/plugins/ios/src/tools.ts:56-60` and
-`packages/plugins/ios/src/tools.ts:155-165`:
+`ASKING_RULES` and `confirmed` from `packages/plugins/ios/src/tools.ts:58-62` and
+`packages/plugins/ios/src/tools.ts:167-177`:
 
 ```ts
 const ASKING_RULES: Permission.Rule[] = ['ios_build', 'ios_run'].map((action) => ({
@@ -119,7 +119,7 @@ function confirmed(permission: Context['permission'], action: string, tool: Tool
 }
 ```
 
-The rules go to every agent with `ctx.agent.transform` (`packages/plugins/ios/src/tools.ts:191`):
+The rules go to every agent with `ctx.agent.transform` (`packages/plugins/ios/src/tools.ts:203`):
 
 ```ts
 yield * ctx.agent.transform((editor) => editor.list().forEach((agent) => agent.permissions.push(...ASKING_RULES)))
@@ -133,7 +133,7 @@ action is a catch-all `*` rule.
 `ctx.skill.transform((editor) => editor.add(info))` adds a `Skill.Info` (`id`, `name`, `description`,
 `path`, `content`); see `info` in `packages/plugins/recorder/src/skill.ts:4-9`. A session `context` hook
 adds text to the system prompt before every request. The iOS plugin, from
-`packages/plugins/ios/src/tools.ts:246`:
+`packages/plugins/ios/src/tools.ts:258`:
 
 ```ts
 yield * ctx.session.hook('context', (event) => Effect.sync(() => event.system.push({type: 'text', text: rules})))
@@ -152,7 +152,7 @@ page plugin's: read them with `ctx.browserTabs.list(sessionId)` and take `Browse
 A tool that starts work it answers later starts a job: `ctx.job.start({id, type, run, background: true,
 recovery, metadata})` (`packages/backend-plugin-api/src/effect/job.ts:24-41`), with the call's `toolCallId` and
 `origin` in `metadata` so the hub can find it with `jobs.list`. The page plugin's queue is the example
-(`packages/plugins/page/src/connection.ts:404-430`).
+(`packages/plugins/page/src/connection.ts:396-422`).
 
 ## Sources
 

@@ -36,13 +36,13 @@ conciv finds plugins two ways (`apps/site/content/docs/plugins/index.mdx`):
 - the `plugins` option of `conciv()`: a package name, a path (`./` and `../` start at the project
   folder), or `[name, options]` with JSON option values. The engine installs a package name with npm
   into its own cache. A string that starts with `-` turns off the plugin with that id
-  (`parse`, `packages/backend-app-api/src/core/config/plugin/source.ts:183-191`).
+  (`parse`, `packages/backend-app-api/src/core/config/plugin/source.ts:184-192`).
 
 Node imports the engine part itself, with its own type stripping: write it as `.ts` or `.js` (or
 `.mts`, `.mjs`, `.cts`, `.cjs`), with erasable syntax only (no `enum`, no parameter properties) and no
 JSX. A sibling import may name the `.js` twin of a `.ts` file, as the example's `./rpc.js` does. The
 browser part is always a built bundle. A plugin that fails to load shows as failed with its error, or
-`Plugin failed to load` (`packages/backend-app-api/src/core/plugin/supervisor.ts:67`).
+`Plugin failed to load` (`packages/backend-app-api/src/core/plugin/supervisor.ts:69`).
 
 ## A folder plugin: the example app's deploy plugin
 
@@ -144,7 +144,7 @@ Call it from a terminal in the project: `conciv plugin call deploy run --data '{
 plugin conciv ships uses it. `Plugin.define({id, effect})` runs `effect(ctx)` in a scope that closes
 when the plugin stops, reloads or is turned off: every tool, skill and RPC handler it registered goes
 with it, and so does a fiber started with `Effect.forkScoped`. The test runner, from
-`packages/plugins/test-runner/src/test-runner.ts:61-82`:
+`packages/plugins/test-runner/src/test-runner.ts:62-81`:
 
 ```ts
 export default Plugin.define<RunnerServices>({
@@ -244,7 +244,7 @@ removed when the plugin reloads or stops, and `ctx.signal` aborts then
 
 `ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the contract. The client is
 new after the engine restarts, so read `ctx.client` where you call it. From
-`packages/plugins/test-runner/src/follow.ts:26-36`:
+`packages/plugins/test-runner/src/follow.ts:17-27`:
 
 ```ts
 function readRun(client: Client) {
@@ -262,14 +262,14 @@ function readRun(client: Client) {
 
 Events arrive on `client.event.subscribe({types: ['rpc.<id>.<event>']})`. A `server.connected` event
 comes when the engine connection comes back: read the current state again then
-(`packages/plugins/test-runner/src/follow.ts:38-42`).
+(`packages/plugins/test-runner/src/follow.ts:29-33`).
 
 Registries for `ctx.add` (`packages/frontend-plugin-api/src/registries.ts:414-574`): `Panel` (tabs in the
 session pane), `Slot` (`window.bottom`, `session.header`, `session.status`, `page.overlay`),
 `ComposerPill`, `Command` (keybind and slash command), `SettingsPage`, `ToolRegistry` (a card for a
 tool's calls), `CodeBlock`, `CodeBlockAction`, `LinkHandler`, `Server` and `Style` (CSS imported with
 `?inline`; the widget fences every rule of it to the plugin's own `data-conciv-plugin` area,
-`packages/frontend-app-api/src/plugin/render.tsx:92-131`), and the page plugin's `PageOperation` from `@conciv/frontend-plugin-api/page`. `ctx.add`
+`packages/frontend-app-api/src/plugin/render.tsx:93-132`), and the page plugin's `PageOperation` from `@conciv/frontend-plugin-api/page`. `ctx.add`
 takes an item, or a function that returns one (or `undefined` for none). `Plugin.define({stores})`
 declares `Store.global`, `Store.project` and `Store.session` values
 (`packages/frontend-plugin-api/src/core.ts:219-260`). `ctx.provide` and `ctx.use` share contracts
@@ -295,7 +295,7 @@ widget opened for it, the id the engine lists in `tabs.list`; the engine part re
 (`packages/frontend-plugin-api/src/vite.ts:7-44`). The widget provides `effect`, `zod`, `solid-js`,
 `solid-js/web`, `solid-js/store`, `@conciv/client`, `@conciv/frontend-plugin-api`,
 `@conciv/frontend-plugin-api/page`, `@conciv/frontend-plugin-api/grab` and
-`@conciv/protocol/schema/rpc` (`packages/frontend-plugin-api/src/modules.ts:1-15`). The build keeps
+`@conciv/protocol/schema/rpc` (`packages/frontend-plugin-api/src/modules.ts:1-16`). The build keeps
 them external and fails on any other `effect`, `solid-js` or `@conciv` import.
 
 ## Testing
@@ -331,7 +331,7 @@ describe("the agent runs the project's tests", () => {
 ```
 
 A package name in `config.plugins` is the package under test, or one installed for it (`pluginDirectory`,
-`packages/engine-kit/src/plugin-directory.ts:15-28`), loaded from its built `.` export: build the plugin
+`packages/engine-kit/src/plugin-directory.ts:16-29`), loaded from its built `.` export: build the plugin
 before a run. The fixture stops every engine its test started when the test ends. See
 [rpc-and-testing](references/rpc-and-testing.md) for what the engine gives a test.
 
@@ -353,9 +353,9 @@ test runner does (`packages/plugins/test-runner/package.json`). The test runner 
 
 - A `.tsx` engine file, or TypeScript syntax Node cannot strip: Node cannot load it.
 - A tool name with `-`: the engine logs `Skipping invalid tool registration` with `Invalid tool name`
-  and leaves the tool out (`packages/backend-app-api/src/core/tool.ts:338-340`).
+  and leaves the tool out (`packages/backend-app-api/src/core/tool.ts:331-332`).
 - `{output}` returned from a tool with no `output` schema: the call fails with "Tool result declared
-  output without an output schema" (`packages/backend-app-api/src/core/tool/runtime.ts:33`). Declare
+  output without an output schema" (`packages/backend-app-api/src/core/tool/runtime.ts:34`). Declare
   `output`, or return `{content}`.
 - A tool that changes real state with no ask rule and no `ctx.permission.assert`: add both.
 - An RPC method that asks the user: make it a tool.

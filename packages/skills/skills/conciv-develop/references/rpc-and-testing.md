@@ -12,7 +12,7 @@ its own module so the engine part, the browser part and the terminal import the 
 `ctx.rpc.register(contract, handlers)` returns a registration with `dispose` and
 `events.emit(name, data)`. A handler gets the parsed input and a call context with
 `error(name, message, data)`, which builds one of the method's declared errors. In the Effect entry it
-returns an `Effect`. The test runner's `registerRpc`, from `packages/plugins/test-runner/src/test-runner.ts:37-59`:
+returns an `Effect`. The test runner's `registerRpc`, from `packages/plugins/test-runner/src/test-runner.ts:38-60`:
 
 ```ts
 function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
@@ -50,7 +50,7 @@ ask is a tool.
   the page plugin this way (`ctx.rpc(PageDefinition)`, `packages/plugins/tanstack/src/tools.ts:106-110`).
 - The browser part: `ctx.client.rpc(Contract).method(input, {signal})`. Events arrive on
   `ctx.client.event.subscribe({types: ['rpc.<id>.<event>']})`, and `server.connected` marks the moment
-  to read the current state again (`packages/plugins/test-runner/src/follow.ts:24-42`).
+  to read the current state again (`packages/plugins/test-runner/src/follow.ts:15-33`).
 - A terminal: `conciv plugin call <rpcId> <method> [--data <json>]`
   (`apps/site/content/docs/plugins/terminal.mdx`).
 
@@ -71,7 +71,7 @@ real engine on a free port with a scripted model; only the model and the agent C
 - The engine has `session.send(text)`, `session.tool(name).call(input)` and `.failure(input)`,
   `session.stop()`, `requests()`, `rpc.call(id, method, input)` and `rpc.failure(...)`,
   `event(type, match)` (its `.arrived` resolves on the next match), `gate()`, `restart()`, and
-  `write(path, content)` to put a file in the project (`packages/engine-kit/src/harness-engine.ts:130-153`).
+  `write(path, content)` to put a file in the project (`packages/engine-kit/src/harness-engine.ts:131-154`).
 - The fixture stops every engine its test started when the test ends, pass or fail. A test never stops
   one itself.
 
