@@ -47,8 +47,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/protocol": "workspace:^",
     "diff": "catalog:",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "evlog": "catalog:",
     "magic-string": "^1.4.5",
     "oxc-parser": "catalog:",
@@ -59,6 +61,7 @@
     "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/vite-config": "workspace:*",

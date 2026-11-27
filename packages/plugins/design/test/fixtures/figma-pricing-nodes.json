@@ -1,0 +1,589 @@
+{
+  "name": "Shop",
+  "lastModified": "2026-11-01T09:00:00Z",
+  "version": "2201",
+  "nodes": {
+    "1:2": {
+      "document": {
+        "id": "1:2",
+        "name": "Pricing",
+        "type": "FRAME",
+        "absoluteBoundingBox": {
+          "x": 100,
+          "y": 200,
+          "width": 1440,
+          "height": 900
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        ],
+        "clipsContent": true,
+        "children": [
+          {
+            "id": "1:3",
+            "name": "Header",
+            "type": "FRAME",
+            "absoluteBoundingBox": {
+              "x": 100,
+              "y": 200,
+              "width": 1440,
+              "height": 80
+            },
+            "layoutMode": "HORIZONTAL",
+            "itemSpacing": 32,
+            "paddingTop": 24,
+            "paddingRight": 24,
+            "paddingBottom": 24,
+            "paddingLeft": 24,
+            "counterAxisAlignItems": "CENTER",
+            "primaryAxisAlignItems": "MIN",
+            "strokes": [
+              {
+                "type": "SOLID",
+                "color": {
+                  "r": 0.9,
+                  "g": 0.91,
+                  "b": 0.92,
+                  "a": 1
+                }
+              }
+            ],
+            "strokeWeight": 1,
+            "strokeAlign": "INSIDE",
+            "individualStrokeWeights": {
+              "top": 0,
+              "right": 0,
+              "bottom": 1,
+              "left": 0
+            },
+            "children": [
+              {
+                "id": "1:4",
+                "name": "Logo",
+                "type": "TEXT",
+                "absoluteBoundingBox": {
+                  "x": 124,
+                  "y": 224,
+                  "width": 80,
+                  "height": 32
+                },
+                "characters": "Acme",
+                "style": {
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": 700,
+                  "lineHeightPx": 30.0,
+                  "lineHeightUnit": "PIXELS",
+                  "textAlignHorizontal": "LEFT"
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.067,
+                      "g": 0.094,
+                      "b": 0.153,
+                      "a": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "1:5",
+                "name": "Nav",
+                "type": "TEXT",
+                "absoluteBoundingBox": {
+                  "x": 236,
+                  "y": 230,
+                  "width": 60,
+                  "height": 20
+                },
+                "characters": "Plans",
+                "style": {
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "lineHeightPx": 20.0,
+                  "lineHeightUnit": "PIXELS",
+                  "textAlignHorizontal": "LEFT"
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.067,
+                      "g": 0.094,
+                      "b": 0.153,
+                      "a": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "1:6",
+                "name": "Nav",
+                "type": "TEXT",
+                "absoluteBoundingBox": {
+                  "x": 328,
+                  "y": 230,
+                  "width": 60,
+                  "height": 20
+                },
+                "characters": "Docs",
+                "style": {
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "lineHeightPx": 20.0,
+                  "lineHeightUnit": "PIXELS",
+                  "textAlignHorizontal": "LEFT"
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.067,
+                      "g": 0.094,
+                      "b": 0.153,
+                      "a": 1
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "1:7",
+            "name": "Title",
+            "type": "TEXT",
+            "absoluteBoundingBox": {
+              "x": 180,
+              "y": 320,
+              "width": 400,
+              "height": 48
+            },
+            "characters": "Pick a plan",
+            "style": {
+              "fontFamily": "Inter",
+              "fontSize": 40,
+              "fontWeight": 700,
+              "lineHeightPx": 50.0,
+              "lineHeightUnit": "PIXELS",
+              "textAlignHorizontal": "LEFT"
+            },
+            "fills": [
+              {
+                "type": "SOLID",
+                "color": {
+                  "r": 0.067,
+                  "g": 0.094,
+                  "b": 0.153,
+                  "a": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "1:8",
+            "name": "Subtitle",
+            "type": "TEXT",
+            "absoluteBoundingBox": {
+              "x": 180,
+              "y": 380,
+              "width": 300,
+              "height": 24
+            },
+            "characters": "Cancel any time",
+            "style": {
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": 400,
+              "lineHeightPx": 22.5,
+              "lineHeightUnit": "PIXELS",
+              "textAlignHorizontal": "LEFT"
+            },
+            "fills": [
+              {
+                "type": "SOLID",
+                "color": {
+                  "r": 0.067,
+                  "g": 0.094,
+                  "b": 0.153,
+                  "a": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "1:40",
+            "name": "Hero art",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {
+              "x": 1060,
+              "y": 320,
+              "width": 400,
+              "height": 84
+            },
+            "fills": [
+              {
+                "type": "IMAGE",
+                "imageRef": "abc123",
+                "scaleMode": "FILL"
+              }
+            ]
+          },
+          {
+            "id": "1:9",
+            "name": "Plans",
+            "type": "FRAME",
+            "absoluteBoundingBox": {
+              "x": 180,
+              "y": 460,
+              "width": 1280,
+              "height": 400
+            },
+            "layoutMode": "HORIZONTAL",
+            "itemSpacing": 40,
+            "counterAxisAlignItems": "MIN",
+            "children": [
+              {
+                "id": "1:10",
+                "name": "Plan card",
+                "type": "INSTANCE",
+                "componentId": "9:1",
+                "absoluteBoundingBox": {
+                  "x": 180,
+                  "y": 460,
+                  "width": 400,
+                  "height": 400
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.96,
+                      "g": 0.97,
+                      "b": 0.98,
+                      "a": 1
+                    }
+                  }
+                ],
+                "boundVariables": {
+                  "fills": [
+                    {
+                      "type": "VARIABLE_ALIAS",
+                      "id": "VariableID:1:1"
+                    }
+                  ]
+                },
+                "cornerRadius": 16,
+                "layoutMode": "VERTICAL",
+                "itemSpacing": 16,
+                "paddingTop": 32,
+                "paddingRight": 32,
+                "paddingBottom": 32,
+                "paddingLeft": 32,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "HUG",
+                "children": [
+                  {
+                    "id": "1:11",
+                    "name": "Plan",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": {
+                      "x": 212,
+                      "y": 492,
+                      "width": 336,
+                      "height": 30
+                    },
+                    "characters": "Starter",
+                    "style": {
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": 600,
+                      "lineHeightPx": 30.0,
+                      "lineHeightUnit": "PIXELS",
+                      "textAlignHorizontal": "LEFT"
+                    },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.067,
+                          "g": 0.094,
+                          "b": 0.153,
+                          "a": 1
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "1:12",
+                    "name": "Price",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": {
+                      "x": 212,
+                      "y": 538,
+                      "width": 336,
+                      "height": 60
+                    },
+                    "characters": "$12",
+                    "style": {
+                      "fontFamily": "Inter",
+                      "fontSize": 48,
+                      "fontWeight": 700,
+                      "lineHeightPx": 60.0,
+                      "lineHeightUnit": "PIXELS",
+                      "textAlignHorizontal": "LEFT"
+                    },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.067,
+                          "g": 0.094,
+                          "b": 0.153,
+                          "a": 1
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "1:20",
+                "name": "Plan card",
+                "type": "INSTANCE",
+                "componentId": "9:1",
+                "absoluteBoundingBox": {
+                  "x": 620,
+                  "y": 460,
+                  "width": 400,
+                  "height": 400
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.96,
+                      "g": 0.97,
+                      "b": 0.98,
+                      "a": 1
+                    }
+                  }
+                ],
+                "boundVariables": {
+                  "fills": [
+                    {
+                      "type": "VARIABLE_ALIAS",
+                      "id": "VariableID:1:1"
+                    }
+                  ]
+                },
+                "cornerRadius": 16,
+                "layoutMode": "VERTICAL",
+                "itemSpacing": 16,
+                "paddingTop": 32,
+                "paddingRight": 32,
+                "paddingBottom": 32,
+                "paddingLeft": 32,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "HUG",
+                "children": [
+                  {
+                    "id": "1:21",
+                    "name": "Plan",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": {
+                      "x": 652,
+                      "y": 492,
+                      "width": 336,
+                      "height": 30
+                    },
+                    "characters": "Team",
+                    "style": {
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": 600,
+                      "lineHeightPx": 30.0,
+                      "lineHeightUnit": "PIXELS",
+                      "textAlignHorizontal": "LEFT"
+                    },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.067,
+                          "g": 0.094,
+                          "b": 0.153,
+                          "a": 1
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "1:22",
+                    "name": "Price",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": {
+                      "x": 652,
+                      "y": 538,
+                      "width": 336,
+                      "height": 60
+                    },
+                    "characters": "$48",
+                    "style": {
+                      "fontFamily": "Inter",
+                      "fontSize": 48,
+                      "fontWeight": 700,
+                      "lineHeightPx": 60.0,
+                      "lineHeightUnit": "PIXELS",
+                      "textAlignHorizontal": "LEFT"
+                    },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.067,
+                          "g": 0.094,
+                          "b": 0.153,
+                          "a": 1
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "1:30",
+                "name": "Plan card",
+                "type": "INSTANCE",
+                "componentId": "9:1",
+                "absoluteBoundingBox": {
+                  "x": 1060,
+                  "y": 460,
+                  "width": 400,
+                  "height": 400
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.96,
+                      "g": 0.97,
+                      "b": 0.98,
+                      "a": 1
+                    }
+                  }
+                ],
+                "boundVariables": {
+                  "fills": [
+                    {
+                      "type": "VARIABLE_ALIAS",
+                      "id": "VariableID:1:1"
+                    }
+                  ]
+                },
+                "cornerRadius": 16,
+                "layoutMode": "VERTICAL",
+                "itemSpacing": 16,
+                "paddingTop": 32,
+                "paddingRight": 32,
+                "paddingBottom": 32,
+                "paddingLeft": 32,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "HUG",
+                "children": [
+                  {
+                    "id": "1:31",
+                    "name": "Plan",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": {
+                      "x": 1092,
+                      "y": 492,
+                      "width": 336,
+                      "height": 30
+                    },
+                    "characters": "Business",
+                    "style": {
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": 600,
+                      "lineHeightPx": 30.0,
+                      "lineHeightUnit": "PIXELS",
+                      "textAlignHorizontal": "LEFT"
+                    },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.067,
+                          "g": 0.094,
+                          "b": 0.153,
+                          "a": 1
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "1:32",
+                    "name": "Price",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": {
+                      "x": 1092,
+                      "y": 538,
+                      "width": 336,
+                      "height": 60
+                    },
+                    "characters": "$96",
+                    "style": {
+                      "fontFamily": "Inter",
+                      "fontSize": 48,
+                      "fontWeight": 700,
+                      "lineHeightPx": 60.0,
+                      "lineHeightUnit": "PIXELS",
+                      "textAlignHorizontal": "LEFT"
+                    },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.067,
+                          "g": 0.094,
+                          "b": 0.153,
+                          "a": 1
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "components": {
+        "9:1": {
+          "key": "k91",
+          "name": "Plan card",
+          "componentSetId": "9:0"
+        }
+      },
+      "componentSets": {
+        "9:0": {
+          "key": "k90",
+          "name": "Plan card"
+        }
+      },
+      "styles": {}
+    }
+  }
+}

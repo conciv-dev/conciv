@@ -1,9 +1,11 @@
-import {Effect, FileSystem} from 'effect'
+import {Effect, FileSystem, Path} from 'effect'
+import {FetchHttpClient, HttpClient} from 'effect/http'
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import type {KeyMap} from './com/key-map.js'
 import {stampJsx} from './com/stamp.js'
 import {designErrors} from './errors/errors.js'
+import {registerDesignGet} from './tools/design-get.js'
 
 const CatalogOptions = z.object({
   sources: z
@@ -43,6 +45,15 @@ const Options = z.object({
     .default([])
     .describe('reply fields sent to the agent beyond the default; progress is computed and stored either way'),
   catalog: CatalogOptions.prefault({}),
+  figma: z
+    .object({
+      token: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('a Figma personal access token; without one design_get reads the document the agent passes'),
+    })
+    .prefault({}),
   hotkeys: z
     .object({overlay: z.string(), pick: z.string()})
     .default({overlay: 'Mod+Shift+X', pick: 'Mod+Shift+P'})
@@ -60,8 +71,10 @@ export default Plugin.define({
   id: 'design',
   effect: (ctx) =>
     Effect.gen(function* () {
-      yield* readOptions(ctx.options)
-      const services = yield* Effect.context<FileSystem.FileSystem>()
+      const options = yield* readOptions(ctx.options)
+      const services = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+      const http = yield* HttpClient.HttpClient.pipe(Effect.provide(FetchHttpClient.layer))
+      yield* registerDesignGet({ctx, token: options.figma.token, http})
       const keys: KeyMap = new Map()
       const root = ctx.location.directory
       yield* ctx.bundler.transform((editor) =>
