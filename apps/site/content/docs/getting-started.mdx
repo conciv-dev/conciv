@@ -1,25 +1,52 @@
 ---
 title: Getting started
-description: Add conciv to your app, log in, and ask the agent about the page you are on.
+description: Paste one prompt into your agent and you are set up. Then ask about the page you are on.
 icon: Rocket
 ---
 
-A coding agent in your terminal cannot see your running app. So you leave the app to ask it something. Then you paste
-the error, the markup or a screenshot back by hand. conciv removes that trip. The agent runs inside your app. It reads
-the page you are on and edits the source that renders it.
+conciv puts your coding agent inside the app you are running, where it reads the page you are on and edits the source
+that renders it.
 
-This guide takes the shortest path:
-
-1. Install conciv with one command.
-2. Start your dev server.
-3. Log in with the code your dev server prints.
-4. Ask the agent about the page you are on.
+New here? [What is conciv](/docs) shows how it works.
 
 ## Quick start
 
 <AgentPrompt prompt="setup" />
 
-## Installation
+Then open the conciv panel in your app and ask about the page you are on:
+
+<CopyPrompt text="What is on this page, and which file renders it?" />
+
+## Use conciv
+
+<Cards>
+  <Card title="Features" href="/docs/usage" description="Everything you do with the widget in your running app, one task per page." />
+  <Card title="Add plugins" href="/docs/usage/add-plugins" description="Give the agent new tools, such as a test runner." />
+  <Card title="Engine and widget" href="/docs/engine-and-widget" description="What runs where when conciv is on, and where it keeps its state." />
+  <Card title="Sessions" href="/docs/sessions" description="One conversation with the agent: its messages, its queue and its transcript." />
+</Cards>
+
+## Build your own
+
+<Cards>
+  <Card title="Build your first plugin" href="/docs/plugins/first-plugin" description="From an empty folder to a tool the agent calls and a card in the chat." />
+  <Card title="Plugins" href="/docs/plugins" description="What a plugin adds, and the guides for every part of one." />
+  <Card title="Plugin API reference" href="/docs/plugins/reference" description="Every field of Plugin.define, ctx, a tool and the browser registries." />
+</Cards>
+
+## Work with agents
+
+<Cards>
+  <Card title="Connect your agents" href="/docs/agents" description="Let the agent in your terminal drive your open tabs." />
+  <Card title="Harnesses" href="/docs/harnesses" description="Pick the agent CLI that answers in the chat." />
+  <Card title="Skills" href="/docs/skills" description="Give the agent a written guide for one kind of work." />
+</Cards>
+
+## Manual setup
+
+The prompt runs these steps for you. To do them by hand:
+
+### Installation
 
 Run init in your app folder, the one with `package.json`:
 
@@ -135,7 +162,7 @@ Pressing Ctrl-C while init runs puts your config back as it was. Every flag is i
 </Accordion>
 </Accordions>
 
-## Start your dev server
+### Start your dev server
 
 Start your dev server the way you always do. conciv starts with it. It adds a conciv button to the corner of every
 page.
@@ -150,7 +177,7 @@ A few things to notice:
 - The chat runs an agent CLI on your machine, `claude` by default. It must be on the `PATH` of the shell that starts
   your dev server, and logged in. See [Connect your agents](/docs/agents) for the others.
 
-## Log in
+### Log in
 
 The engine can read your project and run commands, so it answers only browsers you let in. Click the conciv button.
 Your dev server prints a box with a 6-digit code:
@@ -168,7 +195,7 @@ Your dev server prints a box with a 6-digit code:
 Type the code in the panel, or open the link. You log in once per browser. Learn more in
 [Logging in](/docs/usage/logging-in).
 
-## Ask about the page
+### Ask about the page
 
 Open the panel and ask about the page you have open. The agent reads the rendered page first, then finds the file
 that renders it.
@@ -188,11 +215,3 @@ A few things to notice:
 - The crosshair beside the composer pins an element to your message, with its source file when conciv finds it.
 - When the agent edits your source, your dev server reloads the page.
 - A risky action shows a card first: Allow once, Allow always or Deny.
-
-## Next steps
-
-- **Use conciv**: [chat, page control, live tests and more](/docs/usage), feature by feature.
-- **Connect your terminal agent**: [Connect your agents](/docs/agents) lets it drive your open tabs too.
-- **Learn what runs where**: [Engine and widget](/docs/engine-and-widget) and [Sessions](/docs/sessions).
-- **Add plugins**: [Add plugins](/docs/usage/add-plugins) to give the agent new tools, such as a test runner.
-- **Build your own plugin**: [Build your first plugin](/docs/plugins/first-plugin).
