@@ -1,10 +1,23 @@
 ---
-title: How it works
-description: What runs where, how the widget talks to the engine, and what a turn does.
+title: Engine and widget
+description: What runs where when conciv is on, what a turn does, and where conciv keeps its state.
 ---
 
-conciv has three running parts. Your dev server starts the engine, and adds the widget to your page. The widget talks
-to the engine over one websocket. The engine runs the agent CLI behind the chat.
+conciv is two programs that your dev server starts together. The engine runs in node and runs the agent. The widget
+runs on your page and is the chat you type into.
+
+## Overview
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv(), // <- starts the engine and adds the widget, in development only
+  ],
+})
+```
 
 <Mermaid
   chart={`flowchart LR
@@ -19,52 +32,81 @@ to the engine over one websocket. The engine runs the agent CLI behind the chat.
   widget <-->|websocket, after login| engine`}
 />
 
-## The parts
+## Build plugin
 
-- **Build plugin.** `@conciv/it` in your Vite, webpack, Rspack or Next.js config. In development it starts the engine
-  and adds the widget.
-- **Engine.** Runs in node, in your dev server's process. It listens on `127.0.0.1` only, on its own port.
-- **Widget.** The conciv button, the panel and the terminal. It mounts in a shadow root, so your styles and its styles
-  stay apart.
-- **Harness.** The agent CLI the engine runs a turn with, such as Claude Code. See [Harnesses](/docs/harnesses).
+The build plugin is `@conciv/it` in your bundler config. In development it starts the engine and adds the widget to
+every page. A production build leaves both out. Learn more in the [Bundlers documentation](/docs/bundlers).
 
-The engine answers only browsers that logged in. See [Logging in](/docs/usage/logging-in).
+## Engine
+
+The engine is a node server inside your dev server's process. It listens on `127.0.0.1` only, on a port of its own. It
+answers only browsers that logged in. Learn more in the [Logging in documentation](/docs/usage/logging-in).
+
+## Widget
+
+The widget is the conciv button, the panel and the quick terminal. It mounts in a shadow root, so your styles and its
+styles stay apart. It talks to the engine over one websocket.
+
+## Harness
+
+A harness is the agent CLI the engine runs a turn with, such as Claude Code. It runs on your machine, with your own
+login. Learn more in the [Harnesses documentation](/docs/harnesses).
 
 ## A turn
 
-<Steps>
-  <Step>You send a message. The widget sends it to the engine over the websocket.</Step>
-  <Step>The engine runs the turn with your harness, in your project folder, with conciv's tools.</Step>
-  <Step>The agent calls tools: it reads the page, drives it, edits files and runs tests.</Step>
-  <Step>A risky call waits on a permission card in the panel. It goes on once you answer.</Step>
-  <Step>Text, tool calls and cards stream back into the panel.</Step>
-</Steps>
+A turn is one message from you and everything the agent does to answer it:
 
-If the socket drops, the widget dials it again. A running turn resumes from its last event.
+1. The widget sends your message to the engine over the websocket.
+2. The engine runs the harness in your project folder, with conciv's tools added.
+3. The agent calls tools. It reads the page, drives it, edits files and runs tests.
+4. A risky call waits on a permission card in the panel, and goes on once you answer.
+5. Text, tool calls and cards stream back into the panel.
+
+If the socket drops, the widget dials again. A running turn picks up from its last event. Learn more in the [Tools and
+code mode documentation](/docs/tools-and-code-mode).
+
+<Playground page="vite-react" script="intro/first-session" caption="One turn: a message, the agent reading the page, and its answer." />
+
+## Outside agents
+
+An agent CLI in your own terminal can reach the engine too, over MCP. It drives your open tabs with the same tools.
+Learn more in the [Agents documentation](/docs/agents).
 
 ## Where state lives
 
-The engine keeps its state in `.conciv/` at your project root. The folder has its own `.gitignore`. It ignores
+The engine keeps its state in `.conciv/` at your project root. The folder has its own `.gitignore`, which ignores
 everything except `settings/`.
 
 <Files>
   <Folder name=".conciv" defaultOpen>
+    <File name=".gitignore" />
     <File name="server.json" />
     <File name="trusted-browsers.json" />
     <File name="conciv.db" />
+    <File name="chat-system-prompt.txt" />
+    <File name="mcp-endpoint.json" />
+    <Folder name="claude-connect" />
     <Folder name="settings" />
     <Folder name="bin" />
   </Folder>
 </Files>
 
-- `server.json`: the engine port and token. The engine reuses the port on its next start.
-- `trusted-browsers.json`: the browsers that logged in.
-- `conciv.db`: sessions, chat history and saved permission answers, in SQLite.
-- `settings/`: project settings saved from the widget. It is not ignored, so you can commit it.
-- `bin/conciv`: the conciv command, first on the agent's `PATH`.
+- `server.json` holds the engine's port and token. The engine reuses the port on its next start.
+- `trusted-browsers.json` lists the browsers that logged in.
+- `conciv.db` is a SQLite file. It holds sessions, chat history and saved permission answers.
+- `chat-system-prompt.txt` is the prompt the engine gives the agent, written on every start.
+- `mcp-endpoint.json` holds the engine's MCP address. The engine writes it on every start.
+- `claude-connect/` holds the Claude Code plugin that `init` sets up. Its bridge reads `mcp-endpoint.json`.
+- `settings/` holds project settings saved from the widget. Git does not ignore it, so you can commit it.
+- `bin/conciv` is the conciv command. It comes first on the `PATH` of the agents the engine starts.
 
-## Next
+<Callout type="info" title="Move the folder">
+  Set `stateRoot` to keep `.conciv/` somewhere else. Learn more in the [Configuration
+  documentation](/docs/reference/configuration#stateroot).
+</Callout>
 
-- [Quick start](/docs/getting-started): set conciv up in your app.
-- [Plugins](/docs/plugins): add tools and panels to the engine and the widget.
-- [Configuration](/docs/reference/configuration): every option.
+## Next steps
+
+- **[Sessions](/docs/sessions):** what a conversation holds, and where it is kept.
+- **[Tools and code mode](/docs/tools-and-code-mode):** how the agent calls conciv's tools.
+- **[Agents and permissions](/docs/agents-and-permissions):** what decides when a card asks you.
