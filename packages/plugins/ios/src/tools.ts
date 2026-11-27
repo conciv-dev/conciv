@@ -4,8 +4,10 @@ import {z} from 'zod'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type * as Permission from '@conciv/protocol/schema/permission'
 import * as Tool from '@conciv/protocol/schema/tool'
+import type {EvlogError} from 'evlog'
 import {BuildOutputSchema, makeBuild} from './build.js'
-import {InvalidOptions, IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
+import {IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
+import {iosErrors} from './errors/errors.js'
 import {iosSystemPrompt} from './prompt.js'
 import {Simctl} from './simctl.js'
 import {capture, launch, readLogs} from './simulator.js'
@@ -69,11 +71,31 @@ const LogsInput = z.object({
   limit: z.number().int().positive().max(5000).optional(),
 })
 
-const runToolErrors = {
-  SpawnFailed: (failure: typeof Simctl.SpawnFailed.Type) =>
-    Effect.fail(Tool.toolError({message: `could not run ${failure.command}`, error: failure.cause})),
-  OutputTooLarge: (failure: typeof Simctl.OutputTooLarge.Type) =>
-    Effect.fail(Tool.toolError({message: `${failure.command} printed more output than the 128MB limit`})),
+const RUN_STAGES: Record<string, RunStage> = {
+  [iosErrors.SIMULATOR_NOT_FOUND.code]: 'resolve-simulator',
+  [iosErrors.BOOT_FAILED.code]: 'boot',
+  [iosErrors.ARTIFACT_MISSING.code]: 'artifact',
+  [iosErrors.INSTALL_FAILED.code]: 'install',
+  [iosErrors.LAUNCH_FAILED.code]: 'launch',
+}
+
+const ToolFailureCodes: readonly string[] = [
+  iosErrors.SPAWN_FAILED.code,
+  iosErrors.OUTPUT_TOO_LARGE.code,
+  iosErrors.BUILD_FILE_FAILED.code,
+]
+
+function toolFailure(error: EvlogError) {
+  return Effect.fail(Tool.toolError({message: error.message, error: error.cause, metadata: {code: error.code}}))
+}
+
+function isToolFailure(error: EvlogError): boolean {
+  return ToolFailureCodes.includes(error.code ?? '')
+}
+
+function failedUdid(error: EvlogError): string {
+  const udid = error.internal?.udid
+  return typeof udid === 'string' ? udid : ''
 }
 
 function runFailure(udid: string, bundleId: string, stage: RunStage, error: string): Run {
@@ -86,16 +108,10 @@ export function run(runtime: IosRuntime, input: {autoshow?: boolean | undefined}
     Effect.map(({udid, pid}): Run =>
       pid === undefined ? {ok: true, udid, bundleId} : {ok: true, udid, bundleId, pid},
     ),
-    Effect.catchTags({
-      SimulatorNotFound: (failure) =>
-        Effect.succeed(
-          runFailure('', bundleId, 'resolve-simulator', `no available simulator matching ${failure.simulator}`),
-        ),
-      BootFailed: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'boot', failure.error)),
-      ArtifactMissing: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'artifact', failure.error)),
-      InstallFailed: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'install', failure.error)),
-      LaunchFailed: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'launch', failure.error)),
-      ...runToolErrors,
+    Effect.catch((error) => {
+      const stage = RUN_STAGES[error.code ?? '']
+      if (stage === undefined) return toolFailure(error)
+      return Effect.succeed(runFailure(failedUdid(error), bundleId, stage, error.message))
     }),
   )
 }
@@ -111,10 +127,11 @@ export function screenshot(runtime: IosRuntime) {
       }
       return {output: {ok: true, width, height}, content: [image]}
     }),
-    Effect.catchTags({
-      SimulatorNotFound: () => Effect.succeed(failed('no matching simulator for ios_screenshot')),
-      ScreenshotFailed: (failure) => Effect.succeed(failed(failure.error)),
-      ...runToolErrors,
+    Effect.catch((error) => {
+      if (isToolFailure(error)) return toolFailure(error)
+      if (error.code === iosErrors.SIMULATOR_NOT_FOUND.code)
+        return Effect.succeed(failed('no matching simulator for ios_screenshot'))
+      return Effect.succeed(failed(error.message))
     }),
   )
 }
@@ -125,22 +142,17 @@ export function logs(
 ) {
   return readLogs(runtime.config, input).pipe(
     Effect.map((lines): Logs => ({ok: true, lines})),
-    Effect.catchTags({
-      SimulatorNotFound: () =>
-        Effect.succeed<Logs>({ok: false, lines: [], error: 'no matching simulator for ios_logs'}),
-      LogsFailed: (failure) => Effect.succeed<Logs>({ok: false, lines: [], error: failure.error}),
-      ...runToolErrors,
+    Effect.catch((error) => {
+      if (isToolFailure(error)) return toolFailure(error)
+      if (error.code === iosErrors.SIMULATOR_NOT_FOUND.code)
+        return Effect.succeed<Logs>({ok: false, lines: [], error: 'no matching simulator for ios_logs'})
+      return Effect.succeed<Logs>({ok: false, lines: [], error: error.message})
     }),
   )
 }
 
 function built(build: Effect.Success<typeof makeBuild>, runtime: IosRuntime, input: {clean?: boolean | undefined}) {
-  return build(runtime, input).pipe(
-    Effect.catchTags({
-      BuildFileFailed: (failure) => Effect.fail(Tool.toolError({message: failure.message, error: failure.cause})),
-      ...runToolErrors,
-    }),
-  )
+  return build(runtime, input).pipe(Effect.catch(toolFailure))
 }
 
 type Registration = Pick<Context, 'agent' | 'options' | 'permission' | 'servers' | 'session' | 'tool' | 'location'>
@@ -168,7 +180,7 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
   const services = yield* Effect.context<Services>()
   const build = yield* makeBuild
   const parsed = IosConfigSchema.safeParse(ctx.options)
-  if (!parsed.success) return yield* Effect.fail(InvalidOptions.make({message: z.prettifyError(parsed.error)}))
+  if (!parsed.success) return yield* Effect.fail(iosErrors.INVALID_OPTIONS({detail: z.prettifyError(parsed.error)}))
   const config = parsed.data
   const configuredRuntime: IosRuntime | undefined = config && {
     config,

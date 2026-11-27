@@ -3,7 +3,7 @@ import {Effect} from 'effect'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
 import type {ContractedRouter} from '@orpc/server'
-import {engineErrors, type contract, type SessionHit, type SessionMeta} from '@conciv/protocol'
+import {type contract, type SessionHit, type SessionMeta} from '@conciv/protocol'
 import {
   SessionId,
   type HarnessLoginStatus,
@@ -39,6 +39,7 @@ import {createChatSession, deleteSession, renameSession} from '../../sessions/se
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import {os, type ChatContext, type EngineRpcContext, type RpcDeps} from './mount.js'
 import {inSpan} from '../../../ai.js'
+import {engineErrors} from '@conciv/errors'
 
 async function loadNativePage(
   chat: ChatContext,

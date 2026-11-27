@@ -78,6 +78,7 @@
     "@conciv/backend": "workspace:^",
     "@conciv/backend-defaults": "workspace:^",
     "@conciv/cli": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/types": "workspace:^",
     "@orpc/server": "catalog:",
     "@tanstack/devtools-bundler-core": "catalog:",

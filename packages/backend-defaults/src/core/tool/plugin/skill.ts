@@ -1,5 +1,5 @@
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
-import {makeToolFailure} from '@conciv/backend-app-api/ai/effect'
+import * as Tool from '@conciv/protocol/schema/tool'
 import {Effect, Schema} from 'effect'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
 import * as Skill from '@conciv/backend-app-api/core/skill'
@@ -24,8 +24,7 @@ export const description = [
 
 export const toModelOutput = Skill.toModelOutput
 
-const unableToLoad = (name: string, error?: unknown) =>
-  makeToolFailure({message: `Unable to load skill ${name}`, error})
+const unableToLoad = (name: string, error?: unknown) => Tool.makeError({message: `Unable to load skill ${name}`, error})
 
 export const Plugin = {
   id: 'conciv.tool.skill',

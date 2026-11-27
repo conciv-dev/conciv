@@ -41,6 +41,7 @@
   "dependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
     "@effect/platform-node": "catalog:",
@@ -52,6 +53,7 @@
     "detect-libc": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "glob": "catalog:",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",

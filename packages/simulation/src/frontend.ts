@@ -4,12 +4,12 @@ import type {RouterContractClient} from '@orpc/contract'
 import {WebSocket} from 'ws'
 import {
   PROTOCOL_VERSION,
-  simulationErrors,
   uiContract,
   type SemanticNode,
   type SemanticSnapshot,
   type UiState,
 } from '@conciv/protocol/simulation'
+import {simulationErrors} from '@conciv/errors'
 
 export type UiClient = RouterContractClient<typeof uiContract>
 

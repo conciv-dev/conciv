@@ -1,4 +1,5 @@
 import {Context, type Effect, type Schema} from 'effect'
+import type {EvlogError} from 'evlog'
 import * as InstructionEntry from '@conciv/protocol/schema/instruction-entry'
 import type * as Session from '@conciv/protocol/schema/session'
 
@@ -13,7 +14,7 @@ export interface Interface {
     readonly sessionId: Session.Id
     readonly key: Key
     readonly value: Schema.Json
-  }) => Effect.Effect<void, InstructionEntry.ValueTooLargeError>
+  }) => Effect.Effect<void, EvlogError>
   readonly remove: (input: {readonly sessionId: Session.Id; readonly key: Key}) => Effect.Effect<void>
 }
 

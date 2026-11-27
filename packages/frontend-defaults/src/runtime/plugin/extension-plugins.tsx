@@ -1,5 +1,5 @@
 import type {PluginInfo} from '@conciv/client'
-import {z} from 'zod'
+import {EvlogError} from 'evlog'
 import {createMemo, createSignal, createUniqueId, For, Show} from 'solid-js'
 import {Button, Switch} from '@conciv/ui-kit-system'
 import Box from 'lucide-solid/icons/box'
@@ -8,9 +8,9 @@ import {ActionRow, Group} from '@internal/frontend-app-api/plugin/settings-layou
 import {Badge} from '../../settings/settings-ui'
 import {useNotices} from '../../shell/notice-context'
 import {usePluginHost} from '@internal/frontend-app-api/plugin/host'
+import {errorFix} from '../../shell/rpc-error-message'
 import {useBuiltinPlugin, usePluginManager, useReservedPlugins} from './root'
-
-const NotFoundSchema = z.object({code: z.literal('notFound')})
+import {widgetPluginErrors} from '@conciv/errors'
 
 const STATUS = 'text-chat-xs text-chat-text-2'
 const NOTE = `m-0 ${STATUS}`
@@ -43,6 +43,8 @@ function createPluginRows(plugins: () => readonly PluginInfo[]) {
 
   const errorOf = (id: string, kind: 'builtin' | 'config') => host.failure(id)?.error ?? itemOf(id, kind)?.error
 
+  const fixOf = (id: string | undefined) => (id ? host.failure(id)?.fix : undefined)
+
   const failedBuiltins = createMemo(() =>
     host
       .definitions()
@@ -51,7 +53,7 @@ function createPluginRows(plugins: () => readonly PluginInfo[]) {
       ),
   )
 
-  return {listed, unnamed, failedBuiltins, builtin, itemOf, errorOf}
+  return {listed, unnamed, failedBuiltins, builtin, itemOf, errorOf, fixOf}
 }
 
 export function ExtensionPlugins(props: {plugins: readonly PluginInfo[]}) {
@@ -92,8 +94,9 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
 
   const run = (work: Promise<void> | undefined) =>
     void work?.catch((cause: unknown) =>
-      notices.notify(NotFoundSchema.safeParse(cause).success ? 'Plugin not found' : 'Request failed', {
+      notices.notify(pluginNotFound(cause) ? 'Plugin not found' : 'Request failed', {
         tone: 'danger',
+        description: errorFix(cause),
       }),
     )
 
@@ -149,7 +152,7 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
         }
         hint={
           <>
-            <Show when={error()}>{(text) => <PluginError error={text()} />}</Show>
+            <Show when={error()}>{(text) => <PluginError error={text()} fix={props.rows.fixOf(live())} />}</Show>
             <Show when={state() === 'reserved'}>
               <span class="text-chat-danger">Not loaded. A built-in plugin already uses this ID.</span>
             </Show>
@@ -198,7 +201,11 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
   )
 }
 
-function PluginError(props: {error: string}) {
+function pluginNotFound(cause: unknown): boolean {
+  return EvlogError.isEvlogError(cause) && cause.code === widgetPluginErrors.NOT_FOUND.code
+}
+
+function PluginError(props: {error: string; fix: string | undefined}) {
   const id = createUniqueId()
   const [open, setOpen] = createSignal(false)
   const message = () => props.error.split('\n', 1)[0]
@@ -220,6 +227,7 @@ function PluginError(props: {error: string}) {
           {open() ? 'Hide details' : 'Show details'}
         </Button>
       </Show>
+      <Show when={props.fix}>{(text) => <p class={NOTE}>{text()}</p>}</Show>
     </div>
   )
 }

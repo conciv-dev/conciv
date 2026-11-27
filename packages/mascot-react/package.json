@@ -36,6 +36,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/mascot": "workspace:^"
   },
   "devDependencies": {

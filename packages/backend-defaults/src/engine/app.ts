@@ -19,7 +19,7 @@ import type {
   ServerSessions,
   HarnessModel,
 } from '@conciv/types/harness-types'
-import {assertToolName, toolError} from '@conciv/types/tool-call-types'
+import {assertToolName} from '@conciv/types/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {harnessRegistry, type HarnessRegistry, onPath, transcriptPathWithin} from '@conciv/harness'
 import {EngineId} from './lib/engine-id.js'
@@ -58,19 +58,7 @@ import {
 } from '../backend-defaults.js'
 import {eq} from 'drizzle-orm'
 import {differenceBy, memoize} from 'es-toolkit'
-import {
-  Cause,
-  Config,
-  type ConfigProvider,
-  Effect,
-  Exit,
-  Fiber,
-  FiberMap,
-  type Layer,
-  Option,
-  Schema,
-  Scope,
-} from 'effect'
+import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, type Layer, Option, Scope} from 'effect'
 import {Bus, Database, Permission, Plugin, PluginHooks, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
 import {SessionInbox} from '../backend-defaults.js'
 import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plugin'
@@ -107,6 +95,7 @@ import {GROUP_EXIT_TIMEOUT_MS} from '@conciv/harness/local-sandbox'
 import {inSpan, loadIsolateDriver, type Tracer} from '../ai.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
+import {aiErrors, causeFrom, engineRuntimeErrors} from '@conciv/errors'
 import {
   connectToken,
   engineMcpUrl,
@@ -132,16 +121,14 @@ import type {SimulationParts} from './lib/simulation.js'
 
 type ServeBindings = Parameters<ServeFetch>[1]
 
-const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
-
 export function outsideRunCapabilities(capabilities: readonly CodeCapability[]): CodeCapability[] {
   return capabilities.map((capability): CodeCapability => {
     if (capability.direct === true) return capability
     return {
       ...capability,
-      errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
+      errors: [...capability.errors, {code: aiErrors.NO_TAB.code, message: aiErrors.NO_TAB.message}],
       execute: () => {
-        throw toolError('NO_TAB', {message: NO_TAB_MESSAGE})
+        throw aiErrors.NO_TAB()
       },
     }
   })
@@ -346,7 +333,7 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
       assertToolName(name)
       const existing = owners.get(name)
       if (existing !== undefined) {
-        throw new Error(`capability name "${name}" is declared by both ${existing} and ${source}`)
+        throw engineRuntimeErrors.CAPABILITY_NAME_TAKEN({name, existing, source})
       }
       owners.set(name, source)
     }
@@ -593,7 +580,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     )
   }
   const endListings = async (): Promise<void> => {
-    engineLife.abort(new Error('conciv: the engine stopped'))
+    engineLife.abort(engineRuntimeErrors.ENGINE_STOPPED())
     await Promise.all(listings.map(endListing))
   }
   const staleness = async (): Promise<EngineStaleness> => opts.staleness?.() ?? engineStaleness()
@@ -1102,24 +1089,27 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig, r
   const {sessionId, harnessSessionId} = cfg
   if (harnessSessionId !== undefined) {
     await ensureAgentRow(rows, harnessSessionId).catch((error: unknown) => {
-      throw new Error(`conciv: the configured harness session "${harnessSessionId}" could not be ensured`, {
-        cause: error,
+      throw engineRuntimeErrors.HARNESS_SESSION_NOT_ENSURED({
+        harnessSessionId,
+        ...causeFrom(error),
       })
     })
   }
   if (sessionId !== undefined) {
     await ensureRow(rows, sessionId).catch((error: unknown) => {
-      throw new Error(`conciv: the configured conciv session "${sessionId}" could not be ensured`, {cause: error})
+      throw engineRuntimeErrors.SESSION_NOT_ENSURED({sessionId, ...causeFrom(error)})
     })
   }
 }
 
 const UNNAMED_CLIENT = 'unnamed'
 
-const isDeclined = Schema.is(Permission.DeclinedError)
-
 function refusedByUser(cause: Cause.Cause<unknown>): boolean {
-  return Cause.hasInterrupts(cause) || Option.isSome(Cause.findErrorOption(cause)) || isDeclined(Cause.squash(cause))
+  return (
+    Cause.hasInterrupts(cause) ||
+    Option.isSome(Cause.findErrorOption(cause)) ||
+    Permission.isDeclined(Cause.squash(cause))
+  )
 }
 
 function readOutsideRefusal(exit: Exit.Exit<void, unknown>, client: string | null): string | null {

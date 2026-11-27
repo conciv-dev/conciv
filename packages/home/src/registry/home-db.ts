@@ -4,7 +4,9 @@ import {and, eq, isNull, max, sql} from 'drizzle-orm'
 import type {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
+import {EvlogError} from 'evlog'
 import {z} from 'zod'
+import {homeErrors} from '@conciv/errors'
 import {homeMigrations} from './home-migrations.gen.js'
 import {openDatabase} from '@conciv/types/migration-lock'
 import {openMigratedDb} from './migrated-db.js'
@@ -140,8 +142,8 @@ export function hubConnections(db: HomeDb): Array<{harness: string; connectedAt:
     .all()
 }
 
-export function isHomeFolderRefused(error: unknown): error is Error {
-  return error instanceof Error && error.name === 'HomeFolderRefused'
+export function isHomeFolderRefused(error: unknown): error is EvlogError {
+  return EvlogError.isEvlogError(error) && error.code === homeErrors.FOLDER_REFUSED.code
 }
 
 const MissingEntrySchema = z.object({code: z.literal('ENOENT')})
@@ -166,8 +168,8 @@ async function prepareFolder(home: string): Promise<void> {
   await chmod(home, FOLDER_MODE)
 }
 
-function homeFolderRefused(home: string, reason: string): Error {
-  return Object.assign(new Error(`conciv refuses the home folder ${home}: ${reason}`), {name: 'HomeFolderRefused'})
+function homeFolderRefused(home: string, reason: string): EvlogError {
+  return homeErrors.FOLDER_REFUSED({home, reason})
 }
 
 function currentGeneration(db: Pick<HomeDb, 'select'>): number {

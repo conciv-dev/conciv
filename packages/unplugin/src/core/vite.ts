@@ -14,6 +14,7 @@ import {makeViteBridge} from './vite-bridge.js'
 import {createShutdownTracker, install as installShutdownDeadline} from './shutdown-deadline.js'
 import type {Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
+import {unpluginErrors} from '@conciv/errors'
 
 const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/', 'node_modules']
 
@@ -347,7 +348,7 @@ export function makeViteHook(
           type: 'action',
           handler: async () => {
             const engine = engines.at(-1)
-            if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
+            if (!engine || !devServer) throw unpluginErrors.ENGINE_NOT_STARTED()
             return engine.trustBrowser(
               {browser: 'via Vite DevTools', origin: devOrigins(devServer)[0] ?? 'Vite DevTools'},
               Date.now(),

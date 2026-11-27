@@ -78,7 +78,7 @@ describe('the ios plugin with bad options', () => {
     [
       'a missing bundle id',
       {projectRoot: 'PayApp'},
-      {status: 'failed', error: expect.stringMatching(/^failed to load plugin: InvalidOptions: .*bundleId/s)},
+      {status: 'failed', error: expect.stringMatching(/^failed to load plugin: ios\.INVALID_OPTIONS: .*bundleId/s)},
     ],
     [
       'a concivUrl with a page path',

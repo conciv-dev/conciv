@@ -4,11 +4,11 @@ import {makeTextAdapter} from '@conciv/harness/adapters'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/types/harness-types'
-import {simulationErrors} from '@conciv/protocol/simulation'
 import {fakeText} from './ai-testkit.js'
 import {ENGINE_HARNESS, scriptedHarness, writeContextTokens, type ScriptedHarness} from './backend/scripted-harness.js'
 import {recordedRequest} from './backend/simulated-harness.js'
 import type {FakeResponseStep, Gate, ModelRequest, Reply} from './test-llm.js'
+import {simulationErrors} from '@conciv/errors'
 
 export type {ScriptedHarness, ScriptedSession} from './backend/scripted-harness.js'
 

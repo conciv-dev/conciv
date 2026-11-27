@@ -27,6 +27,7 @@ import {isolatedEnv} from '@internal/vitest-config/isolated-env'
 import {commitAll, initGitProject} from './git-project.js'
 import {startSimulation} from '@conciv/simulation/backend'
 import {connectDrive, writeDriveManifest, type DriveEndpoints, type EngineDrive} from './drive.js'
+import {causeFrom, relayRunError, testKitErrors} from '@conciv/errors'
 
 type EngineTimeouts = {
   firstChunkTimeoutMs?: number
@@ -208,7 +209,7 @@ function writeInside(root: string, path: string, content: string): void {
   const target = resolve(root, path)
   const inside = relative(root, target)
   if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
-    throw new Error(`the project file ${path} resolves outside the project root ${root}`)
+    throw testKitErrors.PROJECT_FILE_OUTSIDE({path, root})
   }
   mkdirSync(dirname(target), {recursive: true})
   writeFileSync(target, content)
@@ -232,7 +233,7 @@ async function readTurn(
   failed: (error: Error) => void,
 ): Promise<void> {
   for await (const event of events) {
-    if (event.type === ChatEventType.RUN_ERROR) failed(Object.assign(new Error(event.message), {code: event.code}))
+    if (event.type === ChatEventType.RUN_ERROR) failed(relayRunError({code: event.code, message: event.message}))
     else if (endsRun(event, runId)) ended()
   }
   ended()
@@ -269,7 +270,7 @@ function makeTurns(rpc: EngineClient): Turns {
 function failedTool(name: string, call: Promise<unknown>): Promise<HarnessEngineToolFailure> {
   return call.then(
     (output) => {
-      throw new Error(`the tool ${name} answered instead of failing: ${JSON.stringify(output)}`)
+      throw testKitErrors.TOOL_ANSWERED({name, output: JSON.stringify(output)})
     },
     (error: unknown) => ({tool: name, message: error instanceof Error ? error.message : String(error)}),
   )
@@ -351,7 +352,7 @@ async function matching(
       return {type: event.type, data: event.data}
     }
   }
-  throw new Error(`the engine stopped before a ${type} event arrived`)
+  throw testKitErrors.ENGINE_STOPPED_BEFORE_EVENT({type})
 }
 
 const OPENING_EVENT = 'server.connected'
@@ -367,9 +368,7 @@ async function eventWait(
   waits: Set<OpenWait>,
 ): Promise<HarnessEngineEventWait> {
   if (type === OPENING_EVENT) {
-    throw new Error(
-      `${OPENING_EVENT} cannot be waited for: the engine sends it once, as the first frame of each event subscription, and event() resolves once that frame has come`,
-    )
+    throw testKitErrors.OPENING_EVENT_UNWAITABLE({event: OPENING_EVENT})
   }
   const found = Promise.withResolvers<HarnessEngineEvent>()
   const current = {abort: new AbortController()}
@@ -382,7 +381,7 @@ async function eventWait(
       if (!abort.signal.aborted) found.reject(error)
     })
   }
-  const stopped = (): Error => new Error(`the engine stopped before a ${type} event arrived`)
+  const stopped = (): Error => testKitErrors.ENGINE_STOPPED_BEFORE_EVENT({type})
   const open: OpenWait = {
     pause: () => current.abort.abort(),
     renew: () => listen().catch((error: unknown) => found.reject(error)),
@@ -418,7 +417,7 @@ function pluginRpc(engine: Engine): HarnessEngineRpc {
     call,
     failure: (rpcId, method, input) =>
       call(rpcId, method, input).then((output) => {
-        throw new Error(`the rpc ${rpcId}.${method} answered instead of failing: ${JSON.stringify(output)}`)
+        throw testKitErrors.RPC_ANSWERED({method: `${rpcId}.${method}`, output: JSON.stringify(output)})
       }, rpcFailure),
   }
 }
@@ -446,7 +445,7 @@ function isolatedProvider(
 }
 
 function requireDrive(endpoints: DriveEndpoints | undefined): DriveEndpoints {
-  if (endpoints === undefined) throw new Error('this engine is not driven: make it with simulation: true')
+  if (endpoints === undefined) throw testKitErrors.NOT_DRIVEN()
   return endpoints
 }
 
@@ -468,12 +467,11 @@ function scriptedList(
   script: ReplyScript,
   project: string,
 ): HarnessList {
-  if (options.harness !== undefined)
-    throw new Error('harnesses and harness cannot be given together: harnesses are scripted')
+  if (options.harness !== undefined) throw testKitErrors.HARNESSES_AND_HARNESS()
   const [first, ...rest] = harnesses
-  if (first === undefined) throw new Error('harnesses is empty: give at least the engine harness')
+  if (first === undefined) throw testKitErrors.HARNESSES_EMPTY()
   const repeated = repeatedId(harnesses)
-  if (repeated !== undefined) throw new Error(`harnesses lists the id ${repeated} twice: each harness needs its own id`)
+  if (repeated !== undefined) throw testKitErrors.HARNESS_ID_REPEATED({id: repeated})
   return [script.scripted(first, project), ...rest.map((other) => script.scripted(other, project))]
 }
 
@@ -488,7 +486,7 @@ function pickedFirst(harnesses: HarnessList, id: string | undefined): HarnessLis
   const picked = harnesses.find((harness) => harness.id === id)
   if (picked === undefined) {
     const ids = harnesses.map((harness) => harness.id).join(', ')
-    throw new Error(`the config names the harness ${id}, but the engine's harnesses are ${ids}`)
+    throw testKitErrors.HARNESS_NOT_LISTED({id, ids})
   }
   return [picked, ...harnesses.filter((harness) => harness !== picked)]
 }
@@ -514,7 +512,7 @@ function engineConfig(given: ConcivConfig): ConcivConfig {
   const config = ConcivConfigSchema.parse(given)
   const owned = KIT_OWNED_FIELDS.find((field) => config[field] !== undefined)
   if (owned !== undefined) {
-    throw new Error(`the kit sets ${owned} itself, inside the engine's temp root: leave ${owned} out of the config`)
+    throw testKitErrors.KIT_OWNED_CONFIG({owned})
   }
   return config
 }
@@ -523,7 +521,7 @@ function fixtureFolder(options: HarnessEngineStart): string | undefined {
   if (options.directory === undefined) return undefined
   const folder = resolve(options.directory)
   if (!statSync(folder, {throwIfNoEntry: false})?.isDirectory()) {
-    throw new Error(`the directory ${folder} is not an existing folder`)
+    throw testKitErrors.DIRECTORY_MISSING({folder})
   }
   return folder
 }
@@ -588,7 +586,12 @@ function portRequest(
 
 async function bootOnConnectPort(boot: Boot, port: number, refused: unknown): Promise<Started> {
   if (port > CONNECT_LAST_PORT) {
-    throw new Error(`no free port between ${CONNECT_FIRST_PORT} and ${CONNECT_LAST_PORT}: ${String(refused)}`)
+    throw testKitErrors.NO_FREE_PORT({
+      first: CONNECT_FIRST_PORT,
+      last: CONNECT_LAST_PORT,
+      reason: refused instanceof Error ? refused.message : String(refused),
+      ...causeFrom(refused),
+    })
   }
   return bootApp(boot, undefined, port).catch((error: unknown) => {
     if (!AddressInUseSchema.safeParse(error).success) throw error
@@ -599,14 +602,12 @@ async function bootOnConnectPort(boot: Boot, port: number, refused: unknown): Pr
 async function bootFirst(boot: Boot): Promise<Started> {
   if (boot.options.port !== 'connect') {
     if (boot.options.token !== undefined) {
-      throw new Error("start gives a token without port: 'connect': the token is the connect port's pairing token")
+      throw testKitErrors.TOKEN_WITHOUT_CONNECT()
     }
     return bootApp(boot, undefined)
   }
   if (boot.config.port !== undefined) {
-    throw new Error(
-      `the config gives port ${boot.config.port} and start gives port: 'connect': give the engine one port`,
-    )
+    throw testKitErrors.TWO_PORTS({port: boot.config.port})
   }
   return bootOnConnectPort(boot, CONNECT_FIRST_PORT, undefined)
 }
@@ -614,9 +615,7 @@ async function bootFirst(boot: Boot): Promise<Started> {
 function fixtureWrite(project: string, fixture: string | undefined): (path: string, content: string) => Promise<void> {
   return async (path, content) => {
     if (fixture !== undefined) {
-      throw new Error(
-        `the engine runs on the fixture folder ${fixture}: put its files in the fixture, not through write`,
-      )
+      throw testKitErrors.WRITE_INTO_FIXTURE({fixture})
     }
     writeInside(project, path, content)
   }
@@ -655,7 +654,7 @@ export async function createHarnessEngine(
   if (options.git === true) {
     if (fixture !== undefined) {
       await rm(root, {recursive: true, force: true})
-      throw new Error(`git: true needs the engine's own temp project, not the fixture folder ${fixture}`)
+      throw testKitErrors.GIT_ON_FIXTURE({fixture})
     }
     await initGitProject(project)
   }
@@ -717,7 +716,7 @@ export async function createHarnessEngine(
   )
   const restart = async (): Promise<void> => {
     const running = state.running
-    if (running === undefined) throw new Error('the engine is stopped: it cannot restart')
+    if (running === undefined) throw testKitErrors.ENGINE_STOPPED()
     for (const wait of waits) wait.pause()
     const failures = await halt()
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
@@ -756,7 +755,7 @@ export async function createHarnessEngine(
     },
     write: fixtureWrite(project, fixture),
     commit: async (message) => {
-      if (options.git !== true) throw new Error('this engine has no git project: make it with git: true')
+      if (options.git !== true) throw testKitErrors.NO_GIT_PROJECT()
       await commitAll(project, message)
     },
     drive: () => {

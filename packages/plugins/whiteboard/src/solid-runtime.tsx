@@ -1,5 +1,6 @@
 import {createContext, from, onCleanup, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
+import {canvasErrors} from './errors/canvas-errors.js'
 
 export type WhiteboardRuntime = ManagedRuntime.ManagedRuntime<never, never>
 
@@ -12,7 +13,7 @@ export function WhiteboardRuntimeProvider(props: {runtime: WhiteboardRuntime; ch
 
 export function useWhiteboardRuntime(): WhiteboardRuntime {
   const runtime = useContext(WhiteboardRuntimeContext)
-  if (!runtime) throw new Error('useWhiteboardRuntime must be used inside a WhiteboardRuntimeProvider')
+  if (!runtime) throw canvasErrors.RUNTIME_MISSING()
   return runtime
 }
 

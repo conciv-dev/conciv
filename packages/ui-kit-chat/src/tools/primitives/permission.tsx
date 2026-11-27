@@ -3,6 +3,7 @@ import {z} from 'zod'
 import type {ToolCallPart} from '@conciv/types/chat-message-types'
 import type {PermissionReply} from '@conciv/types/chat-types'
 import type {ToolViewCtx} from '@conciv/types/tool-view-types'
+import {chatKitErrors} from '@conciv/errors'
 
 const PermissionMetadataSchema = z.object({permission: z.object({always: z.boolean()})})
 
@@ -21,7 +22,7 @@ const PermissionContext = createContext<PermissionContextValue>()
 
 export function usePermission(): PermissionContextValue {
   const context = useContext(PermissionContext)
-  if (!context) throw new Error('Permission.* must be used within Permission.Root')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'Permission.*', provider: 'Permission.Root'})
   return context
 }
 

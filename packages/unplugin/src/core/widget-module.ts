@@ -4,6 +4,7 @@ import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {WIDGET_START_SPECIFIER} from './nextjs.js'
+import {unpluginErrors} from '@conciv/errors'
 
 export const WIDGET_ROUTE = '/@conciv/widget.js'
 export const WIDGET_DOCK_ROUTE = '/@conciv/widget-dock.js'
@@ -83,7 +84,7 @@ function widgetModuleSource(surface: 'page' | 'dock', options: WidgetModuleOptio
 function packageRoot(directory: string): string {
   if (existsSync(join(directory, 'package.json'))) return directory
   const parent = dirname(directory)
-  if (parent === directory) throw new Error('conciv: the @conciv/unplugin package folder was not found')
+  if (parent === directory) throw unpluginErrors.PACKAGE_FOLDER_NOT_FOUND()
   return packageRoot(parent)
 }
 

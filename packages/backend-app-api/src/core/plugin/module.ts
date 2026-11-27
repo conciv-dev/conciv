@@ -1,8 +1,9 @@
-import type {Plugin, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Plugin, Services} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Host from '@conciv/backend-plugin-api/host'
 import {ExperimentalBundle, type Source} from '@conciv/protocol/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
 import {Hash} from '../../util/hash.js'
+import {causeFrom, pluginHostErrors} from '@conciv/errors'
 import * as Npm from '../../util/npm.js'
 import {Deferred, Duration, Effect, FiberSet, PubSub, RcMap, Schema, Stream} from 'effect'
 import path from 'path'
@@ -74,8 +75,8 @@ const Module = Schema.Struct({
   default: Schema.Union([
     Schema.Struct({
       id: Schema.String,
-      effect: Schema.declare<Plugin<Services, TaggedError>['effect']>(
-        (input): input is Plugin<Services, TaggedError>['effect'] => typeof input === 'function',
+      effect: Schema.declare<Plugin<Services, Error>['effect']>(
+        (input): input is Plugin<Services, Error>['effect'] => typeof input === 'function',
       ),
     }),
     Schema.Struct({
@@ -86,17 +87,6 @@ const Module = Schema.Struct({
     }),
   ]),
 })
-
-export const LoadError = Schema.TaggedStruct('PluginModule.LoadError', {
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-})
-export type LoadError = typeof LoadError.Type & globalThis.Error
-
-export const makeLoadError = (fields: Omit<typeof LoadError.Type, '_tag'>): LoadError =>
-  Object.assign(new globalThis.Error(fields.message, {cause: fields.cause}), LoadError.make(fields), {
-    name: 'PluginModule.LoadError',
-  })
 
 const load = Effect.fn('PluginModule.load')(function* (
   operation: Extract<ConfigPluginSource.Operation, {type: 'add'}>,
@@ -118,7 +108,7 @@ const load = Effect.fn('PluginModule.load')(function* (
   const entrypoint = entrypoints.server
   const found = entrypoint || entrypoints.experimental
   if (!local && options?.install === false && !found) return {pending: true as const}
-  if (!found) return yield* Effect.fail(makeLoadError({message: `Plugin entrypoint not found: ${operation.target}`}))
+  if (!found) return yield* Effect.fail(pluginHostErrors.ENTRYPOINT_NOT_FOUND({target: operation.target}))
   yield* Effect.log({msg: 'loading plugin', id: operation.target, entrypoint: found})
   const server = entrypoint
     ? yield* loadServer(entrypoint, local ? sources : undefined, installed?.revision)
@@ -155,16 +145,14 @@ const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
   if (watch) yield* watch(entry)
   const code = yield* Effect.tryPromise({
     try: () => readFile(entry, 'utf8'),
-    catch: (cause) => makeLoadError({message: `The ./plugin-experimental file ${entry} can't be read`, cause}),
+    catch: (cause) => pluginHostErrors.EXPERIMENTAL_UNREADABLE({entry, ...causeFrom(cause)}),
   })
   return {
     file,
     code,
     revision: Hash.sha256(JSON.stringify([revision, watch ? Hash.sha256(code) : undefined])),
     options: yield* Schema.decodeUnknownEffect(ExperimentalOptions)(options).pipe(
-      Effect.mapError((cause) =>
-        makeLoadError({message: 'Plugin options must be JSON to reach its ./plugin-experimental', cause}),
-      ),
+      Effect.mapError((cause) => pluginHostErrors.EXPERIMENTAL_OPTIONS_NOT_JSON({cause})),
     ),
     chunks: yield* readChunks(entry),
   }
@@ -185,7 +173,7 @@ const Manifest = z.record(
 const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
   const manifest = `${entry}.manifest.json`
   const refusal = (problem: string, cause?: unknown) =>
-    makeLoadError({message: `The chunk manifest of ${entry} ${problem}`, cause})
+    pluginHostErrors.CHUNK_MANIFEST_INVALID({entry, problem, ...causeFrom(cause)})
   const text = yield* Effect.tryPromise({
     try: () =>
       readFile(manifest, 'utf8').catch((error: NodeJS.ErrnoException) => {
@@ -241,12 +229,7 @@ const loadServer = Effect.fn('PluginModule.loadServer')(function* (
     sources ? sources.read(entrypoint) : Host.load(entrypoint).then((module) => ({module, version: revision})),
   )
   const value = (yield* Schema.decodeUnknownEffect(Module)(loaded.module).pipe(
-    Effect.mapError((cause) =>
-      makeLoadError({
-        message: 'Plugin must export a default definition with an id and an effect or setup function.',
-        cause,
-      }),
-    ),
+    Effect.mapError((cause) => pluginHostErrors.DEFINITION_INVALID({cause})),
   )).default
   return {plugin: 'effect' in value ? value : PluginPromise.fromPromise(value), version: loaded.version}
 })

@@ -5,6 +5,7 @@ import {FitAddon} from '@xterm/addon-fit'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
 import type {TerminalLink, TerminalListener, TerminalTransport} from './transport.js'
+import {terminalKitErrors} from '@conciv/errors'
 
 const RETRY_BASE_MS = 500
 const RETRY_MAX_MS = 8000
@@ -15,7 +16,6 @@ const MOST_CELLS = 500
 const LOST_CONNECTION = 'Lost connection to the terminal.'
 const COULD_NOT_OPEN = 'Could not open the terminal.'
 const COULD_NOT_REACH = 'Could not reach the terminal.'
-const CONNECTION_DROPPED = 'The terminal connection dropped.'
 
 export type TerminalTheme = ITheme
 export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error' | 'closed'
@@ -139,7 +139,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
             resolve(true)
             return
           }
-          reject(new Error(CONNECTION_DROPPED))
+          reject(terminalKitErrors.CONNECTION_DROPPED())
         },
       }
       try {

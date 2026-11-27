@@ -3,7 +3,8 @@ import {Effect, Ref, SubscriptionRef} from 'effect'
 import {TestClock} from 'effect/testing'
 import {describe, expect} from 'vitest'
 import {connect} from '../../src/connect.js'
-import {TryItProbe, makeProbeSilent} from '../../src/probe.js'
+import {TryItProbe} from '../../src/probe.js'
+import {tryItErrors} from '../../src/errors/errors.js'
 
 describe('the try-it plugin while no local engine answers', () => {
   it.effect(
@@ -13,7 +14,7 @@ describe('the try-it plugin while no local engine answers', () => {
         const base = 'http://127.0.0.1:7357'
         const probes = yield* Ref.make(0)
         const probe = Ref.updateAndGet(probes, (count) => count + 1).pipe(
-          Effect.flatMap((count) => (count > 7 ? Effect.succeed(base) : Effect.fail(makeProbeSilent()))),
+          Effect.flatMap((count) => (count > 7 ? Effect.succeed(base) : Effect.fail(tryItErrors.PROBE_SILENT()))),
         )
         const {state} = yield* connect({timings: {probeMs: 100, holdMs: 1_000, slowMs: 10_000}}).pipe(
           Effect.provideService(TryItProbe, {probe}),

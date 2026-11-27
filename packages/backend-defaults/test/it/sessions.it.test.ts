@@ -74,7 +74,7 @@ describe('sessions', () => {
     const afterRestore = await client.sessions.list({})
 
     expect(afterDelete.sessions.map((session) => session.id)).not.toContain(sessionId)
-    expect(events).toContainEqual(expect.objectContaining({type: 'RUN_ERROR', code: 'session_deleted'}))
+    expect(events).toContainEqual(expect.objectContaining({type: 'RUN_ERROR', code: 'session.DELETED'}))
     expect(afterRestore.sessions.map((session) => session.id)).toContain(sessionId)
   })
 

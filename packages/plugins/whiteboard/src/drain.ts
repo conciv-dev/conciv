@@ -1,16 +1,14 @@
 export * as WhiteboardDrain from './drain.js'
-import {Effect, FiberMap, Queue, Schedule, Schema} from 'effect'
+import {Effect, FiberMap, Queue, Schedule} from 'effect'
+import type {EvlogError} from 'evlog'
 import type {PendingRow} from './rows.js'
 import {WhiteboardDrainMachine} from './drain-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
 
-export const RemoveFailed = Schema.TaggedStruct('RemoveFailed', {message: Schema.String})
-type RemoveFailed = typeof RemoveFailed.Type
-
 type PendingWork = {
   readonly claim: (row: PendingRow) => Effect.Effect<boolean, unknown>
   readonly perform: (row: PendingRow) => Effect.Effect<void, unknown>
-  readonly remove: (row: PendingRow) => Effect.Effect<void, RemoveFailed>
+  readonly remove: (row: PendingRow) => Effect.Effect<void, EvlogError>
 }
 
 const REMOVE_MAX_WAIT_MS = 10_000
@@ -51,7 +49,7 @@ export const makePendingDrain = Effect.fn('whiteboard.pendingDrain')(function* (
       rows,
       row.id,
       work.remove(row).pipe(
-        Effect.tapError((failure) => Effect.logWarning(`removing ${label} failed; retrying`, failure.message)),
+        Effect.tapError((failure) => Effect.logWarning(`removing ${label} failed; retrying`, failure)),
         Effect.retry(retry),
         Effect.andThen(offer({type: 'removed', id: row.id, attempt})),
       ),

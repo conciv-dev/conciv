@@ -2,7 +2,8 @@ import {Plugin} from '@conciv/backend-plugin-api/effect'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import {Effect, Stream} from 'effect'
 import {z} from 'zod'
-import type {RunnerServices, RunnerUnavailable, TestRunnerAdapter, TestRunnerManager} from './runner.js'
+import type {EvlogError} from 'evlog'
+import type {RunnerServices, TestRunnerAdapter, TestRunnerManager} from './runner.js'
 import {TestRunner} from './rpc.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
@@ -42,7 +43,7 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
       manager
         .list(input.failedOnly)
         .pipe(
-          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
+          Effect.catch((error: EvlogError) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
           ),
         ),
@@ -50,7 +51,7 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
       manager
         .run(input)
         .pipe(
-          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
+          Effect.catch((error: EvlogError) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
           ),
         ),
@@ -64,9 +65,7 @@ export default Plugin.define<RunnerServices>({
     const config = testRunnerConfig.safeParse(ctx.options)
     if (!config.success) return yield* Effect.die(config.error)
     const adapter = getRunner(config.data.runner) ?? vitest
-    const manager = yield* adapter
-      .create(ctx.location.directory)
-      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
+    const manager = yield* adapter.create(ctx.location.directory).pipe(Effect.orDie)
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)

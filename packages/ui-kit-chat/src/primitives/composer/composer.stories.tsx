@@ -13,6 +13,7 @@ import {createSimpleImageAttachmentAdapter, type AttachmentAdapter} from '../att
 import {ComposerHandlersProvider} from './composer-handlers.js'
 import type {ComposerDraft} from './composer-context.js'
 import {Composer} from './composer.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/Composer'}
 export default meta
@@ -215,7 +216,7 @@ export const AttachmentAdapterLifecycle: Story = {
     attachmentSendSpy.mockClear()
     const c = within(canvasElement)
     const fileInput = canvasElement.querySelector<HTMLInputElement>('input[type="file"]')
-    if (!fileInput) throw new Error('File input not found')
+    if (!fileInput) throw storyErrors.ELEMENT_MISSING({element: 'file input'})
     await expect(fileInput).toHaveAttribute('accept', 'image/*')
 
     await userEvent.upload(fileInput, new File(['not an image'], 'notes.txt', {type: 'text/plain'}), {
@@ -264,7 +265,7 @@ const failedAttachmentSendSpy = fn()
 const failingImageAdapter: AttachmentAdapter = {
   ...createSimpleImageAttachmentAdapter(),
   send: async () => {
-    throw new Error('upload unavailable')
+    throw storyErrors.SAMPLE_FAILURE({detail: 'upload unavailable'})
   },
 }
 
@@ -274,7 +275,7 @@ export const AttachmentSendFailureRestoresDraft: Story = {
     failedAttachmentSendSpy.mockClear()
     const c = within(canvasElement)
     const fileInput = canvasElement.querySelector<HTMLInputElement>('input[type="file"]')
-    if (!fileInput) throw new Error('File input not found')
+    if (!fileInput) throw storyErrors.ELEMENT_MISSING({element: 'file input'})
     await userEvent.upload(fileInput, new File(['image'], 'retry.png', {type: 'image/png'}))
     await userEvent.type(c.getByLabelText('Attachment message'), 'keep this draft')
     await userEvent.click(c.getByRole('button', {name: 'Send attachment'}))

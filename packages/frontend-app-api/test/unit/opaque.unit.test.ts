@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+import {widgetErrors} from '@conciv/errors'
 import {createOpaqueType} from '../../src/opaque.js'
 
 describe('createOpaqueType', () => {
@@ -53,37 +54,70 @@ describe('createOpaqueType', () => {
     expect(mySingleInternal.foo).toBe('bar')
 
     expect(() => OpaqueSingleMyType.toInternal('hello')).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '<string>'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '<string>'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal(3)).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '<number>'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '<number>'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal(undefined)).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '<undefined>'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '<undefined>'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal(Symbol('wat'))).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '<symbol>'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '<symbol>'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal(null)).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '<null>'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '<null>'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal(() => {})).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '<function>'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '<function>'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal({$$type: 'some-other-type'})).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got 'some-other-type'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got 'some-other-type'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal({an: 'object'})).toThrowError(
-      new TypeError("Invalid opaque type, expected 'my-type', but got '[object Object]'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_TYPE.code,
+        message: "Invalid opaque type, expected 'my-type', but got '[object Object]'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal({$$type: 'my-type'})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version undefined, expected 'v1'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version undefined, expected 'v1'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal({$$type: 'my-type', version: 'v0'})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version 'v0', expected 'v1'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version 'v0', expected 'v1'",
+      }),
     )
     expect(() => OpaqueSingleMyType.toInternal({$$type: 'my-type', version: {foo: 'bar'}})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version '[object Object]', expected 'v1'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version '[object Object]', expected 'v1'",
+      }),
     )
 
     const OpaqueVersionsMyType = createOpaqueType<{
@@ -171,10 +205,16 @@ describe('createOpaqueType', () => {
     expect(myVersionsInternalV2.version === 'v2' && myVersionsInternalV2.bar).toBe('foo')
 
     expect(() => OpaqueVersionsMyType.toInternal({$$type: 'my-type'})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version undefined, expected 'v1', 'v2', or 'v3'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version undefined, expected 'v1', 'v2', or 'v3'",
+      }),
     )
     expect(() => OpaqueVersionsMyType.toInternal({$$type: 'my-type', version: 'v0'})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version 'v0', expected 'v1', 'v2', or 'v3'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version 'v0', expected 'v1', 'v2', or 'v3'",
+      }),
     )
 
     const OpaqueUndefinedMyType = createOpaqueType<{
@@ -222,7 +262,10 @@ describe('createOpaqueType', () => {
 
     expect(OpaqueUndefinedMyType.toInternal({$$type: 'my-type'})).toBeDefined()
     expect(() => OpaqueUndefinedMyType.toInternal({$$type: 'my-type', version: 'v0'})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version 'v0', expected undefined"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version 'v0', expected undefined",
+      }),
     )
 
     const OpaqueMixedMyType = createOpaqueType<{
@@ -307,7 +350,10 @@ describe('createOpaqueType', () => {
 
     expect(OpaqueMixedMyType.toInternal({$$type: 'my-type'})).toBeDefined()
     expect(() => OpaqueMixedMyType.toInternal({$$type: 'my-type', version: 'v3'})).toThrowError(
-      new TypeError("Invalid opaque type instance, got version 'v3', expected undefined or 'v1'"),
+      expect.objectContaining({
+        code: widgetErrors.OPAQUE_WRONG_VERSION.code,
+        message: "Invalid opaque type instance, got version 'v3', expected undefined or 'v1'",
+      }),
     )
 
     const OpaqueEmptyMyType = createOpaqueType<{

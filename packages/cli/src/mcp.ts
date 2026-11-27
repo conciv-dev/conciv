@@ -2,11 +2,11 @@ import {z} from 'zod'
 import {argument, command, description, name, option, route, schema} from '@bomb.sh/router'
 import {concivHome} from '@conciv/home'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
-import {cliErrors} from './failure.js'
 import {handler} from './router/handler.js'
 import {serveArgv} from './serve-argv.js'
 import {initContributions} from '@conciv/harness/init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
+import {cliErrors} from '@conciv/errors'
 
 const HubAgentSchema = z
   .enum(INIT_HARNESS_IDS)

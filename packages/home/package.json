@@ -36,9 +36,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/errors": "workspace:*",
     "@conciv/types": "workspace:^",
     "drizzle-orm": "catalog:",
     "env-paths": "catalog:",
+    "evlog": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

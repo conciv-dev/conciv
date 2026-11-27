@@ -1,7 +1,7 @@
 import {Show, createUniqueId, type JSX} from 'solid-js'
 import {CONTEXT_OVERFLOW_CODE, SESSION_DELETED_CODE} from '@conciv/types/chat-event-types'
 import {Button} from '@conciv/ui-kit-system'
-import {rpcErrorCode} from '../shell/rpc-error-message.js'
+import {errorFix, rpcErrorCode} from '../shell/rpc-error-message.js'
 
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
 const ACTION =
@@ -30,10 +30,24 @@ export function RunErrorRow(props: RunErrorRowProps): JSX.Element {
   const overflowed = () => rpcErrorCode(props.error) === CONTEXT_OVERFLOW_CODE
   const retry = () => (sessionDeleted(props.error) ? undefined : props.onRetry)
   const messageId = createUniqueId()
+  const fixId = createUniqueId()
+  const fix = () => errorFix(props.error)
   return (
-    <div class={ERROR} role="alert" aria-labelledby={messageId}>
-      <span id={messageId} class="flex-1">
-        {rowMessage(props.error)}
+    <div
+      class={ERROR}
+      role="alert"
+      aria-labelledby={messageId}
+      aria-describedby={fix() === undefined ? undefined : fixId}
+    >
+      <span class="flex flex-1 flex-col gap-0.5">
+        <span id={messageId}>{rowMessage(props.error)}</span>
+        <Show when={fix()}>
+          {(text) => (
+            <span id={fixId} class="text-chat-text-2">
+              {text()}
+            </span>
+          )}
+        </Show>
       </span>
       <Show
         when={overflowed()}

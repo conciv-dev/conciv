@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
     "@standard-schema/spec": "catalog:",

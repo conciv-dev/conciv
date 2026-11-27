@@ -5,7 +5,8 @@ import {readChildExit} from './child-exit.js'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 import type {TestEvent} from './events.js'
 import {TestRunnerRunMachine} from './run-machine.js'
-import {makeRunnerUnavailable, type RunArgs, type TestRunnerAdapter, type TestRunnerManager} from './runner.js'
+import type {RunArgs, TestRunnerAdapter, TestRunnerManager} from './runner.js'
+import {testRunnerErrors} from './errors/errors.js'
 
 type ChildRunnerSpec = {
   id: string
@@ -113,9 +114,10 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
             Stream.runHead,
           )
           if (Option.isNone(settled))
-            return yield* Effect.fail(makeRunnerUnavailable({message: `${spec.id} unavailable: stopped`}))
+            return yield* Effect.fail(testRunnerErrors.RUNNER_UNAVAILABLE({message: `${spec.id} unavailable: stopped`}))
           const settlement = settled.value.settlement
-          if (!settlement.ok) return yield* Effect.fail(makeRunnerUnavailable({message: settlement.message}))
+          if (!settlement.ok)
+            return yield* Effect.fail(testRunnerErrors.RUNNER_UNAVAILABLE({message: settlement.message}))
           return settlement
         }),
       ),
@@ -161,6 +163,6 @@ export function defineChildRunner(spec: ChildRunnerSpec): TestRunnerAdapter {
 export function defineStubRunner(options: {id: string; reason: string}): TestRunnerAdapter {
   return {
     id: options.id,
-    create: () => Effect.fail(makeRunnerUnavailable({message: options.reason})),
+    create: () => Effect.fail(testRunnerErrors.RUNNER_UNAVAILABLE({message: options.reason})),
   }
 }

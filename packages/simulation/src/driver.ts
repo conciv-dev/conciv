@@ -6,13 +6,13 @@ import {
   backendContract,
   ItemSchema,
   PROTOCOL_VERSION,
-  simulationErrors,
   type FinishReason,
   type Item,
   type LlmNotification,
   type ModelRequest,
   type ProviderInvocation,
 } from '@conciv/protocol/simulation'
+import {simulationErrors} from '@conciv/errors'
 
 export type Answer =
   | {readonly kind: 'answer'; readonly items: readonly Item[]; readonly reason: FinishReason}

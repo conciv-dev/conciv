@@ -1,15 +1,14 @@
 import {Effect, Exit, Schedule, Scope, Option} from 'effect'
 import {z} from 'zod'
+import {EvlogError} from 'evlog'
 import {
   ok,
   PAGE_QUEUE_STOPPED,
   PAGE_QUEUE_STOPPED_MESSAGE,
-  pageFailure,
-  PageErrorSchema,
-  type PageFailure,
+  PageRaisedErrorSchema,
   type PageResult,
-  isPageFailure,
 } from './page-types.js'
+import {causeFrom, pageErrors} from './errors/errors.js'
 import type {
   CssBundle,
   ElementCapture,
@@ -17,7 +16,6 @@ import type {
   PageCaptureBundle,
   ToolCaptureMode,
 } from './element-capture-types.js'
-import {toolError, isToolError} from '@conciv/types/tool-call-types'
 import {
   addRef,
   buildSnapshot,
@@ -108,7 +106,7 @@ function waitFor(
       Effect.repeat({schedule: Schedule.spaced(WAIT_POLL_MS), until: (done) => done}),
       Effect.timeoutOrElse({
         duration: timeout,
-        orElse: () => Effect.fail(pageFailure('handler-error', `wait timed out for ${selector} (${state})`)),
+        orElse: () => Effect.fail(pageErrors.WAIT_TIMED_OUT({selector, state})),
       }),
       Effect.as(ok({state})),
     ),
@@ -135,10 +133,7 @@ function maskedOuterHtml(root: Element): string {
 }
 
 function result(value: unknown, attached: File[] = []): Answer {
-  if ((JSON.stringify(value) ?? '').length > 512_000)
-    throw new Error(
-      'Browser result exceeds 512000 JSON characters. Request fewer entries, reduce snapshot depth, or return only selected fields from the evaluation script. Repeating the same request will not reduce its output.',
-    )
+  if ((JSON.stringify(value) ?? '').length > 512_000) throw pageErrors.RESULT_TOO_LARGE()
   return {value, files: attached}
 }
 
@@ -171,8 +166,10 @@ async function acting(call: Call, input: Locator, value: () => unknown, beat: Be
   )
 }
 
-function queueStoppedError(): Error {
-  return toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
+function queueStoppedError(): EvlogError {
+  return pageErrors.QUEUE_STOPPED({
+    internal: {raised: {code: PAGE_QUEUE_STOPPED, message: PAGE_QUEUE_STOPPED_MESSAGE}},
+  })
 }
 
 function stoppedBefore(call: Call, queued: Queued): void {
@@ -293,9 +290,8 @@ function requireEffect(effects: readonly PageEffect[], name: string | undefined,
   const effect = effects.find((candidate) => candidate.name === name)
   if (effect) return effect
   const registered = effects.map((candidate) => candidate.name).join(', ')
-  throw toolError('UNKNOWN_EFFECT', {
-    message: `no effect named "${name}"; registered: ${registered === '' ? 'none' : registered}`,
-  })
+  const message = `no effect named "${name}"; registered: ${registered === '' ? 'none' : registered}`
+  throw pageErrors.EFFECT_UNKNOWN({message, internal: {raised: {code: 'UNKNOWN_EFFECT', message}}})
 }
 
 function driveEffect(effect: PageEffect, action: string): void {
@@ -743,10 +739,11 @@ function captureMode(action: Action): ToolCaptureMode {
   return Operations.find((operation) => operation.name === action.type)?.capture ?? 'none'
 }
 
-function failure(error: PageFailure): Outcome {
-  const reported = PageErrorSchema.safeParse(error.error)
-  if (reported.success) return {type: 'failure', ...reported.data, message: reported.data.message.slice(0, SHORT_MAX)}
-  return {type: 'failure', code: 'handler-error', message: error.error.message.slice(0, SHORT_MAX)}
+function failure(error: EvlogError): Outcome {
+  const code = error.code === pageErrors.INVALID_ARGS.code ? 'invalid-args' : 'handler-error'
+  const message = (error.fix ? `${error.message} ${error.fix}` : error.message).slice(0, SHORT_MAX)
+  const raised = PageRaisedErrorSchema.safeParse(error.internal?.raised)
+  return raised.success ? {type: 'failure', code, message, raised: raised.data} : {type: 'failure', code, message}
 }
 
 export function makePageOperations(
@@ -779,7 +776,7 @@ export function makePageOperations(
     })
     const record = readPlainRecord(answer.value)
     if (!record || !isJsonSerializable(record)) {
-      return yield* Effect.fail(pageFailure('handler-error', `${action.type} returned a non-serializable result`))
+      return yield* Effect.fail(pageErrors.RESULT_NOT_SERIALIZABLE({action: action.type}))
     }
     if (mode !== 'none' && command.queued === undefined) captures.take('after', slot.el)
     const capture = yield* Effect.promise(() => tryBuildCaptureBundle(captures.entries(), action.type, log))
@@ -809,25 +806,23 @@ export function makePageOperations(
 }
 
 export function fail(message: string): never {
-  throw pageFailure('handler-error', message)
+  throw pageErrors.OPERATION_FAILED({message})
 }
 
 export function badArgs(message: string): never {
-  throw pageFailure('invalid-args', message)
+  throw pageErrors.INVALID_ARGS({message})
 }
 
 function isSchemaRejection(error: unknown): error is Error {
   return error instanceof Error && error.name === 'ZodError' && Array.isArray(Reflect.get(error, 'issues'))
 }
 
-export function toPageFailure(error: unknown): PageFailure {
-  if (isPageFailure(error)) return error
-  if (isSchemaRejection(error)) return pageFailure('invalid-args', error.message)
-  if (!isToolError(error)) return pageFailure('handler-error', error instanceof Error ? error.message : String(error))
-  return pageFailure('handler-error', error.message, {
-    code: error.code,
-    message: error.message,
-    ...(isJsonSerializable(error.data) ? {data: error.data} : {}),
+export function toPageFailure(error: unknown): EvlogError {
+  if (EvlogError.isEvlogError(error)) return error
+  if (isSchemaRejection(error)) return pageErrors.INVALID_ARGS({message: error.message, cause: error})
+  return pageErrors.OPERATION_FAILED({
+    message: error instanceof Error ? error.message : String(error),
+    ...causeFrom(error),
   })
 }
 

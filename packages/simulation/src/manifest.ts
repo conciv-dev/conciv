@@ -1,6 +1,8 @@
 import {homedir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
 import {Config, Effect, FileSystem, Predicate, Schema} from 'effect'
+import type {EvlogError} from 'evlog'
+import {causeFrom, simulationErrors} from '@conciv/errors'
 import {failureText} from '@conciv/protocol'
 
 const ENDPOINT = 'a loopback WebSocket endpoint with an explicit port'
@@ -42,24 +44,6 @@ const ManifestSchema = Schema.Struct({
   viewport: Schema.optionalKey(Schema.Struct({cols: PositiveInt, rows: PositiveInt})),
   recording: Schema.optionalKey(Schema.Struct({timeline: AbsolutePath})),
 })
-const ResolveErrorSchema = Schema.TaggedStruct('DriveManifest.ResolveError', {
-  reason: Schema.Literals(['config', 'not-found', 'read', 'decode']),
-  path: Schema.optionalKey(Schema.String),
-  message: Schema.String,
-  cause: Schema.Defect(),
-})
-export type ResolveError = globalThis.Error & {
-  readonly _tag: 'DriveManifest.ResolveError'
-  readonly reason: 'config' | 'not-found' | 'read' | 'decode'
-  readonly path?: string
-  readonly message: string
-  readonly cause: unknown
-}
-
-const makeResolveError = (fields: Omit<typeof ResolveErrorSchema.Type, '_tag'>): ResolveError =>
-  Object.assign(new globalThis.Error(fields.message), ResolveErrorSchema.make(fields), {
-    name: 'DriveManifest.ResolveError',
-  })
 
 export const defaults: Manifest = {
   endpoints: {
@@ -71,9 +55,12 @@ export const defaults: Manifest = {
 const decode = Schema.decodeUnknownEffect(Schema.fromJsonString(ManifestSchema))
 
 const configError = (cause: unknown) =>
-  makeResolveError({reason: 'config', message: `Invalid Drive configuration: ${failureText(cause)}`, cause})
+  simulationErrors.MANIFEST_CONFIG_INVALID({
+    reason: failureText(cause),
+    ...causeFrom(cause),
+  })
 
-export const resolve: () => Effect.Effect<Manifest, ResolveError, FileSystem.FileSystem> = Effect.fn(
+export const resolve: () => Effect.Effect<Manifest, EvlogError, FileSystem.FileSystem> = Effect.fn(
   'DriveManifest.resolve',
 )(function* () {
   const name = yield* Config.schema(InstanceName, 'CONCIV_DRIVE').pipe(Effect.mapError(configError))
@@ -89,27 +76,16 @@ export const resolve: () => Effect.Effect<Manifest, ResolveError, FileSystem.Fil
   )
   const file = join(directory, `${name}.json`)
   const fs = yield* FileSystem.FileSystem
-  const contents = yield* fs.readFileString(file).pipe(
-    Effect.mapError((cause) => {
-      const missing = Predicate.isTagged(cause.reason, 'NotFound')
-      return makeResolveError({
-        reason: missing ? 'not-found' : 'read',
-        path: file,
-        message: missing
-          ? `Drive manifest not found: ${file}`
-          : `Failed to read Drive manifest: ${file}: ${cause.message}`,
-        cause,
-      })
-    }),
-  )
+  const contents = yield* fs
+    .readFileString(file)
+    .pipe(
+      Effect.mapError((cause) =>
+        Predicate.isTagged(cause.reason, 'NotFound')
+          ? simulationErrors.MANIFEST_NOT_FOUND({path: file, cause})
+          : simulationErrors.MANIFEST_UNREADABLE({path: file, reason: cause.message, cause}),
+      ),
+    )
   return yield* decode(contents).pipe(
-    Effect.mapError((cause) =>
-      makeResolveError({
-        reason: 'decode',
-        path: file,
-        message: `Invalid Drive manifest: ${file}: ${cause.message}`,
-        cause,
-      }),
-    ),
+    Effect.mapError((cause) => simulationErrors.MANIFEST_INVALID({path: file, reason: cause.message, cause})),
   )
 })

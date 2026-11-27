@@ -1,134 +1,74 @@
 import type {RpcHandlers} from '@conciv/backend-plugin-api/effect/rpc'
-import {Effect, Schema} from 'effect'
+import {Effect} from 'effect'
+import type {EvlogError} from 'evlog'
+import {z} from 'zod'
+import {storeErrors} from './errors/store-errors.js'
 import type {Whiteboard} from './rpc.js'
-import {StoreError, type RowNotFound, type Store} from './store.js'
+import {elementRow} from './rows.js'
+import type {Store} from './store.js'
 
-const isStoreError = Schema.is(StoreError)
+const Conflicted = z.object({current: elementRow})
 
-function unreadable<Value, Failure>(work: Effect.Effect<Value, Failure>) {
-  return work.pipe(Effect.catchIf(isStoreError, Effect.die))
+function refuse<Value, Failure>(
+  work: Effect.Effect<Value, EvlogError>,
+  code: string,
+  refusal: (error: EvlogError) => Effect.Effect<never, Failure>,
+) {
+  return work.pipe(Effect.catch((error) => (error.code === code ? refusal(error) : Effect.die(error))))
 }
 
-const missing =
-  <Failure>(what: string, error: (message: string, failure: RowNotFound) => Failure) =>
-  (failure: RowNotFound) =>
-    Effect.fail(error(`no ${what} ${failure.id} in this room`, failure))
+function missing<Value, Failure>(work: Effect.Effect<Value, EvlogError>, notFound: () => Failure) {
+  return refuse(work, storeErrors.ROW_NOT_FOUND.code, () => Effect.fail(notFound()))
+}
 
 export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard> {
   return {
-    'comments.list': ({room}) => unreadable(store.comments.list(room)),
+    'comments.list': ({room}) => Effect.orDie(store.comments.list(room)),
     'comments.get': ({room, id}, {error}) =>
-      unreadable(
-        store.comments.get(room, id).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('comment', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'comments.insert': ({room, row}) => unreadable(store.comments.insert(room, {...row, sessionId: room})),
+      missing(store.comments.get(room, id), () => error('NOT_FOUND', `no comment ${id} in this room`, {id})),
+    'comments.insert': ({room, row}) => Effect.orDie(store.comments.insert(room, {...row, sessionId: room})),
     'comments.update': ({room, id, patch}, {error}) =>
-      unreadable(
-        store.comments.update(room, id, patch).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('comment', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
+      missing(store.comments.update(room, id, patch), () => error('NOT_FOUND', `no comment ${id} in this room`, {id})),
     'comments.remove': ({room, id}) =>
-      unreadable(store.comments.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
-    'pins.list': ({room}) => unreadable(store.pins.list(room)),
+      Effect.orDie(store.comments.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'pins.list': ({room}) => Effect.orDie(store.pins.list(room)),
     'pins.get': ({room, id}, {error}) =>
-      unreadable(
-        store.pins.get(room, id).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('pin', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'pins.insert': ({room, row}) => unreadable(store.pins.insert(room, {...row, room})),
+      missing(store.pins.get(room, id), () => error('NOT_FOUND', `no pin ${id} in this room`, {id})),
+    'pins.insert': ({room, row}) => Effect.orDie(store.pins.insert(room, {...row, room})),
     'pins.update': ({room, id, patch}, {error}) =>
-      unreadable(
-        store.pins.update(room, id, patch).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('pin', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'pins.remove': ({room, id}) => unreadable(store.pins.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
-    'reads.list': ({room}) => unreadable(store.reads.list(room)),
+      missing(store.pins.update(room, id, patch), () => error('NOT_FOUND', `no pin ${id} in this room`, {id})),
+    'pins.remove': ({room, id}) => Effect.orDie(store.pins.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'reads.list': ({room}) => Effect.orDie(store.reads.list(room)),
     'reads.get': ({room, id}, {error}) =>
-      unreadable(
-        store.reads.get(room, id).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('read', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'reads.insert': ({room, row}) => unreadable(store.reads.insert(room, {...row, sessionId: room})),
+      missing(store.reads.get(room, id), () => error('NOT_FOUND', `no read ${id} in this room`, {id})),
+    'reads.insert': ({room, row}) => Effect.orDie(store.reads.insert(room, {...row, sessionId: room})),
     'reads.update': ({room, id, patch}, {error}) =>
-      unreadable(
-        store.reads.update(room, id, patch).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('read', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'reads.remove': ({room, id}) => unreadable(store.reads.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
-    'canvasPending.list': ({room}) => unreadable(store.pending.list(room)),
+      missing(store.reads.update(room, id, patch), () => error('NOT_FOUND', `no read ${id} in this room`, {id})),
+    'reads.remove': ({room, id}) =>
+      Effect.orDie(store.reads.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'canvasPending.list': ({room}) => Effect.orDie(store.pending.list(room)),
     'canvasPending.get': ({room, id}, {error}) =>
-      unreadable(
-        store.pending.get(room, id).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('pending row', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'canvasPending.insert': ({room, row}) => unreadable(store.pending.insert(room, {...row, room})),
+      missing(store.pending.get(room, id), () => error('NOT_FOUND', `no pending row ${id} in this room`, {id})),
+    'canvasPending.insert': ({room, row}) => Effect.orDie(store.pending.insert(room, {...row, room})),
     'canvasPending.update': ({room, id, patch}, {error}) =>
-      unreadable(
-        store.pending.update(room, id, patch).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('pending row', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
+      missing(store.pending.update(room, id, patch), () =>
+        error('NOT_FOUND', `no pending row ${id} in this room`, {id}),
       ),
     'canvasPending.remove': ({room, id}) =>
-      unreadable(store.pending.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+      Effect.orDie(store.pending.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
     'canvasPending.claim': ({room, id}) =>
-      unreadable(store.pending.claim(room, id)).pipe(Effect.map((claimed) => ({claimed}))),
-    'canvasReplies.list': ({room}) => unreadable(store.replies.list(room)),
+      Effect.orDie(store.pending.claim(room, id)).pipe(Effect.map((claimed) => ({claimed}))),
+    'canvasReplies.list': ({room}) => Effect.orDie(store.replies.list(room)),
     'canvasReplies.get': ({room, id}, {error}) =>
-      unreadable(
-        store.replies.get(room, id).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('reply', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
-    'canvasReplies.insert': ({room, row}) => unreadable(store.replies.insert(room, {...row, room})),
+      missing(store.replies.get(room, id), () => error('NOT_FOUND', `no reply ${id} in this room`, {id})),
+    'canvasReplies.insert': ({room, row}) => Effect.orDie(store.replies.insert(room, {...row, room})),
     'canvasReplies.update': ({room, id, patch}, {error}) =>
-      unreadable(
-        store.replies.update(room, id, patch).pipe(
-          Effect.catchTag(
-            'RowNotFound',
-            missing('reply', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
-          ),
-        ),
-      ),
+      missing(store.replies.update(room, id, patch), () => error('NOT_FOUND', `no reply ${id} in this room`, {id})),
     'canvasReplies.remove': ({room, id}) =>
-      unreadable(store.replies.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
-    'elements.list': ({room, scope}) => unreadable(store.listElements(scope, room)),
+      Effect.orDie(store.replies.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'elements.list': ({room, scope}) => Effect.orDie(store.listElements(scope, room)),
     'elements.get': ({room, scope, elementId}, {error}) =>
-      unreadable(store.getElement(scope, room, elementId)).pipe(
+      Effect.orDie(store.getElement(scope, room, elementId)).pipe(
         Effect.flatMap((row) =>
           row
             ? Effect.succeed(row)
@@ -136,25 +76,22 @@ export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard>
         ),
       ),
     'elements.upsert': ({room, scope, row}, {error}) =>
-      unreadable(
-        store
-          .upsertElement(scope, {...row, room})
-          .pipe(
-            Effect.catchTag('VersionConflict', ({current}) =>
-              Effect.fail(error('CONFLICT', 'element version conflict', {current})),
-            ),
-          ),
-      ),
+      refuse(store.upsertElement(scope, {...row, room}), storeErrors.VERSION_CONFLICT.code, (conflict) => {
+        const stored = Conflicted.safeParse(conflict.internal)
+        return stored.success
+          ? Effect.fail(error('CONFLICT', 'element version conflict', {current: stored.data.current}))
+          : Effect.die(conflict)
+      }),
     'elements.bulkUpsert': ({room, scope, rows}) =>
-      unreadable(
+      Effect.orDie(
         store.upsertElements(
           scope,
           rows.map((row) => ({...row, room})),
         ),
       ).pipe(Effect.map((saved) => ({rows: saved}))),
     'elements.bulkDelete': ({room, scope, elementIds}) =>
-      unreadable(store.deleteElements(scope, room, elementIds)).pipe(Effect.map((deleted) => ({deleted}))),
+      Effect.orDie(store.deleteElements(scope, room, elementIds)).pipe(Effect.map((deleted) => ({deleted}))),
     'cursor.move': ({room, cursor}) => store.cursor({...cursor, room}).pipe(Effect.map((): {ok: true} => ({ok: true}))),
-    since: ({room, cursor}) => unreadable(store.since(room, cursor)),
+    since: ({room, cursor}) => Effect.orDie(store.since(room, cursor)),
   }
 }

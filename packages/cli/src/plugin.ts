@@ -3,9 +3,9 @@ import {argument, cli, command, description, name, option, route, schema} from '
 import {makeRpcClient} from '@conciv/client'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {engineOrigin} from './engine-origin.js'
-import {cliErrors} from './failure.js'
 import {engineAnswer} from './request.js'
 import {handler} from './router/handler.js'
+import {cliErrors} from '@conciv/errors'
 
 type PluginCallOptions = {rpcId: string; method: string; data?: string; cwd: string}
 

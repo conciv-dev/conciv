@@ -3,6 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
 import {FieldShell} from './field-shell.js'
 import {HotkeyRecorder} from './hotkey-recorder.js'
+import {storyErrors} from '@conciv/errors'
 
 const meta: Meta = {title: 'ui-kit-system/HotkeyRecorder'}
 export default meta
@@ -83,7 +84,7 @@ export const Keyboard: Story = {
     await expect(canvas.getByRole('button', {name: 'Change Save'})).toHaveFocus()
 
     const [clear] = canvas.getAllByRole('button', {name: 'Clear shortcut'})
-    if (!clear) throw new Error('the search recorder renders no clear button')
+    if (!clear) throw storyErrors.ELEMENT_MISSING({element: 'search recorder clear button'})
     await userEvent.click(clear)
     await expect(canvas.getByText(/^Search /)).toHaveTextContent('Search null')
     await expect(canvas.getByRole('button', {name: 'Record Search'})).toHaveFocus()

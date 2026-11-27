@@ -1,6 +1,7 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {DraftItem} from '@conciv/types/chat-types'
 import type {Attachment, AttachmentAdapter} from '../attachment/attachment-adapter.js'
+import {chatKitErrors} from '@conciv/errors'
 
 export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: string | null; items: DraftItem[]}
 
@@ -34,6 +35,6 @@ export const ComposerProvider = ComposerContext.Provider
 
 export function useComposerContext(): ComposerContextValue {
   const context = useContext(ComposerContext)
-  if (!context) throw new Error('Composer.* must be used within a Composer.Root')
+  if (!context) throw chatKitErrors.OUTSIDE_PROVIDER({part: 'Composer.*', provider: 'a Composer.Root'})
   return context
 }

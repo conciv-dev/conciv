@@ -7,7 +7,7 @@ The React compound component over the core service (`mascot-react.ts`): `Mascot`
 ## Invariants
 
 - `mascot-context.ts:useMascotContext` - throws `a mascot part can only render inside <Mascot />` outside the root.
-- `use-mascot.ts` - a second component claiming the same part throws `partAlreadyProvided`.
+- `use-mascot.ts` - a second component claiming the same part throws `mascotErrors.PART_ALREADY_PROVIDED`.
 - `mascot-effect.tsx:EffectHost` - a new `mount` function identity remounts the effect.
 
 ## Side Effects

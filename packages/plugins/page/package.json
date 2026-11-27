@@ -63,6 +63,7 @@
   "dependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
+    "@conciv/errors": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -80,6 +81,7 @@
     "bippy": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
+    "evlog": "catalog:",
     "js-beautify": "^2.0.3",
     "lucide-solid": "catalog:",
     "react-grab": "catalog:",

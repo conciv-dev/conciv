@@ -2,6 +2,7 @@ import {join} from 'node:path'
 import {Clock, Effect, FileSystem, Option, Path, Schema, Semaphore, type PlatformError} from 'effect'
 import {uniq, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
+import {iosErrors} from './errors/errors.js'
 import {
   destination,
   developerEnv,
@@ -41,8 +42,6 @@ function parseDiagnostics(output: string): Diagnostic[] {
   return uniqBy(parsed, diagnosticKey)
 }
 
-export const BuildFileFailed = Schema.TaggedStruct('BuildFileFailed', {message: Schema.String, cause: Schema.Unknown})
-
 export const BuildOutputSchema = z.union([
   z.object({
     ok: z.boolean(),
@@ -57,7 +56,7 @@ type Build = {ok: boolean; appPath: string | null; durationMs: number; diagnosti
 
 function fileFailure(message: string) {
   return <Value, Requirements>(effect: Effect.Effect<Value, PlatformError.PlatformError, Requirements>) =>
-    effect.pipe(Effect.mapError((cause) => BuildFileFailed.make({message, cause})))
+    effect.pipe(Effect.mapError((cause) => iosErrors.BUILD_FILE_FAILED({detail: message, cause})))
 }
 
 const collectSwiftSources = Effect.fn('ios.build.collectSwiftSources')(function* (

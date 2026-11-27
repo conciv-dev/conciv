@@ -1,5 +1,6 @@
 import {emptyInputJsonSchema, type ToolDefinition} from '../../ai/effect.js'
 import {isRecord} from '../../util/record.js'
+import {toolErrors} from '@conciv/errors'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {StandardJSONSchemaV1, StandardSchemaV1} from '@standard-schema/spec'
 import {Effect, JsonPointer, JsonSchema, Result, Schema, SchemaIssue, SchemaRepresentation} from 'effect'
@@ -155,7 +156,7 @@ const outputJsonSchema = (schema: Tool.ValueSchema): JsonSchema.JsonSchema => {
 const standardJsonSchema = (schema: StandardSchemaV1, io: 'input' | 'output'): JsonSchema.JsonSchema => {
   if (isStandardJSONSchema(schema)) return schema['~standard'].jsonSchema[io]({target: 'draft-2020-12'})
   if (schema instanceof $ZodType) return toJSONSchema(schema, {target: 'draft-2020-12', io})
-  throw new Error(`Schema vendor "${schema['~standard'].vendor}" does not support JSON Schema conversion`)
+  throw toolErrors.SCHEMA_NOT_CONVERTIBLE({vendor: schema['~standard'].vendor})
 }
 
 const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {

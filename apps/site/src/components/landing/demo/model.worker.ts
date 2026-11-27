@@ -13,7 +13,7 @@ self.addEventListener('message', async (event: MessageEvent<ModelWorkerRequest>)
       await loadModel(message.modelId, (progress) => post({type: 'progress', ...progress}))
       post({type: 'ready', device: getDevice(), modelId: message.modelId})
     } catch (error) {
-      post({type: 'load-error', error: String(error)})
+      post({type: 'load-error', error: error instanceof Error ? error.message : String(error)})
     }
     return
   }
@@ -21,6 +21,6 @@ self.addEventListener('message', async (event: MessageEvent<ModelWorkerRequest>)
     const result = await instructionToPatch(message.html, message.instruction)
     post({type: 'result', id: message.id, ...result})
   } catch (error) {
-    post({type: 'run-error', id: message.id, error: String(error)})
+    post({type: 'run-error', id: message.id, error: error instanceof Error ? error.message : String(error)})
   }
 })

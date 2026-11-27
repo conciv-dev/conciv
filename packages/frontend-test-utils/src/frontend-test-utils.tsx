@@ -39,6 +39,7 @@ import {Contribution, PluginStyles} from '@internal/frontend-app-api/plugin/rend
 import {persistedHandle, storeName, type StoreLoads} from '@internal/frontend-app-api/plugin/stores'
 import {ui} from '@internal/frontend-app-api/plugin/ui'
 import {viewTabId, viewTabPanelId} from '@internal/frontend-app-api/lib/view-tab-ids'
+import {testKitErrors} from '@conciv/errors'
 
 export type TestPlugin = {
   readonly id: string
@@ -92,8 +93,7 @@ export function useFakeEngine(engine: FakeEngine = createFakeEngine()): FakeEngi
   onTestFinished(() => {
     engine.dispose()
     const unanswered = engine.unanswered()
-    if (unanswered.length > 0)
-      throw new Error(`the fake engine was asked for what no test gave it: ${unanswered.join(', ')}`)
+    if (unanswered.length > 0) throw testKitErrors.UNANSWERED({procedures: unanswered.join(', ')})
   })
   return engine
 }
@@ -408,7 +408,7 @@ function Started(props: ParentProps<{ids: readonly string[]; started: () => void
 }
 
 async function trusted(engine: BoundEngine): Promise<void> {
-  if (!(await engine.connection.trust.requestTrust())) throw new Error('the engine did not trust the test browser')
+  if (!(await engine.connection.trust.requestTrust())) throw testKitErrors.NOT_TRUSTED()
 }
 
 export function renderInTestApp(options: RenderInTestAppOptions): Promise<TestApp> {
