@@ -3,7 +3,7 @@ import {chmod, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineCommand, runMain} from 'citty'
-import {Duration, Effect} from 'effect'
+import {Context, Duration, Effect} from 'effect'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {
@@ -47,10 +47,10 @@ const BRIDGE_MANIFEST = 'packages/plugins/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
 
-async function atRoot() {
+async function atRoot(childStdout: 'inherit' | 2 = 'inherit') {
   const cwd = process.cwd()
   await assertWorkspaceRoot(cwd)
-  const run = (file: string, args: string[]) => execa(file, args, {cwd, stdio: 'inherit'})
+  const run = (file: string, args: string[]) => execa(file, args, {cwd, stdio: ['inherit', childStdout, 'inherit']})
   const turbo = (...tasks: string[]) => run('pnpm', ['exec', 'turbo', 'run', ...tasks])
   const changeset = (...args: string[]) => run('pnpm', ['exec', 'changeset', ...args])
   return {cwd, run, turbo, changeset}
@@ -218,8 +218,15 @@ const npmTrust = (...args: string[]) => ['--yes', 'npm@^11.15.0', 'trust', ...ar
 
 type SyncFailure = {name: string; hint: string; output: string}
 
+const SyncLines = Context.Reference<(line: string) => Effect.Effect<void>>('@internal/publish/SyncLines', {
+  defaultValue: () => (line) => Effect.sync(() => process.stdout.write(`${line}\n`)),
+})
+
 function say(line: string) {
-  return Effect.sync(() => process.stdout.write(`${line}\n`))
+  return Effect.gen(function* () {
+    const write = yield* SyncLines
+    yield* write(line)
+  })
 }
 
 const NPM_CONCURRENCY = 8
@@ -414,9 +421,12 @@ const applySyncPlan = Effect.fn('sync.apply')(function* (cwd: string, run: Run, 
 })
 
 const syncProgram = Effect.fn('sync')(function* (dryRun: boolean, json: boolean) {
-  const {cwd, run, turbo} = yield* Effect.promise(() => atRoot())
+  const {cwd, run, turbo} = yield* Effect.promise(() => atRoot(json ? 2 : 'inherit'))
   yield* Effect.promise(() => assertPublicDepsPublic(cwd))
-  yield* Effect.promise(() => run('npm', ['whoami']))
+  const {stdout: user} = yield* Effect.promise(() =>
+    execa('npm', ['whoami'], {cwd, stdin: 'inherit', stderr: 'inherit'}),
+  )
+  yield* say(`npm user: ${user.trim()}`)
   const states = yield* gatherSyncStates()
   const plan = yield* Effect.promise(() => buildSyncPlan(cwd, states))
   yield* printSyncPlan(states, plan, json)
@@ -441,7 +451,10 @@ const sync = defineCommand({
   },
   async run({args}) {
     await Effect.runPromise(
-      syncProgram(args['dry-run'], args.json).pipe(Effect.provide(publishLogs('sync', flaggedLogLevel(args)))),
+      syncProgram(args['dry-run'], args.json).pipe(
+        args.json ? Effect.provideService(SyncLines, (line) => Effect.logInfo(line)) : (program) => program,
+        Effect.provide(publishLogs('sync', flaggedLogLevel(args))),
+      ),
     )
   },
 })
