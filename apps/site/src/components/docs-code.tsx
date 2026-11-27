@@ -22,7 +22,7 @@ function TabBarCopyActions({className, children}: {className?: string; children?
         'empty:hidden',
         boxedCopy,
         className,
-        'static flex h-9.5 items-center justify-end rounded-none border-b pe-2 backdrop-blur-none',
+        'static flex h-9.5 items-center justify-end rounded-none pe-2 backdrop-blur-none',
       )}
     >
       {children}
@@ -40,8 +40,8 @@ type CodeChrome = {
 const pageChrome: CodeChrome = {plain: false, UntitledActions: CopyActions}
 const tabChrome: CodeChrome = {
   plain: false,
-  figureClass: 'contents',
-  viewportClass: 'col-span-full',
+  figureClass: 'contents [&_figcaption]:w-0 [&>div:first-child]:border-b-0',
+  viewportClass: 'col-span-full border-t contain-inline-size',
   UntitledActions: TabBarCopyActions,
 }
 const popupChrome: CodeChrome = {plain: true, UntitledActions: CopyActions}
@@ -68,14 +68,25 @@ export function CodeBlockTabs(props: ComponentProps<typeof FumadocsCodeBlockTabs
     <CodeChromeContext value={tabChrome}>
       <FumadocsCodeBlockTabs
         {...props}
-        className={cn('grid grid-cols-[auto_minmax(0,1fr)] overflow-hidden', props.className)}
+        className={cn(
+          'grid grid-cols-[minmax(0,auto)_minmax(min-content,1fr)] overflow-hidden contain-inline-size',
+          props.className,
+        )}
       />
     </CodeChromeContext>
   )
 }
 
 export function CodeBlockTabsList(props: ComponentProps<typeof FumadocsCodeBlockTabsList>) {
-  return <FumadocsCodeBlockTabsList {...props} className={cn('col-start-1 row-start-1 border-b', props.className)} />
+  return (
+    <FumadocsCodeBlockTabsList
+      {...props}
+      className={cn(
+        'col-start-1 row-start-1 pe-6 mask-r-from-[calc(100%-1.5rem)] [scrollbar-width:none]',
+        props.className,
+      )}
+    />
+  )
 }
 
 export function CodeBlockTab(props: ComponentProps<typeof FumadocsCodeBlockTab>) {

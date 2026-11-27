@@ -130,7 +130,7 @@ export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
   const prompt = numbered(framework.steps)
   return (
     <div className="not-prose my-6 overflow-hidden rounded-xl border bg-fd-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+      <div className="flex flex-wrap items-center justify-start gap-2 border-b px-3 py-2 sm:justify-between">
         <Select value={framework.id} onValueChange={setFrameworkId}>
           <SelectTrigger aria-label="Framework" size="sm" className="gap-2">
             <SelectValue>
@@ -159,7 +159,7 @@ export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
 export function CopyPrompt({text}: {text: string}) {
   return (
     <div className="not-prose my-6 overflow-hidden rounded-xl border bg-fd-card">
-      <div className="flex items-center justify-end border-b px-3 py-2">
+      <div className="flex items-center justify-start border-b px-3 py-2 sm:justify-end">
         <CopyPromptButton text={text} />
       </div>
       <PromptText text={text} />
