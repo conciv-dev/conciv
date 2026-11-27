@@ -4025,6 +4025,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:*
         version: link:../../harness
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/frontend-app-api':
         specifier: workspace:*
         version: link:../../frontend-app-api
@@ -4298,9 +4301,15 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.5
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
+      evlog:
+        specifier: 'catalog:'
+        version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
       execa:
         specifier: ^10.2.1
         version: 10.2.1
@@ -4338,9 +4347,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      effect:
-        specifier: 'catalog:'
-        version: 4.1.5
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

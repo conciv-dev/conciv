@@ -3,6 +3,14 @@ import type {SnapdomPlugin} from '@zumer/snapdom'
 
 const WEBP_QUALITY = 0.8
 
+const UNPAINTED: readonly string[] = ['transparent', 'rgba(0, 0, 0, 0)']
+
+export function paintedBackground(element: Element | null): string | undefined {
+  if (element === null) return undefined
+  const color = getComputedStyle(element).backgroundColor
+  return UNPAINTED.includes(color) ? paintedBackground(element.parentElement) : color
+}
+
 export type PageScreenshot = {width: number; height: number; warnings?: string[]; data: Uint8Array<ArrayBuffer>}
 
 function readable(selector: string): boolean {
@@ -29,6 +37,7 @@ export async function screenshot(
     excludeMode: 'remove',
     embedFonts: true,
     plugins: capturePlugins,
+    backgroundColor: paintedBackground(document.documentElement) ?? paintedBackground(document.body),
   })
   const blob = await capture.toBlob({format: 'webp', quality: WEBP_QUALITY})
   const bitmap = await createImageBitmap(blob)
