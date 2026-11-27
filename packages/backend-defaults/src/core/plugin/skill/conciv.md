@@ -72,9 +72,9 @@ the [CLI guide](https://conciv.dev/docs/cli). For connecting a coding agent that
 
 A plugin adds tools, skills and RPC methods to the engine, and panels and buttons to the widget. conciv's own
 features are plugins too. Fetch [Plugins](https://conciv.dev/docs/plugins) for what a plugin is, where conciv
-finds them, how to add one from the config or write one in the project, the [Engine SDK](https://conciv.dev/docs/plugins/engine) and the
-[Browser SDK](https://conciv.dev/docs/plugins/browser) for what a plugin can do, and
-[Calling a plugin from the terminal](https://conciv.dev/docs/plugins/terminal) for `conciv plugin call`. Read the
+finds them, how to add one from the config or write one in the project, [Build your first plugin](https://conciv.dev/docs/plugins/first-plugin) and the
+[guides](https://conciv.dev/docs/plugins/guides/tool) for what a plugin can do, and
+[Call your plugin from a terminal](https://conciv.dev/docs/plugins/guides/terminal) for `conciv plugin call`. Read the
 page before writing code: the documentation is the source of truth for the installed version.
 
 ## [Skills](https://conciv.dev/docs/usage/skills)

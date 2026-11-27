@@ -209,7 +209,7 @@ a tool. See [rpc-and-testing](references/rpc-and-testing.md).
 `Plugin.define({setup})` is the default export. It declares no id: the widget gives it the engine
 part's id as `ctx.id`. `setup` runs synchronously. Everything added with `ctx.add(Registry, item)` is
 removed when the plugin reloads or stops, and `ctx.signal` aborts then
-(`apps/site/content/docs/plugins/browser.mdx`).
+(`apps/site/content/docs/plugins/first-plugin.mdx`).
 
 `ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the contract. The client is
 new after the engine restarts, so read `ctx.client` where you call it. From
@@ -308,7 +308,7 @@ What a plugin outside this repo cannot use: `@internal/frontend-test-utils` (`re
 `renderTestApp`, `createExtensionTester`) and `@internal/vitest-config` (`concivTest()`) are private
 and not published. So it has no widget render helpers, and no browser-mode `createEngine`: the browser
 commands are exported from `@conciv/backend-test-utils/vitest`, but registering them is `concivTest()`'s
-job (`apps/site/content/docs/plugins/testing.mdx`). Test the engine part in node with `createEngine`.
+job (`apps/site/content/docs/plugins/guides/testing.mdx`). Test the engine part in node with `createEngine`.
 
 ## Publishing
 
@@ -363,6 +363,6 @@ test runner does (`packages/plugins/test-runner/package.json`). The test runner 
 - `packages/plugins/test-runner/src/follow.ts`
 - `packages/plugins/test-runner/test/it/tools.it.test.ts`
 - `apps/site/content/docs/plugins/index.mdx`
-- `apps/site/content/docs/plugins/engine.mdx`
-- `apps/site/content/docs/plugins/browser.mdx`
-- `apps/site/content/docs/plugins/testing.mdx`
+- `apps/site/content/docs/plugins/guides/tool.mdx`
+- `apps/site/content/docs/plugins/first-plugin.mdx`
+- `apps/site/content/docs/plugins/guides/testing.mdx`
