@@ -5,8 +5,8 @@ icon: Rocket
 ---
 
 A coding agent in your terminal cannot see your running app. So you leave the app to ask it something. Then you paste
-the error, the markup or a screenshot back by hand. conciv removes that trip: the agent runs inside your app, reads
-the page you are on, and edits the source that renders it.
+the error, the markup or a screenshot back by hand. conciv removes that trip. The agent runs inside your app. It reads
+the page you are on and edits the source that renders it.
 
 This guide takes the shortest path:
 
@@ -30,7 +30,7 @@ Run init in your app folder, the one with `package.json`:
 npx @conciv/cli@latest init
 ```
 
-init asks what to set up, shows the plan, and writes nothing until you say yes. What init changes:
+init asks what to set up and shows the plan. It writes nothing until you say yes. What init changes:
 
 - It adds `@conciv/it` to your dev dependencies.
 - It wires conciv into your bundler config.
@@ -124,7 +124,7 @@ Each bundler has its own page with the manual setup and its edge cases: [Vite](/
 [TanStack Start](/docs/bundlers/tanstack-start).
 
 <Accordions>
-<Accordion id="stops" title="init stopped before it wrote anything?">
+<Accordion id="stops" title="If init stops before it writes anything">
 
 init checks your project first, and stops with one of these messages:
 
@@ -140,7 +140,7 @@ Pressing Ctrl-C while init runs puts your config back as it was. Every flag is i
 
 ## Start your dev server
 
-Start your dev server the way you always do. conciv starts with it, and adds a conciv button to the corner of every
+Start your dev server the way you always do. conciv starts with it. It adds a conciv button to the corner of every
 page.
 
 ```bash title="Terminal"
