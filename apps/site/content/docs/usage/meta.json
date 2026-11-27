@@ -5,9 +5,11 @@
     "logging-in",
     "page-control",
     "quick-terminal",
+    "terminal",
     "dev-server",
     "live-tests",
     "live-recorder",
+    "tanstack",
     "approvals",
     "add-plugins",
     "whiteboard"

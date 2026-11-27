@@ -130,10 +130,10 @@ The first two are on in every widget. Add the others with the line in the third 
 | Plugin      | What it gives you                                                                                             | Add it                          | Options                                           |
 | ----------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
 | Page        | The agent reads and drives the page you have open. See [Page control](/docs/usage/page-control).              | On by default                   | None                                              |
-| Terminal    | The **Terminal** tab, for a session whose agent CLI runs in a terminal.                                       | On by default                   | None                                              |
+| Terminal    | The **Terminal** tab, the agent CLI in a terminal. See [Terminal](/docs/usage/terminal).                      | On by default                   | None                                              |
 | Test runner | Runs your tests from the chat, live in a Tests tab. See [Live tests](/docs/usage/live-tests).                 | `'@conciv/plugin-test-runner'`  | `runner`: vitest (default) or playwright          |
 | Recorder    | Records the page, replays it and exports a video. See [Live recorder](/docs/usage/live-recorder).             | `'@conciv/plugin-recorder'`     | `masking`, `windowMinutes`, `console`             |
-| TanStack    | Build errors, the route list and recent server function calls, for TanStack Router and Start apps.            | `'@conciv/plugin-tanstack'`     | `bundlerWaitMs`                                   |
+| TanStack    | Build errors, routes and server function calls of a TanStack app. See [TanStack](/docs/usage/tanstack).       | `'@conciv/plugin-tanstack'`     | `bundlerWaitMs`                                   |
 | iOS         | Builds, runs, screenshots and reads the logs of your iOS app in the simulator. See [iOS](/docs/bundlers/ios). | `['@conciv/plugin-ios', {...}]` | `projectRoot` and `bundleId` (required), and more |
 | Whiteboard  | A shared canvas over the app. See [Whiteboard](/docs/usage/whiteboard).                                       | Example apps only               | None                                              |
 | Try it      | The connect pane of the widget on conciv.dev.                                                                 | Not added in config             | None                                              |
@@ -161,5 +161,6 @@ folder. Try-it is published, but conciv.dev composes it into its own widget. It 
 
 - **[Live tests](/docs/usage/live-tests):** the test runner, step by step.
 - **[Live recorder](/docs/usage/live-recorder):** the recorder and its options.
+- **[TanStack](/docs/usage/tanstack):** the TanStack plugin and its tools.
 - **[iOS](/docs/bundlers/ios):** every iOS plugin option.
 - **[Plugins](/docs/plugins):** write a plugin of your own.
