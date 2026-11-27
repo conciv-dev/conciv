@@ -4,10 +4,10 @@ description: Put a small piece of your plugin at a fixed place in the widget, or
 ---
 
 A slot puts your content at a fixed place in the widget, such as a session's status area. A pill sits above the
-composer and runs an action when the user clicks it. The browser part is written with Solid components and plain
+composer. It runs an action when the user clicks it. You write the browser part with Solid components and plain
 async functions.
 
-## Basic
+## Add a slot
 
 Add a slot in your plugin's browser part:
 
@@ -62,15 +62,15 @@ export default Plugin.define({
 
 A few things to notice:
 
-- `show` returns what the pill looks like, or `undefined` to hide it. It runs for each composer on screen.
+- `show` returns what the pill looks like, or `undefined` to hide it. It runs once per composer on screen.
 - `icon` is a name from the widget's icon set, as for `ctx.ui.Icon`.
-- `run` is what a click does. Here it puts a prompt in the composer, and the user sends it.
+- `run` is what a click does. Here it puts a prompt in the composer. The user sends it.
 
 Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 ## Show something only some of the time
 
-Pass a function to `ctx.add`. The widget runs it again when what it reads changes, and `undefined` adds nothing:
+Pass a function to `ctx.add`. The widget runs it again when what it reads changes. Returning `undefined` adds nothing:
 
 ```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
 // @jsx: preserve
@@ -90,9 +90,9 @@ export default Plugin.define({
 [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 <Accordions>
-<Accordion title="Can a pill open a menu?">
+<Accordion title="A pill that opens a menu">
 
-Yes. Instead of `run`, return `rows`: a list, each row with a `label` and its own `run`. For anything more, give the
+Instead of `run`, return `rows`: a list, each row with a `label` and its own `run`. For anything more, give the
 pill a `menu` function that renders your own content in the popover.
 
 </Accordion>
