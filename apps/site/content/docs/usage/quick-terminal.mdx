@@ -5,7 +5,7 @@ description: Drop the chat down from the top of the page on a hotkey, and split 
 
 The quick terminal is the chat as a full-width sheet that drops from the top of the page, over your app.
 
-## Basic
+## Open it
 
 Press `Mod+backtick` to open it, where `Mod` is Cmd on macOS and Ctrl elsewhere. Press it again, or Escape, to close
 it. The app stays visible and usable below the sheet.
@@ -29,7 +29,7 @@ Each pane has its own session picker, usage, refresh and **Close pane** button.
 
 ## Resize it
 
-Drag the grip on the bottom edge to set the height, and conciv remembers it. Drag the grip almost to the top to close
+Drag the grip on the bottom edge to set the height. conciv remembers it. Drag the grip almost to the top to close
 the sheet.
 
 ## Pop a pane out
@@ -94,7 +94,7 @@ module.exports = {
 }
 ```
 
-`hotkey` takes one key or a list of keys. A key set here is locked in **Settings > Shortcuts**, and the row says the
+`hotkey` takes one key or a list of keys. A key set here is locked in **Settings > Shortcuts**. Its row says the
 project set it.
 
 ## Turn it off
@@ -115,8 +115,8 @@ export default defineConfig({
 ```
 
 <Accordions type="single">
-  <Accordion title="Can the corner panel and the quick terminal show together?">
-    No. Opening one closes the other.
+  <Accordion title="The corner panel and the quick terminal never show together">
+    Opening one closes the other.
   </Accordion>
 </Accordions>
 
