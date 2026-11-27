@@ -11,9 +11,19 @@ import {optimizeDeps, resolveConfig, type InlineConfig} from 'vite'
 import {describe} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@internal/vitest-config/temp-dir'
+import {ChatEventType} from '@conciv/types/chat-event-types'
 import {concivStateDir} from '@conciv/types/state-types'
 import {makeViteHook} from '../../src/core/vite.js'
-import {adapterFiles, agentStarted, childEnv, fakeClaude, readyLine, running, test} from '../utils/unplugin-test.js'
+import {
+  adapterFiles,
+  agentStarted,
+  childEnv,
+  fakeClaude,
+  readyLine,
+  runEnded,
+  running,
+  test,
+} from '../utils/unplugin-test.js'
 
 describe.concurrent('the vite dev server', () => {
   test("stops the engine on Ctrl+C mid-run: no adapter file stays in the project, no agent CLI outlives it, and the engine's logs go to the log file in its home, none to the terminal", async ({
@@ -76,16 +86,32 @@ describe.concurrent('the vite dev server', () => {
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test('a second dev server whose engine port is taken still boots, with its engine on another port', async ({
+  test('a second dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
     viteDev,
+    browser: openBrowser,
     expect,
   }) => {
-    const first = await viteDev({})
+    const first = await viteDev({}, {CONCIV_SIMULATE: '1'})
     const second = await viteDev({port: first.port})
 
     expect(second.port).not.toBe(first.port)
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
+
+    const browser = openBrowser(`http://127.0.0.1:${first.port}`, first.token)
+    const {sessionId} = await browser.rpc.sessions.create()
+    const runId = randomUUID()
+    const events = await browser.rpc.chat.send({
+      sessionId,
+      runId,
+      messages: [{id: `${runId}-user`, role: 'user', content: 'Hi'}],
+    })
+    const ended = await runEnded(events[Symbol.asyncIterator]())
+
+    expect(ended).toMatchObject({
+      type: ChatEventType.RUN_ERROR,
+      message: expect.stringContaining('the simulation has no driver'),
+    })
   })
   test.for([
     {name: 'a plain folder', folder: 'widget'},

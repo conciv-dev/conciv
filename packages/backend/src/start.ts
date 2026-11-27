@@ -4,15 +4,15 @@ import type {StartSimulation} from '@conciv/backend-defaults/backend'
 
 export type {Engine, LogEntry, LogOptions, PortRequest} from '@conciv/backend-defaults/backend'
 
-export type StartOpts = Omit<BackendOptions, 'simulation' | 'plugins'> & {simulation?: boolean}
+export type StartOpts = Omit<BackendOptions, 'simulation' | 'plugins'>
 
 const startSimulation: StartSimulation = async (app, configProvider) =>
   (await import('@conciv/simulation/backend')).startSimulation(app, configProvider)
 
-export function start({simulation, ...opts}: StartOpts): Promise<Engine> {
+export function start(opts: StartOpts): Promise<Engine> {
   return createBackend({
     ...opts,
     plugins: [...pageEngineBuiltins],
-    simulation: simulation === true ? startSimulation : undefined,
+    simulation: startSimulation,
   })
 }

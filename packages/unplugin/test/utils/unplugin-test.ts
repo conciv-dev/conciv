@@ -144,7 +144,7 @@ async function loadNextConfigPort(options: ConcivConfig): Promise<number> {
 
 type UnpluginFixtures = {
   editor: {next: () => Promise<string>}
-  viteDev: (options: ConcivConfig) => Promise<RecordedEngine>
+  viteDev: (options: ConcivConfig, env?: NodeJS.ProcessEnv) => Promise<RecordedEngine>
   started: number[]
   browser: (url: string, token: string) => BrowserRpcClient
   hang: (deadline: number) => Hung
@@ -191,7 +191,7 @@ export const test = base.extend<UnpluginFixtures>({
     const servers: DevServer[] = []
     const viteBin = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js')
     const pluginEntry = pathToFileURL(join(import.meta.dirname, '..', '..', 'dist', 'vite.js')).href
-    await use(async (options) => {
+    await use(async (options, env = {}) => {
       const root = tempDir('vite-dev-')
       const project = join(root, 'project')
       const home = join(root, 'home')
@@ -203,7 +203,7 @@ export const test = base.extend<UnpluginFixtures>({
       )
       const server = spawn(process.execPath, [viteBin], {
         cwd: project,
-        env: childEnv(bin, home),
+        env: {...childEnv(bin, home), ...env},
         stdio: ['ignore', 'pipe', 'inherit'],
       })
       servers.push(server)
@@ -363,4 +363,15 @@ export async function agentStarted(events: AsyncIterator<ChatEvent>): Promise<vo
     !(next.value.type === ChatEventType.CUSTOM && next.value.name === 'claude-code.session-id')
   )
     next = await events.next()
+}
+
+export async function runEnded(events: AsyncIterator<ChatEvent>): Promise<ChatEvent | undefined> {
+  let next = await events.next()
+  while (
+    next.done !== true &&
+    next.value.type !== ChatEventType.RUN_ERROR &&
+    next.value.type !== ChatEventType.RUN_FINISHED
+  )
+    next = await events.next()
+  return next.done === true ? undefined : next.value
 }

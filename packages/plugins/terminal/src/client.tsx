@@ -1,9 +1,10 @@
 import {Layer} from 'effect'
 import TerminalIcon from 'lucide-solid/icons/terminal'
-import {createScopedRuntime, Panel, Plugin, type PanelTab} from '@conciv/frontend-plugin-api'
+import {createScopedRuntime, Panel, Plugin, Style, type PanelTab} from '@conciv/frontend-plugin-api'
 import {terminalDeclarations} from './stores.js'
 import {TerminalPanel} from './terminal-panel.js'
 import {createTerminalState} from './terminal-state.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const TAB_ID = 'terminal'
 
@@ -22,6 +23,7 @@ const tab: PanelTab = {
 export default Plugin.define({
   ...terminalDeclarations,
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const {runtime, scope} = createScopedRuntime(Layer.empty)
     const terminal = createTerminalState(ctx, runtime, scope)
 

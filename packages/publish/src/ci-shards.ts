@@ -91,7 +91,16 @@ function plan(args: string[]): void {
 function turbo(tasks: string[], filters: string[], passed: string[] = []): void {
   execFileSync(
     'pnpm',
-    ['exec', 'turbo', 'run', ...tasks, ...filters, ...(passed.length > 0 ? ['--', ...passed] : [])],
+    [
+      'exec',
+      'turbo',
+      'run',
+      '--log-order=stream',
+      '--log-prefix=task',
+      ...tasks,
+      ...filters,
+      ...(passed.length > 0 ? ['--', ...passed] : []),
+    ],
     {
       stdio: 'inherit',
     },

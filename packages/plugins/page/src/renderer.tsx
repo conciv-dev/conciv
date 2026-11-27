@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import {createScopedRuntime, createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/frontend-plugin-api'
+import {createScopedRuntime, createKeyed, Plugin, Slot, Style, ToolRegistry} from '@conciv/frontend-plugin-api'
 import {NoteCard, OpaqueNoteCard} from '@internal/frontend-app-api'
 import {BrowserTabUrl, Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
@@ -26,6 +26,7 @@ import {GrabNoteCard} from './grab-card.js'
 import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {capturePlugins} from './screenshot.js'
 import {redactedUrl} from './redacted-url.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
 
@@ -33,6 +34,7 @@ export default Plugin.define({
   enforce: 'pre',
   beforeRegister: installReactBridge,
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const routed = () => ctx.sessions.current()
 
     const queryClient = useQueryClient()

@@ -2,6 +2,7 @@ import type {Preview} from 'storybook-solidjs-vite'
 import {withThemeByClassName} from '@storybook/addon-themes'
 import {trackFocusVisible} from '@zag-js/focus-visible'
 import './storybook.css'
+import 'virtual:uno.css'
 
 trackFocusVisible()
 

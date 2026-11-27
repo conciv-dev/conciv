@@ -2,13 +2,14 @@ import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
 import {A11yNodeList, PageHtmlBlock, PageValueChip} from './cards.js'
+import {STORY_FRAME_CLASS} from './story.fixtures.js'
 
 const meta: Meta = {title: 'Plugins/Page/tool/PageResultViews'}
 export default meta
 type Story = StoryObj
 
 function frame(child: JSX.Element): JSX.Element {
-  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
+  return <div class={STORY_FRAME_CLASS}>{child}</div>
 }
 
 export const NodeList: Story = {

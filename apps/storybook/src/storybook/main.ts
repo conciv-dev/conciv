@@ -1,4 +1,5 @@
 import type {StorybookConfig} from 'storybook-solidjs-vite'
+import {fileURLToPath} from 'node:url'
 
 const config: StorybookConfig = {
   stories: [
@@ -25,7 +26,13 @@ const config: StorybookConfig = {
   framework: process.env.VITEST ? {name: 'storybook-solidjs-vite', options: {docgen: false}} : 'storybook-solidjs-vite',
   async viteFinal(storybookViteConfig) {
     const {mergeConfig} = await import('vite')
+    const {default: UnoCSS} = await import('unocss/vite')
     return mergeConfig(storybookViteConfig, {
+      plugins: [
+        UnoCSS({
+          configFile: fileURLToPath(new URL('../../../../packages/plugins/page/uno.config.ts', import.meta.url)),
+        }),
+      ],
       resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
       optimizeDeps: {
         include: [

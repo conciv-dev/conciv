@@ -3,4 +3,4 @@
 '@internal/vitest-config': patch
 ---
 
-The app's UnoCSS scan covers only the app, the kits, tools, the core cards and the two plugins it imports (page, terminal); the embed build still scans every plugin it ships. A browser test's generated sheet also covers the source of every conciv plugin installed in the package under test, so a suite that mounts a plugin outside the app's scan keeps that plugin's classes.
+The app's UnoCSS scan covers only the app, the kits, tools and the core cards; it scans no plugin, and every plugin ships its own sheet. A browser test's generated sheet covers the shell's scan plus the source of the package under test, so a plugin's own suite keeps that plugin's classes.
