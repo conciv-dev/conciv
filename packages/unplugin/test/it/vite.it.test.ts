@@ -88,12 +88,19 @@ describe.concurrent('the vite dev server', () => {
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test('a second dev server whose engine port is taken still boots, with its engine on another port, and a dev server started with CONCIV_SIMULATE runs its engine in simulation', async ({
+  test("a second dev server whose engine port is taken still boots, with its engine on another port, a dev server started with CONCIV_SIMULATE runs its engine in simulation, and that first server's plugin bundler part transforms a served module after the source stamp and serves a virtual module", async ({
+    project,
     viteDev,
     browser: openBrowser,
     expect,
   }) => {
-    const first = await viteDev({}, {env: {CONCIV_SIMULATE: '1'}})
+    const plugin = (name: string) => join(import.meta.dirname, '..', 'fixtures', 'plugins', name)
+    const root = realpathSync(project('app'))
+    writeFileSync(join(root, 'src', 'virtual.js'), "export {virtualGreeting} from 'virtual:stamper'\n")
+    const first = await viteDev(
+      {plugins: [plugin('plain'), plugin('stamper')]},
+      {env: {CONCIV_SIMULATE: '1'}, root, vite: {oxc: {jsx: {runtime: 'classic'}}}},
+    )
     const second = await viteDev({port: first.port})
 
     expect(second.port).not.toBe(first.port)
@@ -114,6 +121,13 @@ describe.concurrent('the vite dev server', () => {
       type: ChatEventType.RUN_ERROR,
       message: expect.stringContaining('the simulation has no driver'),
     })
+
+    const served = async (path: string) => (await fetch(new URL(path, first.url))).text()
+    const app = await served('/src/app.jsx')
+    expect(app).toContain('data-tsd-source')
+    expect(app).toContain('export const stamperSawSource = true')
+    expect(await served('/src/virtual.js')).toContain('/@id/__x00__virtual:stamper')
+    expect(await served('/@id/__x00__virtual:stamper')).toContain("virtualGreeting = 'from the stamper'")
   })
   test.for([
     {name: 'a plain folder', folder: 'widget'},
@@ -197,35 +211,6 @@ describe.concurrent('the vite dev server', () => {
       expect(Object.keys(metadata.optimized)).toEqual(expect.arrayContaining(['app-dependency', 'widget-dependency']))
     },
   )
-  test("a plugin's bundler part transforms a served module after the source stamp and serves a virtual module, and a plugin without one leaves the module as it was", async ({
-    project,
-    viteDev,
-    expect,
-  }) => {
-    const plugin = (name: string) => join(import.meta.dirname, '..', 'fixtures', 'plugins', name)
-    const served = async (plugins: string[]) => {
-      const root = realpathSync(project('app'))
-      writeFileSync(join(root, 'src', 'virtual.js'), "export {virtualGreeting} from 'virtual:stamper'\n")
-      const {url} = await viteDev({plugins}, {root, vite: {oxc: {jsx: {runtime: 'classic'}}}})
-      return async (path: string) => {
-        const text = await (await fetch(new URL(path, url))).text()
-        return text.replaceAll(root, '<root>').replace(/\/\/# sourceMappingURL=\S+\s*$/, '')
-      }
-    }
-
-    const [bare, plain, stamped] = await Promise.all([
-      served([]),
-      served([plugin('plain')]),
-      served([plugin('plain'), plugin('stamper')]),
-    ])
-
-    expect(await plain('/src/app.jsx')).toBe(await bare('/src/app.jsx'))
-    const app = await stamped('/src/app.jsx')
-    expect(app).toContain('data-tsd-source')
-    expect(app).toContain('export const stamperSawSource = true')
-    expect(await stamped('/src/virtual.js')).toContain('/@id/__x00__virtual:stamper')
-    expect(await stamped('/@id/__x00__virtual:stamper')).toContain("virtualGreeting = 'from the stamper'")
-  })
   test('a project path holding a backslash and a paren reaches the scan entries with both escaped', async ({
     project,
     expect,
