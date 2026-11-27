@@ -49,6 +49,7 @@ export type DemoEngine = {
   readonly play: (signal: AbortSignal) => Promise<void>
   readonly hold: () => void
   readonly resume: () => void
+  readonly setSpeed: (speed: number) => void
   readonly dispose: () => void
 }
 
@@ -274,6 +275,7 @@ export function createDemoEngine(options: DemoEngineOptions): DemoEngine {
     play,
     hold: hold.hold,
     resume: hold.resume,
+    setSpeed: pace.setSpeed,
     dispose: chat.dispose,
   }
 }

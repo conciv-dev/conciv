@@ -5,7 +5,14 @@ import {ViteReactPage} from '@/playground/pages/vite-react/vite-react-page'
 import {isPlaygroundPage, isPlaygroundScriptId} from '@/playground/playground-scripts'
 import {INITIAL_PAGE, type PageEdit, type PageState, type PlaygroundProgress} from '@/playground/script'
 import {Button} from '@/components/ui/button'
-import {mountPlayground, PLAYGROUND_HOST_CLASS, PlaygroundCommand, playgroundReport} from '@/playground/shell-api'
+import type {z} from 'zod'
+import {
+  mountPlayground,
+  PLAYGROUND_HOST_CLASS,
+  PlaygroundCommand,
+  playgroundReport,
+  type Playback,
+} from '@/playground/shell-api'
 
 export const Route = createFileRoute('/playground/$page/$')({
   loader: ({params}) => {
@@ -26,6 +33,15 @@ function freezeAnimations(host: HTMLElement, command: 'hold' | 'resume'): void {
   animations
     .filter((animation) => animation.playState === (command === 'hold' ? 'running' : 'paused'))
     .forEach((animation) => (command === 'hold' ? animation.pause() : animation.play()))
+}
+
+function follow(instruction: z.infer<typeof PlaygroundCommand>, playback: Playback, host: HTMLElement): void {
+  if (instruction.command === 'speed') {
+    playback.setSpeed(instruction.speed)
+    return
+  }
+  playback[instruction.command]()
+  freezeAnimations(host, instruction.command)
 }
 
 function PlaygroundFrame() {
@@ -52,8 +68,7 @@ function PlaygroundFrame() {
           const parsed = PlaygroundCommand.safeParse(event.data)
           const playback = playground.playback()
           if (!parsed.success || playback === undefined) return
-          playback[parsed.data.command]()
-          freezeAnimations(host, parsed.data.command)
+          follow(parsed.data, playback, host)
         },
         {signal: listening.signal},
       )

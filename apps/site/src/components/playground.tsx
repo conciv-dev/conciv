@@ -9,7 +9,7 @@ import {
   type PlaygroundScriptId,
 } from '@/playground/playground-scripts'
 import type {PlaygroundProgress} from '@/playground/script'
-import {PlaygroundReport, playgroundCommand} from '@/playground/shell-api'
+import {PlaygroundReport, playgroundCommand, type PlaygroundSpeed} from '@/playground/shell-api'
 import {Button} from './ui/button'
 import {PlaygroundBar} from './playground-bar'
 import {PanelStill} from './playground-still'
@@ -76,7 +76,9 @@ export function Playground(props: {page: string; script: string; caption?: strin
   const [run, setRun] = useState(0)
   const [paused, setPaused] = useState(false)
   const [progress, setProgress] = useState<PlaygroundProgress | undefined>(undefined)
+  const [speed, setSpeed] = useState<PlaygroundSpeed>(1)
   const frame = useRef<HTMLIFrameElement | null>(null)
+  const chosenSpeed = useRef<PlaygroundSpeed>(1)
   const live = chosen === 'play'
   const claim = useCallback((element: HTMLIFrameElement | null) => {
     if (element === null) return
@@ -87,7 +89,12 @@ export function Playground(props: {page: string; script: string; caption?: strin
       (event: MessageEvent<unknown>) => {
         if (event.source !== element.contentWindow || event.origin !== location.origin) return
         const report = PlaygroundReport.safeParse(event.data)
-        if (report.success) setProgress(report.data.progress)
+        if (!report.success) return
+        setProgress(report.data.progress)
+        element.contentWindow?.postMessage(
+          playgroundCommand({command: 'speed', speed: chosenSpeed.current}),
+          location.origin,
+        )
       },
       {signal: listening.signal},
     )
@@ -97,8 +104,13 @@ export function Playground(props: {page: string; script: string; caption?: strin
     }
   }, [])
   const command = (name: 'hold' | 'resume'): void => {
-    frame.current?.contentWindow?.postMessage(playgroundCommand(name), location.origin)
+    frame.current?.contentWindow?.postMessage(playgroundCommand({command: name}), location.origin)
     setPaused(name === 'hold')
+  }
+  const changeSpeed = (next: PlaygroundSpeed): void => {
+    chosenSpeed.current = next
+    setSpeed(next)
+    frame.current?.contentWindow?.postMessage(playgroundCommand({command: 'speed', speed: next}), location.origin)
   }
   const reset = (): void => {
     setPaused(false)
@@ -119,6 +131,8 @@ export function Playground(props: {page: string; script: string; caption?: strin
               ? {
                   progress,
                   paused,
+                  speed,
+                  onSpeed: changeSpeed,
                   onPause: () => command('hold'),
                   onResume: () => command('resume'),
                   onRestart: restart,

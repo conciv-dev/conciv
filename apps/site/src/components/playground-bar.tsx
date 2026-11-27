@@ -1,12 +1,16 @@
 import type {ReactNode} from 'react'
 import {Pause, Play, RotateCcw, ScrollText} from 'lucide-react'
 import type {PlaygroundProgress} from '@/playground/script'
+import {PLAYGROUND_SPEEDS, type PlaygroundSpeed} from '@/playground/shell-api'
 import {Button} from './ui/button'
+import {Slider} from './ui/slider'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from './ui/tooltip'
 
 type PlaygroundControls = {
   readonly progress: PlaygroundProgress | undefined
   readonly paused: boolean
+  readonly speed: PlaygroundSpeed
+  readonly onSpeed: (speed: PlaygroundSpeed) => void
   readonly onPause: () => void
   readonly onResume: () => void
   readonly onRestart: () => void
@@ -68,6 +72,29 @@ function PlayToggle({controls}: {controls: PlaygroundControls}) {
   )
 }
 
+function SpeedSlider({speed, onSpeed}: {speed: PlaygroundSpeed; onSpeed: (speed: PlaygroundSpeed) => void}) {
+  const label = `${speed}x`
+  return (
+    <div className="flex items-center gap-2 pe-1">
+      <Slider
+        className="w-14"
+        thumb={{'aria-label': 'Playback speed', 'aria-valuetext': label}}
+        min={0}
+        max={PLAYGROUND_SPEEDS.length - 1}
+        step={1}
+        value={[PLAYGROUND_SPEEDS.indexOf(speed)]}
+        onValueChange={([index]) => {
+          const next = PLAYGROUND_SPEEDS[index ?? -1]
+          if (next !== undefined) onSpeed(next)
+        }}
+      />
+      <span className="w-7 text-xs text-fd-muted-foreground tabular-nums" aria-hidden="true">
+        {label}
+      </span>
+    </div>
+  )
+}
+
 export function PlaygroundBar({title, controls}: {title: string; controls: PlaygroundControls | undefined}) {
   return (
     <div className="relative flex h-10 items-center gap-3 border-b bg-fd-muted/40 px-3">
@@ -78,6 +105,7 @@ export function PlaygroundBar({title, controls}: {title: string; controls: Playg
             <p className="pe-2 text-xs text-fd-muted-foreground tabular-nums @max-sm:sr-only" aria-live="polite">
               {describeProgress(controls.progress, controls.paused)}
             </p>
+            <SpeedSlider speed={controls.speed} onSpeed={controls.onSpeed} />
             <PlayToggle controls={controls} />
             {controls.progress?.ended === true ? null : (
               <BarButton label="Restart" onClick={controls.onRestart}>

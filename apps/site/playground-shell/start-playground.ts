@@ -134,5 +134,6 @@ export const startPlayground: StartPlayground = (options) => {
     },
     hold: engine.hold,
     resume: engine.resume,
+    setSpeed: engine.setSpeed,
   }
 }

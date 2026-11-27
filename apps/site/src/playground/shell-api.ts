@@ -14,6 +14,7 @@ export type Playback = {
   readonly stop: () => void
   readonly hold: () => void
   readonly resume: () => void
+  readonly setSpeed: (speed: PlaygroundSpeed) => void
 }
 
 export type StartPlayground = (options: StartPlaygroundOptions) => Playback
@@ -24,20 +25,28 @@ const PLAYGROUND_SHELL_URL = '/playground-shell/start-playground.js'
 
 const PLAYGROUND_SOURCE = 'conciv-playground'
 
-export const PlaygroundCommand = z.object({
-  source: z.literal(PLAYGROUND_SOURCE),
-  command: z.enum(['hold', 'resume']),
-})
+const PlaygroundSpeed = z.literal([0.5, 1, 1.5, 2, 3])
+
+export type PlaygroundSpeed = z.infer<typeof PlaygroundSpeed>
+
+export const PLAYGROUND_SPEEDS: readonly PlaygroundSpeed[] = [...PlaygroundSpeed.values]
+
+const PlaygroundInstruction = z.discriminatedUnion('command', [
+  z.object({command: z.enum(['hold', 'resume'])}),
+  z.object({command: z.literal('speed'), speed: PlaygroundSpeed}),
+])
+
+type PlaygroundInstruction = z.infer<typeof PlaygroundInstruction>
+
+export const PlaygroundCommand = z.intersection(z.object({source: z.literal(PLAYGROUND_SOURCE)}), PlaygroundInstruction)
 
 export const PlaygroundReport = z.object({
   source: z.literal(PLAYGROUND_SOURCE),
   progress: z.object({turn: z.number(), turns: z.number(), ended: z.boolean()}),
 })
 
-export function playgroundCommand(
-  command: z.infer<typeof PlaygroundCommand>['command'],
-): z.infer<typeof PlaygroundCommand> {
-  return {source: PLAYGROUND_SOURCE, command}
+export function playgroundCommand(instruction: PlaygroundInstruction): z.infer<typeof PlaygroundCommand> {
+  return {source: PLAYGROUND_SOURCE, ...instruction}
 }
 
 export function playgroundReport(progress: PlaygroundProgress): z.infer<typeof PlaygroundReport> {
