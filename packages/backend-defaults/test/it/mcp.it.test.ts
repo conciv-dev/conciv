@@ -1,5 +1,6 @@
 import {describe} from 'vitest'
 import {test} from '../utils/engine-test.js'
+import {aiErrors} from '@conciv/errors'
 
 describe.concurrent('agent tools', () => {
   test('a capability answers, an oversized answer is truncated, a photo comes back as an image, and a direct tool is called by name', async ({
@@ -51,12 +52,12 @@ describe.concurrent('agent tools', () => {
     const refused = await outside.call('shelf_count', {shelf: 'poetry'})
     expect(refused.isError).toBe(true)
     expect(refused.content).toContainEqual(
-      expect.objectContaining({type: 'text', text: expect.stringContaining('"code":"NO_TAB"')}),
+      expect.objectContaining({type: 'text', text: expect.stringContaining(`"code":"${aiErrors.NO_TAB.code}"`)}),
     )
     expect(refused.content).toContainEqual(
       expect.objectContaining({
         type: 'text',
-        text: expect.stringContaining('NO_TAB: pass tab to execute_typescript; list_tabs lists the open tabs'),
+        text: expect.stringContaining(`${aiErrors.NO_TAB.code}: ${aiErrors.NO_TAB.message}`),
       }),
     )
   })

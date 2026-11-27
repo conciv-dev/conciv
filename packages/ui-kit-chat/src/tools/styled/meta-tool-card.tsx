@@ -43,7 +43,7 @@ const ErrorPayload = z.looseObject({
   error: z.union([z.string(), z.looseObject({message: z.string(), code: z.string().optional()})]),
 })
 
-const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): ([\s\S]*)$/
+const DECLARED_ERROR_PREFIX = /^((?:[a-z][a-z0-9-]*\.)*[A-Z][A-Z0-9_]+): ([\s\S]*)$/
 
 function declaredErrorParts(error: string | {message: string; code?: string}): {
   message: string

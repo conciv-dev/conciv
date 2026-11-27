@@ -1,4 +1,4 @@
-import {defineErrorCatalog} from 'evlog'
+import {EvlogError, defineErrorCatalog} from 'evlog'
 
 export const testKitErrors = defineErrorCatalog('test-kit', {
   PROJECT_FILE_OUTSIDE: {
@@ -139,6 +139,10 @@ export const testKitErrors = defineErrorCatalog('test-kit', {
     fix: 'Script one with engine.reply(...).',
   },
 })
+
+export function relayRunError({code, message}: {code: string | undefined; message: string}): EvlogError {
+  return code === undefined ? testKitErrors.RUN_FAILED({text: message}) : new EvlogError({code, message})
+}
 
 declare module 'evlog' {
   interface RegisteredErrorCatalogs {

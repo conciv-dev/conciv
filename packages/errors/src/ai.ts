@@ -12,6 +12,12 @@ export const aiErrors = defineErrorCatalog('ai', {
   TOOL_FAILED: {
     message: 'The tool failed',
   },
+  NO_TAB: {
+    status: 409,
+    message: 'pass tab to execute_typescript; list_tabs lists the open tabs',
+    why: 'An outside run has no tab, and this capability works on the page of one.',
+    fix: 'Call list_tabs, then pass the id of an open tab as tab to execute_typescript.',
+  },
   SECRET_PARAMETER: {
     status: 400,
     message: ({tool, parameter}: {tool: string; parameter: string}) =>

@@ -1,4 +1,6 @@
 import {isReachabilityError} from '@conciv/client'
+import {ErrorDetailSchema} from '@conciv/protocol'
+import {ORPCError} from '@orpc/client'
 import {EvlogError} from 'evlog'
 import {z} from 'zod'
 
@@ -13,7 +15,8 @@ export type RpcErrorClassification = {
 }
 
 export function errorFix(error: unknown): string | undefined {
-  return EvlogError.isEvlogError(error) ? error.fix : undefined
+  if (EvlogError.isEvlogError(error)) return error.fix
+  return error instanceof ORPCError ? ErrorDetailSchema.safeParse(error.data).data?.fix : undefined
 }
 
 export function classifyRpcError(

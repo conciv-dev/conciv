@@ -64,7 +64,7 @@ const DISCOVER_TOOL_NAME = 'discover_tools'
 
 const DiscoverInputSchema = z.object({toolNames: z.array(z.string())})
 
-const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
+const DECLARED_ERROR_PREFIX = /^((?:[a-z][a-z0-9-]*\.)*[A-Z][A-Z0-9_]+): /
 
 const EXECUTE_DESCRIPTION =
   'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function; call discover_tools first for their typed signatures. Return a value to pass results back; console.log output is captured.'

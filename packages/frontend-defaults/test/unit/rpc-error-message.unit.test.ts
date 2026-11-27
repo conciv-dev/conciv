@@ -24,6 +24,11 @@ describe('an error screen picks what to tell the user', () => {
       {message: 'Session ses_1 was not found', transportFailure: false},
     ],
     [
+      'the engine refuses with a fix the user can follow',
+      new ORPCError('CONFLICT', {message: 'the session is busy', data: {fix: 'Wait for the run to end.'}}),
+      {message: 'the session is busy', fix: 'Wait for the run to end.', transportFailure: false},
+    ],
+    [
       'conciv refuses with a fix the user can follow',
       widgetErrors.PREVIEW_READ_ONLY(),
       {message: 'the session preview is read-only', fix: 'Open the session to write in it.', transportFailure: false},

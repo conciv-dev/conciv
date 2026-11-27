@@ -27,6 +27,10 @@
 '@conciv/ui-kit-system': patch
 '@conciv/ui-kit-tap': patch
 '@conciv/solid-streamdown': patch
+'@conciv/protocol': patch
+'@conciv/cli': patch
+'@conciv/client': patch
+'@conciv/simulation': patch
 ---
 
 Every error conciv makes now comes from an evlog error catalog, with a stable code, a plain message and, where
@@ -36,3 +40,9 @@ to plugins. Plugin.define accepts any Error, so a plugin fails its entry with it
 fails to load reports its code, message and fix. Error screens, the run error row, toasts and plugin load errors show
 the fix when the error carries one, and the conciv-try CLI prints a failure as its code and message, then its why and
 fix only when they are set.
+
+Codes that reach agents and the widget change with it: an outside run without a tab answers `ai.NO_TAB` (was
+`NO_TAB`), a send to a deleted session fails with `session.DELETED` (was `session_deleted`), a code-mode tool error
+reaches the agent as `<code>: message` with its full catalog code, and the widget shows the engine's fix for an rpc
+error. The protocol's `ValueTooLargeError` is gone: an oversized instruction entry fails with
+`instructions.VALUE_TOO_LARGE`.
