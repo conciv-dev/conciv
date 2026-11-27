@@ -28,10 +28,12 @@ import {
   Logger,
   Option,
   Predicate,
+  PubSub,
   Queue,
   References,
   Scope,
   Semaphore,
+  Stream,
 } from 'effect'
 import * as Bus from './bus.js'
 import * as PluginHost from './plugin/host.js'
@@ -91,9 +93,11 @@ export const layer = Layer.effect(
     const list = Effect.fn('Plugin.list')(function* () {
       return inventory
     })
+    const bundlerChanges = yield* Effect.acquireRelease(PubSub.unbounded<void>(), (pubsub) => PubSub.shutdown(pubsub))
     const bundler = State.create<BundlerRegistration[], BundlerRegistry>({
       name: 'bundler',
       initial: () => [],
+      notify: () => PubSub.publish(bundlerChanges, undefined).pipe(Effect.asVoid),
       editor: (registrations) => ({
         add: (hooks, plugin) => {
           registrations.push({plugin, hooks})
@@ -376,6 +380,7 @@ export const layer = Layer.effect(
       transform,
       resolveId,
       load: loadModule,
+      bundlerChanges: Stream.fromPubSub(bundlerChanges),
       experimental,
       experimentalChunk,
     })

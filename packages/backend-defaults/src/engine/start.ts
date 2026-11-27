@@ -10,7 +10,7 @@ import {
   type EngineRow,
   type PreparedHome,
 } from '@conciv/home'
-import {type ConfigProvider, Effect, type Layer} from 'effect'
+import {type ConfigProvider, Effect, type Layer, Stream} from 'effect'
 import {z} from 'zod'
 import {context, ROOT_CONTEXT} from '@opentelemetry/api'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
@@ -149,6 +149,20 @@ function runBundlerHook<Answer>(
   )
 }
 
+function watchBundlerChanges(made: MadeApp, listener: () => void) {
+  made.pluginHost.runFork(
+    PluginRegistry.Service.use((plugins) =>
+      plugins.bundlerChanges.pipe(
+        Stream.runForEach(() =>
+          Effect.try({try: listener, catch: (error) => error}).pipe(
+            Effect.catch((error) => Effect.logError('conciv: a bundler change listener failed', {error})),
+          ),
+        ),
+      ),
+    ),
+  )
+}
+
 export type Engine = {
   port: number
   agentToken: string
@@ -158,7 +172,7 @@ export type Engine = {
     [Hook in keyof PluginBundlerHooks]: (
       ...input: Parameters<PluginBundlerHooks[Hook]>
     ) => Promise<Effect.Success<ReturnType<PluginBundlerHooks[Hook]>>>
-  }
+  } & {changes: (listener: () => void) => void}
   cfg: ResolvedConcivConfig
 } & EngineRouterBrand
 
@@ -499,6 +513,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
         resolveId: (id: string, importer: string | undefined) =>
           runBundlerHook(made, (plugins) => plugins.resolveId(id, importer)),
         load: (id: string) => runBundlerHook(made, (plugins) => plugins.load(id)),
+        changes: (listener: () => void) => watchBundlerChanges(made, listener),
       },
       stop: async () => {
         try {
