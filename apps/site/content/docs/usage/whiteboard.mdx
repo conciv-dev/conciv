@@ -11,9 +11,9 @@ together.
   from its folder. Learn more in the [Examples documentation](/docs/examples).
 </Callout>
 
-## Basic
+## Sketch a layout
 
-Click **Whiteboard** above the composer. The canvas opens over the page, and the chat stays usable above it. Sketch a
+Click **Whiteboard** above the composer. The canvas opens over the page. The chat stays usable above it. Sketch a
 rough layout, then ask:
 
 ```text title="Prompt"
@@ -31,13 +31,16 @@ Ask for a diagram of what you are both looking at:
 Draw a diagram of how the checkout page loads its data.
 ```
 
-The agent draws real Excalidraw shapes, not a picture, so you can move, restyle or delete anything it drew. It can
-connect shapes with arrows, convert an SVG, and turn a mermaid diagram into shapes.
+The agent draws real Excalidraw shapes, not a picture. You can move, restyle or delete anything it drew. It can also:
+
+- connect shapes with arrows
+- convert an SVG into shapes
+- turn a mermaid diagram into shapes
 
 ## Comment on an element
 
 Click **Comment** above the composer, then click an element on the page. The comment is tied to the component's
-source, not to a spot on the canvas. The agent can comment too, and work through yours:
+source, not to a spot on the canvas. The agent can comment too. It can also work through yours:
 
 ```text title="Prompt"
 Go through my comments on the whiteboard and fix each one. Resolve the ones you fixed.
@@ -47,13 +50,13 @@ Deleting an element, clearing the canvas, and resolving or deleting a comment ea
 card](/docs/usage/approvals) first.
 
 <Accordions type="single">
-  <Accordion title="Where is the board kept?">
+  <Accordion title="Where the board is kept">
     Each chat session has its own board. The engine keeps it in your project's conciv state, on your machine. Every open
     tab shows the same board as it changes.
   </Accordion>
-  <Accordion title="Does closing the canvas stop the agent drawing?">
-    No. Closing only hides the canvas. The agent draws into a draft first, then adds it to the board, even while the
-    canvas is closed.
+  <Accordion title="Closing the canvas does not stop the agent drawing">
+    Closing only hides the canvas. The agent draws into a draft first, then adds it to the board, even while the canvas
+    is closed.
   </Accordion>
 </Accordions>
 
