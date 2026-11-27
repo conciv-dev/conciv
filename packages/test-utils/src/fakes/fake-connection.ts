@@ -1,5 +1,6 @@
 import {call as callProcedure, ORPCError, Procedure, type AnyRouter} from '@orpc/server'
 import {createORPCClient, type ClientLink} from '@orpc/client'
+import {reconcileORPCError} from '@orpc/contract'
 import {
   createConnectionState,
   REVOKED_SOCKET_CLOSE_CODE,
@@ -94,7 +95,7 @@ export function fakeConnection(
     } catch (error) {
       access.links.delete(lifetime)
       if (refusedTrust(error)) dispatch({type: 'unauthorized', token: sent})
-      throw error
+      throw error instanceof ORPCError ? await reconcileORPCError(procedure['~orpc'].errorMap, error) : error
     }
   }
   const link: ClientLink<RpcClientContext> = {
