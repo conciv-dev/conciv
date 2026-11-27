@@ -8,7 +8,7 @@ export function SiteNav() {
   const smoothAnchor = useSmoothAnchor()
 
   return (
-    <nav className="mx-auto flex max-w-[1180px] items-center gap-7 px-8 py-[22px]">
+    <nav className="mx-auto flex max-w-[1180px] items-center gap-4 px-4 py-[22px] sm:gap-7 sm:px-8">
       <Link
         to="/"
         aria-label="conciv home"
