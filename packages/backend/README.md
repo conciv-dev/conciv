@@ -1,7 +1,7 @@
 # @conciv/backend
 
 The shipped conciv engine: `start(opts)` runs `@conciv/backend-defaults`'
-`createBackend` with the plugins conciv ships (the page plugin) and, when asked, the simulation. `@conciv/it` installs
+`createBackend` with the plugins conciv ships (the page plugin) and the simulation, which the engine runs when its config has `CONCIV_SIMULATE` on. `@conciv/it` installs
 it.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).

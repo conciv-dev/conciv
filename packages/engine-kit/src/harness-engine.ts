@@ -76,7 +76,7 @@ export type BackendStart = {
   port?: {exact: number}
   accessToken?: string
   plugins: readonly Plugin[] | undefined
-  simulation: typeof startSimulation | undefined
+  simulation: typeof startSimulation
 }
 
 export type StartedBackend = {
@@ -571,7 +571,7 @@ function bootApp(
     },
     ...portRequest(config, options.token, previous?.started, connectPort),
     plugins: options.plugins,
-    simulation: options.simulation === true ? startSimulation : undefined,
+    simulation: startSimulation,
   })
 }
 
@@ -673,7 +673,11 @@ export async function createHarnessEngine(
     harnesses,
     config,
     options,
-    configProvider: isolatedProvider(root, options, driveManifest?.env ?? {}),
+    configProvider: isolatedProvider(
+      root,
+      options,
+      driveManifest === undefined ? {} : {...driveManifest.env, CONCIV_SIMULATE: 'true'},
+    ),
     opened,
     live,
     heldClock,
