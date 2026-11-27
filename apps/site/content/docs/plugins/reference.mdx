@@ -30,7 +30,7 @@ What the engine part's `Plugin.define` takes:
 <Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
 <Tab value="Promise">
 
-<auto-type-table path="@conciv/backend-plugin-api" name="Plugin.Plugin" />
+<auto-type-table type="import('@conciv/backend-plugin-api').Plugin.Plugin" />
 
 - `id`: the plugin's name. A config entry turns it off as `-<id>`.
 - `setup`: runs once when the engine loads the plugin. It can return a cleanup that runs when the plugin unloads.
@@ -38,7 +38,7 @@ What the engine part's `Plugin.define` takes:
 </Tab>
 <Tab value="Effect">
 
-<auto-type-table path="@conciv/backend-plugin-api/effect/plugin" name="Plugin" />
+<auto-type-table type="import('@conciv/backend-plugin-api/effect/plugin').Plugin" />
 
 - `id`: the plugin's name. A config entry turns it off as `-<id>`.
 - `effect`: runs once when the engine loads the plugin. Its scope closes when the plugin unloads.
@@ -48,7 +48,7 @@ What the engine part's `Plugin.define` takes:
 
 What the browser part's `Plugin.define` takes:
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="Plugin.Definition" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').Plugin.Definition" />
 
 - `stores`: values the widget keeps for the plugin. See [Add settings](/docs/plugins/guides/settings).
 - `icons`: SVG icons of your own, named for `ctx.ui.Icon`.
@@ -64,12 +64,12 @@ same fields return an `Effect`.
 <Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
 <Tab value="Promise">
 
-<auto-type-table path="@conciv/backend-plugin-api" name="Plugin.Context" />
+<auto-type-table type="import('@conciv/backend-plugin-api').Plugin.Context" />
 
 </Tab>
 <Tab value="Effect">
 
-<auto-type-table path="@conciv/backend-plugin-api/effect/plugin" name="Context" />
+<auto-type-table type="import('@conciv/backend-plugin-api/effect/plugin').Context" />
 
 </Tab>
 </Tabs>
@@ -101,12 +101,12 @@ What `tools.add` takes:
 <Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
 <Tab value="Promise">
 
-<auto-type-table path="@conciv/backend-plugin-api" name="Info" />
+<auto-type-table type="import('@conciv/backend-plugin-api').Info" />
 
 </Tab>
 <Tab value="Effect">
 
-<auto-type-table path="@conciv/protocol/schema/tool" name="Info" />
+<auto-type-table type="import('@conciv/protocol/schema/tool').Info" />
 
 </Tab>
 </Tabs>
@@ -124,12 +124,12 @@ What `execute` gets as its second argument:
 <Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
 <Tab value="Promise">
 
-<auto-type-table path="@conciv/backend-plugin-api" name="ToolContext" />
+<auto-type-table type="import('@conciv/backend-plugin-api').ToolContext" />
 
 </Tab>
 <Tab value="Effect">
 
-<auto-type-table path="@conciv/protocol/schema/tool" name="Context" />
+<auto-type-table type="import('@conciv/protocol/schema/tool').Context" />
 
 </Tab>
 </Tabs>
@@ -145,7 +145,7 @@ What `execute` gets as its second argument:
 
 What `execute` returns:
 
-<auto-type-table path="@conciv/protocol/schema/tool" name="Result" />
+<auto-type-table type="import('@conciv/protocol/schema/tool').Result" />
 
 - `output`: the result the agent reads, matching the `output` schema.
 - `content`: text or files for the agent, in place of or beside `output`.
@@ -156,12 +156,12 @@ What `tools` is inside `ctx.tool.transform`:
 <Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
 <Tab value="Promise">
 
-<auto-type-table path="@conciv/backend-plugin-api" name="ToolEditor" />
+<auto-type-table type="import('@conciv/backend-plugin-api').ToolEditor" />
 
 </Tab>
 <Tab value="Effect">
 
-<auto-type-table path="@conciv/backend-plugin-api/effect/tool" name="ToolEditor" />
+<auto-type-table type="import('@conciv/backend-plugin-api/effect/tool').ToolEditor" />
 
 </Tab>
 </Tabs>
@@ -177,7 +177,7 @@ What `tools` is inside `ctx.tool.transform`:
 
 One entry of a contract's `methods`:
 
-<auto-type-table path="@conciv/protocol/schema/rpc" name="Method" />
+<auto-type-table type="import('@conciv/protocol/schema/rpc').Method" />
 
 - `input`: the schema the caller's input must match.
 - `output`: the schema of what the method returns.
@@ -187,7 +187,7 @@ One entry of a contract's `methods`:
 
 What the browser part's `setup` gets as `ctx`:
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="Context" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').Context" />
 
 - `id`: the plugin's id, from its engine part.
 - `options`: the options from the plugin's config entry.
@@ -218,7 +218,7 @@ What the browser part's `setup` gets as `ctx`:
 
 ### Panel
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="Panel" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').Panel" />
 
 - `id`: the panel's name, unique in your plugin.
 - `region`: where the tabs go. It is required, and `'pane'` is the only value.
@@ -230,7 +230,7 @@ What the browser part's `setup` gets as `ctx`:
 
 One tab that `list` returns:
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="PanelTab" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').PanelTab" />
 
 - `id`: the tab's id, stored in the user's open tabs.
 - `title`: the tab's name, shown when it has no `label`.
@@ -241,7 +241,7 @@ One tab that `list` returns:
 
 ### Slot
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="Slot" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').Slot" />
 
 - `at`: the place: `session.header`, `session.status`, `window.bottom` or `page.overlay`.
 - `order`: sorts the slot among others at the same place.
@@ -249,7 +249,7 @@ One tab that `list` returns:
 
 ### ComposerPill
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="ComposerPill" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').ComposerPill" />
 
 - `id`: the pill's name.
 - `order`: sorts it among the other pills.
@@ -258,7 +258,7 @@ One tab that `list` returns:
 
 What `show` returns:
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="ComposerPillView" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').ComposerPillView" />
 
 - `label`: the pill's text, and `title` the popover's heading.
 - `icon` and `tone`: the pill's icon, and its colour for success, warning or danger.
@@ -267,7 +267,7 @@ What `show` returns:
 
 ### SettingsPage
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="SettingsPage" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').SettingsPage" />
 
 - `id`: the entry's name.
 - `page` and `section`: put it on the General page, or in its General section.
@@ -277,7 +277,7 @@ What `show` returns:
 
 ### ToolRegistry
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="ToolRegistry" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').ToolRegistry" />
 
 - `name`: the tool whose calls this card draws.
 - `render`: draws one call.
@@ -285,7 +285,7 @@ What `show` returns:
 
 What `render` gets:
 
-<auto-type-table path="@conciv/frontend-plugin-api" name="ToolProps" />
+<auto-type-table type="import('@conciv/frontend-plugin-api').ToolProps" />
 
 - `tool`, `input` and `status`: the tool's name, the agent's input, and where the call is.
 - `output`: the result as JSON text, once the call ends.

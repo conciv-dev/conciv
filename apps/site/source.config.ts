@@ -4,8 +4,7 @@ import {z} from 'zod'
 import {rehypeCodeDefaultOptions, remarkMdxMermaid, remarkStructureDefaultOptions} from 'fumadocs-core/mdx-plugins'
 import {transformerTwoslash} from 'fumadocs-twoslash'
 import {createFileSystemTypesCache} from 'fumadocs-twoslash/cache-fs'
-import {remarkAutoTypeTable} from 'fumadocs-typescript'
-import {createReferenceGenerator} from './src/lib/reference-type-table'
+import {createFileSystemGeneratorCache, createGenerator, remarkAutoTypeTable} from 'fumadocs-typescript'
 
 export const docs = defineDocs({
   dir: 'content/docs',
@@ -17,10 +16,14 @@ export const docs = defineDocs({
   },
 })
 
+const generator = createGenerator({
+  cache: createFileSystemGeneratorCache('.cache/fumadocs-typescript'),
+})
+
 export default defineConfig({
   mdxOptions: {
     remarkStructureOptions: {types: [...remarkStructureDefaultOptions.types, 'code']},
-    remarkPlugins: [remarkMdxMermaid, [remarkAutoTypeTable, {generator: createReferenceGenerator()}]],
+    remarkPlugins: [remarkMdxMermaid, [remarkAutoTypeTable, {generator}]],
     rehypeCodeOptions: {
       ...rehypeCodeDefaultOptions,
       langs: ['ts', 'tsx', 'js', 'json', 'bash', 'md', 'mdx', 'swift'],
