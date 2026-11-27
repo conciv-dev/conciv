@@ -1,4 +1,4 @@
-import {ConfigProvider} from 'effect'
+import {ConfigProvider, Effect} from 'effect'
 import {describe, expect, test} from 'vitest'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
@@ -29,7 +29,7 @@ describe('the saved model list', () => {
     await afterFailure.settled()
   })
 
-  test('the engine starts listing the models before anyone asks, and the first ask reuses that listing', async () => {
+  test('the engine starts listing the models once it is up, and the first ask reuses that listing', async () => {
     const signal = new AbortController().signal
     const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
     const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
@@ -43,7 +43,8 @@ describe('the saved model list', () => {
     const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, {
       runFork: () => undefined,
     })
-    expect(started).toEqual(['listing'])
+    expect(started).toEqual([])
+    Effect.runFork(warmed.refresh)
 
     const asked = resolveHarnessModels(warmed.harness, {signal})
     listing.resolve(listed)
@@ -71,7 +72,8 @@ describe('the saved model list', () => {
       harnesses: [recorded],
       ids: makeMaker(),
     })
-    expect(engineStarted).toEqual(['listing'])
+    await made.awaitActivation()
+    await expect.poll(() => engineStarted).toEqual(['listing'])
     await made.dispose()
   })
 })

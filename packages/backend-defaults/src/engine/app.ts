@@ -71,7 +71,7 @@ import {
   Schema,
   Scope,
 } from 'effect'
-import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
+import {Bus, Database, Permission, Plugin, PluginHooks, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
 import {SessionInbox} from '../backend-defaults.js'
 import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {makeCallContext, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
@@ -149,7 +149,7 @@ export function outsideRunCapabilities(capabilities: readonly CodeCapability[]):
 
 const SavedModelsSchema = z.array(HarnessModelSchema)
 
-type SavedModelsHarness = {harness: HarnessAdapter; settled: () => Promise<void>}
+type SavedModelsHarness = {harness: HarnessAdapter; refresh: Effect.Effect<void>; settled: () => Promise<void>}
 
 async function readSaved(path: string): Promise<HarnessModel[] | null> {
   try {
@@ -174,7 +174,8 @@ export async function withSavedModels(
   signal: AbortSignal,
   runtime: EngineRuntime,
 ): Promise<SavedModelsHarness> {
-  if (typeof adapter.models !== 'function') return {harness: adapter, settled: () => Promise.resolve()}
+  if (typeof adapter.models !== 'function')
+    return {harness: adapter, refresh: Effect.void, settled: () => Promise.resolve()}
   const path = join(stateDir, `${adapter.id}-models.json`)
   const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: await readSaved(path)}
   async function listLive(): Promise<HarnessModel[]> {
@@ -195,22 +196,23 @@ export async function withSavedModels(
       })
     return state.refreshing
   }
-  function refreshInBackground(): void {
-    refresh().catch((error: unknown) => {
-      if (!signal.aborted)
-        runtime.runFork(Effect.logError('[core] the model list could not be refreshed', {harness: adapter.id, error}))
-    })
-  }
+  const refreshLogged = Effect.tryPromise({try: refresh, catch: (error) => error}).pipe(
+    Effect.asVoid,
+    Effect.catch((error) =>
+      signal.aborted
+        ? Effect.void
+        : Effect.logError('[core] the model list could not be refreshed', {harness: adapter.id, error}),
+    ),
+  )
   function models(): Promise<HarnessModel[]> {
     if (state.saved === null) return refresh()
-    refreshInBackground()
+    runtime.runFork(refreshLogged)
     return Promise.resolve(state.saved)
   }
   async function settled(): Promise<void> {
     await Promise.allSettled([state.refreshing])
   }
-  refreshInBackground()
-  return {harness: {...adapter, models}, settled}
+  return {harness: {...adapter, models}, refresh: refreshLogged, settled}
 }
 
 export type MakeAppOpts = {
@@ -1055,6 +1057,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         ),
       ),
     )
+    .then(() => {
+      pluginHost.runFork(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(
+            Effect.forEach(listings, (listing) => listing.refresh, {concurrency: 'unbounded', discard: true}),
+          ),
+        ),
+      )
+    })
     .catch(async (error: unknown) => {
       await dispose().catch((failure: unknown) =>
         earlyRuntime.runFork(Effect.logError('[core] disposing after a failed start also failed', {failure})),
