@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineCommand, runMain} from 'citty'
 import {execa} from 'execa'
+import {z} from 'zod'
 import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
@@ -210,11 +211,40 @@ async function firstPublish(run: Run, name: string): Promise<void> {
   })
 }
 
+const TrustConfig = z.object({repository: z.string().optional(), file: z.string().optional()})
+
+async function trustAlreadySetUp(name: string): Promise<boolean> {
+  const listed = await execa('npx', npmTrust('list', name, '--json'), {
+    cwd: process.cwd(),
+    stdin: 'inherit',
+    stderr: 'inherit',
+    reject: false,
+  })
+  if (listed.exitCode !== 0) return false
+  return listed.stdout
+    .split(/\n\s*\n/)
+    .filter((chunk) => chunk.trim() !== '')
+    .map((chunk) => TrustConfig.safeParse(parseJson(chunk)))
+    .some(({success, data}) => success && data.repository === REPOSITORY && data.file === RELEASE_WORKFLOW)
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
 async function wireTrust(run: Run, name: string): Promise<void> {
   await run(
     'npx',
     npmTrust('github', name, '--repo', REPOSITORY, '--file', RELEASE_WORKFLOW, '--allow-publish', '--yes'),
-  ).catch((error: unknown) => {
+  ).catch(async (error: unknown) => {
+    if (await trustAlreadySetUp(name)) {
+      console.log(`${name}: trust already set up`)
+      return
+    }
     console.log(
       `${name}: trust setup failed. npm trust needs a real terminal, an "npm login" browser session, and 2FA on the account (bypass-2FA tokens are rejected). If a config already exists, verify with: npx npm@^11.15.0 trust list ${name}`,
     )
