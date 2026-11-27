@@ -80,8 +80,8 @@ async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCal
 export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {
   const result = await safe(pending)
   if (result.isSuccess) return result.data
-  if (offline(result.error, 0)) throw offlineFailure(origin)
   if (rejectedByServer(result.error)) throw rpcFailure(result.error)
+  if (offline(result.error, 0)) throw offlineFailure(origin)
   throw result.error
 }
 
