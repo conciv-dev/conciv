@@ -3,6 +3,9 @@ import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transf
 import {Cause, Deferred, Effect, Ref, Scope} from 'effect'
 import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
 import {z} from 'zod'
+import {EvlogError} from 'evlog'
+import {canvasErrors} from './errors/canvas-errors.js'
+import {svgErrors} from './errors/svg-errors.js'
 import type {WhiteboardDb} from './whiteboard-db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from './rows.js'
 import {validateSvg} from './svg-caps.js'
@@ -96,7 +99,7 @@ const buildSkeletons = (row: PendingRow): Effect.Effect<ExcalidrawElementSkeleto
       const {svg, x, y, width, roughness} = yield* Effect.try(() => SvgPayload.parse(row.payload))
       yield* Effect.try(() => validateSvg(svg))
       const skeletons = svgToSkeletons(svg, {x, y, width, roughness})
-      if (!skeletons.length) return yield* Effect.fail(new Error('the svg had nothing drawable'))
+      if (!skeletons.length) return yield* Effect.fail(svgErrors.NOTHING_DRAWABLE())
       return withStableIds(skeletons, row.id)
     }
     return withStableIds((yield* Effect.try(() => SkeletonsPayload.parse(row.payload))).elements, row.id)
@@ -104,6 +107,7 @@ const buildSkeletons = (row: PendingRow): Effect.Effect<ExcalidrawElementSkeleto
 
 function readFailureReason(failure: unknown): string {
   const cause = Cause.isUnknownError(failure) ? failure.cause : failure
+  if (EvlogError.isEvlogError(cause) && cause.fix) return `${cause.message}: ${cause.fix}`
   return cause instanceof Error ? cause.message : String(cause)
 }
 
@@ -199,9 +203,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
     Effect.gen(function* () {
       const live = canvas.liveElements()
       if (scope !== 'draft' && !live) {
-        return yield* Effect.fail(
-          new Error(`[whiteboard] the canvas has not attached yet, so a ${scope} export has nothing to render`),
-        )
+        return yield* Effect.fail(canvasErrors.NOT_ATTACHED({scope}))
       }
       const elements = [...(scope === 'draft' ? [] : (live ?? [])), ...(yield* draftExportElements(scope))]
       const blob = yield* Effect.tryPromise(() => canvas.render(elements))
@@ -240,7 +242,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
           try: async () => {
             if (db.canvasPending.has(row.id)) await db.canvasPending.delete(row.id).isPersisted.promise
           },
-          catch: (cause) => WhiteboardDrain.RemoveFailed.make({message: String(cause)}),
+          catch: (cause) => canvasErrors.REMOVE_FAILED({id: row.id, cause: cause instanceof Error ? cause : undefined}),
         }),
     },
     options,

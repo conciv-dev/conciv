@@ -1,6 +1,8 @@
 import type {Context} from '@conciv/frontend-plugin-api'
-import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream} from 'effect'
+import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Stream} from 'effect'
+import type {EvlogError} from 'evlog'
 import {z} from 'zod'
+import {canvasErrors} from './errors/canvas-errors.js'
 import {Whiteboard} from './rpc.js'
 import {WhiteboardChangeFeedMachine} from './change-feed-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
@@ -11,14 +13,9 @@ export type FeedEvent =
   | {readonly type: 'changed'; readonly change: WhiteboardChangeFeedMachine.FeedChange}
 type FeedSince = {readonly cursor: number; readonly changes: readonly WhiteboardChangeFeedMachine.FeedChange[]}
 
-export const SinceFailed = Schema.TaggedStruct('SinceFailed', {message: Schema.String})
-type SinceFailed = typeof SinceFailed.Type
-export const EventsStopped = Schema.TaggedStruct('EventsStopped', {message: Schema.String})
-type EventsStopped = typeof EventsStopped.Type
-
 type ChangeSource = {
-  readonly since: (cursor: number) => Effect.Effect<FeedSince, SinceFailed>
-  readonly events: Stream.Stream<FeedEvent, EventsStopped>
+  readonly since: (cursor: number) => Effect.Effect<FeedSince, EvlogError>
+  readonly events: Stream.Stream<FeedEvent, EvlogError>
 }
 
 type Routed = {readonly table: string | undefined; readonly message: ChangeMessage}
@@ -37,7 +34,7 @@ const ChangedEvent = z.object({
 const LATEST = Number.MAX_SAFE_INTEGER
 const RETRY_MAX_WAIT_MS = 10_000
 
-const failureMessage = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause))
+const readCause = (cause: unknown) => ({cause: cause instanceof Error ? cause : undefined})
 
 export function rpcChangeSource(client: Context['client'], room: string): ChangeSource {
   const whiteboard = client.rpc(Whiteboard)
@@ -53,12 +50,12 @@ export function rpcChangeSource(client: Context['client'], room: string): Change
     since: (cursor) =>
       Effect.tryPromise({
         try: (signal) => whiteboard.since({room, cursor}, {signal}),
-        catch: (cause) => SinceFailed.make({message: failureMessage(cause)}),
+        catch: (cause) => canvasErrors.SINCE_FAILED(readCause(cause)),
       }),
     events: Stream.unwrap(
       Effect.sync(() =>
         Stream.fromAsyncIterable(client.event.subscribe({types: ['rpc.whiteboard.changed']}), (cause) =>
-          EventsStopped.make({message: failureMessage(cause)}),
+          canvasErrors.EVENTS_STOPPED(readCause(cause)),
         ),
       ),
     ).pipe(Stream.mapEffect(decode), Stream.flattenIterable),
@@ -81,7 +78,7 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
   )
   const since = (cursor: number) =>
     source.since(cursor).pipe(
-      Effect.tapError((failure) => Effect.logWarning('the change feed could not be read; retrying', failure.message)),
+      Effect.tapError((failure) => Effect.logWarning('the change feed could not be read; retrying', failure)),
       Effect.retry(retry),
     )
   const offer = (event: WhiteboardChangeFeedMachine.ChangeFeedEvent) => Queue.offer(inbox, event)
@@ -112,9 +109,7 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
       follow,
       source.events.pipe(
         Stream.runForEach(offer),
-        Effect.catch((stopped) =>
-          Effect.logWarning('the change events stopped; reloading the tables', stopped.message),
-        ),
+        Effect.catch((stopped) => Effect.logWarning('the change events stopped; reloading the tables', stopped)),
         Effect.andThen(offer({type: 'streamStopped'})),
       ),
     )

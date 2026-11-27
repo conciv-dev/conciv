@@ -1,7 +1,8 @@
 import type {Context as PluginContext} from '@conciv/backend-plugin-api/effect/plugin'
 import {sortBy} from 'es-toolkit'
-import {Clock, Context, Effect, Layer, Option, PubSub, Schema, Semaphore, Stream} from 'effect'
+import {Clock, Context, Effect, Layer, Option, PubSub, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
+import {storeErrors} from './errors/store-errors.js'
 import {
   commentRow,
   elementRow,
@@ -36,15 +37,6 @@ type RowTableName = 'comments' | 'pins' | 'reads' | 'canvasPending' | 'canvasRep
 type WhiteboardChange = Change & {cursor: number}
 export type WhiteboardEvent = WhiteboardChange | {table: 'cursor'; room: string; cursor: CursorEvent}
 type ElementScope = 'live' | 'draft'
-
-export const StoreError = Schema.TaggedStruct('StoreError', {key: Schema.String, message: Schema.String})
-export type StoreError = typeof StoreError.Type
-export const RowNotFound = Schema.TaggedStruct('RowNotFound', {id: Schema.String})
-export type RowNotFound = typeof RowNotFound.Type
-const VersionConflict = Schema.TaggedStruct('VersionConflict', {
-  current: Schema.declare((input): input is ElementRow => elementRow.safeParse(input).success),
-})
-export type VersionConflict = typeof VersionConflict.Type
 
 const PENDING_CLAIM_LEASE_MS = 30_000
 const CURSOR_DIGITS = 12
@@ -88,7 +80,12 @@ const elementIndex = (row: ElementRow): string => z.object({index: z.string()}).
 const decode = <Value>(schema: z.ZodType<Value>, key: string, value: unknown) =>
   Effect.try({
     try: () => schema.parse(value),
-    catch: (error) => StoreError.make({key, message: error instanceof Error ? error.message : String(error)}),
+    catch: (error) =>
+      storeErrors.UNREADABLE({
+        key,
+        reason: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error ? error : undefined,
+      }),
   })
 
 export function makeWhiteboardStore(storage: PluginContext['storage']) {
@@ -150,25 +147,28 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
       return sortBy(rows, [elementIndex, (row) => row.elementId])
     })
 
-    const writeElement = (scope: ElementScope, row: ElementRow) =>
+    const writeElement = <Failure>(
+      scope: ElementScope,
+      row: ElementRow,
+      conflicted: (current: ElementRow) => Effect.Effect<ElementRow, Failure>,
+    ) =>
       Effect.gen(function* () {
         const current = yield* getElement(scope, row.room, row.elementId)
-        if (current && current.version >= row.version) return yield* Effect.fail(VersionConflict.make({current}))
+        if (current && current.version >= row.version) return yield* conflicted(current)
         const change: Change = {table: elementTable(scope), room: row.room, key: row.elementId, type: 'upsert', row}
         yield* record(change, storage.set(elementKey(scope, row.room, row.elementId), row))
         return row
       })
 
-    const upsertElement = (scope: ElementScope, row: ElementRow) => serial(writeElement(scope, row))
-
-    const upsertElements = (scope: ElementScope, rows: readonly ElementRow[]) =>
+    const upsertElement = (scope: ElementScope, row: ElementRow) =>
       serial(
-        Effect.forEach(rows, (row) =>
-          writeElement(scope, row).pipe(
-            Effect.catchTag('VersionConflict', (conflict) => Effect.succeed(conflict.current)),
-          ),
+        writeElement(scope, row, (current) =>
+          Effect.fail(storeErrors.VERSION_CONFLICT({elementId: row.elementId, internal: {current}})),
         ),
       )
+
+    const upsertElements = (scope: ElementScope, rows: readonly ElementRow[]) =>
+      serial(Effect.forEach(rows, (row) => writeElement(scope, row, Effect.succeed)))
 
     const removeElement = (scope: ElementScope, room: string, elementId: string) =>
       Effect.gen(function* () {
@@ -208,7 +208,7 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
       })
       const get = Effect.fn(`whiteboard.store.${table}.get`)(function* (room: string, id: string) {
         const entry = yield* read(room, id)
-        if (!entry) return yield* Effect.fail(RowNotFound.make({id}))
+        if (!entry) return yield* Effect.fail(storeErrors.ROW_NOT_FOUND({id}))
         return entry.row
       })
       const insert = (room: string, row: Row) =>
@@ -223,7 +223,7 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
         serial(
           Effect.gen(function* () {
             const entry = yield* read(room, id)
-            if (!entry) return yield* Effect.fail(RowNotFound.make({id}))
+            if (!entry) return yield* Effect.fail(storeErrors.ROW_NOT_FOUND({id}))
             const row = yield* decode(schema, keyFor(room, id), {...entry.row, ...patch, id: entry.row.id})
             yield* record(upserted(room, row), storage.set(keyFor(room, id), {...entry, row}))
             return row

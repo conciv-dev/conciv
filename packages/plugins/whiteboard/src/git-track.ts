@@ -1,28 +1,27 @@
 import {execFile} from 'node:child_process'
 import {promisify} from 'node:util'
-import {Effect, Option, Schema} from 'effect'
+import {Effect, Option} from 'effect'
+import {sourceErrors} from './errors/source-errors.js'
 
 const run = promisify(execFile)
-
-const GitFailed = Schema.TaggedStruct('GitFailed', {message: Schema.String})
-type GitFailed = typeof GitFailed.Type
 
 const git = (root: string, args: string[]) =>
   Effect.tryPromise({
     try: () => run('git', args, {cwd: root, maxBuffer: 16 * 1024 * 1024}),
-    catch: (error) => GitFailed.make({message: error instanceof Error ? error.message : String(error)}),
+    catch: (error) =>
+      sourceErrors.GIT_FAILED({command: args[0] ?? '', cause: error instanceof Error ? error : undefined}),
   }).pipe(Effect.map(({stdout}) => stdout))
 
 export const headCommit = (root: string) =>
   git(root, ['rev-parse', 'HEAD']).pipe(
     Effect.map((stdout): string | null => stdout.trim()),
-    Effect.catchTag('GitFailed', () => Effect.succeed(null)),
+    Effect.orElseSucceed(() => null),
   )
 
 export const isCommittedClean = (root: string, file: string) =>
   git(root, ['diff', '--quiet', 'HEAD', '--', file]).pipe(
     Effect.as(true),
-    Effect.catchTag('GitFailed', () => Effect.succeed(false)),
+    Effect.orElseSucceed(() => false),
   )
 
 const HUNK = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/
@@ -48,5 +47,5 @@ export const mapLineAcrossCommits = (opts: {root: string; file: string; fromComm
       const shift = diff.split('\n').reduce(shiftLine(opts.line), {delta: 0, lost: false})
       return shift.lost ? Option.none<number>() : Option.some(opts.line + shift.delta)
     }),
-    Effect.catchTag('GitFailed', () => Effect.succeed(Option.none<number>())),
+    Effect.orElseSucceed(() => Option.none<number>()),
   )

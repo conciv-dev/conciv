@@ -1,9 +1,7 @@
 import {Renderer} from '@takumi-rs/core'
 import {container, image, percentage} from '@takumi-rs/helpers'
-import {Effect, Schema} from 'effect'
-
-export const RenderFailed = Schema.TaggedStruct('RenderFailed', {message: Schema.String})
-export type RenderFailed = typeof RenderFailed.Type
+import {Effect} from 'effect'
+import {toolErrors} from './errors/tool-errors.js'
 
 export const makeRenderer = Effect.sync(() => new Renderer())
 
@@ -20,7 +18,11 @@ export const renderDraftPng = Effect.fn('whiteboard.canvas.renderDraftPng')(func
   })
   const buffer = yield* Effect.tryPromise({
     try: () => renderer.render(node, {width, height, format: 'png'}),
-    catch: (error) => RenderFailed.make({message: error instanceof Error ? error.message : String(error)}),
+    catch: (error) =>
+      toolErrors.RENDER_FAILED({
+        reason: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error ? error : undefined,
+      }),
   })
   return buffer.toString('base64')
 })
