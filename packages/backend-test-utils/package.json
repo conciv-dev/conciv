@@ -1,6 +1,6 @@
 {
   "name": "@conciv/backend-test-utils",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "Starts the real conciv engine with the simulation's scripted model for engine tests.",
   "keywords": [
     "conciv",
