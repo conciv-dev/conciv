@@ -131,6 +131,8 @@ const sidebarClass = [
   '[&_a[data-active=true]]:text-fd-primary',
   '[&_a[data-active]:has([data-docs-icon])]:gap-2.5',
   '[&_a[data-active]:has([data-docs-icon])]:py-1',
+  'max-md:[&_:is(a[data-active],button[aria-expanded])]:py-0.75',
+  'max-md:[&_a[data-active]:has([data-docs-icon])]:py-0.75',
 ].join(' ')
 
 const mobileHeaderClass = [
