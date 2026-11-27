@@ -353,7 +353,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     } finally {
       setRunSource(stoppedRun)
     }
-    if (!chat.isLoading()) await refresh()
+    const shown = shownIds()
+    const window = await latestWindow().finally(() => chat.stop())
+    showWindow(window, shown)
   }
   const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
   const stop = async (): Promise<void> => {
