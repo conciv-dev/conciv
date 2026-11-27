@@ -31,35 +31,13 @@ export const DANGER_TEXT_CLASS =
 export const FILE_HEADER_CSS =
   '[data-diffs-header=default]{box-sizing:border-box;block-size:2rem;min-height:0;padding-inline:0.75rem 0.25rem;background-color:var(--chat-fill);border-block-end:1px solid var(--chat-line-soft);color:var(--chat-text-2);font-size:var(--chat-text-xs);font-family:var(--chat-mono)}[data-diffs-header]~[data-file] [data-code],[data-diffs-header]~[data-diff] [data-code]{padding-top:var(--diffs-gap-block,var(--diffs-gap-fallback))}'
 
-export function codeBlockOptions(): FileOptions<undefined, undefined> {
+export function codeContentOptions(view: {wrap: boolean; lineNumbers: boolean}): FileOptions<undefined, undefined> {
   return {
     theme: codeTheme(),
     themeType: 'system',
     disableFileHeader: true,
-    disableLineNumbers: true,
-    overflow: 'wrap',
-  }
-}
-
-export function codeLineOptions(): FileOptions<undefined, undefined> {
-  return {...codeBlockOptions(), overflow: 'scroll'}
-}
-
-export function codeBlockFileChromeOptions(): FileOptions<undefined, undefined> {
-  return {
-    ...codeBlockOptions(),
-    disableFileHeader: false,
-    disableLineNumbers: false,
-    unsafeCSS: FILE_HEADER_CSS,
-  }
-}
-
-export function codeBlockTitledOptions(): FileOptions<undefined, undefined> {
-  return {
-    ...codeBlockOptions(),
-    disableFileHeader: false,
-    unsafeCSS: FILE_HEADER_CSS,
-    renderCustomHeader: () => undefined,
+    disableLineNumbers: !view.lineNumbers,
+    overflow: view.wrap ? 'wrap' : 'scroll',
   }
 }
 

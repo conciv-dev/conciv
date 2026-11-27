@@ -18,6 +18,11 @@ describe('dry run', () => {
       plan: /^Install @conciv\/it +package\.json\nWire next\.js +next\.config\.mjs, instrumentation\.ts, instrumentation-client\.ts\n/,
     },
     {
+      fixture: 'next-src-shop',
+      files: ['next.config.mjs', 'package.json', 'src'],
+      plan: /^Install @conciv\/it +package\.json\nWire next\.js +next\.config\.mjs, src\/instrumentation\.ts, src\/instrumentation-client\.ts\n/,
+    },
+    {
       fixture: 'webpack-shop',
       files: ['package.json', 'webpack.config.js'],
       plan: /^Install @conciv\/it +package\.json\nWire the webpack config +webpack\.config\.js\n/,
@@ -44,7 +49,7 @@ describe('dry run', () => {
       fixture: true,
       git: false,
       args: ['init', '--json', '--force'],
-      message: 'Non-interactive terminal — re-run with --yes or --dry-run',
+      message: 'Non-interactive terminal: re-run with --yes or --dry-run',
       files: ['package.json', 'vite.config.ts'],
     },
     {
@@ -52,7 +57,7 @@ describe('dry run', () => {
       fixture: false,
       git: false,
       args: ['init', '--dry-run', '--json', '--force'],
-      message: 'no package.json here — run init from your app directory',
+      message: 'no package.json here: run init from your app directory',
       files: [],
     },
     {
@@ -60,7 +65,7 @@ describe('dry run', () => {
       fixture: true,
       git: true,
       args: ['init', '--dry-run', '--json'],
-      message: 'uncommitted changes — commit first or pass --force',
+      message: 'uncommitted changes: commit first or pass --force',
       files: ['.git', 'package.json', 'vite.config.ts'],
     },
   ])('$refused is refused and nothing is written', async ({fixture, git, args, message, files}) => {

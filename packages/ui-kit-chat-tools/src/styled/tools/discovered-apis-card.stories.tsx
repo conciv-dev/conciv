@@ -87,7 +87,9 @@ export const Detail: Story = {
     await expect(c.getByText('Inspected canvas_draw')).toBeVisible()
     await userEvent.click(c.getByRole('button', {name: /Inspected/}))
     await waitFor(() => expect(c.getAllByText('Draw elements onto the agent draft.').length).toBeGreaterThan(0))
-    await waitFor(() => expect(fenceText(c.getByRole('group', {name: 'ts'}))).toContain('Promise<{ids: string[]}>'))
+    await waitFor(() =>
+      expect(fenceText(c.getByRole('group', {name: 'TypeScript'}))).toContain('Promise<{ids: string[]}>'),
+    )
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
   },
 }

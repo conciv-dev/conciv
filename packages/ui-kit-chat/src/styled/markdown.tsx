@@ -3,6 +3,7 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  Index,
   onCleanup,
   onMount,
   Show,
@@ -11,6 +12,8 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {mapValues, memoize, once} from 'es-toolkit'
+import {bundledLanguages, bundledLanguagesInfo} from 'shiki/langs'
+import CodeXml from 'lucide-solid/icons/code-xml'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
 import {
@@ -23,7 +26,15 @@ import {
   type OpenLocalFile,
 } from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
-import {CodeBlock} from '../tools/styled/code-block.js'
+import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockViewport,
+} from '../tools/styled/code-block.js'
 
 const MAX_CACHE_ENTRIES = 512
 
@@ -237,40 +248,124 @@ function MermaidDiagram(props: {code: string}): JSX.Element {
   )
 }
 
-function withStreamedTail(pre: HastElement, tail: string): HastElement {
-  if (!tail) return pre
-  return {
-    ...pre,
-    children: pre.children.map((child) =>
-      child.type === 'element' && child.tagName === 'code'
-        ? {...child, children: [...child.children, {type: 'text', value: tail}]}
-        : child,
-    ),
-  }
-}
+type HastChild = HastElement['children'][number]
 
-function highlightedWithTail(language: string, highlighted: string, fenceText: string): HastElement | undefined {
-  const cached = highlights.entries.get(cacheKey(language, highlighted))
-  return cached && withStreamedTail(cached, fenceText.slice(highlighted.length))
-}
+type CodeToken = {content: string; style?: string}
 
-function streamedPrefix(language: string, fenceText: string): HastElement | undefined {
-  const prefix = latestStreamedCode.entries.get(language)
-  if (prefix === undefined || !fenceText.startsWith(prefix)) return undefined
-  return highlightedWithTail(language, prefix, fenceText)
-}
+type CodeLine = readonly CodeToken[]
 
-function codeBlock(fenceText: string, lang: string | undefined, streaming: boolean): FencedView['fallback'] {
+function cachedHighlight(language: string, code: string): HastElement | undefined {
   backendReadyTick()
-  const requested = fenceLanguage(lang)
-  if (requested === 'mermaid') return streaming ? undefined : MermaidDiagram
   const active = ensureBackend()
-  if (!active || !active.isSupported(requested)) return undefined
-  const code = fenceCode(fenceText)
-  const highlighted = highlightedWithTail(requested, code, fenceText)
-  if (highlighted) return highlighted
-  active.requestHighlight(cacheKey(requested, code), requested, code, streaming)
-  return streamedPrefix(requested, fenceText)
+  if (!active || !active.isSupported(language)) return undefined
+  const exact = highlights.entries.get(cacheKey(language, code))
+  if (exact) return exact
+  active.requestHighlight(cacheKey(language, code), language, code, true)
+  const prefix = latestStreamedCode.entries.get(language)
+  if (prefix === undefined || !code.startsWith(prefix)) return undefined
+  return highlights.entries.get(cacheKey(language, prefix))
+}
+
+function trimTrailingNewlines(text: string): string {
+  return text.replace(/\n+$/, '')
+}
+
+function hastStyle(element: HastElement): string | undefined {
+  const style = element.properties.style
+  return typeof style === 'string' ? style : undefined
+}
+
+function hastText(node: HastChild): string {
+  if (node.type === 'text') return node.value
+  if (node.type !== 'element') return ''
+  return node.children.map(hastText).join('')
+}
+
+function lineTokens(line: HastElement): CodeLine {
+  return line.children.map((child) => ({
+    content: hastText(child),
+    ...(child.type === 'element' ? {style: hastStyle(child)} : {}),
+  }))
+}
+
+function highlightedLines(pre: HastElement): readonly CodeLine[] {
+  const code = pre.children.find((child): child is HastElement => child.type === 'element' && child.tagName === 'code')
+  return (code?.children ?? []).flatMap((child) => (child.type === 'element' ? [lineTokens(child)] : []))
+}
+
+function rawLines(code: string): readonly CodeLine[] {
+  return code.split('\n').map((line) => [{content: line}])
+}
+
+function lineText(line: CodeLine): string {
+  return line.map((token) => token.content).join('')
+}
+
+function withRawRest(highlighted: readonly CodeLine[], raw: readonly CodeLine[]): readonly CodeLine[] {
+  const shared = Math.min(highlighted.length, raw.length)
+  const open = highlighted[shared - 1]
+  const typed = raw[shared - 1]
+  if (open === undefined || typed === undefined) return raw
+  const rest = lineText(typed).slice(lineText(open).length)
+  return [...highlighted.slice(0, shared - 1), rest ? [...open, {content: rest}] : open, ...raw.slice(shared)]
+}
+
+function reuseToken(previous: CodeToken | undefined, next: CodeToken): CodeToken {
+  return previous?.content === next.content && previous.style === next.style ? previous : next
+}
+
+function reuseLine(previous: CodeLine | undefined, next: CodeLine): CodeLine {
+  if (previous === undefined) return next
+  const tokens = next.map((token, index) => reuseToken(previous[index], token))
+  return tokens.length === previous.length && tokens.every((token, index) => token === previous[index])
+    ? previous
+    : tokens
+}
+
+function reuseLines(previous: readonly CodeLine[], next: readonly CodeLine[]): readonly CodeLine[] {
+  return next.map((line, index) => reuseLine(previous[index], line))
+}
+
+const STREAMED_CODE =
+  'not-prose min-w-0 [--shiki-background:transparent] [&_pre]:m-0 [&_pre]:p-2 [&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] [&_pre]:[font-family:var(--chat-mono)]'
+
+function StreamedCodeRows(props: {style: string | undefined; lines: readonly CodeLine[]}): JSX.Element {
+  return (
+    <div class={STREAMED_CODE}>
+      <pre style={props.style}>
+        <code>
+          <Index each={props.lines}>
+            {(line) => (
+              <span class="block">
+                <Show when={lineText(line()) !== ''} fallback={'\n'}>
+                  <Index each={line()}>{(token) => <span style={token().style}>{token().content}</span>}</Index>
+                </Show>
+              </span>
+            )}
+          </Index>
+        </code>
+      </pre>
+    </div>
+  )
+}
+
+function StreamedCodeBody(props: {language: string; code: string}): JSX.Element {
+  const code = createMemo(() => trimTrailingNewlines(props.code))
+  const raw = createMemo(() => rawLines(code()))
+  const cached = createMemo(() => cachedHighlight(props.language, code()))
+  const style = createMemo(() => {
+    const pre = cached()
+    return pre && hastStyle(pre)
+  })
+  const highlighted = createMemo(() => {
+    const pre = cached()
+    return pre && highlightedLines(pre)
+  })
+  const lines = createMemo((previous: readonly CodeLine[]) => {
+    const current = highlighted()
+    return reuseLines(previous, current ? withRawRest(current, raw()) : raw())
+  }, [])
+  return <StreamedCodeRows style={style()} lines={lines()} />
 }
 
 export type MarkdownProps = {
@@ -281,6 +376,8 @@ export type MarkdownProps = {
 }
 
 const NO_LINK_PREFIXES: string[] = []
+
+const PROSE = 'prose-chat [&>[data-code-surface]]:my-2'
 
 const MarkdownHighlightContext = createContext<readonly string[]>([])
 
@@ -353,7 +450,7 @@ export function MarkdownProvider(
 
 export const useMarkdown = () => useContext(MarkdownContext)
 
-function CodeBlockContent(props: {language: string; code: string; fallback: () => void}): JSX.Element {
+function RenderedFenceContent(props: {language: string; code: string; fallback: () => void}): JSX.Element {
   const markdown = useMarkdown()
   const block = createMemo(() => ({code: fenceCode(props.code), language: props.language}))
   return (
@@ -374,20 +471,51 @@ function CodeBlockContent(props: {language: string; code: string; fallback: () =
 }
 
 const codeBlockView = memoize((language: string): FenceView => (props) => (
-  <CodeBlockContent language={language} code={props.code} fallback={props.fallback} />
+  <RenderedFenceContent language={language} code={props.code} fallback={props.fallback} />
 ))
 
 function highlightableLanguage(language: string): string {
-  backendReadyTick()
-  return ensureBackend()?.isSupported(language) ? language : 'text'
+  return Object.hasOwn(bundledLanguages, language) ? language : 'text'
+}
+
+const MarkdownStreamingContext = createContext<() => boolean>(() => false)
+
+function languageName(language: string): string {
+  if (!language) return 'Text'
+  const known = bundledLanguagesInfo.find((info) => info.id === language || info.aliases?.includes(language))
+  return known?.name ?? language
+}
+
+function FenceCard(props: {language: string; code: string}): JSX.Element {
+  const streaming = useContext(MarkdownStreamingContext)
+  const title = () => languageName(props.language)
+  const code = () => fenceCode(props.code)
+  return (
+    <CodeBlock label={title()} text={code()} maxHeight="log">
+      <CodeBlockHeader>
+        <CodeBlockTitle icon={<CodeXml class="shrink-0 size-3.5" aria-hidden="true" />}>{title()}</CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton />
+        </CodeBlockActions>
+      </CodeBlockHeader>
+      <Show
+        when={streaming()}
+        fallback={
+          <CodeBlockContent
+            file={{name: props.language || 'text', lang: highlightableLanguage(props.language), contents: code()}}
+          />
+        }
+      >
+        <CodeBlockViewport>
+          <StreamedCodeBody language={props.language} code={props.code} />
+        </CodeBlockViewport>
+      </Show>
+    </CodeBlock>
+  )
 }
 
 const sharedFenceView = memoize((language: string): FenceView => (props) => (
-  <CodeBlock
-    title={language || 'text'}
-    maxHeight="log"
-    file={{name: language || 'text', lang: highlightableLanguage(language), contents: fenceCode(props.code)}}
-  />
+  <FenceCard language={language} code={props.code} />
 ))
 
 function fenceLanguage(lang: string | undefined): string {
@@ -421,25 +549,30 @@ export function Markdown(props: MarkdownProps): JSX.Element {
 function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   warmHighlighter()
   const markdown = useMarkdown()
-  const highlightCode: HighlightCode = (code, lang) => {
+  const streaming = () => props.streaming === true
+  const fenceFallback = (language: string): FencedView['fallback'] => {
+    if (language !== 'mermaid') return sharedFenceView(language)
+    return streaming() ? undefined : MermaidDiagram
+  }
+  const highlightCode: HighlightCode = (_code, lang) => {
     const language = fenceLanguage(lang)
-    const content = props.streaming !== true && markdown?.codeBlocks?.current().render.has(language)
-    const kitFence = props.streaming === true || language === 'mermaid'
-    const fallback = kitFence ? codeBlock(code, lang, props.streaming === true) : sharedFenceView(language)
-    if (content) return {view: codeBlockView(language), fallback}
-    return fallback
+    const fallback = fenceFallback(language)
+    if (streaming() || !markdown?.codeBlocks?.current().render.has(language)) return fallback
+    return {view: codeBlockView(language), fallback}
   }
   return (
-    <Streamdown
-      class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
-      isAnimating={props.streaming === true}
-      caret={props.streaming ? 'block' : false}
-      highlightCode={highlightCode}
-      highlight={props.highlight}
-      openLocalFile={markdown?.openLocalFile}
-      localFileExists={markdown?.localFileExists}
-    >
-      {props.content}
-    </Streamdown>
+    <MarkdownStreamingContext.Provider value={streaming}>
+      <Streamdown
+        class={props.streaming ? `${PROSE} chat-caret-live` : PROSE}
+        isAnimating={props.streaming === true}
+        caret={props.streaming ? 'block' : false}
+        highlightCode={highlightCode}
+        highlight={props.highlight}
+        openLocalFile={markdown?.openLocalFile}
+        localFileExists={markdown?.localFileExists}
+      >
+        {props.content}
+      </Streamdown>
+    </MarkdownStreamingContext.Provider>
   )
 }

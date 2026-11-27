@@ -7,7 +7,7 @@ export const Route = createFileRoute('/about')({
 const PILLARS = [
   ['Type-safe routes', 'File-based routing with generated types, so links and params never drift from the code.'],
   ['Server functions', 'Call server code straight from a component without hand-rolling an API layer.'],
-  ['SSR and streaming', 'Modern rendering defaults out of the box — no extra configuration to opt in.'],
+  ['SSR and streaming', 'Modern rendering defaults out of the box, no extra configuration to opt in.'],
   ['Design tokens', 'One CSS custom-property set drives light and dark across every page.'],
 ]
 

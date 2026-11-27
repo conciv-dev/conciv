@@ -79,7 +79,7 @@ const SCROLL_TOPICS: readonly string[] = [
 
 const SCROLL_LONG_DESCRIPTIONS: readonly string[] = [
   'Walks through every open item assigned to you, flags anything blocked for more than two days, and drafts a short status update you can paste straight into standup notes.',
-  'Captures the current state of the workspace — branches, running processes, and pending migrations — so you can restore exactly this moment later if something goes wrong.',
+  'Captures the current state of the workspace (branches, running processes, and pending migrations) so you can restore exactly this moment later if something goes wrong.',
   'Cross-references the audit log against the active roster to highlight actions taken by accounts that no longer hold a seat, then queues a summary for the security channel.',
   'Replays the last failed queue run against a scratch environment first, compares the output against the previous successful run, and only promotes it once the diff is clean.',
   'Collects every commit merged since the last tagged release, groups them by the conventional-commit type, and drafts a changelog entry ready for a maintainer to review.',

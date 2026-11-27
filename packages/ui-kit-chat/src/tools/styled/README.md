@@ -7,7 +7,7 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 ## Interface
 
 - `tool-card.tsx`, `card-shell.tsx`, `card-chrome.tsx`, `card-headline.tsx`: the tool card and its shell; a card renders in full or embedded layout (`useEmbeddedCard`).
-- `tool-fallback.tsx`, `generic-tool-headline.ts`, `meta-tool-card.tsx`, `permission-card.tsx`, `tool-call-card.tsx`, `tool-error-card.tsx`: the cards for a call no tool card draws, a meta tool, a permission ask, and a trace row.
+- `tool-fallback.tsx`, `generic-tool-headline.ts`, `meta-tool-card.tsx`, `tool-call-card.tsx`, `tool-error-card.tsx`: the cards for a call no tool card draws, a meta tool, and a trace row.
 - `chip.tsx`, `code-block.tsx`, `json-tree.tsx`, `shaped-content.tsx`, `error-block.tsx`, `result-image.tsx`, `inline-row.tsx`, `note-row.tsx`, `action-row.tsx`, `collapsible-section.tsx`, `tool-icon.tsx`, `tool-display.tsx`: the pieces cards are built from.
 - `collapsible-card.tsx`: kit-internal.
 

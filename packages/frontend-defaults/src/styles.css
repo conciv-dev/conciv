@@ -74,7 +74,7 @@
 
 /* Panel session-log chrome: narrow-panel behavior for the header rail. The panel
    shell (routes/panel.tsx `data-conciv-panel`) sets `container-type: size`, so this queries the panel's
-   own box, not the viewport — the panel can be narrow on a wide page. Pure CSS, no resize observers. */
+   own box, not the viewport: the panel can be narrow on a wide page. Pure CSS, no resize observers. */
 .chat-rail-context-narrow {
   display: none;
 }

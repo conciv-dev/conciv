@@ -9,7 +9,18 @@ import {
 } from '@conciv/frontend-plugin-api'
 import {OpaqueUi, type InternalStatusDotProps} from '../frontend-app-api.js'
 import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
-import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
+import {
+  BasicTool,
+  Chip,
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  ErrorBlock,
+  JsonTree,
+  ResultImage,
+  StatusVisual,
+} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
 import {isPlainObject} from 'es-toolkit'
 import {
@@ -455,10 +466,14 @@ export const ui = OpaqueUi.createInstance('v1', {
     <Show
       when={treeable(props.value)}
       fallback={
-        <CodeBlock
-          size="xs"
-          file={{name: 'value.json', lang: 'json', contents: JSON.stringify(props.value, null, 2) ?? 'undefined'}}
-        />
+        <CodeBlock size="xs" label="value.json" text={JSON.stringify(props.value, null, 2) ?? 'undefined'}>
+          <CodeBlockActions>
+            <CodeBlockCopyButton />
+          </CodeBlockActions>
+          <CodeBlockContent
+            file={{name: 'value.json', lang: 'json', contents: JSON.stringify(props.value, null, 2) ?? 'undefined'}}
+          />
+        </CodeBlock>
       }
     >
       {(value) => <JsonTree data={value()} />}

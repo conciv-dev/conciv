@@ -217,7 +217,6 @@ function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine
 }
 
 const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
-  '@conciv/ui-kit-chat > @conciv/ai > @tanstack/ai > partial-json',
   '@conciv/solid-diffs > @pierre/diffs > lru_map',
   '@conciv/ui-kit-chat > mermaid > @braintree/sanitize-url',
   '@conciv/ui-kit-chat > mermaid > cytoscape-cose-bilkent',
@@ -228,13 +227,20 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > mermaid > dayjs/plugin/duration.js',
   '@conciv/ui-kit-chat > mermaid > dayjs/plugin/isoWeek.js',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/css',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/diff',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/go',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/html',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/javascript',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/json',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/jsx',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/markdown',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/python',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/rust',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/scss',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/sql',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/tsx',
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/typescript',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/yaml',
   '@conciv/ui-kit-chat > shiki/engine/javascript',
   '@conciv/ui-kit-chat > shiki/langs/bash.mjs',
   '@conciv/ui-kit-chat > shiki/core',

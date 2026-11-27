@@ -1,7 +1,22 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor} from 'storybook/test'
-import {CodeBlock, DiffBlock} from './code-block.js'
+import {CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton, DiffBlock} from './code-block.js'
+
+function plainBlock(props: {
+  size: 'xs' | 'sm'
+  maxHeight?: 'log'
+  file: {name: string; lang: string; contents: string}
+}) {
+  return (
+    <CodeBlock size={props.size} maxHeight={props.maxHeight} label={props.file.name} text={props.file.contents}>
+      <CodeBlockActions>
+        <CodeBlockCopyButton />
+      </CodeBlockActions>
+      <CodeBlockContent file={props.file} />
+    </CodeBlock>
+  )
+}
 
 const meta: Meta = {title: 'ui-kit-chat/styled/CodeBlock'}
 export default meta
@@ -21,7 +36,7 @@ const LONG_CONTENTS = Array.from({length: 80}, (_, index) => `line ${index + 1}:
 
 export const CodeBlockXs: Story = {
   render: () =>
-    frame(<CodeBlock size="xs" file={{name: 'script.js', lang: 'javascript', contents: 'const answer = 42'}} />),
+    frame(plainBlock({size: 'xs', file: {name: 'script.js', lang: 'javascript', contents: 'const answer = 42'}})),
   play: async ({canvasElement}) => {
     await waitFor(async () => expect(await diffsText(canvasElement)).toContain('const answer = 42'))
   },
@@ -29,7 +44,7 @@ export const CodeBlockXs: Story = {
 
 export const CodeBlockSm: Story = {
   render: () =>
-    frame(<CodeBlock size="sm" file={{name: 'notes.txt', lang: 'text', contents: 'a larger result payload'}} />),
+    frame(plainBlock({size: 'sm', file: {name: 'notes.txt', lang: 'text', contents: 'a larger result payload'}})),
   play: async ({canvasElement}) => {
     await waitFor(async () => expect(await diffsText(canvasElement)).toContain('a larger result payload'))
   },
@@ -37,7 +52,9 @@ export const CodeBlockSm: Story = {
 
 export const CodeBlockLongContentScrolls: Story = {
   render: () =>
-    frame(<CodeBlock size="xs" maxHeight="log" file={{name: 'output.log', lang: 'text', contents: LONG_CONTENTS}} />),
+    frame(
+      plainBlock({size: 'xs', maxHeight: 'log', file: {name: 'output.log', lang: 'text', contents: LONG_CONTENTS}}),
+    ),
   play: async ({canvasElement}) => {
     await waitFor(async () => expect(await diffsText(canvasElement)).toContain('line 1: const value = 0'))
     await waitFor(async () => expect(await diffsText(canvasElement)).toContain('line 80: const value = 79'))

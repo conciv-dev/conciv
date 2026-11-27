@@ -3,10 +3,13 @@ import Foundation
 // Deterministic dev-core discovery (06 M5). Foundation-only so the pure logic runs
 // under the macOS-host `swift test` job; the URLSession prober and the re-pair UI
 // live in the UIKit-guarded files. The core writes ~/.conciv/dev-endpoint.json
-// (packages/backend/src/lib/dev-endpoint.ts); the simulator shares the host filesystem
-// so a paired endpoint is read directly. `apiBase` in that file already carries the
-// /t/<token> prefix when the core minted an access token, so the WebView loads
-// apiBase/widget token-scoped and RPC/SSE are path-scoped with zero extra work.
+// (packages/backend-defaults/src/engine/lib/dev-endpoint.ts); the simulator shares the host filesystem
+// so a paired endpoint is read directly. `apiBase` in that file is the bare engine
+// origin and `token` the engine token, apart. The engine serves the native page at
+// apiBase/widget without a token and takes the token only as the ?conciv_auth_token=
+// query on each URL (packages/backend-defaults/src/engine/engine-login.ts), so the
+// WebView loads apiBase/widget?conciv_auth_token=<token> and the page hands that token
+// to its engine connection.
 
 public struct ConcivEndpoint: Equatable {
   public let apiBase: URL
@@ -28,7 +31,7 @@ struct DevEndpointFile: Codable {
   let pid: Int
 }
 
-// Codable mirror of the core /health payload (packages/backend/src/app.ts):
+// Codable mirror of the engine /health payload (packages/backend-defaults/src/engine/app.ts):
 // {"ok": true, "harness": "<id>"}. Extra keys are ignored so the shape can grow.
 struct HealthPayload: Codable {
   let ok: Bool
@@ -49,9 +52,17 @@ public enum ConcivDiscovery {
     return ConcivEndpoint(apiBase: url, token: file.token, pid: file.pid)
   }
 
-  // The WebView loads the native page under the (possibly token-scoped) apiBase.
-  public static func pageURL(for apiBase: URL) -> URL {
-    apiBase.appendingPathComponent("widget")
+  static let authTokenQueryItem = "conciv_auth_token"
+
+  // The WebView loads the native page under apiBase, with the engine token (when the
+  // endpoint has one) as the ?conciv_auth_token= query the engine reads.
+  public static func pageURL(for endpoint: ConcivEndpoint) -> URL {
+    let page = endpoint.apiBase.appendingPathComponent("widget")
+    guard let token = endpoint.token, !token.isEmpty,
+          var components = URLComponents(url: page, resolvingAgainstBaseURL: false)
+    else { return page }
+    components.queryItems = [URLQueryItem(name: authTokenQueryItem, value: token)]
+    return components.url ?? page
   }
 
   public static func healthURL(for apiBase: URL) -> URL {
@@ -67,7 +78,7 @@ public enum ConcivDiscovery {
     return payload.ok && !payload.harness.isEmpty
   }
 
-  // Origin pin stays scheme://host:port regardless of the /t/<token> path.
+  // Origin pin is scheme://host:port, whatever path the base carries.
   public static func origin(of apiBase: URL) -> String {
     guard let scheme = apiBase.scheme, let host = apiBase.host else { return apiBase.absoluteString }
     if let port = apiBase.port { return "\(scheme)://\(host):\(port)" }
@@ -78,8 +89,8 @@ public enum ConcivDiscovery {
     ports.compactMap { URL(string: "http://127.0.0.1:\($0)") }
   }
 
-  // A 401/404 on the token-scoped base means the token is stale: the whole app moved
-  // to a new /t/<newtoken> mount (06 D13), so the old prefix no longer resolves.
+  // A 401/404 on the page load means this base no longer serves this engine's page
+  // (another service took the port, or the engine is gone), so rediscover.
   public static func isStaleToken(status: Int) -> Bool {
     status == 401 || status == 404
   }
@@ -154,6 +165,17 @@ public struct ConcivDiscoverer {
     self.candidatePorts = candidatePorts
     self.readFile = readFile
     self.probe = probe
+  }
+
+  // The endpoint for an env-injected base (CONCIV_URL carries no token). When the pairing
+  // file names the same origin, its token and pid belong to that engine, so the page logs
+  // in with them; otherwise the base mounts tokenless and the page asks the user to log in.
+  public func envEndpoint(apiBase: URL) -> ConcivEndpoint {
+    guard let data = readFile(pairingFileURL),
+          let paired = ConcivDiscovery.parsePairingFile(data),
+          ConcivDiscovery.origin(of: paired.apiBase) == ConcivDiscovery.origin(of: apiBase)
+    else { return ConcivEndpoint(apiBase: apiBase, token: nil, pid: nil) }
+    return ConcivEndpoint(apiBase: apiBase, token: paired.token, pid: paired.pid)
   }
 
   public func discover() -> ConcivEndpoint? {

@@ -86,7 +86,7 @@ describe('the ios plugin with bad options', () => {
       {
         status: 'failed',
         error: expect.stringContaining(
-          'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /widget itself',
+          'concivUrl must be the engine api base with no path: the swift sdk appends /widget itself',
         ),
       },
     ],

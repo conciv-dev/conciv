@@ -47,6 +47,17 @@ export const layer = Layer.effect(
     const close = (tabId: string, entry: Pick<Live, 'sessionId' | 'connectionId'>) =>
       bus.publish(BrowserTabEvent.Closed, {sessionID: entry.sessionId, tabId, connectionId: entry.connectionId})
 
+    const closeAll = (entries: HashMap.HashMap<string, Live>) =>
+      Effect.forEach(
+        entries,
+        ([tabId, entry]) =>
+          close(tabId, entry).pipe(
+            Effect.catchCause((cause) => Effect.logWarning(`Browser tab ${tabId} could not be closed`, cause)),
+            Effect.andThen(Deferred.succeed(entry.closed, 'closed')),
+          ),
+        {discard: true},
+      )
+
     const stale = yield* db
       .select({id: TabTable.id, sessionId: TabTable.session_id, connectionId: TabTable.connection_id})
       .from(TabTable)
@@ -63,9 +74,7 @@ export const layer = Layer.effect(
             live,
             HashMap.filter((entry) => entry.sessionId !== sessionId),
           )
-          yield* Effect.forEach(HashMap.values(owned), (entry) => Deferred.succeed(entry.closed, 'closed'), {
-            discard: true,
-          })
+          yield* closeAll(owned)
         }),
       )
 
@@ -85,24 +94,13 @@ export const layer = Layer.effect(
       lock.withPermit(
         Effect.gen(function* () {
           const entries = yield* Ref.getAndSet(live, HashMap.empty())
-          yield* Effect.forEach(
-            entries,
-            ([tabId, entry]) =>
-              close(tabId, entry).pipe(
-                Effect.catchCause((cause) => Effect.logWarning(`Browser tab ${tabId} could not be closed`, cause)),
-                Effect.andThen(Deferred.succeed(entry.closed, 'closed')),
-              ),
-            {discard: true},
-          )
+          yield* closeAll(entries)
         }),
       ),
     )
 
     return Service.of({
       open: Effect.fn('Tab.open')(function* (input) {
-        const session = yield* sessions.get(input.sessionId)
-        if (session.location.directory !== location.directory)
-          return yield* Effect.fail(makeUnavailableError('Session belongs to another location.'))
         const entry: Live = {
           sessionId: input.sessionId,
           connectionId: input.connectionId,
@@ -111,6 +109,9 @@ export const layer = Layer.effect(
         yield* Effect.acquireRelease(
           lock.withPermit(
             Effect.gen(function* () {
+              const session = yield* sessions.get(input.sessionId)
+              if (session.location.directory !== location.directory)
+                return yield* Effect.fail(makeUnavailableError('Session belongs to another location.'))
               const previous = HashMap.get(yield* Ref.get(live), input.tab.id)
               yield* Ref.update(live, HashMap.set(input.tab.id, entry))
               yield* bus.publish(BrowserTabEvent.Opened, {

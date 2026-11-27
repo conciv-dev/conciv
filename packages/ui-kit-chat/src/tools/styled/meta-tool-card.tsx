@@ -9,7 +9,7 @@ import {CardShell, cardHeader} from './card-shell.js'
 import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ShapedValue} from './shaped-content.js'
-import {CodeBlock} from './code-block.js'
+import {CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton} from './code-block.js'
 import {ErrorBlock} from './error-block.js'
 
 const SUMMARY = 'text-chat-text-2 text-[length:var(--chat-text-sm)] m-0'
@@ -78,7 +78,14 @@ function failureText(
 }
 
 function ResultBlock(props: {contents: string; name: string}): JSX.Element {
-  return <CodeBlock file={{name: props.name, lang: 'text', contents: props.contents}} />
+  return (
+    <CodeBlock label={props.name} text={props.contents}>
+      <CodeBlockActions>
+        <CodeBlockCopyButton />
+      </CodeBlockActions>
+      <CodeBlockContent file={{name: props.name, lang: 'text', contents: props.contents}} />
+    </CodeBlock>
+  )
 }
 
 function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string}): JSX.Element {

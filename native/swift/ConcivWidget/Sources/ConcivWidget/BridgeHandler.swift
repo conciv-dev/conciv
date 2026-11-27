@@ -362,8 +362,8 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     decisionHandler(originMatches(url: url) ? .allow : .cancel)
   }
 
-  // A 401/404 on the token-scoped native page = stale token (the core restarted onto
-  // a fresh /t/<newtoken> mount, 06 D13). CANCEL the response so the error page never
+  // A 401/404 on the native page load = this base no longer serves the engine's page
+  // (the engine is gone or another service holds the port). CANCEL the response so the error page never
   // commits over the live native bundle: the current bridge-capable document stays
   // alive and the owner surfaces the re-pair prompt + rediscovery (04). The status
   // never carries the token, so this path logs nothing.

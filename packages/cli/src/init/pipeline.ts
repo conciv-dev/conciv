@@ -149,7 +149,7 @@ function countPart(count: number, label: string): string[] {
 
 function nextLine(next: string[]): string {
   if (next.length === 0) return 'conciv init finished.'
-  return `Next steps — ${next.join(' · ')}`
+  return `Next steps: ${next.join(' · ')}`
 }
 
 const run = promisify(execFile)
@@ -162,13 +162,13 @@ const NO_REPOSITORY = 'not a git repository'
 
 export async function preflight(cwd: string, force: boolean): Promise<PreflightResult> {
   if (!(await pathExists(join(cwd, 'package.json')))) {
-    return {ok: false, reason: 'no package.json here — run init from your app directory'}
+    return {ok: false, reason: 'no package.json here: run init from your app directory'}
   }
   if (force) return {ok: true}
   const tree = await gitTreeState(cwd)
-  if (tree.kind === 'dirty') return {ok: false, reason: 'uncommitted changes — commit first or pass --force'}
+  if (tree.kind === 'dirty') return {ok: false, reason: 'uncommitted changes: commit first or pass --force'}
   if (tree.kind === 'unreadable') {
-    return {ok: false, reason: `git status failed here (${tree.detail}) — fix it or pass --force`}
+    return {ok: false, reason: `git status failed here (${tree.detail}): fix it or pass --force`}
   }
   return {ok: true}
 }
@@ -365,7 +365,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   const runtime: InitRuntime = {...defaultRuntime(), ...overrides}
   runtime.output.intro('conciv init')
   if (!options.yes && !options.dryRun && !runtime.interactive()) {
-    return refuse(runtime, 'Non-interactive terminal — re-run with --yes or --dry-run')
+    return refuse(runtime, 'Non-interactive terminal: re-run with --yes or --dry-run')
   }
   const detecting = runtime.output.spinner('Detecting your project…')
   const checked = await preflight(options.cwd, options.force)
@@ -394,10 +394,10 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   })
   if (approved.decision === 'cancelled') {
     runtime.output.cancelled('Nothing changed.')
-    return {outcome: 'cancelled', reason: 'cancelled — nothing changed'}
+    return {outcome: 'cancelled', reason: 'cancelled, nothing changed'}
   }
   if (approved.decision === 'dry-run') {
-    runtime.output.outro('Dry run — nothing changed.')
+    runtime.output.outro('Dry run: nothing changed.')
     return {outcome: 'planned', plan: approved.plan}
   }
   const backups = guardBackups()
@@ -418,7 +418,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   releaseInterrupt()
   if (interruption.signal.aborted) {
     backups.restore()
-    runtime.output.cancelled('Interrupted — your config was restored.')
+    runtime.output.cancelled('Interrupted: your config was restored.')
     runtime.exit(interruptExitCode(interruption.signal.reason))
     return {outcome: 'cancelled', reason: 'interrupted, your config was restored'}
   }
@@ -430,7 +430,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
 
 function refuse(runtime: InitRuntime, reason: string): InitResult {
   runtime.output.error(reason)
-  runtime.output.failure('conciv init stopped — nothing changed.')
+  runtime.output.failure('conciv init stopped, nothing changed.')
   return {outcome: 'refused', reason}
 }
 
@@ -460,7 +460,7 @@ async function runOne(step: InitStep, settings: RunSettings, output: InitOutput)
   }
   const entry = await settleStep(step, ctx)
   if (settings.signal.aborted) {
-    line.settle({status: 'skipped', summary: `${step.title} — interrupted`})
+    line.settle({status: 'skipped', summary: `${step.title}: interrupted`})
     return entry
   }
   line.settle({status: entry.status, summary: stepSummary(step, entry)})
@@ -478,11 +478,11 @@ function emit(output: InitOutput, emission: Emission): void {
 
 function stepSummary(step: InitStep, entry: LedgerEntry): string {
   if (entry.status === 'done') return step.completed
-  if (entry.status === 'already') return `${step.title} — already wired`
+  if (entry.status === 'already') return `${step.title}: already wired`
   const reason = firstLine(entry.detail)
-  if (entry.status === 'skipped') return `${step.title} — skipped${reason === null ? '' : `: ${reason}`}`
-  if (reason === null) return `${step.title} — needs a manual step (see the card below)`
-  return `${step.title} — needs a manual step: ${reason}`
+  if (entry.status === 'skipped') return `${step.title}: skipped${reason === null ? '' : ` (${reason})`}`
+  if (reason === null) return `${step.title}: needs a manual step (see the card below)`
+  return `${step.title}: needs a manual step (${reason})`
 }
 
 function firstLine(detail: string | undefined): string | null {

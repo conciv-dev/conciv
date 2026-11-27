@@ -31,29 +31,30 @@ const turboSchema = z.looseObject({
   tasks: z.record(z.string(), z.looseObject({dependsOn: z.array(z.string()).optional()})).optional(),
 })
 
-export async function assertBuildDependsOnCoversImports(cwd: string): Promise<void> {
+export async function assertTasksDependOnUpstreamBuilds(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
-  const buildable = new Set(packages.filter((pkg) => pkg.manifest.scripts?.build !== undefined).map(readName))
-  const explicit = await Promise.all(
-    packages
-      .filter((pkg) => pkg.manifest.scripts?.build !== undefined)
-      .map(async (pkg) => ({pkg, dependsOn: await readBuildDependsOn(pkg)})),
-  )
+  const files = [
+    {file: 'turbo.json', path: join(cwd, 'turbo.json'), root: true},
+    ...packages.map((pkg) => ({file: `${pkg.relativeDir}/turbo.json`, path: join(pkg.dir, 'turbo.json'), root: false})),
+  ].filter((entry) => existsSync(entry.path))
   const violations = await Promise.all(
-    explicit
-      .filter((entry) => entry.dependsOn !== undefined && !entry.dependsOn.includes('^build'))
-      .map(async ({pkg, dependsOn}) => {
-        const sources = await readBuildSourceImports(cwd, packages, pkg)
-        return [...new Set(sources.flatMap((source) => source.imports))]
-          .filter((name) => name !== pkg.manifest.name && buildable.has(name))
-          .filter((name) => !dependsOn?.includes(`${name}#build`))
-          .map((name) => `${pkg.relativeDir}/turbo.json: build imports ${name} but does not depend on ${name}#build`)
-      }),
+    files.map(async ({file, path, root}) => {
+      const tasks = Object.entries((await readTurboConfig(path)).tasks ?? {})
+      const edges = tasks.flatMap(([task, config]) =>
+        (config.dependsOn ?? [])
+          .filter((entry) => entry.includes('#') && !entry.startsWith('//#'))
+          .map((entry) => `${file}: ${task} depends on ${entry}, a task of a named package`),
+      )
+      const build = tasks.find(([task]) => task === 'build')?.[1].dependsOn
+      const upstream =
+        root || build === undefined || build.includes('^build') ? [] : [`${file}: build.dependsOn leaves out ^build`]
+      return [...edges, ...upstream]
+    }),
   )
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a turbo.json build.dependsOn without "^build" names the build of every workspace package its build sources import:\n${messages.join('\n')}`,
+    `every package task waits on its dependencies' builds through "^build", never through a "<package>#<task>" edge:\n${messages.join('\n')}`,
   )
 }
 
@@ -61,13 +62,11 @@ function readName(pkg: WorkspacePackage): string {
   return pkg.manifest.name ?? pkg.relativeDir
 }
 
-async function readBuildDependsOn(pkg: WorkspacePackage): Promise<string[] | undefined> {
-  const path = join(pkg.dir, 'turbo.json')
-  if (!existsSync(path)) return undefined
+async function readTurboConfig(path: string): Promise<z.infer<typeof turboSchema>> {
   const text = await readFile(path, 'utf8')
   const result = turboSchema.safeParse(parseJson(path, text))
   if (!result.success) throw new Error(`${path}: invalid turbo.json\n${result.error.message}`)
-  return result.data.tasks?.build?.dependsOn
+  return result.data
 }
 
 function parseJson(path: string, text: string): unknown {

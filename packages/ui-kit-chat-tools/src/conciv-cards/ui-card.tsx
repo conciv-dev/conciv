@@ -20,6 +20,9 @@ import {
   Chip,
   ChipRow,
   CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
   DiffBlock,
   NoteRow,
   parseInput,
@@ -207,7 +210,14 @@ function Confirm(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiA
   return (
     <>
       <Show when={props.spec.detail}>
-        {(detail) => <CodeBlock file={{name: 'detail.txt', lang: 'text', contents: detail()}} />}
+        {(detail) => (
+          <CodeBlock label="detail.txt" text={detail()}>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+            <CodeBlockContent file={{name: 'detail.txt', lang: 'text', contents: detail()}} />
+          </CodeBlock>
+        )}
       </Show>
       <ActionRow>
         <Button class={ACTION} disabled={props.disabled} onClick={() => props.onAnswer('yes')}>

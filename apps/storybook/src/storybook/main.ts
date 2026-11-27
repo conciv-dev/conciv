@@ -1,6 +1,5 @@
 import type {StorybookConfig} from 'storybook-solidjs-vite'
 import {fileURLToPath} from 'node:url'
-import {TANSTACK_AI_SOLID_DEPS} from '@internal/vitest-config'
 
 const config: StorybookConfig = {
   stories: [
@@ -12,7 +11,6 @@ const config: StorybookConfig = {
     '../../../../packages/ui-kit-chat/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/ui-kit-chat-tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/plugins/page/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
-    '../../../../packages/tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/backend/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/ui-kit-tap/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/solid-diffs/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
@@ -38,7 +36,6 @@ const config: StorybookConfig = {
       resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
       optimizeDeps: {
         include: [
-          ...TANSTACK_AI_SOLID_DEPS.map((dependency) => `@conciv/ui-kit-chat > ${dependency}`),
           '@tanstack/solid-virtual',
           '@tiptap/core',
           '@tiptap/pm/state',
@@ -63,13 +60,20 @@ const config: StorybookConfig = {
           'shiki/themes/github-dark.mjs',
           'shiki/themes/github-light.mjs',
           '@shikijs/langs-precompiled/css',
+          '@shikijs/langs-precompiled/diff',
+          '@shikijs/langs-precompiled/go',
           '@shikijs/langs-precompiled/html',
           '@shikijs/langs-precompiled/javascript',
           '@shikijs/langs-precompiled/json',
           '@shikijs/langs-precompiled/jsx',
           '@shikijs/langs-precompiled/markdown',
+          '@shikijs/langs-precompiled/python',
+          '@shikijs/langs-precompiled/rust',
+          '@shikijs/langs-precompiled/scss',
+          '@shikijs/langs-precompiled/sql',
           '@shikijs/langs-precompiled/tsx',
           '@shikijs/langs-precompiled/typescript',
+          '@shikijs/langs-precompiled/yaml',
         ],
         exclude: ['solid-js', 'solid-js/web', 'solid-js/store', '@ark-ui/solid'],
       },

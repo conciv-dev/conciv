@@ -14,8 +14,6 @@ export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
 
 export const CONCIV_CLIENT_HEADER = 'conciv-client'
 
-export const CONCIV_NAMED_TAB_HEADER = 'conciv-named-tab'
-
 export const DraftItemSchema = z.object({key: z.string(), value: z.json()})
 
 export type DraftItem = z.infer<typeof DraftItemSchema>
