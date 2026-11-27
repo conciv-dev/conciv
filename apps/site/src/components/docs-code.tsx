@@ -72,7 +72,7 @@ export function CodeBlockTabs(props: ComponentProps<typeof FumadocsCodeBlockTabs
         <FumadocsCodeBlockTabs
           {...props}
           className={cn(
-            'grid grid-cols-[minmax(0,auto)_minmax(min-content,1fr)] overflow-hidden contain-inline-size',
+            'relative grid grid-cols-[minmax(0,auto)_minmax(min-content,1fr)] overflow-hidden contain-inline-size',
             props.className,
           )}
         />
@@ -106,7 +106,16 @@ export function CodeBlockTabsTrigger(props: ComponentProps<typeof TabsTrigger>) 
 }
 
 export function CodeBlockTab(props: ComponentProps<typeof FumadocsCodeBlockTab>) {
-  return <FumadocsCodeBlockTab {...props} className={cn('data-[state=active]:contents', props.className)} />
+  return (
+    <FumadocsCodeBlockTab
+      forceMount
+      {...props}
+      className={cn(
+        'col-span-full row-start-2 min-w-0 data-[state=inactive]:invisible [&>figure:first-of-type>div:first-child]:absolute [&>figure:first-of-type>div:first-child]:end-0 [&>figure:first-of-type>div:first-child]:top-0',
+        props.className,
+      )}
+    />
+  )
 }
 
 export function PopupContent(props: ComponentProps<typeof TwoslashPopupContent>) {

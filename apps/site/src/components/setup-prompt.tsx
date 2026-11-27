@@ -85,7 +85,7 @@ export function PromptText({text, className}: {text: string; className?: string}
       tabIndex={0}
       aria-label="Prompt"
       className={cn(
-        'm-0 overflow-auto overscroll-contain whitespace-pre-wrap break-normal wrap-anywhere border-0 bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-fd-foreground outline-none focus-visible:ring-2 focus-visible:ring-fd-ring focus-visible:ring-inset',
+        'm-0 overflow-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden whitespace-pre-wrap break-normal wrap-anywhere border-0 bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-fd-foreground outline-none focus-visible:ring-2 focus-visible:ring-fd-ring focus-visible:ring-inset',
         className,
       )}
     >
@@ -112,7 +112,7 @@ function PluginsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="w-32 justify-between">
+        <Button type="button" variant="outline" size="sm" className="w-full justify-between">
           {plugins.length === 0 ? 'Plugins' : `Plugins (${plugins.length})`}
           <ChevronDown className="text-fd-muted-foreground" />
         </Button>
@@ -137,9 +137,9 @@ export function SetupPrompt() {
   const {choice, prompt, setFramework, setHarness, setPlugin} = useSetupChoice()
   return (
     <div className="not-prose my-6 overflow-hidden rounded-xl border bg-fd-card">
-      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+      <div className="grid grid-cols-2 items-center gap-2 border-b px-3 py-2 sm:grid-cols-[1fr_1fr_auto_auto]">
         <Select value={choice.framework} onValueChange={setFramework}>
-          <SelectTrigger aria-label="Framework" size="sm" className="w-40 gap-2">
+          <SelectTrigger aria-label="Framework" size="sm" className="w-full gap-2">
             <SelectValue>
               <FrameworkIcon id={choice.framework} />
               {findFramework(choice.framework).label}
@@ -157,7 +157,7 @@ export function SetupPrompt() {
           </SelectContent>
         </Select>
         <Select value={choice.harness} onValueChange={setHarness}>
-          <SelectTrigger aria-label="Agent" size="sm" className="w-40 gap-2">
+          <SelectTrigger aria-label="Agent" size="sm" className="w-full gap-2">
             <SelectValue>
               <HarnessIcon id={choice.harness} />
               {findHarness(choice.harness).label}
@@ -175,7 +175,7 @@ export function SetupPrompt() {
           </SelectContent>
         </Select>
         <PluginsMenu plugins={choice.plugins} onChange={setPlugin} />
-        <div className="ms-auto">
+        <div className="flex justify-end">
           <CopyPromptButton text={prompt} />
         </div>
       </div>

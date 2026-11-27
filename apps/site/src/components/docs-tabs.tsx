@@ -1,7 +1,8 @@
 'use client'
 
 import type {ComponentProps, MouseEvent, ReactNode} from 'react'
-import {Tabs as FumadocsTabs} from 'fumadocs-ui/components/tabs'
+import {Tab as FumadocsTab, Tabs as FumadocsTabs} from 'fumadocs-ui/components/tabs'
+import {cn} from '@/lib/utils'
 
 function placeIndicator(list: HTMLElement) {
   const active = list.querySelector<HTMLElement>(':scope > [role="tab"][data-state="active"]')
@@ -48,7 +49,23 @@ export function SlidingTabs({children}: {children: ReactNode}) {
 export function Tabs(props: ComponentProps<typeof FumadocsTabs>) {
   return (
     <SlidingTabs>
-      <FumadocsTabs {...props} />
+      <FumadocsTabs
+        {...props}
+        className={cn(
+          'grid grid-cols-1 [&>[role=tabpanel]]:col-start-1 [&>[role=tabpanel]]:row-start-2',
+          props.className,
+        )}
+      />
     </SlidingTabs>
+  )
+}
+
+export function Tab(props: ComponentProps<typeof FumadocsTab>) {
+  return (
+    <FumadocsTab
+      forceMount
+      {...props}
+      className={cn('data-[state=inactive]:block data-[state=inactive]:invisible', props.className)}
+    />
   )
 }

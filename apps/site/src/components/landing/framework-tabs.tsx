@@ -206,13 +206,25 @@ function Trigger({snippet}: {snippet: FrameworkSnippet}) {
   )
 }
 
+const panelCard = 'col-start-1 row-start-1 overflow-hidden rounded-xl border bg-card'
+
 function Panel({children}: {children: ReactNode}) {
-  const {snippets, active} = useFrameworkTabs()
+  const context = useFrameworkTabs()
+  const {snippets, active} = context
   return (
-    <>
+    <div className="grid">
+      {snippets
+        .filter((snippet) => snippet.soon !== true)
+        .map((snippet) => (
+          <div key={snippet.id} aria-hidden inert className={`${panelCard} invisible`}>
+            <FrameworkTabsContext.Provider value={{...context, active: snippet}}>
+              {children}
+            </FrameworkTabsContext.Provider>
+          </div>
+        ))}
       <TabsPrimitive.Content
         value={active.id}
-        className="overflow-hidden rounded-xl border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className={`${panelCard} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60`}
       >
         {children}
       </TabsPrimitive.Content>
@@ -221,7 +233,7 @@ function Panel({children}: {children: ReactNode}) {
         .map((snippet) => (
           <TabsPrimitive.Content key={snippet.id} value={snippet.id} className="hidden" />
         ))}
-    </>
+    </div>
   )
 }
 

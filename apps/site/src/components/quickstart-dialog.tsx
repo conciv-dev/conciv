@@ -16,7 +16,7 @@ import {FRAMEWORKS, HARNESSES, PLUGINS} from '@/lib/setup-prompt'
 import {CopyPromptButton, FrameworkIcon, HarnessIcon, PromptText, useSetupChoice} from './setup-prompt'
 
 const cardClass =
-  'flex h-11 cursor-pointer items-center gap-2 rounded-lg border bg-fd-card px-3 text-sm transition-colors select-none hover:bg-fd-accent/50 has-focus-visible:ring-2 has-focus-visible:ring-fd-ring has-data-[state=checked]:border-fd-primary'
+  'flex cursor-pointer items-center gap-2 rounded-lg border bg-fd-card px-3 py-2.5 text-sm transition-colors select-none hover:bg-fd-accent/50 has-focus-visible:ring-2 has-focus-visible:ring-fd-ring has-data-[state=checked]:border-fd-primary'
 
 const gridClass = 'grid grid-cols-2 gap-2 sm:grid-cols-3'
 
