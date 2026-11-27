@@ -1,15 +1,18 @@
 import {ChevronDown} from 'lucide-react'
 import {usePathname} from 'fumadocs-core/framework'
+import Link from 'fumadocs-core/link'
 import {Popover, PopoverContent, PopoverTrigger} from 'fumadocs-ui/components/ui/popover'
 import {isLinkItemActive, LinkItem, type MainItemType, type MenuItemType} from 'fumadocs-ui/layouts/shared'
 import type {DocsHeaderVariant} from '@/lib/search-schemas'
 import {repoUrl} from '@/lib/shared'
 
-type HeaderLink = MainItemType | MenuItemType
+type SectionLink = MainItemType & {sections?: readonly string[]}
 
-const docs: MainItemType = {text: 'Docs', url: '/docs', active: 'nested-url'}
-const plugins: MainItemType = {text: 'Plugins', url: '/docs/plugins', active: 'nested-url'}
-const changelog: MainItemType = {text: 'Changelog', url: `${repoUrl}/releases`, external: true}
+type HeaderLink = SectionLink | MenuItemType
+
+const docs: SectionLink = {text: 'Docs', url: '/docs', active: 'nested-url'}
+const plugins: SectionLink = {text: 'Plugins', url: '/docs/plugins', active: 'nested-url'}
+const changelog: SectionLink = {text: 'Changelog', url: `${repoUrl}/releases`, external: true}
 
 const more: MenuItemType = {
   type: 'menu',
@@ -22,19 +25,47 @@ const more: MenuItemType = {
 }
 
 const headerLinks: Record<DocsHeaderVariant, HeaderLink[]> = {
-  a: [docs, plugins, {text: 'Comparison', url: '/docs/comparison'}, changelog, more],
-  b: [
+  a: [
     docs,
     plugins,
-    {text: 'Playground', url: '/docs/playground'},
+    {text: 'Comparison', url: '/docs/comparison', sections: ['comparison', 'comparison-b', 'comparison-c']},
     changelog,
-    {text: 'GitHub', url: repoUrl, external: true},
+    more,
   ],
+  b: [docs, plugins, {text: 'Playground', url: '/docs/playground', active: 'nested-url'}, changelog],
   c: [
-    {text: 'Getting started', url: '/docs/getting-started'},
-    {text: 'Guides', url: '/docs/usage', active: 'nested-url'},
-    plugins,
-    {text: 'Reference', url: '/docs/reference/configuration'},
+    {
+      text: 'Getting started',
+      url: '/docs/getting-started',
+      sections: [
+        '',
+        'getting-started',
+        'comparison',
+        'comparison-b',
+        'comparison-c',
+        'requirements',
+        'playground',
+        'examples',
+      ],
+    },
+    {
+      text: 'Guides',
+      url: '/docs/usage',
+      sections: [
+        'usage',
+        'engine-and-widget',
+        'sessions',
+        'harnesses',
+        'tools-and-code-mode',
+        'agents-and-permissions',
+        'skills',
+        'bundlers',
+        'agents',
+        'recipes',
+      ],
+    },
+    {...plugins, sections: ['plugins']},
+    {text: 'Reference', url: '/docs/reference/configuration', sections: ['reference', 'api-reference', 'contributing']},
     more,
   ],
 }
@@ -47,9 +78,15 @@ function isMenu(link: HeaderLink): link is MenuItemType {
   return link.type === 'menu'
 }
 
+function isSectionActive(link: SectionLink, pathname: string) {
+  if (link.sections === undefined) return isLinkItemActive(link, pathname)
+  const [, root, section = ''] = pathname.split('/')
+  return root === 'docs' && link.sections.includes(section)
+}
+
 function selectActiveLink(links: HeaderLink[], pathname: string) {
   return links
-    .filter((link): link is MainItemType => !isMenu(link) && isLinkItemActive(link, pathname))
+    .filter((link): link is SectionLink => !isMenu(link) && isSectionActive(link, pathname))
     .toSorted((first, second) => second.url.length - first.url.length)
     .at(0)
 }
@@ -92,13 +129,15 @@ export function DocsHeaderNav({variant}: {variant: DocsHeaderVariant}) {
         isMenu(link) ? (
           <MoreMenu key="more" link={link} />
         ) : (
-          <LinkItem
+          <Link
             key={link.url}
-            item={{...link, active: link === active ? 'nested-url' : 'none'}}
+            href={link.url}
+            external={link.external}
+            data-active={link === active}
             className={linkClass}
           >
             {link.text}
-          </LinkItem>
+          </Link>
         ),
       )}
     </nav>
