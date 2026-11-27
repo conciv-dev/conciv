@@ -342,7 +342,13 @@ export function fromPromise(plugin: Plugin.Plugin) {
           },
           bundler: {
             transform: (callback) =>
-              register(host.bundler.transform((editor) => callback({add: (hooks) => editor.add(adaptBundler(hooks))}))),
+              register(
+                host.bundler.transform((editor) =>
+                  callback({
+                    add: (hooks) => editor.add(adaptBundler(Schema.decodeUnknownSync(PromiseBundlerPart)(hooks))),
+                  }),
+                ),
+              ),
           },
           event: {
             subscribe: <Type extends Exclude<ConcivEvent['type'], 'server.connected'>>(
@@ -496,6 +502,15 @@ export function fromPromise(plugin: Plugin.Plugin) {
 
 const hookCall = <Answer>(run: () => Answer | Promise<Answer>) =>
   Effect.tryPromise({try: () => Promise.resolve(run()), catch: (cause) => cause})
+
+const promiseHook = <Hook>() =>
+  Schema.optional(Schema.declare<Hook>((input): input is Hook => typeof input === 'function'))
+
+const PromiseBundlerPart = Schema.Struct({
+  transform: promiseHook<NonNullable<BundlerHooks['transform']>>(),
+  resolveId: promiseHook<NonNullable<BundlerHooks['resolveId']>>(),
+  load: promiseHook<NonNullable<BundlerHooks['load']>>(),
+})
 
 const adaptBundler = ({transform, resolveId, load}: BundlerHooks) => ({
   ...(transform === undefined ? {} : {transform: (code: string, id: string) => hookCall(() => transform(code, id))}),
