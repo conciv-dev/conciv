@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "minimumVersion": "3.43.0",
   "ignorePatterns": [
     "**/dist/**",
     "**/build/**",
@@ -900,6 +901,7 @@
     "packages/brand/src/brand-guidelines.mdx",
     "packages/app/src/global-entry.ts",
     "packages/app/src/native-entry.ts",
+    "packages/it/src/plugin/*.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/home/drizzle.config.ts",
     "packages/backend-defaults/drizzle.config.ts",
@@ -922,5 +924,12 @@
         "@storybook/addon-themes"
       ]
     }
-  ]
+  ],
+  "workspaces": {
+    "settings": {
+      "packages/reference": {
+        "ignoreDependencies": ["@conciv/*"]
+      }
+    }
+  }
 }

@@ -23,13 +23,14 @@
   ],
   "type": "module",
   "exports": {
-    "./bin": "./dist/bin.js"
+    "./bin": "./dist/bin.js",
+    "./commands.json": "./dist/commands.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && chmod +x dist/bin.js",
+    "build": "vite build && chmod +x dist/bin.js && node dist/commands-json.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",

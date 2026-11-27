@@ -26,7 +26,8 @@ export default defineConfig(
     plugins: [onlyImport(['@ast-grep/napi']), concivTest()],
     environments: {
       server: {
-        entries: ['src/bin.ts'],
+        entries: ['src/bin.ts', 'src/commands-json.ts'],
+        bundle: true,
         types: false,
         noExternal: true,
         external: [

@@ -213,6 +213,7 @@ catalog:
   storybook-solidjs-vite: '^10.7.4'
   tailwindcss: '^4.3.3'
   tsx: '^4.23.15'
+  typedoc: '^0.28.20'
   typescript: '^7.0.2'
   unified: '^11.0.5'
   unocss: '^66.13.0'
