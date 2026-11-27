@@ -6,7 +6,7 @@ description: What runs where when conciv is on, what a turn does, and where conc
 conciv is two programs that your dev server starts together. The engine runs in node and runs the agent. The widget
 runs on your page and is the chat you type into.
 
-## Overview
+## What runs where
 
 ```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -59,7 +59,7 @@ A turn is one message from you and everything the agent does to answer it:
 1. The widget sends your message to the engine over the websocket.
 2. The engine runs the harness in your project folder, with conciv's tools added.
 3. The agent calls tools. It reads the page, drives it, edits files and runs tests.
-4. A risky call waits on a permission card in the panel, and goes on once you answer.
+4. A risky call waits on a permission card in the panel. It goes on once you answer.
 5. Text, tool calls and cards stream back into the panel.
 
 If the socket drops, the widget dials again. A running turn picks up from its last event. Learn more in the [Tools and
