@@ -6,7 +6,7 @@ A @tanstack/history RouterHistory whose entries and index persist in Web Storage
 
 ## Invariants
 
-- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
+- `vite build` emits the JavaScript and the declarations (`vite.config.ts`).
 
 ## Side Effects
 

@@ -19,7 +19,7 @@ npm install -D @conciv/it
 - [src/scripts/README.md](./src/scripts/README.md): token CSS and contract-doc generation and drift check.
 - Exports (`package.json`): `.` -> `./dist/ui-kit-system.js` (from `src/ui-kit-system.tsx`), `./tokens.css` -> `./src/tokens.css` (generated), `./host.css` -> `./src/host.css`. No bin.
 - Generated docs: `docs/skin-anchors.md`, `docs/plugin-tokens.md`.
-- Scripts: `gen:tokens` (`node src/scripts/gen-tokens.ts`), `gen:check` (`node src/scripts/check-tokens.ts`), `build` (`pnpm gen:tokens && vite build && tsc -p tsconfig.build.json`), `typecheck`, `publint`, `attw`. No `test` script.
+- Scripts: `gen:tokens` (`node src/scripts/gen-tokens.ts`), `gen:check` (`node src/scripts/check-tokens.ts`), `build` (`pnpm gen:tokens && vite build`), `typecheck`, `publint`, `attw`. No `test` script.
 - `uno.config.ts`: `presetConciv()` over `src`; `postcss.config.mjs`: `@unocss/postcss`.
 
 ## Invariants

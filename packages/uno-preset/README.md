@@ -11,7 +11,8 @@ Private shared UnoCSS preset reused by other packages' `uno.config.ts` files, bu
 
 ## Side Effects
 
-- `build` script (`tsc -p tsconfig.build.json`): writes `dist/`
+- `build` script (`vite build`, `vite.config.ts`): writes `dist/uno-preset.js`, which plain `node` scripts import (the
+  source's `./x.js` specifiers do not resolve to `.ts` without a bundler)
 
 ## Verification
 

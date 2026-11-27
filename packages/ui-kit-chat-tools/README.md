@@ -18,8 +18,8 @@ Package root: Vite library build plus tsc declarations; unit tests in node (`tes
 ## Interface
 
 - `exports['.']` (`package.json`): ./dist/ui-kit-chat-tools.js; publishes only dist
-- `scripts` (`package.json`): build (`vite build && tsc -p tsconfig.build.json`), typecheck, test (`vitest run`), publint, attw
-- `vite.config.ts`: `solidLibConfig` from `@internal/vite-config` with entry src/ui-kit-chat-tools.tsx, plus `concivTest()`
+- `scripts` (`package.json`): build (`vite build`), typecheck, test (`vitest run`), publint, attw
+- `vite.config.ts`: `libConfig` from `@internal/vite-config` with entry src/ui-kit-chat-tools.tsx, plus `concivTest()`
 - `uno.config.ts`: `presetConciv()` over this package and ../ui-kit-chat/src and ../ui-kit-system/src
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - the barrel and its primitives and styled cards

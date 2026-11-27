@@ -31,7 +31,7 @@ closes over. Solid reads `mount` inside its own tracked scope, so an inline arro
 
 - `package.json:exports` - `.` only: [src](./src/README.md).
 - `package.json:dependencies` - `@conciv/mascot`, reached only through `.`, `./adapter` and `./effects/binary`.
-- `tsdown.config.ts:entry` - `src/mascot-react.ts` (unbundled, ESM).
+- `vite.config.ts` entries - `src/mascot-react.ts` (one file per module, `bundle: false`, ESM).
 
 ## Invariants
 
