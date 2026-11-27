@@ -2616,6 +2616,9 @@ importers:
       '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@orpc/tanstack-query':
         specifier: 'catalog:'
         version: 2.0.0-beta.53(@tanstack/query-core@5.107.1)(crossws@0.4.17(srvx@1.0.8))
@@ -2832,6 +2835,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@solid-primitives/active-element':
         specifier: ^2.1.6
         version: 2.1.6(solid-js@1.9.17)
@@ -3785,6 +3791,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.53
+      '@orpc/effect':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8))(effect@4.1.5)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)

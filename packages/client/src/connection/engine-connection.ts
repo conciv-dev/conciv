@@ -12,6 +12,7 @@ import {
   type StandardLinkPlugin,
   type StandardLinkTransport,
 } from '@orpc/client/standard'
+import {createEffectClient} from '@orpc/effect'
 import {RetryLinkPlugin, type RetryLinkPluginAttemptOptions, type RetryLinkPluginContext} from '@orpc/client/plugins'
 import {
   getAsyncIteratorObjectSchemasDetails,
@@ -540,13 +541,13 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     },
   }
 
-  const auth = createORPCClient<RouterContractClient<typeof contract, RpcClientContext>>(link).auth
+  const auth = createEffectClient(createORPCClient<RouterContractClient<typeof contract, RpcClientContext>>(link)).auth
 
-  const answered = <A>(call: (signal: AbortSignal) => Promise<A>): Effect.Effect<A, unknown> =>
-    Effect.tryPromise({try: call, catch: (error) => error}).pipe(Effect.timeout(Duration.millis(timings.authTimeoutMs)))
+  const answered = <A>(call: Effect.Effect<A, unknown>): Effect.Effect<A, unknown> =>
+    call.pipe(Effect.timeout(Duration.millis(timings.authTimeoutMs)))
 
   const trustAnswer = (token: string): Effect.Effect<boolean, unknown> =>
-    answered((signal) => auth.trust({token}, {signal, context: {retry: 0}})).pipe(
+    answered(auth.trust({token}, {context: {retry: 0}})).pipe(
       Effect.map(({trusted}) => trusted),
       Effect.catchIf(unauthorized, () => Effect.succeed(false)),
     )
@@ -615,12 +616,12 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     requestTrustWithToken: (token) => run(pending(askWithToken(token)).pipe(Effect.flatMap(Deferred.await))),
     requestTrustWithCode: (code) =>
       run(
-        answered((signal) => auth.exchange({code}, {signal})).pipe(
+        answered(auth.exchange({code})).pipe(
           Effect.tap((result) => ('token' in result ? dispatch({type: 'trusted', token: result.token}) : Effect.void)),
         ),
       ),
     requestAuthCode: (options = {}) =>
-      run(answered((signal) => auth.requestCode({reissue: options.reissue ?? false}, {signal})).pipe(Effect.asVoid)),
+      run(answered(auth.requestCode({reissue: options.reissue ?? false})).pipe(Effect.asVoid)),
   }
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))

@@ -45,6 +45,7 @@
     "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/effect": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/scheduled": "catalog:",
