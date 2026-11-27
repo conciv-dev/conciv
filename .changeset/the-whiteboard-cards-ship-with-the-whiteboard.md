@@ -1,5 +1,5 @@
 ---
-'@internal/plugin-whiteboard': patch
+'@conciv/plugin-whiteboard': patch
 '@conciv/app': patch
 ---
 

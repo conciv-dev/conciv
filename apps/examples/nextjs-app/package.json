@@ -12,7 +12,7 @@
     "@conciv/it": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
-    "@internal/plugin-whiteboard": "workspace:*",
+    "@conciv/plugin-whiteboard": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

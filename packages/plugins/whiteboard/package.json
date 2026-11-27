@@ -1,7 +1,6 @@
 {
-  "name": "@internal/plugin-whiteboard",
+  "name": "@conciv/plugin-whiteboard",
   "version": "0.0.22",
-  "private": true,
   "description": "The conciv whiteboard plugin: a canvas the user and the agent share, with source-anchored comments and pins, on the plugin storage the host keeps.",
   "keywords": [
     "canvas",
@@ -24,19 +23,19 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./src/whiteboard.ts",
+      "types": "./dist/whiteboard.d.ts",
       "import": "./dist/whiteboard.js"
     },
     "./server": {
-      "types": "./src/whiteboard.ts",
+      "types": "./dist/whiteboard.d.ts",
       "import": "./dist/whiteboard.js"
     },
     "./rpc": {
-      "types": "./src/rpc.ts",
+      "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
     "./plugin-experimental": {
-      "types": "./src/plugin-experimental.tsx",
+      "types": "./dist/plugin-experimental.d.cts",
       "default": "./dist/plugin-experimental.cjs"
     },
     "./package.json": "./package.json"
