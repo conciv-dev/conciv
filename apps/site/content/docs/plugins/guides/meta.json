@@ -1,4 +1,4 @@
 {
   "title": "Guides",
-  "pages": ["tool", "skill", "rpc", "panel", "slot-pill", "settings", "permission", "testing", "terminal"]
+  "pages": ["tool", "permission", "skill", "rpc", "terminal", "panel", "slot-pill", "settings", "testing"]
 }

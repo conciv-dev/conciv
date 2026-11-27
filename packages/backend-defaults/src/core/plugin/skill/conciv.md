@@ -20,21 +20,21 @@ conciv puts a coding agent inside a running app: a widget in the page with chat,
 tests that run and report in the thread. It is added from your bundler config and runs in development only. For what
 it is and what it is not, fetch the [introduction](https://conciv.dev/docs).
 
-## [How it works](https://conciv.dev/docs/how-it-works)
+## [How it works](https://conciv.dev/docs/engine-and-widget)
 
 For the pieces behind the widget (the build integration, the engine that runs beside the dev server, the widget in the
 page, the agent CLI) and how one turn flows through them, fetch
-[How it works](https://conciv.dev/docs/how-it-works). For what each `@conciv` package is and which ones an app
-installs, fetch [Packages](https://conciv.dev/docs/packages).
+[How it works](https://conciv.dev/docs/engine-and-widget). For what each `@conciv` package is and which ones an app
+installs, fetch [Packages](https://conciv.dev/docs/contributing/packages).
 
-## [Quick start](https://conciv.dev/docs/quick-start)
+## [Quick start](https://conciv.dev/docs/getting-started)
 
-For installing conciv in an app, fetch the [Quick start](https://conciv.dev/docs/quick-start). One command,
+For installing conciv in an app, fetch the [Quick start](https://conciv.dev/docs/getting-started). One command,
 `conciv init`, wires an app; the page also links the guide for each bundler:
-[Vite](https://conciv.dev/docs/quick-start/vite), [Next.js](https://conciv.dev/docs/quick-start/nextjs),
-[webpack](https://conciv.dev/docs/quick-start/webpack), [Rspack](https://conciv.dev/docs/quick-start/rspack),
-[Rollup](https://conciv.dev/docs/quick-start/rollup), [esbuild](https://conciv.dev/docs/quick-start/esbuild), and a native
-[iOS](https://conciv.dev/docs/quick-start/ios) app in the simulator. Fetch the page for the bundler in front of
+[Vite](https://conciv.dev/docs/bundlers/vite), [Next.js](https://conciv.dev/docs/bundlers/nextjs),
+[webpack](https://conciv.dev/docs/bundlers/webpack), [Rspack](https://conciv.dev/docs/bundlers/rspack),
+[Rollup](https://conciv.dev/docs/getting-started/rollup), [esbuild](https://conciv.dev/docs/getting-started/esbuild), and a native
+[iOS](https://conciv.dev/docs/bundlers/ios) app in the simulator. Fetch the page for the bundler in front of
 you; do not adapt one bundler's steps to another. Not every bundler is fully supported: the page says what works.
 
 ## [Logging in](https://conciv.dev/docs/usage/logging-in)
@@ -43,10 +43,10 @@ The first time a browser opens the widget it asks for a code that the dev server
 code, the login link, and listing or revoking logged-in browsers, fetch
 [Logging in](https://conciv.dev/docs/usage/logging-in).
 
-## [Configuration](https://conciv.dev/docs/configuration)
+## [Configuration](https://conciv.dev/docs/reference/configuration)
 
 For the `conciv()` options and the common ways to set them, fetch
-[Configuration](https://conciv.dev/docs/configuration).
+[Configuration](https://conciv.dev/docs/reference/configuration).
 
 ## [Harnesses](https://conciv.dev/docs/harnesses)
 
@@ -62,11 +62,11 @@ server's config, module graph and served code), [Approvals](https://conciv.dev/d
 [Quick terminal](https://conciv.dev/docs/usage/quick-terminal). Each plugin the project turns on adds its own tools
 and skill; the tour lists them.
 
-## [CLI](https://conciv.dev/docs/cli)
+## [CLI](https://conciv.dev/docs/reference/cli)
 
 The `conciv` command lets an agent, or a person, drive the app from a terminal. For its commands and output, fetch
-the [CLI guide](https://conciv.dev/docs/cli). For connecting a coding agent that runs outside the widget, fetch
-[Connect your agents](https://conciv.dev/docs/quick-start/agents).
+the [CLI guide](https://conciv.dev/docs/reference/cli). For connecting a coding agent that runs outside the widget, fetch
+[Connect your agents](https://conciv.dev/docs/agents).
 
 ## [Plugins](https://conciv.dev/docs/plugins)
 
@@ -77,15 +77,15 @@ finds them, how to add one from the config or write one in the project, [Build y
 [Call your plugin from a terminal](https://conciv.dev/docs/plugins/guides/terminal) for `conciv plugin call`. Read the
 page before writing code: the documentation is the source of truth for the installed version.
 
-## [Skills](https://conciv.dev/docs/usage/skills)
+## [Skills](https://conciv.dev/docs/skills)
 
 For the built-in skills and for adding your own skills from a folder in the project, fetch
-[Skills](https://conciv.dev/docs/usage/skills).
+[Skills](https://conciv.dev/docs/skills).
 
-## [Troubleshooting](https://conciv.dev/docs/troubleshooting)
+## [Troubleshooting](https://conciv.dev/docs/reference/troubleshooting)
 
 When the widget does not appear, does not connect, or an approval never resolves, fetch
-[Troubleshooting](https://conciv.dev/docs/troubleshooting) before changing code. If the problem is a defect in
+[Troubleshooting](https://conciv.dev/docs/reference/troubleshooting) before changing code. If the problem is a defect in
 conciv, use the `report` skill.
 
 ## [Examples](https://conciv.dev/docs/examples)

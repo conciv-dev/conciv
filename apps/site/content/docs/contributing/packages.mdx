@@ -11,8 +11,8 @@ package lives in its own folder under `packages/` in the repo.
 ## Install conciv in an app
 
 - `@conciv/it` is what an app installs. It holds the build plugin for each bundler. See [Quick
-  start](/docs/quick-start).
-- `@conciv/cli` is the `conciv` command. See [CLI](/docs/cli).
+  start](/docs/getting-started).
+- `@conciv/cli` is the `conciv` command. See [CLI](/docs/reference/cli).
 
 ## Change the engine
 
@@ -23,7 +23,7 @@ The engine runs in node, next to the dev server. Open the package for the layer 
 - `@conciv/backend-plugin-api` is what a plugin author imports. Change it only to change the plugin API.
 - `@conciv/backend` is the shipped engine. Change it to add or remove a plugin the engine always loads.
 
-See [How it works](/docs/how-it-works) for how the engine and the widget talk.
+See [How it works](/docs/engine-and-widget) for how the engine and the widget talk.
 
 ## Change the widget
 
@@ -48,11 +48,11 @@ code lives only there.
 - `plugin-test-runner`: runs tests into the **Tests** tab. See [Live tests](/docs/usage/live-tests).
 - `plugin-recorder`: records the page for the agent.
 - `plugin-tanstack`: TanStack Router and Start tools.
-- `plugin-ios`: builds and runs an iOS app in the simulator. See [iOS](/docs/quick-start/ios).
+- `plugin-ios`: builds and runs an iOS app in the simulator. See [iOS](/docs/bundlers/ios).
 - `plugin-whiteboard`: the shared canvas. See [Whiteboard](/docs/usage/whiteboard).
 - `plugin-try-it`: starts a local engine from the conciv.dev site.
 
-See [Plugins](/docs/plugins) to write a new one, and [Plugins conciv ships](/docs/plugins/built-ins) for what each one
+See [Plugins](/docs/plugins) to write a new one, and [Plugins conciv ships](/docs/usage/add-plugins) for what each one
 adds.
 
 ## Change what both sides share
@@ -81,7 +81,7 @@ each other. Change it for the list of running engines and connected agent CLIs.
 - `@conciv/backend-test-utils` starts the real engine with a scripted model, for engine and plugin tests.
 - `@internal/frontend-test-utils` renders a plugin's screens, or the whole widget, against a fake or a real engine.
 - `@internal/test-utils` is the fake engine those renders use.
-- `@conciv/simulation` runs the engine with a driver in place of the model. See [Simulation](/docs/simulation).
+- `@conciv/simulation` runs the engine with a driver in place of the model. See [Simulation](/docs/recipes/drive-the-widget-from-a-script).
 
 A test lives in the package whose code it tests. The repo's `AGENTS.md` has the full rules.
 
@@ -110,5 +110,5 @@ A test lives in the package whose code it tests. The repo's `AGENTS.md` has the 
 
 ## Next
 
-- [How it works](/docs/how-it-works): the engine and the widget, and how they connect.
+- [How it works](/docs/engine-and-widget): the engine and the widget, and how they connect.
 - [Plugins](/docs/plugins): add a feature as a plugin, the usual way to change conciv.

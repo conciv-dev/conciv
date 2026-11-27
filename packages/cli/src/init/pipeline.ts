@@ -110,7 +110,7 @@ export function execFileOutcome(
   })
 }
 
-const quickStartDocs = 'https://conciv.dev/docs/quick-start'
+const quickStartDocs = 'https://conciv.dev/docs/getting-started'
 
 export function emitOutro(output: InitOutput, entries: LedgerEntry[], next: string[]): void {
   const cards = entries.flatMap((entry) => entry.cards)

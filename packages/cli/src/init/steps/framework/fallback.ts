@@ -10,7 +10,7 @@ function rollupCard(): ManualCard {
     title: 'Rollup is build-only today',
     body: `The @conciv/it/plugin/rollup entry exists but is a build-only no-op today. It does not boot the engine or inject the widget yet.
 Use Vite for the full experience. Vite uses Rollup under the hood, so most Rollup apps can adopt the Vite plugin directly.
-Full steps: https://conciv.dev/docs/quick-start/other-bundlers`,
+Full steps: https://conciv.dev/docs/bundlers`,
   }
 }
 
@@ -19,7 +19,7 @@ function esbuildCard(): ManualCard {
     title: 'esbuild is build-only today',
     body: `The @conciv/it/plugin/esbuild entry exists but is a build-only no-op today. It does not boot the engine or inject the widget yet.
 Use Vite for the full experience.
-Full steps: https://conciv.dev/docs/quick-start/other-bundlers`,
+Full steps: https://conciv.dev/docs/bundlers`,
   }
 }
 
@@ -27,7 +27,7 @@ function unknownCard(): ManualCard {
   return {
     title: 'Wire conciv with Vite',
     body: `conciv could not detect a supported bundler. The full conciv experience needs one of the supported bundlers; Vite is the recommended path.
-Full steps: https://conciv.dev/docs/quick-start/vite`,
+Full steps: https://conciv.dev/docs/bundlers/vite`,
     snippet: viteSnippet,
   }
 }

@@ -194,6 +194,6 @@ Two consequences:
 - `packages/frontend-defaults/src/routes/__root.tsx`
 - `packages/unplugin/src/core/vite.ts`
 - `packages/unplugin/src/unplugin.ts`
-- `apps/site/content/docs/troubleshooting.mdx`
+- `apps/site/content/docs/reference/troubleshooting.mdx`
 - `apps/site/content/docs/usage/approvals.mdx`
 - `AGENTS.md`

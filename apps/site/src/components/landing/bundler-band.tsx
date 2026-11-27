@@ -1,11 +1,11 @@
 import {LogoLoop, type LogoItem} from '@/components/LogoLoop'
 
 const BUNDLERS = [
-  {icon: '/icons/vite.svg', name: 'Vite', href: '/docs/quick-start/vite'},
-  {icon: '/icons/nextjs.svg', name: 'Next.js', href: '/docs/quick-start/nextjs'},
-  {icon: '/icons/webpack.svg', name: 'webpack', href: '/docs/quick-start/webpack'},
-  {icon: '/icons/rspack.svg', name: 'Rspack', href: '/docs/quick-start/rspack'},
-  {icon: '/icons/apple.svg', name: 'iOS', href: '/docs/quick-start/ios', iconClassName: 'size-4 translate-y-[-0.5px]'},
+  {icon: '/icons/vite.svg', name: 'Vite', href: '/docs/bundlers/vite'},
+  {icon: '/icons/nextjs.svg', name: 'Next.js', href: '/docs/bundlers/nextjs'},
+  {icon: '/icons/webpack.svg', name: 'webpack', href: '/docs/bundlers/webpack'},
+  {icon: '/icons/rspack.svg', name: 'Rspack', href: '/docs/bundlers/rspack'},
+  {icon: '/icons/apple.svg', name: 'iOS', href: '/docs/bundlers/ios', iconClassName: 'size-4 translate-y-[-0.5px]'},
 ]
 
 const LOGOS: LogoItem[] = BUNDLERS.map(({icon, name, href, iconClassName}) => ({

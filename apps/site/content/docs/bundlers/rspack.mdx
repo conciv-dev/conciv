@@ -89,7 +89,7 @@ Click the conciv button in the corner. Type the 6-digit code your dev server pri
 ## What works
 
 <Callout>
-  Rspack gives the agent less than [Vite](/docs/quick-start/vite) does. The chat and the page tools work. The agent
+  Rspack gives the agent less than [Vite](/docs/bundlers/vite) does. The chat and the page tools work. The agent
   cannot read your dev server's config or module graph. Its `server_*` tools answer that no dev server is attached.
 </Callout>
 
@@ -123,7 +123,7 @@ as in the manual steps above.
 <Accordion id="port" title="The engine port">
 
 The plugin picks the engine port before the first watch build. It builds the widget with that port. See
-[Configuration](/docs/configuration#port) for how the port is chosen.
+[Configuration](/docs/reference/configuration#port) for how the port is chosen.
 
 </Accordion>
 <Accordion id="fails" title="The build fails with: conciv: the engine failed to start">
@@ -137,4 +137,4 @@ compiler, stops the engine.
 ## Next
 
 - [Usage](/docs/usage): what the agent can do in your app.
-- [Configuration](/docs/configuration): the options the plugin takes.
+- [Configuration](/docs/reference/configuration): the options the plugin takes.

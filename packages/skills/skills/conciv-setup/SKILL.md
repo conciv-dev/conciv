@@ -13,10 +13,10 @@ conciv is a dev-only chat widget plus an engine that lets a coding agent read an
 app. An app installs one package, `@conciv/it`, as a dev dependency. It is a bundler plugin that starts
 the engine AND puts the widget on the page, on Vite, Next.js, webpack and Rspack. Its Rollup and esbuild
 entries exist but do nothing (`packages/unplugin/src/unplugin.ts:157-158`,
-`apps/site/content/docs/quick-start/other-bundlers.mdx`).
+`apps/site/content/docs/bundlers.mdx`).
 
 The fastest path is `npx @conciv/cli@latest init` in the app's folder: it finds the framework, installs
-`@conciv/it` and wires the config (`apps/site/content/docs/quick-start/index.mdx`).
+`@conciv/it` and wires the config (`apps/site/content/docs/getting-started/index.mdx`).
 
 conciv runs in the dev server only. The Vite plugin applies to `vite dev` alone (`apply: 'serve'`,
 `packages/unplugin/src/core/vite.ts:313`). webpack and Rspack do nothing in a `production` mode build,
@@ -40,7 +40,7 @@ everywhere (default `true`, `packages/backend-defaults/src/engine/config.ts:87`)
 
 ## Vite
 
-From `apps/site/content/docs/quick-start/vite.mdx`:
+From `apps/site/content/docs/bundlers/vite.mdx`:
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -53,7 +53,7 @@ export default defineConfig({
 
 ## Next.js
 
-The `withConciv` config and two instrumentation files, from `apps/site/content/docs/quick-start/nextjs.mdx:64-86`:
+The `withConciv` config and two instrumentation files, from `apps/site/content/docs/bundlers/nextjs.mdx:64-86`:
 
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
@@ -77,7 +77,7 @@ Options go in the second argument, `withConciv(nextConfig, options)`.
 
 ## webpack and Rspack
 
-From `apps/site/content/docs/quick-start/webpack.mdx:42-48`:
+From `apps/site/content/docs/bundlers/webpack.mdx:42-48`:
 
 ```js title="webpack.config.js"
 const conciv = require('@conciv/it/plugin/webpack')
@@ -95,7 +95,7 @@ engine. Rspack is the same with `@conciv/it/plugin/rspack`.
 ## Placing the widget yourself
 
 `widget: false` keeps the engine and adds nothing to the page
-(`apps/site/content/docs/configuration.mdx`). Then render `<ConcivWidget />` from `@conciv/react`,
+(`apps/site/content/docs/reference/configuration.mdx`). Then render `<ConcivWidget />` from `@conciv/react`,
 `@conciv/preact` or `@conciv/solid`, so the page does not get two. The Solid one, from
 `e2e/vite-solid-component/src/vite-solid-component.tsx:1-16`:
 
@@ -143,7 +143,7 @@ on its own div, unmounts in the effect's cleanup, and makes a new handle only wh
 ## Connecting a harness
 
 `harness` picks the agent CLI a new chat starts with: `claude` (the default), `codex`, `opencode`,
-`gemini-cli` or `pi` (`apps/site/content/docs/configuration.mdx`). The CLI must be on the `PATH` of the
+`gemini-cli` or `pi` (`apps/site/content/docs/reference/configuration.mdx`). The CLI must be on the `PATH` of the
 shell that starts the dev server, and logged in. `pi` has no chat today: its `chatConfig` always ends
 the run with `pi is not installed or not yet supported` (`unsupportedChatConfig`,
 `packages/harness/src/pi/pi.ts:9-16`, wired at `packages/harness/src/pi/pi.ts:36`).
@@ -156,12 +156,12 @@ To let an agent session in your own terminal find and drive your open conciv tab
 `conciv init` offers it, or run `npx @conciv/cli@latest mcp connect <agent>` with `claude`, `codex`,
 `gemini-cli` or `opencode`. It adds the `conciv-hub` MCP server (`conciv mcp serve --agent <agent>`,
 `packages/cli/src/hub.ts`) to that agent's config. `conciv mcp disconnect <agent>` removes it
-(`apps/site/content/docs/quick-start/agents.mdx`).
+(`apps/site/content/docs/agents.mdx`).
 
 ## Config surface
 
 `ConcivConfig` is the object passed to `conciv({...})`. Every field is optional
-(`apps/site/content/docs/configuration.mdx`):
+(`apps/site/content/docs/reference/configuration.mdx`):
 
 | Field          | Default                 | Use for                                                               |
 | -------------- | ----------------------- | --------------------------------------------------------------------- |
@@ -176,7 +176,7 @@ To let an agent session in your own terminal find and drive your open conciv tab
 `defaultOpen`, `launcher: 'native' | 'mascot' | false` and `surface`
 (`packages/types/src/config-types.ts:28-34`). It is the `settings` field of `createConciv` and
 `ConcivWidget`, so `defaultOpen` and `launcher` apply only there, not through `conciv({widget})`.
-From `apps/site/content/docs/configuration.mdx`:
+From `apps/site/content/docs/reference/configuration.mdx`:
 
 ```ts
 conciv({widget: {modal: {position: 'top-left'}}})
@@ -214,11 +214,11 @@ conciv({widget: {modal: false}})
 - `e2e/vite-solid-component/src/vite-solid-component.tsx`
 - `e2e/nextjs-component/app/conciv-widget-client.tsx`
 - `apps/site/src/lib/mount-live-widget.ts`
-- `apps/site/content/docs/quick-start/index.mdx`
-- `apps/site/content/docs/quick-start/vite.mdx`
-- `apps/site/content/docs/quick-start/nextjs.mdx`
-- `apps/site/content/docs/quick-start/webpack.mdx`
-- `apps/site/content/docs/quick-start/rspack.mdx`
-- `apps/site/content/docs/quick-start/other-bundlers.mdx`
-- `apps/site/content/docs/quick-start/agents.mdx`
-- `apps/site/content/docs/configuration.mdx`
+- `apps/site/content/docs/getting-started/index.mdx`
+- `apps/site/content/docs/bundlers/vite.mdx`
+- `apps/site/content/docs/bundlers/nextjs.mdx`
+- `apps/site/content/docs/bundlers/webpack.mdx`
+- `apps/site/content/docs/bundlers/rspack.mdx`
+- `apps/site/content/docs/bundlers.mdx`
+- `apps/site/content/docs/agents.mdx`
+- `apps/site/content/docs/reference/configuration.mdx`

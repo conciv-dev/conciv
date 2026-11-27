@@ -1,15 +1,15 @@
 {
-  "title": "Usage",
+  "title": "Use conciv",
   "pages": [
     "index",
-    "logging-in",
     "chat",
-    "quick-terminal",
+    "logging-in",
     "page-control",
+    "quick-terminal",
     "dev-server",
     "live-tests",
-    "whiteboard",
     "approvals",
-    "skills"
+    "add-plugins",
+    "whiteboard"
   ]
 }
