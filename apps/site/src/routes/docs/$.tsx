@@ -1,4 +1,4 @@
-import {createFileRoute, notFound, stripSearchParams, useHydrated} from '@tanstack/react-router'
+import {createFileRoute, notFound} from '@tanstack/react-router'
 import {DocsLayout} from 'fumadocs-ui/layouts/notebook'
 import {createServerFn} from '@tanstack/react-start'
 import {slugsToMarkdownPath, source} from '@/lib/source'
@@ -9,15 +9,12 @@ import {gitConfig, repoUrl} from '@/lib/shared'
 import {DocsSidebarSeparator} from '@/components/docs-sidebar-separator'
 import {DocsHeaderNav, docsHeaderMenuLinks} from '@/components/docs-header-nav'
 import {DocsPageActions} from '@/components/docs-page-actions'
-import {docsSearchDefaults, docsSearchSchema} from '@/lib/search-schemas'
 import {buildDocsHead} from '@/lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
 import {Suspense} from 'react'
 import {useMDXComponents} from '@/components/mdx'
 
 export const Route = createFileRoute('/docs/$')({
-  validateSearch: docsSearchSchema,
-  search: {middlewares: [stripSearchParams(docsSearchDefaults)]},
   component: Page,
   loader: async ({params}) => {
     const slugs = params._splat?.split('/') ?? []
@@ -121,15 +118,13 @@ const sidebarClass = [
 
 function Page() {
   const {path, pageTree, markdownUrl} = useFumadocsLoader(Route.useLoaderData())
-  const {header} = Route.useSearch()
-  const variant = useHydrated() ? header : docsSearchDefaults.header
   const base = baseOptions()
 
   return (
     <DocsLayout
       {...base}
-      nav={{...base.nav, mode: 'top', children: <DocsHeaderNav variant={variant} />}}
-      links={docsHeaderMenuLinks(variant)}
+      nav={{...base.nav, mode: 'top', children: <DocsHeaderNav />}}
+      links={docsHeaderMenuLinks()}
       githubUrl={repoUrl}
       sidebar={{collapsible: false, className: sidebarClass, components: {Separator: DocsSidebarSeparator}}}
       tree={pageTree}

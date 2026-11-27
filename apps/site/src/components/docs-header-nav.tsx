@@ -3,7 +3,6 @@ import {usePathname} from 'fumadocs-core/framework'
 import Link from 'fumadocs-core/link'
 import {Popover, PopoverContent, PopoverTrigger} from 'fumadocs-ui/components/ui/popover'
 import {isLinkItemActive, LinkItem, type MainItemType, type MenuItemType} from 'fumadocs-ui/layouts/shared'
-import type {DocsHeaderVariant} from '@/lib/search-schemas'
 import {repoUrl} from '@/lib/shared'
 
 type SectionLink = MainItemType & {sections?: readonly string[]}
@@ -24,54 +23,16 @@ const more: MenuItemType = {
   ],
 }
 
-const headerLinks: Record<DocsHeaderVariant, HeaderLink[]> = {
-  a: [
-    docs,
-    plugins,
-    {text: 'Comparison', url: '/docs/comparison', sections: ['comparison', 'comparison-b', 'comparison-c']},
-    changelog,
-    more,
-  ],
-  b: [docs, plugins, {text: 'Playground', url: '/docs/playground', active: 'nested-url'}, changelog],
-  c: [
-    {
-      text: 'Getting started',
-      url: '/docs/getting-started',
-      sections: [
-        '',
-        'getting-started',
-        'comparison',
-        'comparison-b',
-        'comparison-c',
-        'requirements',
-        'playground',
-        'examples',
-      ],
-    },
-    {
-      text: 'Guides',
-      url: '/docs/usage',
-      sections: [
-        'usage',
-        'engine-and-widget',
-        'sessions',
-        'harnesses',
-        'tools-and-code-mode',
-        'agents-and-permissions',
-        'skills',
-        'bundlers',
-        'agents',
-        'recipes',
-      ],
-    },
-    {...plugins, sections: ['plugins']},
-    {text: 'Reference', url: '/docs/reference/configuration', sections: ['reference', 'api-reference', 'contributing']},
-    more,
-  ],
-}
+const headerLinks: HeaderLink[] = [
+  docs,
+  plugins,
+  {text: 'Comparison', url: '/docs/comparison', sections: ['comparison', 'comparison-b', 'comparison-c']},
+  changelog,
+  more,
+]
 
-export function docsHeaderMenuLinks(variant: DocsHeaderVariant) {
-  return headerLinks[variant].map((link) => ({...link, on: 'menu' as const}))
+export function docsHeaderMenuLinks() {
+  return headerLinks.map((link) => ({...link, on: 'menu' as const}))
 }
 
 function isMenu(link: HeaderLink): link is MenuItemType {
@@ -94,14 +55,25 @@ function selectActiveLink(links: HeaderLink[], pathname: string) {
 const linkClass =
   'relative inline-flex h-14 items-center text-sm whitespace-nowrap text-fd-muted-foreground transition-colors hover:text-fd-foreground data-[active=true]:text-fd-primary data-[active=true]:after:absolute data-[active=true]:after:inset-x-0 data-[active=true]:after:bottom-0 data-[active=true]:after:h-0.5 data-[active=true]:after:bg-fd-primary'
 
+const chevronClass =
+  'size-3.5 transition-[opacity,rotate] duration-120 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=open]:rotate-180 motion-reduce:transition-none'
+
+const menuContentClass = [
+  'flex min-w-44 flex-col p-1',
+  '[--animate-fd-popover-in:fd-fade-in_120ms_cubic-bezier(0.22,1,0.36,1)]',
+  '[--animate-fd-popover-out:fd-fade-out_120ms_cubic-bezier(0.22,1,0.36,1)_both]',
+  'motion-reduce:[--animate-fd-popover-in:none]',
+  'motion-reduce:[--animate-fd-popover-out:none]',
+].join(' ')
+
 function MoreMenu({link}: {link: MenuItemType}) {
   return (
     <Popover>
-      <PopoverTrigger className="inline-flex h-14 items-center gap-1 text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground data-[state=open]:text-fd-foreground">
+      <PopoverTrigger className="group inline-flex h-14 items-center gap-1 text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground data-[state=open]:text-fd-foreground">
         {link.text}
-        <ChevronDown className="size-3.5" />
+        <ChevronDown className={chevronClass} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="flex min-w-44 flex-col p-1">
+      <PopoverContent align="start" className={menuContentClass}>
         {link.items.map((item) =>
           item.type === 'custom' ? null : (
             <LinkItem
@@ -118,14 +90,13 @@ function MoreMenu({link}: {link: MenuItemType}) {
   )
 }
 
-export function DocsHeaderNav({variant}: {variant: DocsHeaderVariant}) {
+export function DocsHeaderNav() {
   const pathname = usePathname()
-  const links = headerLinks[variant]
-  const active = selectActiveLink(links, pathname)
+  const active = selectActiveLink(headerLinks, pathname)
 
   return (
     <nav aria-label="Docs sections" className="flex items-center gap-6 ps-8 max-lg:hidden">
-      {links.map((link) =>
+      {headerLinks.map((link) =>
         isMenu(link) ? (
           <MoreMenu key="more" link={link} />
         ) : (

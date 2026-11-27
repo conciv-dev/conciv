@@ -19,7 +19,7 @@ function makeSessionId(): SessionId {
   return id
 }
 
-export function createSessions(title: string) {
+export function createSessions(sessionTitle: string) {
   const sessions = new Map<string, SessionMeta>()
   const history = new Map<string, ChatMessage[]>()
   const drafts = new Map<string, DraftRow>()
@@ -32,7 +32,7 @@ export function createSessions(title: string) {
   const create = (): {sessionId: SessionId; session: SessionMeta} => {
     const session: SessionMeta = {
       id: makeSessionId(),
-      title,
+      title: sessionTitle,
       updatedAt: Date.now(),
       running: false,
       origin: 'conciv',
