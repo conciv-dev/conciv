@@ -24,7 +24,7 @@ function ChoiceCard({icon, label, control}: {icon?: ReactNode; label: string; co
   return (
     <label className={cardClass}>
       {icon}
-      <span className="min-w-0 leading-tight sm:truncate">{label}</span>
+      <span className="min-w-0 leading-tight">{label}</span>
       <span className="ms-auto flex shrink-0">{control}</span>
     </label>
   )
@@ -42,65 +42,71 @@ function CopyPromptForm() {
   const {choice, prompt, setFramework, setHarness, setPlugin} = useSetupChoice()
   const id = useId()
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <SectionLabel id={`${id}-framework`}>Framework</SectionLabel>
-        <RadioGroup
-          value={choice.framework}
-          onValueChange={setFramework}
-          aria-labelledby={`${id}-framework`}
-          className={gridClass}
-        >
-          {FRAMEWORKS.map((entry) => (
-            <ChoiceCard
-              key={entry.id}
-              icon={<FrameworkIcon id={entry.id} className="shrink-0" />}
-              label={entry.label}
-              control={<RadioGroupItem value={entry.id} aria-label={entry.label} />}
-            />
-          ))}
-        </RadioGroup>
-      </div>
-      <div className="flex flex-col gap-2">
-        <SectionLabel id={`${id}-agent`}>Agent</SectionLabel>
-        <RadioGroup
-          value={choice.harness}
-          onValueChange={setHarness}
-          aria-labelledby={`${id}-agent`}
-          className={gridClass}
-        >
-          {HARNESSES.map((entry) => (
-            <ChoiceCard
-              key={entry.id}
-              icon={<HarnessIcon id={entry.id} className="shrink-0" />}
-              label={entry.label}
-              control={<RadioGroupItem value={entry.id} aria-label={entry.label} />}
-            />
-          ))}
-        </RadioGroup>
-      </div>
-      <div className="flex flex-col gap-2">
-        <SectionLabel id={`${id}-plugins`}>Plugins</SectionLabel>
-        <div role="group" aria-labelledby={`${id}-plugins`} className={gridClass}>
-          {PLUGINS.map((plugin) => (
-            <ChoiceCard
-              key={plugin.id}
-              label={plugin.label}
-              control={
-                <Checkbox
-                  aria-label={plugin.label}
-                  checked={choice.plugins.includes(plugin.id)}
-                  onCheckedChange={(checked) => setPlugin(plugin.id, checked === true)}
-                />
-              }
-            />
-          ))}
+    <>
+      <DialogHeader className="px-6 pt-6 pb-4">
+        <DialogTitle className="text-lg">Copy Prompt</DialogTitle>
+        <DialogDescription>Pick your framework, then copy this prompt into your agent.</DialogDescription>
+      </DialogHeader>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 pb-5">
+        <div className="flex flex-col gap-2">
+          <SectionLabel id={`${id}-framework`}>Framework</SectionLabel>
+          <RadioGroup
+            value={choice.framework}
+            onValueChange={setFramework}
+            aria-labelledby={`${id}-framework`}
+            className={gridClass}
+          >
+            {FRAMEWORKS.map((entry) => (
+              <ChoiceCard
+                key={entry.id}
+                icon={<FrameworkIcon id={entry.id} className="shrink-0" />}
+                label={entry.label}
+                control={<RadioGroupItem value={entry.id} aria-label={entry.label} />}
+              />
+            ))}
+          </RadioGroup>
+        </div>
+        <div className="flex flex-col gap-2">
+          <SectionLabel id={`${id}-agent`}>Agent</SectionLabel>
+          <RadioGroup
+            value={choice.harness}
+            onValueChange={setHarness}
+            aria-labelledby={`${id}-agent`}
+            className={gridClass}
+          >
+            {HARNESSES.map((entry) => (
+              <ChoiceCard
+                key={entry.id}
+                icon={<HarnessIcon id={entry.id} className="shrink-0" />}
+                label={entry.label}
+                control={<RadioGroupItem value={entry.id} aria-label={entry.label} />}
+              />
+            ))}
+          </RadioGroup>
+        </div>
+        <div className="flex flex-col gap-2">
+          <SectionLabel id={`${id}-plugins`}>Plugins</SectionLabel>
+          <div role="group" aria-labelledby={`${id}-plugins`} className={gridClass}>
+            {PLUGINS.map((plugin) => (
+              <ChoiceCard
+                key={plugin.id}
+                label={plugin.label}
+                control={
+                  <Checkbox
+                    aria-label={plugin.label}
+                    checked={choice.plugins.includes(plugin.id)}
+                    onCheckedChange={(checked) => setPlugin(plugin.id, checked === true)}
+                  />
+                }
+              />
+            ))}
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-lg border bg-fd-card">
+          <PromptText text={prompt} className="h-40 sm:h-56" />
         </div>
       </div>
-      <div className="overflow-hidden rounded-lg border bg-fd-card">
-        <PromptText text={prompt} className="h-40 sm:h-56" />
-      </div>
-      <DialogFooter className="mx-0 mb-0 border-t-0 bg-transparent p-0">
+      <DialogFooter className="m-0 flex-row justify-end px-6 py-4">
         <DialogClose asChild>
           <Button variant="outline" size="sm">
             Close
@@ -108,7 +114,7 @@ function CopyPromptForm() {
         </DialogClose>
         <CopyPromptButton text={prompt} variant="default" />
       </DialogFooter>
-    </div>
+    </>
   )
 }
 
@@ -120,11 +126,7 @@ export function QuickstartDialog({className}: {className?: string}) {
           Quickstart
         </Button>
       </DialogTrigger>
-      <DialogContent className="top-[12vh] max-h-[80vh] translate-y-0 gap-5 overflow-y-auto p-6 sm:max-w-[40rem]">
-        <DialogHeader>
-          <DialogTitle className="text-lg">Copy Prompt</DialogTitle>
-          <DialogDescription>Pick your framework, then copy this prompt into your agent.</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="top-[12vh] flex max-h-[80dvh] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[40rem]">
         <CopyPromptForm />
       </DialogContent>
     </Dialog>
