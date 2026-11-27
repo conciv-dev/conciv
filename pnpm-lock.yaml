@@ -540,6 +540,9 @@ catalogs:
     remend:
       specifier: ^1.4.0
       version: 1.4.0
+    rolldown-plugin-dts:
+      specifier: 0.28.8
+      version: 0.28.8
     rrweb:
       specifier: ^2.2.0
       version: 2.2.0
@@ -2035,15 +2038,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2114,6 +2117,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2132,9 +2138,6 @@ importers:
       '@types/which':
         specifier: 'catalog:'
         version: 3.0.4
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2329,6 +2332,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2341,9 +2347,6 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2375,15 +2378,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2436,15 +2439,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2507,6 +2510,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2522,12 +2528,12 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/bundle-size:
     devDependencies:
@@ -2577,6 +2583,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2604,9 +2613,6 @@ importers:
       picocolors:
         specifier: ^1.1.1
         version: 1.1.1
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2683,12 +2689,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/engine-kit:
     dependencies:
@@ -3038,6 +3047,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3047,9 +3059,6 @@ importers:
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3130,12 +3139,12 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3194,15 +3203,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3231,6 +3240,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3240,9 +3252,6 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.5(effect@4.1.5))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.5)(zod@4.6.7))
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3268,12 +3277,12 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3290,6 +3299,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3305,9 +3317,6 @@ importers:
       storybook-solidjs-vite:
         specifier: 'catalog:'
         version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3330,6 +3339,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3348,12 +3360,12 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/oxlint-plugin:
     dependencies:
@@ -3439,7 +3451,7 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3608,7 +3620,7 @@ importers:
         version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3702,7 +3714,7 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3802,7 +3814,7 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3984,7 +3996,7 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4037,6 +4049,9 @@ importers:
       '@internal/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4169,7 +4184,7 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4207,6 +4222,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4225,9 +4243,6 @@ importers:
       publint:
         specifier: 'catalog:'
         version: 0.3.25
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4271,15 +4286,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4372,6 +4387,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4399,9 +4417,6 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4451,6 +4466,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4460,12 +4478,12 @@ importers:
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.2
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/simulation:
     dependencies:
@@ -4527,6 +4545,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4539,9 +4560,6 @@ importers:
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4579,6 +4597,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4588,9 +4609,6 @@ importers:
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4717,12 +4735,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/test-utils:
     dependencies:
@@ -4788,15 +4809,15 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4824,15 +4845,18 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/ui-kit-chat:
     dependencies:
@@ -5155,6 +5179,9 @@ importers:
       '@internal/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -5305,6 +5332,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/vite-config':
+        specifier: workspace:*
+        version: link:../vite-config
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -5320,9 +5350,6 @@ importers:
       '@vitejs/devtools':
         specifier: 'catalog:'
         version: 0.8.0(crossws@0.4.17(srvx@1.0.8))(ocache@0.3.1)(srvx@1.0.8)(vite@8.3.5)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -5337,6 +5364,10 @@ importers:
         version: 5.112.2(esbuild@0.28.2)
 
   packages/vite-config:
+    dependencies:
+      rolldown-plugin-dts:
+        specifier: 'catalog:'
+        version: 0.28.8(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(rolldown@1.2.15)(typescript@7.0.2)
     devDependencies:
       '@internal/tsconfig':
         specifier: workspace:*
@@ -5350,9 +5381,6 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vite-plugin-solid:
-        specifier: 'catalog:'
-        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
 
   packages/vitest-config:
     dependencies:
@@ -34292,7 +34320,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tsdown@0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2):
+  tsdown@0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2):
     dependencies:
       cac: 7.1.0
       defu: 6.1.7

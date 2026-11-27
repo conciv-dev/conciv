@@ -2,7 +2,7 @@
   "name": "@internal/vite-config",
   "version": "0.0.22",
   "private": true,
-  "description": "Internal shared Vite build config for the conciv monorepo: the Solid library build.",
+  "description": "Internal shared Vite build config for the conciv monorepo: the library build every package runs.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
@@ -17,15 +17,16 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "rolldown-plugin-dts": "catalog:"
+  },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vite-plugin-solid": "catalog:"
+    "vite": "catalog:"
   },
   "peerDependencies": {
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12"
+    "vite": "^8.0.16"
   }
 }

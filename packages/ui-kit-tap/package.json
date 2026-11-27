@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
@@ -53,6 +53,7 @@
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
     "postcss": "catalog:",

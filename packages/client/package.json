@@ -35,7 +35,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
@@ -63,7 +63,8 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
-    "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "@internal/vite-config": "workspace:*",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }

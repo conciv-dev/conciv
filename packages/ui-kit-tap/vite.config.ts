@@ -1,18 +1,16 @@
-import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import {libConfig} from '@internal/vite-config'
 
-export default defineConfig({
-  plugins: [solid()],
-  build: {
-    lib: {
-      entry: {'ui-kit-tap': fileURLToPath(new URL('src/ui-kit-tap.tsx', import.meta.url))},
-      formats: ['es'],
+export default defineConfig(
+  libConfig({
+    root: import.meta.url,
+    plugins: [solid()],
+    environments: {
+      client: {
+        entries: {'ui-kit-tap': 'src/ui-kit-tap.tsx'},
+        external: [/^solid-js/, /^@ark-ui\//, /^@conciv\//, /^@tiptap\//, /^prosemirror-/, /^@floating-ui\//],
+      },
     },
-    rollupOptions: {
-      external: [/^solid-js/, /^@ark-ui\//, /^@conciv\//, /^@tiptap\//, /^prosemirror-/, /^@floating-ui\//],
-    },
-    emptyOutDir: true,
-    sourcemap: true,
-  },
-})
+  }),
+)
