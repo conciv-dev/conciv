@@ -5,14 +5,14 @@ description: Make sure no deployed build carries the widget or starts the engine
 
 ## Problem
 
-conciv is a development tool, and you want it nowhere near what you deploy. The question comes up when:
+conciv is a development tool. You want it nowhere near what you deploy. The question comes up when:
 
 - you deploy a staging build made in development mode;
 - you run the dev server on a shared machine, for a demo or a review;
 - you are not sure what each bundler does in a production build.
 
 <Callout type="warn" title="A deployed widget is a dead button">
-  The engine listens on `127.0.0.1` only and answers only browsers that logged in. A widget on a deployed page cannot
+  The engine listens on `127.0.0.1` only. It answers only browsers that logged in. A widget on a deployed page cannot
   reach it, so visitors see a button that never works.
 </Callout>
 
@@ -44,9 +44,9 @@ With `enabled: false`, no engine starts and no widget is added. The same option 
 the [Configuration documentation](/docs/reference/configuration#enabled).
 
 <Accordions>
-  <Accordion title="Can I keep the engine and only drop the button?">
-    Yes. `widget: false` keeps the engine running and adds no widget to the page. Use it when you render the widget
-    yourself, or when only agents in your terminal should reach the engine.
+  <Accordion title="Keep the engine and drop only the button">
+    `widget: false` keeps the engine running and adds no widget to the page. Use it when you render the widget yourself,
+    or when only agents in your terminal should reach the engine.
   </Accordion>
 </Accordions>
 
