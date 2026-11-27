@@ -8,6 +8,7 @@ import {
 } from 'fumadocs-ui/components/codeblock'
 import {PopupContent as TwoslashPopupContent, PopupTrigger as TwoslashPopupTrigger} from 'fumadocs-twoslash/ui'
 import {cn} from '@/lib/utils'
+import {SlidingTabs} from './docs-tabs'
 
 const boxedCopy = '[&_button]:rounded-md [&_button]:border [&_button]:bg-fd-background [&_button]:shadow-xs'
 
@@ -66,13 +67,15 @@ export function CodeBlockPre(props: ComponentProps<'pre'>) {
 export function CodeBlockTabs(props: ComponentProps<typeof FumadocsCodeBlockTabs>) {
   return (
     <CodeChromeContext value={tabChrome}>
-      <FumadocsCodeBlockTabs
-        {...props}
-        className={cn(
-          'grid grid-cols-[minmax(0,auto)_minmax(min-content,1fr)] overflow-hidden contain-inline-size',
-          props.className,
-        )}
-      />
+      <SlidingTabs>
+        <FumadocsCodeBlockTabs
+          {...props}
+          className={cn(
+            'grid grid-cols-[minmax(0,auto)_minmax(min-content,1fr)] overflow-hidden contain-inline-size',
+            props.className,
+          )}
+        />
+      </SlidingTabs>
     </CodeChromeContext>
   )
 }
@@ -82,7 +85,7 @@ export function CodeBlockTabsList(props: ComponentProps<typeof FumadocsCodeBlock
     <FumadocsCodeBlockTabsList
       {...props}
       className={cn(
-        'col-start-1 row-start-1 pe-6 mask-r-from-[calc(100%-1.5rem)] [scrollbar-width:none]',
+        'col-start-1 row-start-1 pe-6 [--tab-inset:--spacing(2)] mask-r-from-[calc(100%-1.5rem)] [scrollbar-width:none]',
         props.className,
       )}
     />

@@ -1,6 +1,7 @@
 import {Check, Copy} from 'lucide-react'
 import {useRef, useState, type ReactNode} from 'react'
-import {Tab, Tabs} from 'fumadocs-ui/components/tabs'
+import {Tab} from 'fumadocs-ui/components/tabs'
+import {Tabs} from './docs-tabs'
 import {Button} from '@/components/ui/button'
 import {writeAgentPrompt, type AgentPromptId} from '@/lib/agent-prompts'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
