@@ -37,6 +37,7 @@
     "@conciv/it": "workspace:*",
     "@conciv/mascot": "workspace:*",
     "@conciv/mascot-react": "workspace:*",
+    "@conciv/plugin-design": "workspace:*",
     "@conciv/plugin-ios": "workspace:*",
     "@conciv/plugin-page": "workspace:*",
     "@conciv/plugin-recorder": "workspace:*",

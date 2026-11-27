@@ -11,6 +11,7 @@
   "@conciv/mascot": 9,
   "@conciv/backend-plugin-api": 2,
   "@conciv/backend-app-api": 0,
+  "@conciv/plugin-design": 3,
   "@conciv/plugin-ios": 5,
   "@conciv/plugin-page": 32,
   "@conciv/plugin-recorder": 10,
