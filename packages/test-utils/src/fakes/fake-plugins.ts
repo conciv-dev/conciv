@@ -34,9 +34,9 @@ export function createPlugins(
       publish('plugin.updated', {})
     },
     handlers: {
-      call: ({rpcId, method, input}: {rpcId: string; method: string; input?: unknown}, call: Call): unknown => {
+      invoke: ({rpcId, method, input}: {rpcId: string; method: string; input?: unknown}, call: Call): unknown => {
         const handler = options.plugins?.[rpcId]?.[method]
-        if (handler === undefined) return notImplemented(`plugin.call ${rpcId}.${method}`, unanswered)
+        if (handler === undefined) return notImplemented(`plugin.invoke ${rpcId}.${method}`, unanswered)
         return handler(input, {emit, signal: call.signal})
       },
       list: () => ({location, data: state.bundles.map((bundle) => bundle.info)}),

@@ -80,6 +80,6 @@ function bindingOver(host: Host, name: string): ToolBinding {
     name,
     description: name,
     inputSchema: {},
-    execute: (args) => host.call({name, args}),
+    execute: (args) => host.invoke({name, args}),
   }
 }

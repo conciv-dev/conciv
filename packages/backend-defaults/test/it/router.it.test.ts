@@ -214,7 +214,7 @@ describe.concurrent('tool registry', () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
     const rpc = connect(engine)
 
-    await expect(rpc.registry.call({name: 'desk_missing', input: {}})).rejects.toMatchObject({
+    await expect(rpc.registry.invoke({name: 'desk_missing', input: {}})).rejects.toMatchObject({
       code: 'UNKNOWN_TOOL',
       message: 'no registered tool answers to that name',
     })

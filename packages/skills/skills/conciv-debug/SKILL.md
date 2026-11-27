@@ -66,11 +66,11 @@ user, not hung.
 
 - **Plugin tools** ask through their own `ctx.permission.assert`. In a chat turn the call runs
   inside `settlingAsks` (`packages/backend-defaults/src/engine/app.ts:741`); from outside a turn (external MCP, the
-  `conciv` CLI, raw RPC) `registry.call` runs it the same way (`runPluginTool`,
+  `conciv` CLI, raw RPC) `registry.invoke` runs it the same way (`runPluginTool`,
   `packages/backend-defaults/src/engine/api/rpc/router.ts:183-199`). Either way the call waits on the card: allow runs
   the tool. A reject in a chat turn becomes the tool result `The user denied running tool "<name>".
   Do not retry it; continue without it.` (`approvalDenied`, `packages/backend-defaults/src/ai/approval-denied.ts:3-7`,
-  mapped in `packages/backend-defaults/src/code-mode.ts:104-109`); through `registry.call` it answers
+  mapped in `packages/backend-defaults/src/code-mode.ts:104-109`); through `registry.invoke` it answers
   `APPROVAL_DENIED` (`pluginToolError`, `packages/backend-defaults/src/engine/api/rpc/router.ts:165-175`).
 - **CLI commands** belong to the CLI's own permission mode first: Claude Code runs with
   `permissionMode: 'auto'` (`packages/harness/src/claude/chat.ts:130`) plus the ask rules

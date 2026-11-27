@@ -33,7 +33,7 @@ describe('with no page open, the agent is offered no page tools', () => {
       token: engine.address.token,
       headers: {[CONCIV_SESSION_HEADER]: engine.session.id},
     })
-    await expect(terminal.registry.call({name: 'page_route', input: {}})).rejects.toThrow(
+    await expect(terminal.registry.invoke({name: 'page_route', input: {}})).rejects.toThrow(
       'No tool named "page_route" is currently available',
     )
 

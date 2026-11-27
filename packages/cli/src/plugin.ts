@@ -26,7 +26,7 @@ async function runPluginCall(options: PluginCallOptions): Promise<CliOutcome> {
   const call = {rpcId: options.rpcId, method: options.method, ...(input === undefined ? {} : {input})}
   return {
     report: 'json',
-    data: await engineAnswer(engine.origin, makeRpcClient(engine.origin, {token: engine.token}).plugin.call(call)),
+    data: await engineAnswer(engine.origin, makeRpcClient(engine.origin, {token: engine.token}).plugin.invoke(call)),
   }
 }
 

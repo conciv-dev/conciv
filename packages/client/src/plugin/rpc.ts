@@ -154,7 +154,7 @@ export function makeRpc(
           name,
           rpcMethod(server, definition.id, name, async (input, options) => {
             try {
-              return await raw.plugin.call({rpcId: definition.id, method: name, input}, {signal: options?.signal})
+              return await raw.plugin.invoke({rpcId: definition.id, method: name, input}, {signal: options?.signal})
             } catch (error) {
               const failure = RpcError.safeParse(error)
               if (!failure.success) throw error

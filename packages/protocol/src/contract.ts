@@ -567,7 +567,7 @@ export const contract = {
   },
   registry: {
     catalog: oc.output(z.array(ToolCommandSignatureSchema)),
-    call: oc
+    invoke: oc
       .errors(registryCallErrors)
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
@@ -607,7 +607,7 @@ export const contract = {
       .output(locationResponse(z.array(FileSystemEntrySchema))),
   },
   plugin: {
-    call: oc
+    invoke: oc
       .errors({...pluginRpcFailed, ...approvalDenied})
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),

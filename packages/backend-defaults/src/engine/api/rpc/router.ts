@@ -429,7 +429,7 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
       catalog: os.registry.catalog.effect(function* () {
         return yield* pluginSignatures()
       }),
-      call: toolCallOs.registry.call.effect(function* ({input, context, errors, path}) {
+      invoke: toolCallOs.registry.invoke.effect(function* ({input, context, errors, path}) {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         const plugin = assist === undefined ? yield* pluginSignature(input.name) : undefined
         if (assist === undefined && plugin === undefined) return yield* Effect.fail(errors.UNKNOWN_TOOL())
@@ -470,7 +470,7 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
       }),
     },
     plugin: {
-      call: os.plugin.call.effect(function* ({input}) {
+      invoke: os.plugin.invoke.effect(function* ({input}) {
         return yield* pluginCall(input)
       }),
       list: os.plugin.list.effect(function* () {

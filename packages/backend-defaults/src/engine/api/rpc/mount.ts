@@ -218,7 +218,7 @@ export function makeToolCallOs(deps: RpcDeps): SessionOs {
   )
 }
 
-const ADMITTED_INSIDE_THE_TOOL: readonly string[] = ['registry.call']
+const ADMITTED_INSIDE_THE_TOOL: readonly string[] = ['registry.invoke']
 
 export function admitOutsideCall(
   deps: RpcDeps,
@@ -244,7 +244,7 @@ const EVENT_PROCEDURES: readonly string[] = ['event.subscribe', 'chat.join']
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
 const PLUGIN_PROCEDURES: readonly string[] = [
-  'plugin.call',
+  'plugin.invoke',
   'plugin.list',
   'plugin.experimental',
   'plugin.experimentalChunk',

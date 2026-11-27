@@ -20,7 +20,7 @@ export function make(
   raw: EngineClient,
   options: ClientConnectionOptions,
 ): Omit<EngineClient, 'event'> & {
-  rpc: RpcApi & {call: EngineClient['plugin']['call']}
+  rpc: RpcApi & {call: EngineClient['plugin']['invoke']}
   event: ReturnType<typeof SharedEvents.make<ConcivEvent>>
   connection: ClientConnection
 } {
@@ -48,7 +48,7 @@ export function make(
   } satisfies {readonly [Group in keyof typeof contract]: EngineClient[Group]}
   return {
     ...groups,
-    rpc: Object.assign(makeRpc(raw, events, options.server), {call: raw.plugin.call}),
+    rpc: Object.assign(makeRpc(raw, events, options.server), {call: raw.plugin.invoke}),
     event: events,
     connection: {status: connection.status, on: connection.on},
   }

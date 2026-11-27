@@ -39,7 +39,7 @@ export type CodeDriver = IsolateDriver & {dispose: () => Promise<void>}
 
 const toolRouter = {
   started: os.$context<ToolContext>().handler(({context}) => context.started()),
-  call: os
+  invoke: os
     .$context<ToolContext>()
     .input(z.object({name: z.string(), args: z.unknown()}))
     .handler(async ({input, context}) => {

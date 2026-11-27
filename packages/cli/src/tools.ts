@@ -76,5 +76,5 @@ function readGroup(signature: ToolCommandSignature): string {
 }
 
 function callRegistry(signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) {
-  return runRpc(target, (rpc) => rpc.registry.call({name: signature.name, input}))
+  return runRpc(target, (rpc) => rpc.registry.invoke({name: signature.name, input}))
 }
