@@ -9,6 +9,7 @@ import {
   type SessionId,
 } from '@conciv/types/chat-types'
 import {makeRpcClient, type EngineClient} from '@conciv/client'
+import {ENGINE_ERROR_STATUS} from '@conciv/protocol'
 import {initContributions} from '@conciv/harness/init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import type {CliOutcome} from './envelope.js'
@@ -32,6 +33,8 @@ const MAX_CAUSE_DEPTH = 5
 const TERMINAL_CLIENT = 'terminal'
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
+
+const APPROVAL_DENIED = 'APPROVAL_DENIED'
 
 const PLUGIN_RPC_CODES: readonly string[] = ['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']
 
@@ -80,8 +83,8 @@ async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCal
 export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {
   const result = await safe(pending)
   if (result.isSuccess) return result.data
-  if (result.error instanceof ORPCError) throw rpcFailure(result.error)
   if (offline(result.error, 0)) throw offlineFailure(origin)
+  if (rejectedByServer(result.error)) throw rpcFailure(result.error)
   throw result.error
 }
 
@@ -98,6 +101,12 @@ function callingAgent(env: NodeJS.ProcessEnv): string {
       return variable !== undefined && Boolean(env[variable])
     }) ?? TERMINAL_CLIENT
   )
+}
+
+function rejectedByServer(error: unknown): error is ORPCError<string, unknown> {
+  if (!(error instanceof ORPCError)) return false
+  const status = ENGINE_ERROR_STATUS[error.code]
+  return error.defined || error.code === APPROVAL_DENIED || (status !== undefined && status >= 400 && status < 500)
 }
 
 function rpcFailure(error: ORPCError<string, unknown>): Error {
