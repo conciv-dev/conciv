@@ -18,6 +18,8 @@ what each row is for. The [guides](/docs/plugins) show each one in use.
 | `@conciv/protocol/schema/tool`             | fail a tool call with a `Tool.Error` in Effect               |
 | `@conciv/frontend-plugin-api`              | write a browser part: panels, slots, pills, cards, settings  |
 | `@conciv/frontend-plugin-api/vite`         | build a browser part into the bundle the engine serves       |
+| `@conciv/react`                            | draw a browser part's UI with React components, in your app  |
+| `@conciv/preact`                           | draw a browser part's UI with Preact components, in your app |
 | `@conciv/client`                           | read data in a browser part through the widget's query cache |
 | `@conciv/backend-test-utils`               | start a real engine in a test and script the agent           |
 
@@ -200,7 +202,7 @@ What the browser part's `setup` gets as `ctx`:
 - `toast`: short messages in a corner of the window.
 - `tabs`: the open session tabs, across engines.
 - `links`: routes local links to the plugins that handle them.
-- `ui`: the widget's own components, such as `Icon`, `Button`, `Switch` and `SettingsRow`.
+- `ui`: the widget's own Solid components, such as `Icon`, `Button`, `Switch` and `SettingsRow`.
 - `app`: the widget's version, release channel and platform.
 - `appearance`: the user's appearance settings.
 - `overlay`: a layer over the page, under the widget.
@@ -287,6 +289,35 @@ What `render` gets:
 - `error`: the message of a failed call.
 - `metadata`: the call's metadata, such as progress updates.
 - The other props are how the widget opens, locks and lays out the card.
+
+## Render in any framework
+
+Every `render` above takes a Solid component. Three helpers turn your own UI into one, so a browser part can draw in
+another framework:
+
+| Helper         | Import                        | Draws with                                        |
+| -------------- | ----------------------------- | ------------------------------------------------- |
+| `mountRender`  | `@conciv/frontend-plugin-api` | plain DOM, or any framework you mount by hand     |
+| `reactRender`  | `@conciv/react`               | a React component, inside your app's React tree   |
+| `preactRender` | `@conciv/preact`              | a Preact component, inside your app's Preact tree |
+
+Each one fits every render a registry takes: a panel, a slot, a settings page, a pill's menu, a code block and a
+tool card.
+
+- `mountRender` calls your mount function with an element and the props, once the element is in the page. The
+  mount returns a cleanup, which runs when the widget removes the contribution.
+- `props.current()` gives the props as they are now. `props.subscribe(listener)` calls the listener at once and on
+  every change, and returns a stop function.
+- The React and Preact helpers draw through a portal into your app's tree, so your providers reach the component.
+  They need a `<ConcivWidget>` from the same package above them, and throw without one.
+- `<ConcivWidget>` mounts the widget itself. Set `widget: false` on the conciv bundler plugin, so the page does not
+  get a second one.
+- A plugin folder's browser part is built with `experimental()`, which compiles Solid. React and Preact UI lives in
+  your app as a `Plugin.Setup`. You give it to `<ConcivWidget>` in its plugins.
+- The widget's reactive values, such as `run.status()`, are Solid signals. So is a store's value. Outside Solid, read
+  them in the function you pass to `ctx.add`, which runs again when they change.
+
+Learn more in [Build your first plugin](/docs/plugins/first-plugin#draw-the-card).
 
 ## Next steps
 

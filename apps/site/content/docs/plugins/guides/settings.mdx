@@ -116,8 +116,11 @@ A few things to notice:
 
 ## Add a setting to the widget
 
-Declare a store for the value, then add a row to the widget's settings. You write the browser part with Solid
-components and plain async functions:
+Declare a store for the value, then add a row to the widget's settings. You write the browser part in Solid, React,
+Preact or plain DOM:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
 
 ```tsx twoslash title="conciv/plugins/tickets/plugin-experimental.tsx"
 // @jsx: preserve
@@ -160,21 +163,203 @@ export default Plugin.define({
 })
 ```
 
+</Tab>
+<Tab value="React">
+
+The row lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+```tsx twoslash title="src/conciv/tickets.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {useState} from 'react'
+import {Plugin, SettingsPage, Store} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+import {z} from 'zod'
+
+export const ticketsDeclarations = Plugin.define({
+  stores: {
+    prefs: Store.global(z.object({showClosed: z.boolean()}), {showClosed: false}), // <- one value for every project
+  },
+})
+
+export const tickets: Plugin.Setup<typeof ticketsDeclarations> = (ctx) => {
+  const prefs = ctx.stores.prefs
+
+  function ShowClosedRow() {
+    const [showClosed, setShowClosed] = useState(prefs.value.showClosed) // <- read once, as the row draws
+    return (
+      <label>
+        <input
+          type="checkbox"
+          checked={showClosed}
+          onChange={(event) => {
+            setShowClosed(event.currentTarget.checked)
+            prefs.set({showClosed: event.currentTarget.checked})
+          }}
+        />
+        Show closed tickets
+      </label>
+    )
+  }
+
+  ctx.add(SettingsPage, {
+    id: 'tickets',
+    page: 'general',
+    section: 'general', // <- one row in the General section
+    title: 'Tickets',
+    entries: [{id: 'show-closed', title: 'Show closed tickets', keywords: 'tickets closed'}],
+    render: reactRender(ShowClosedRow),
+  })
+}
+```
+
+Spread the declarations into the entry, so the widget loads the store before setup runs:
+
+```ts twoslash title="src/app.tsx"
+// @filename: src/conciv/tickets.ts
+import {Plugin, Store} from '@conciv/frontend-plugin-api'
+import {z} from 'zod'
+export const ticketsDeclarations = Plugin.define({
+  stores: {prefs: Store.global(z.object({showClosed: z.boolean()}), {showClosed: false})},
+})
+export const tickets: Plugin.Setup<typeof ticketsDeclarations> = () => {}
+// @filename: src/app.ts
+// ---cut---
+import {tickets, ticketsDeclarations} from './conciv/tickets'
+
+const plugins = [[{id: 'tickets', ...ticketsDeclarations, windowEntry: async () => ({default: tickets})}, {}]] as const
+```
+
+</Tab>
+<Tab value="Preact">
+
+The row lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+```tsx twoslash title="src/conciv/tickets.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {useState} from 'preact/hooks'
+import {Plugin, SettingsPage, Store} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+import {z} from 'zod'
+
+export const ticketsDeclarations = Plugin.define({
+  stores: {
+    prefs: Store.global(z.object({showClosed: z.boolean()}), {showClosed: false}), // <- one value for every project
+  },
+})
+
+export const tickets: Plugin.Setup<typeof ticketsDeclarations> = (ctx) => {
+  const prefs = ctx.stores.prefs
+
+  function ShowClosedRow() {
+    const [showClosed, setShowClosed] = useState(prefs.value.showClosed) // <- read once, as the row draws
+    return (
+      <label>
+        <input
+          type="checkbox"
+          checked={showClosed}
+          onChange={(event) => {
+            setShowClosed(event.currentTarget.checked)
+            prefs.set({showClosed: event.currentTarget.checked})
+          }}
+        />
+        Show closed tickets
+      </label>
+    )
+  }
+
+  ctx.add(SettingsPage, {
+    id: 'tickets',
+    page: 'general',
+    section: 'general', // <- one row in the General section
+    title: 'Tickets',
+    entries: [{id: 'show-closed', title: 'Show closed tickets', keywords: 'tickets closed'}],
+    render: preactRender(ShowClosedRow),
+  })
+}
+```
+
+Spread the declarations into the entry, so the widget loads the store before setup runs:
+
+```ts twoslash title="src/app.tsx"
+// @filename: src/conciv/tickets.ts
+import {Plugin, Store} from '@conciv/frontend-plugin-api'
+import {z} from 'zod'
+export const ticketsDeclarations = Plugin.define({
+  stores: {prefs: Store.global(z.object({showClosed: z.boolean()}), {showClosed: false})},
+})
+export const tickets: Plugin.Setup<typeof ticketsDeclarations> = () => {}
+// @filename: src/app.ts
+// ---cut---
+import {tickets, ticketsDeclarations} from './conciv/tickets'
+
+const plugins = [[{id: 'tickets', ...ticketsDeclarations, windowEntry: async () => ({default: tickets})}, {}]] as const
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/tickets/plugin-experimental.ts"
+import {mountRender, Plugin, SettingsPage, Store} from '@conciv/frontend-plugin-api'
+import {z} from 'zod'
+
+const stores = {
+  prefs: Store.global(z.object({showClosed: z.boolean()}), {showClosed: false}), // <- one value for every project
+}
+
+export default Plugin.define({
+  stores, // <- the widget loads these before setup runs
+  setup(ctx) {
+    const prefs = ctx.stores.prefs
+    ctx.add(SettingsPage, {
+      id: 'tickets',
+      page: 'general',
+      section: 'general', // <- one row in the General section
+      title: 'Tickets',
+      entries: [{id: 'show-closed', title: 'Show closed tickets', keywords: 'tickets closed'}],
+      render: mountRender((element) => {
+        const label = element.appendChild(document.createElement('label'))
+        const box = label.appendChild(document.createElement('input'))
+        box.type = 'checkbox'
+        box.checked = prefs.value.showClosed // <- read once, as the row draws
+        box.addEventListener('change', () => prefs.set({showClosed: box.checked}))
+        label.append('Show closed tickets')
+        return () => label.remove()
+      }),
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
 A few things to notice:
 
-- `usePlugin` gives a component your plugin's context. `ctx.stores.prefs` is typed from the declaration.
 - `prefs.value` is the stored value. `prefs.set` replaces it. The widget saves it for you.
-- `ctx.ui` holds the widget's own components, so the row looks like the widget's own settings.
+- In Solid, `usePlugin` gives a component your plugin's context. `ctx.stores.prefs` is typed from the declaration.
+- In Solid, `ctx.ui` holds the widget's own components, so the row looks like the widget's own settings. They are
+  Solid components, so the other tabs draw a plain checkbox.
+- `prefs.value` is a Solid store. Outside Solid, read it once as the row draws, and keep your own state after.
 - `entries` is what the settings search finds.
 - With no `page`, the entry is a page of its own. With only `page: 'general'`, it is a section on the General page.
 
-Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
+Build or wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part),
+then reload.
 
 <Accordions>
 <Accordion title="A value per project or per session">
 
 `Store.project` keeps one value for the project the engine runs in. `Store.session` keeps one value per session.
 You call it with the session:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
 
 ```tsx twoslash title="conciv/plugins/tickets/plugin-experimental.tsx"
 // @jsx: preserve
@@ -197,6 +382,101 @@ export default Plugin.define({
   },
 })
 ```
+
+</Tab>
+<Tab value="React">
+
+The store's `value` is a Solid signal. Read it in the function you give `ctx.add`, which runs again when it changes:
+
+```tsx twoslash title="src/conciv/tickets.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {Plugin, Slot, Store} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+import {z} from 'zod'
+
+export const ticketsDeclarations = Plugin.define({
+  stores: {view: Store.session(z.object({filter: z.string()}), {filter: 'open'})},
+})
+
+function Showing(props: {readonly filter: string}) {
+  return <span>Showing {props.filter} tickets</span>
+}
+
+export const tickets: Plugin.Setup<typeof ticketsDeclarations> = (ctx) => {
+  ctx.add(Slot, (): Slot => {
+    const session = ctx.sessions.current()
+    const filter = (session && ctx.stores.view(session).value?.filter) ?? 'open'
+    return {at: 'session.status', render: reactRender(() => <Showing filter={filter} />)}
+  })
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+The store's `value` is a Solid signal. Read it in the function you give `ctx.add`, which runs again when it changes:
+
+```tsx twoslash title="src/conciv/tickets.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {Plugin, Slot, Store} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+import {z} from 'zod'
+
+export const ticketsDeclarations = Plugin.define({
+  stores: {view: Store.session(z.object({filter: z.string()}), {filter: 'open'})},
+})
+
+function Showing(props: {readonly filter: string}) {
+  return <span>Showing {props.filter} tickets</span>
+}
+
+export const tickets: Plugin.Setup<typeof ticketsDeclarations> = (ctx) => {
+  ctx.add(Slot, (): Slot => {
+    const session = ctx.sessions.current()
+    const filter = (session && ctx.stores.view(session).value?.filter) ?? 'open'
+    return {at: 'session.status', render: preactRender(() => <Showing filter={filter} />)}
+  })
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+The store's `value` is a Solid signal. Read it in the function you give `ctx.add`, which runs again when it changes:
+
+```ts twoslash title="conciv/plugins/tickets/plugin-experimental.ts"
+import {mountRender, Plugin, Slot, Store} from '@conciv/frontend-plugin-api'
+import {z} from 'zod'
+
+const stores = {
+  view: Store.session(z.object({filter: z.string()}), {filter: 'open'}),
+}
+
+export default Plugin.define({
+  stores,
+  setup(ctx) {
+    ctx.add(Slot, (): Slot => {
+      const session = ctx.sessions.current()
+      const filter = (session && ctx.stores.view(session).value?.filter) ?? 'open'
+      return {
+        at: 'session.status',
+        render: mountRender((element) => {
+          const span = element.appendChild(document.createElement('span'))
+          span.textContent = `Showing ${filter} tickets`
+          return () => span.remove()
+        }),
+      }
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
 
 A session store is still loading when the session first mounts, so its `value` can be `undefined`.
 

@@ -201,7 +201,10 @@ typed error of your own into one with `Effect.mapError`.
 ## Draw a card
 
 Each call of a direct tool shows as a card in the chat. Your plugin's browser part can draw its own. You write the
-browser part with Solid components and plain async functions:
+browser part in Solid, React, Preact or plain DOM:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
 
 ```tsx twoslash title="conciv/plugins/tickets/plugin-experimental.tsx"
 // @jsx: preserve
@@ -242,6 +245,137 @@ export default Plugin.define({
 })
 ```
 
+</Tab>
+<Tab value="React">
+
+The card lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+```tsx twoslash title="src/conciv/tickets.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {ToolRegistry, type Plugin, type ToolProps} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+import {z} from 'zod'
+
+const Ticket = z.object({title: z.string(), status: z.string()})
+
+function readTicket(output: string | undefined) {
+  try {
+    return Ticket.safeParse(JSON.parse(output ?? '')).data
+  } catch {
+    return undefined
+  }
+}
+
+function TicketCard(props: ToolProps) {
+  const ticket = readTicket(props.output) // <- output is JSON text once the call ends
+  if (ticket) return <p>{`${ticket.title}: ${ticket.status}`}</p>
+  return <p>{props.output === undefined ? 'Reading the ticket' : 'No ticket to show'}</p>
+}
+
+function TicketError(props: ToolProps) {
+  return <p>The ticket could not be read: {props.error}</p>
+}
+
+export const tickets: Plugin.Setup = (ctx) => {
+  ctx.add(ToolRegistry, {
+    name: 'ticket_read',
+    render: reactRender(TicketCard),
+    errorComponent: reactRender(TicketError), // <- a failed call
+  })
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+The card lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+```tsx twoslash title="src/conciv/tickets.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {ToolRegistry, type Plugin, type ToolProps} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+import {z} from 'zod'
+
+const Ticket = z.object({title: z.string(), status: z.string()})
+
+function readTicket(output: string | undefined) {
+  try {
+    return Ticket.safeParse(JSON.parse(output ?? '')).data
+  } catch {
+    return undefined
+  }
+}
+
+function TicketCard(props: ToolProps) {
+  const ticket = readTicket(props.output) // <- output is JSON text once the call ends
+  if (ticket) return <p>{`${ticket.title}: ${ticket.status}`}</p>
+  return <p>{props.output === undefined ? 'Reading the ticket' : 'No ticket to show'}</p>
+}
+
+function TicketError(props: ToolProps) {
+  return <p>The ticket could not be read: {props.error}</p>
+}
+
+export const tickets: Plugin.Setup = (ctx) => {
+  ctx.add(ToolRegistry, {
+    name: 'ticket_read',
+    render: preactRender(TicketCard),
+    errorComponent: preactRender(TicketError), // <- a failed call
+  })
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/tickets/plugin-experimental.ts"
+import {mountRender, Plugin, ToolRegistry, type ToolProps} from '@conciv/frontend-plugin-api'
+import {z} from 'zod'
+
+const Ticket = z.object({title: z.string(), status: z.string()})
+
+function describeCall(output: string | undefined) {
+  try {
+    const ticket = Ticket.parse(JSON.parse(output ?? '')) // <- output is JSON text once the call ends
+    return `${ticket.title}: ${ticket.status}`
+  } catch {
+    return output === undefined ? 'Reading the ticket' : 'No ticket to show'
+  }
+}
+
+function drawLine(text: (props: ToolProps) => string) {
+  return mountRender<ToolProps>((element, props) => {
+    const line = element.appendChild(document.createElement('p'))
+    const stop = props.subscribe(() => {
+      line.textContent = text(props.current())
+    })
+    return () => {
+      stop()
+      line.remove()
+    }
+  })
+}
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ToolRegistry, {
+      name: 'ticket_read',
+      render: drawLine((props) => describeCall(props.output)),
+      errorComponent: drawLine((props) => `The ticket could not be read: ${props.error}`), // <- a failed call
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
 A few things to notice:
 
 - `render` draws one call. It runs again as the call moves on. `props.input` is the input the agent sent.
@@ -249,7 +383,8 @@ A few things to notice:
 - `errorComponent` draws a failed call, with the message in `props.error`. Without it the widget shows its error
   card.
 
-Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
+Build or wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part),
+then reload.
 
 <Accordions>
 <Accordion title="The schemas a tool can take">

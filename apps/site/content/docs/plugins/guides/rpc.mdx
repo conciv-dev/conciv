@@ -128,8 +128,11 @@ A few things to notice:
 
 ## Call it from the browser part
 
-`ctx.client.rpc(Shelf)` gives one typed function per method. You write the browser part with Solid components and
-plain async functions:
+`ctx.client.rpc(Shelf)` gives one typed function per method. You write the browser part in Solid, React, Preact or
+plain DOM. This code draws nothing, so it is the same in every tab. Only where it lives changes:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
 
 ```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
 // @jsx: preserve
@@ -166,14 +169,132 @@ export default Plugin.define({
 })
 ```
 
-Read `ctx.client` where you call it, because the widget makes a new client after the engine restarts. Build it as in
-[Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
+</Tab>
+<Tab value="React">
+
+The code lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+```ts twoslash title="src/conciv/plant-shelf.ts"
+// @filename: conciv/plugins/plant-shelf/rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+export const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+// @filename: src/conciv/plant-shelf.ts
+// ---cut---
+import {Command, type Plugin} from '@conciv/frontend-plugin-api'
+import {Shelf} from '../../conciv/plugins/plant-shelf/rpc'
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  ctx.add(Command, {
+    id: 'count-ferns',
+    title: 'Count the ferns',
+    run: async () => {
+      const stock = await ctx.client.rpc(Shelf).count({plant: 'fern'})
+      ctx.toast.show({title: `${stock.count} ferns on the shelf`})
+    },
+  })
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+The code lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+```ts twoslash title="src/conciv/plant-shelf.ts"
+// @filename: conciv/plugins/plant-shelf/rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+export const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+// @filename: src/conciv/plant-shelf.ts
+// ---cut---
+import {Command, type Plugin} from '@conciv/frontend-plugin-api'
+import {Shelf} from '../../conciv/plugins/plant-shelf/rpc'
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  ctx.add(Command, {
+    id: 'count-ferns',
+    title: 'Count the ferns',
+    run: async () => {
+      const stock = await ctx.client.rpc(Shelf).count({plant: 'fern'})
+      ctx.toast.show({title: `${stock.count} ferns on the shelf`})
+    },
+  })
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/plant-shelf/plugin-experimental.ts"
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+export const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {
+    count: {input: Plant, output: Stock},
+    sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
+  },
+  events: {sold: {schema: Stock}},
+})
+// @filename: plugin-experimental.ts
+// ---cut---
+import {Command, Plugin} from '@conciv/frontend-plugin-api'
+import {Shelf} from './rpc'
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Command, {
+      id: 'count-ferns',
+      title: 'Count the ferns',
+      run: async () => {
+        const stock = await ctx.client.rpc(Shelf).count({plant: 'fern'})
+        ctx.toast.show({title: `${stock.count} ferns on the shelf`})
+      },
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+Read `ctx.client` where you call it, because the widget makes a new client after the engine restarts. Build or wire it
+as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part), then reload.
 
 ## Follow the events
 
 Subscribe to an event by its full name, `rpc.<contract id>.<event>`:
 
-```ts twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
 // @filename: rpc.ts
 import * as Rpc from '@conciv/protocol/schema/rpc'
 import {z} from 'zod'
@@ -203,6 +324,104 @@ export default Plugin.define({
 })
 ```
 
+</Tab>
+<Tab value="React">
+
+```ts twoslash title="src/conciv/plant-shelf.ts"
+// @filename: conciv/plugins/plant-shelf/rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+export const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {sold: {schema: Stock}},
+})
+// @filename: src/conciv/plant-shelf.ts
+// ---cut---
+import type {Plugin} from '@conciv/frontend-plugin-api'
+import {Stock} from '../../conciv/plugins/plant-shelf/rpc'
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  const follow = async () => {
+    for await (const event of ctx.client.event.subscribe({types: ['rpc.plant-shelf.sold'], signal: ctx.signal})) {
+      if (event.type !== 'rpc.plant-shelf.sold') continue // <- server.connected comes through too
+      const stock = Stock.safeParse(event.data)
+      if (stock.success) ctx.toast.show({title: `${stock.data.plant} sold, ${stock.data.count} left`})
+    }
+  }
+  void follow()
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+```ts twoslash title="src/conciv/plant-shelf.ts"
+// @filename: conciv/plugins/plant-shelf/rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+export const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {sold: {schema: Stock}},
+})
+// @filename: src/conciv/plant-shelf.ts
+// ---cut---
+import type {Plugin} from '@conciv/frontend-plugin-api'
+import {Stock} from '../../conciv/plugins/plant-shelf/rpc'
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  const follow = async () => {
+    for await (const event of ctx.client.event.subscribe({types: ['rpc.plant-shelf.sold'], signal: ctx.signal})) {
+      if (event.type !== 'rpc.plant-shelf.sold') continue // <- server.connected comes through too
+      const stock = Stock.safeParse(event.data)
+      if (stock.success) ctx.toast.show({title: `${stock.data.plant} sold, ${stock.data.count} left`})
+    }
+  }
+  void follow()
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/plant-shelf/plugin-experimental.ts"
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+export const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {sold: {schema: Stock}},
+})
+// @filename: plugin-experimental.ts
+// ---cut---
+import {Plugin} from '@conciv/frontend-plugin-api'
+import {Stock} from './rpc'
+
+export default Plugin.define({
+  setup(ctx) {
+    const follow = async () => {
+      for await (const event of ctx.client.event.subscribe({types: ['rpc.plant-shelf.sold'], signal: ctx.signal})) {
+        if (event.type !== 'rpc.plant-shelf.sold') continue // <- server.connected comes through too
+        const stock = Stock.safeParse(event.data)
+        if (stock.success) ctx.toast.show({title: `${stock.data.plant} sold, ${stock.data.count} left`})
+      }
+    }
+    void follow()
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
 A few things to notice:
 
 - `subscribe` always lets `server.connected` through, at the start and after each reconnect. Read your data again
@@ -210,7 +429,8 @@ A few things to notice:
 - `event.data` is what the engine part sent. Check it with your schema before you use it.
 - `ctx.signal` ends the loop when the plugin reloads or stops.
 
-Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
+Build or wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part),
+then reload.
 
 ## Call it from a terminal
 

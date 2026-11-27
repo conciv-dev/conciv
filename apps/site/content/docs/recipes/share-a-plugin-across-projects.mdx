@@ -60,6 +60,10 @@ For projects in other repos, publish the plugin as a package. Its `package.json`
 - `./server` is the engine part.
 - `./plugin-experimental` is the built browser part.
 
+The browser part is built with `experimental()`, which compiles Solid. So a shared package's UI is Solid or plain
+DOM. React or Preact UI lives in each app instead. Learn more in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
 Ship JavaScript. Node does not run TypeScript from a package. Each project then adds the plugin by name:
 
 ```ts twoslash title="vite.config.ts"
