@@ -26,7 +26,7 @@ const more: MenuItemType = {
 const headerLinks: HeaderLink[] = [
   docs,
   plugins,
-  {text: 'Comparison', url: '/docs/comparison', sections: ['comparison', 'comparison-b', 'comparison-c']},
+  {text: 'Comparison', url: '/docs/comparison', sections: ['comparison']},
   changelog,
   more,
 ]
