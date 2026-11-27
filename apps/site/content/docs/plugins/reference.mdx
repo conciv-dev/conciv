@@ -1,0 +1,67 @@
+---
+title: Plugin API reference
+description: What to import for each part of a plugin, and every field of ctx, generated from the plugin API's own types.
+---
+
+Look up an import or a field here. The [guides](/docs/plugins/guides/tool) show each one in use.
+
+## What to import
+
+| Import                                     | You import it when you                                       |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| `@conciv/backend-plugin-api`               | write an engine part with async and await                    |
+| `@conciv/backend-plugin-api/effect`        | write an engine part with Effect                             |
+| `@conciv/backend-plugin-api/effect/plugin` | type a helper function that takes the Effect `ctx`           |
+| `@conciv/backend-plugin-api/effect/rpc`    | type the registration your RPC handlers belong to, in Effect |
+| `@conciv/protocol/schema/rpc`              | declare an RPC contract that both parts import               |
+| `@conciv/protocol/schema/tool`             | fail a tool call with a `Tool.Error` in Effect               |
+| `@conciv/frontend-plugin-api`              | write a browser part: panels, slots, pills, cards, settings  |
+| `@conciv/frontend-plugin-api/vite`         | build a browser part into the bundle the engine serves       |
+| `@conciv/client`                           | read data in a browser part through the widget's query cache |
+| `@conciv/backend-test-utils`               | start a real engine in a test and script the agent           |
+
+## Engine part
+
+`ctx` in an engine part. In the Promise style each domain returns a `Promise`. In the Effect style the same fields
+return an `Effect`.
+
+<auto-type-table path="./api-types.ts" name="EngineContext" />
+
+- `tool`: add, change and remove tools. See [Add a tool](/docs/plugins/guides/tool).
+- `skill`: add skills. See [Add a skill](/docs/plugins/guides/skill).
+- `rpc`: answer an RPC contract. See [Share an RPC method](/docs/plugins/guides/rpc).
+- `permission`: ask the user before an action. See [Ask for permission](/docs/plugins/guides/permission).
+- `agent`: change the agents, such as their permission rules.
+- `options`: the options from the plugin's config entry. See [Add settings](/docs/plugins/guides/settings).
+- `location`: where the engine runs. Its directory is your project folder.
+
+## A tool
+
+What `tools.add` takes:
+
+<auto-type-table path="./api-types.ts" name="ToolDefinition" />
+
+What `execute` returns:
+
+<auto-type-table path="./api-types.ts" name="ToolResult" />
+
+What `execute` gets as its second argument:
+
+<auto-type-table path="./api-types.ts" name="ToolCallContext" />
+
+## An RPC method
+
+One entry of a contract's methods:
+
+<auto-type-table path="./api-types.ts" name="RpcMethod" />
+
+## Browser part
+
+`ctx` in a browser part's setup:
+
+<auto-type-table path="./api-types.ts" name="BrowserContext" />
+
+## Next
+
+- [Build your first plugin](/docs/plugins/first-plugin): every part in one tutorial.
+- [Plugins](/docs/plugins): add a plugin to your config.

@@ -892,6 +892,7 @@
     }
   ],
   "entry": [
+    "apps/site/content/docs/**/*.ts",
     "packages/backend-app-api/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/app/src/global-entry.ts",
