@@ -1,6 +1,6 @@
 {
   "name": "@internal/plugin-terminal",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "private": true,
   "description": "The conciv terminal plugin: the browser part of the session's CLI terminal, a pinned Terminal tab in the session's pane over the engine's persistent pty.",
   "homepage": "https://conciv.dev",

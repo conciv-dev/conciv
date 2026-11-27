@@ -1,5 +1,17 @@
 # @conciv/ui-kit-chat
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/frontend-plugin-api@0.0.24
+  - @conciv/solid-diffs@0.0.24
+  - @conciv/solid-streamdown@0.0.24
+  - @conciv/storage-history@0.0.24
+  - @conciv/types@0.0.24
+  - @conciv/ui-kit-system@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes

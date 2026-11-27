@@ -1,5 +1,16 @@
 # nextjs-app
 
+## 0.1.24
+
+### Patch Changes
+
+- Updated dependencies [[`2e0400f`](https://github.com/conciv-dev/conciv/commit/2e0400f9f1758e8b580183747de56165098ca633)]:
+  - @conciv/plugin-whiteboard@0.0.24
+  - @conciv/app@0.0.24
+  - @conciv/plugin-test-runner@0.0.24
+  - @conciv/it@0.0.24
+  - @conciv/plugin-tanstack@0.0.24
+
 ## 0.1.23
 
 ### Patch Changes

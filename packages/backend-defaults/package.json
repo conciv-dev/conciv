@@ -1,6 +1,6 @@
 {
   "name": "@conciv/backend-defaults",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine with no plugin in it: its HTTP, rpc, MCP and login surface, and the chat plane (turns through TanStack AI's chat(), hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores).",
   "keywords": [
     "ai",

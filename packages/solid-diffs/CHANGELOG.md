@@ -1,5 +1,9 @@
 # @conciv/solid-diffs
 
+## 0.0.24
+
+No changes in this release.
+
 ## 0.0.23
 
 ### Patch Changes
