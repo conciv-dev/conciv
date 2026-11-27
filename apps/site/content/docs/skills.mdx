@@ -6,7 +6,7 @@ description: Give the agent a written guide for one kind of work, in a Markdown 
 A skill is a Markdown guide the agent reads when a task needs it. Write one when you keep telling the agent the same
 steps: how your team names components, how to add a route, what to check before a release.
 
-## Overview
+## Write a skill
 
 ```md title="conciv/skills/new-route/SKILL.md"
 ---
@@ -38,14 +38,19 @@ conciv loads skills from two places:
 - **The project:** `conciv/skills/` at your project root. These belong to this project.
 - **Your conciv home folder:** `skills/` there. These apply to every project.
 
-The home folder is `CONCIV_HOME` when you set it. Otherwise it is `~/Library/Application Support/conciv` on macOS,
-`~/.local/share/conciv` on Linux and `%LOCALAPPDATA%\conciv\Data` on Windows. A project skill replaces a home skill
+The home folder is `CONCIV_HOME` when you set it. Otherwise it is:
+
+- macOS: `~/Library/Application Support/conciv`
+- Linux: `~/.local/share/conciv`
+- Windows: `%LOCALAPPDATA%\conciv\Data`
+
+A project skill replaces a home skill
 with the same id. A folder named `skill` works the same as `skills`, in both places.
 
 ## How skills work
 
 The agent sees each skill's name and description up front. It reads the full guide only when your request matches the
-description. So a skill costs nothing until it is used.
+description. So a skill costs nothing until the agent reads it.
 
 To make sure it reads one, name it in your message, or type `@` in the composer and pick it:
 
@@ -56,7 +61,7 @@ Use the new-route skill to add a /pricing page.
 ## Skill structure
 
 A skill is a folder with a `SKILL.md` inside. The folder name is the skill's id. A single `.md` file in
-`conciv/skills/` is a skill too, and its file name is its id. The folder form is better, because it can hold more files.
+`conciv/skills/` is a skill too. Its file name is its id. The folder form is better, because it can hold more files.
 
 ## Frontmatter
 
