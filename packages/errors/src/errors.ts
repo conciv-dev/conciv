@@ -1,5 +1,4 @@
 export {SECRET_REFUSAL, aiErrors} from './ai.js'
-export {bundleSizeErrors} from './bundle-size.js'
 export {chatKitErrors} from './chat-kit.js'
 export {coreErrors} from './core.js'
 export {driveErrors} from './drive.js'

@@ -3,7 +3,7 @@ import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:f
 import {tmpdir} from 'node:os'
 import {join, relative} from 'node:path'
 import {gzipSync} from 'node:zlib'
-import {bundleSizeErrors} from '@conciv/errors'
+import {bundleSizeErrors} from './errors/errors.ts'
 
 export type PackageSize = {name: string; raw: number; gzip: number; files: number}
 

@@ -1,6 +1,6 @@
 import {defineErrorCatalog} from 'evlog'
 
-export const bundleSizeErrors = defineErrorCatalog('bundle-size', {
+export const bundleSizeErrors = defineErrorCatalog('bundleSize', {
   WORKER_SIZE_LINE_COUNT: {
     message: ({found}: {found: number}) =>
       `expected exactly one wrangler size line, found ${found}. Could not read the worker size from wrangler output`,
@@ -14,6 +14,6 @@ export const bundleSizeErrors = defineErrorCatalog('bundle-size', {
 
 declare module 'evlog' {
   interface RegisteredErrorCatalogs {
-    'bundle-size': typeof bundleSizeErrors
+    bundleSize: typeof bundleSizeErrors
   }
 }

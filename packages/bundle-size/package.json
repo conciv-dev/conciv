@@ -17,12 +17,10 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@conciv/errors": "workspace:*"
-  },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "evlog": "catalog:",
     "typescript": "catalog:"
   }
 }
