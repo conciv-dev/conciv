@@ -3,7 +3,7 @@ title: Plugin API reference
 description: What to import for each part of a plugin, and every field of Plugin.define, ctx, a tool and the browser registries, generated from the plugin API's own types.
 ---
 
-Look up an import or a field here. Each table is generated from the plugin API's types, and the list under it says
+Look up an import or a field here. conciv generates each table from the plugin API's types. The list under it says
 what each row is for. The [guides](/docs/plugins) show each one in use.
 
 ## What to import
@@ -31,7 +31,7 @@ What the engine part's `Plugin.define` takes:
 <auto-type-table path="./api-types.ts" name="PromiseDefinition" />
 
 - `id`: the plugin's name. A config entry turns it off as `-<id>`.
-- `setup`: runs once when the engine loads the plugin. It may return a cleanup that runs when the plugin unloads.
+- `setup`: runs once when the engine loads the plugin. It can return a cleanup that runs when the plugin unloads.
 
 </Tab>
 <Tab value="Effect">
@@ -52,7 +52,7 @@ What the browser part's `Plugin.define` takes:
 - `icons`: SVG icons of your own, named for `ctx.ui.Icon`.
 - `beforeRegister`: runs once with the options, before any plugin's setup, for hooks the page needs early.
 - `enforce`: orders `beforeRegister` calls: every `pre`, then the rest, then every `post`.
-- `setup`: runs once when the widget loads the browser part. It has no `id`: it takes the engine part's.
+- `setup`: runs once when the widget loads the browser part. It has no `id`. It takes the engine part's.
 
 ## Engine ctx
 
@@ -144,7 +144,7 @@ What `execute` returns:
 
 - `output`: the result the agent reads, matching the `output` schema.
 - `content`: text or files for the agent, in place of or beside `output`.
-- `metadata`: data for the card, which the agent does not read.
+- `metadata`: data for the card. The agent does not read it.
 
 What `tools` is inside `ctx.tool.transform`:
 
