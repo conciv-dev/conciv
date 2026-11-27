@@ -46,11 +46,12 @@ documentation](/docs/reference/configuration#permission).
 
 The last rule that matches decides. The engine reads them in this order:
 
-1. the agent profile's rules, with your config rules at the end;
-2. the tool's fallback, below;
-3. your saved answers.
+1. the agent profile's rules: its built-in ones, the ones plugins add and your config rules.
+2. the tool's fallback, below.
+3. the session's own rules, which a plugin can set for one session.
+4. your saved answers.
 
-A `deny` among the first two always wins, before any saved answer is read.
+A `deny` among the first three always wins, before any saved answer is read. When no rule matches, the call asks.
 
 ## Fallback ask
 
