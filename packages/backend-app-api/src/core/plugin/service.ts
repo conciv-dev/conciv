@@ -1,10 +1,11 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
-import type {Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Bundler, Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, type Effect, type Exit} from 'effect'
 
 export interface Interface {
   readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Plugin.Info[]>
+  readonly bundlers: () => Effect.Effect<readonly {readonly id: string; readonly bundler: Bundler}[]>
   readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
   readonly experimentalChunk: (
     id: Plugin.Id,

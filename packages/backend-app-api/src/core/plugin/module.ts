@@ -1,4 +1,4 @@
-import type {Plugin, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Bundler, Plugin, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Host from '@conciv/backend-plugin-api/host'
 import {ExperimentalBundle, type Source} from '@conciv/protocol/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
@@ -70,6 +70,18 @@ function watchTarget(file: string): Promise<Watcher.WatchInput> {
 
 const ExperimentalOptions = ExperimentalBundle.fields.options
 
+function hook<Hook>() {
+  return Schema.optional(Schema.declare<Hook>((input): input is Hook => typeof input === 'function'))
+}
+
+const BundlerPart = Schema.optional(
+  Schema.Struct({
+    transform: hook<NonNullable<Bundler['transform']>>(),
+    resolveId: hook<NonNullable<Bundler['resolveId']>>(),
+    load: hook<NonNullable<Bundler['load']>>(),
+  }),
+)
+
 const Module = Schema.Struct({
   default: Schema.Union([
     Schema.Struct({
@@ -77,12 +89,14 @@ const Module = Schema.Struct({
       effect: Schema.declare<Plugin<Services, TaggedError>['effect']>(
         (input): input is Plugin<Services, TaggedError>['effect'] => typeof input === 'function',
       ),
+      bundler: BundlerPart,
     }),
     Schema.Struct({
       id: Schema.String,
       setup: Schema.declare<Parameters<typeof PluginPromise.fromPromise>[0]['setup']>(
         (input): input is Parameters<typeof PluginPromise.fromPromise>[0]['setup'] => typeof input === 'function',
       ),
+      bundler: BundlerPart,
     }),
   ]),
 })
@@ -142,6 +156,7 @@ const load = Effect.fn('PluginModule.load')(function* (
     revision,
     source: source(operation.target, installed?.version),
     effect: (host) => plugin.effect({...host, options: operation.options}),
+    bundler: plugin.bundler,
   } satisfies Generation
 })
 

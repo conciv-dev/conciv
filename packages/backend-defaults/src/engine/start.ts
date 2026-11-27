@@ -14,7 +14,8 @@ import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
-import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Bundler as PluginBundler, Plugin} from '@conciv/backend-plugin-api/effect/plugin'
+import {Plugin as PluginRegistry} from '@conciv/backend-app-api'
 import type {EngineStaleness} from '@conciv/protocol'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {EngineId} from './lib/engine-id.js'
@@ -141,6 +142,7 @@ export type Engine = {
   agentToken: string
   trustBrowser: (requester: BrowserRequester, grantedAt: number) => Promise<string>
   stop: () => Promise<void>
+  bundlers: () => Promise<readonly {readonly id: string; readonly bundler: PluginBundler}[]>
   cfg: ResolvedConcivConfig
 } & EngineRouterBrand
 
@@ -476,6 +478,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
       agentToken,
       cfg,
       trustBrowser,
+      bundlers: () => made.pluginHost.runPromise(PluginRegistry.Service.use((plugins) => plugins.bundlers())),
       stop: async () => {
         try {
           await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {

@@ -486,6 +486,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
           (cleanup) => (typeof cleanup === 'function' ? Effect.promise(() => Promise.resolve(cleanup())) : Effect.void),
         )
       }),
+    bundler: plugin.bundler,
   })
 }
 

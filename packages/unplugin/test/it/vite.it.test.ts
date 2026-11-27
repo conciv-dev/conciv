@@ -14,6 +14,7 @@ import {tempDir} from '@internal/vitest-config/temp-dir'
 import {ChatEventType} from '@conciv/types/chat-event-types'
 import {concivStateDir} from '@conciv/types/state-types'
 import {makeViteHook} from '../../src/core/vite.js'
+import conciv from '../../src/vite.js'
 import {
   adapterFiles,
   agentStarted,
@@ -197,6 +198,35 @@ describe.concurrent('the vite dev server', () => {
       expect(Object.keys(metadata.optimized)).toEqual(expect.arrayContaining(['app-dependency', 'widget-dependency']))
     },
   )
+  test("a plugin's bundler part transforms a served module after the source stamp and serves a virtual module, and a plugin without one leaves the module as it was", async ({
+    project,
+    serve,
+    expect,
+  }) => {
+    const root = realpathSync(project('app'))
+    const plugin = (name: string) => join(import.meta.dirname, '..', 'fixtures', 'plugins', name)
+    writeFileSync(join(root, 'src', 'virtual.js'), "export {virtualGreeting} from 'virtual:stamper'\n")
+    const served = async (plugins: string[]) => {
+      const server = await serve({
+        root,
+        oxc: {jsx: {runtime: 'classic'}},
+        plugins: [conciv({homeDir: join(root, 'home'), plugins})],
+      })
+      const [local] = server.resolvedUrls?.local ?? []
+      return async (path: string) => (await fetch(new URL(path, local))).text()
+    }
+
+    const bare = await served([])
+    const plain = await served([plugin('plain')])
+    const stamped = await served([plugin('plain'), plugin('stamper')])
+
+    expect(await plain('/src/app.jsx')).toBe(await bare('/src/app.jsx'))
+    const app = await stamped('/src/app.jsx')
+    expect(app).toContain('data-tsd-source')
+    expect(app).toContain('export const stamperSawSource = true')
+    expect(await stamped('/src/virtual.js')).toContain('/@id/__x00__virtual:stamper')
+    expect(await stamped('/@id/__x00__virtual:stamper')).toContain("virtualGreeting = 'from the stamper'")
+  })
   test('a project path holding a backslash and a paren reaches the scan entries with both escaped', async ({
     project,
     expect,

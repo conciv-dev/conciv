@@ -74,6 +74,12 @@ export const layer = Layer.effect(
     const list = Effect.fn('Plugin.list')(function* () {
       return inventory
     })
+    const bundlers = Effect.fn('Plugin.bundlers')(function* () {
+      return Array.from(active.values()).flatMap((slot) => {
+        const running = slot.activation?.failure === undefined ? slot.activation?.plugin : undefined
+        return running?.bundler === undefined ? [] : [{id: running.id, bundler: running.bundler}]
+      })
+    })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
       yield* Effect.annotateCurrentSpan({plugin: id})
       const part = active.get(id)?.plugin.experimental
@@ -313,6 +319,7 @@ export const layer = Layer.effect(
       awaitActivation: ready.await,
       hold,
       list,
+      bundlers,
       experimental,
       experimentalChunk,
     })

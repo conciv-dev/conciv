@@ -59,9 +59,35 @@ export interface TaggedError {
   readonly message?: string
 }
 
+export interface SourceMap {
+  readonly version: number
+  readonly mappings: string
+  readonly names: string[]
+  readonly sources: string[]
+  readonly sourcesContent?: (string | null)[] | undefined
+  readonly file?: string | undefined
+  readonly sourceRoot?: string | undefined
+}
+
+export type BundlerCode =
+  | string
+  | {readonly code: string; readonly map?: string | SourceMap | null | undefined}
+  | null
+  | undefined
+
+export interface Bundler {
+  readonly transform?: (code: string, id: string) => BundlerCode | Promise<BundlerCode>
+  readonly resolveId?: (
+    id: string,
+    importer: string | undefined,
+  ) => string | null | undefined | Promise<string | null | undefined>
+  readonly load?: (id: string) => BundlerCode | Promise<BundlerCode>
+}
+
 export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
   readonly id: string
   readonly effect: (context: Context) => Effect.Effect<void, E, R>
+  readonly bundler?: Bundler
 }
 
 export function define<R = Scope.Scope, E extends TaggedError = never>(plugin: Plugin<R, E>) {
