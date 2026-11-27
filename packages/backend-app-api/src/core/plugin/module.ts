@@ -74,13 +74,17 @@ function hook<Hook>() {
   return Schema.optional(Schema.declare<Hook>((input): input is Hook => typeof input === 'function'))
 }
 
-const BundlerPart = Schema.optional(
-  Schema.Struct({
-    transform: hook<NonNullable<Bundler['transform']>>(),
-    resolveId: hook<NonNullable<Bundler['resolveId']>>(),
-    load: hook<NonNullable<Bundler['load']>>(),
-  }),
-)
+function bundlerPart<Part extends Bundler | PromiseBundler>() {
+  return Schema.optional(
+    Schema.Struct({
+      transform: hook<NonNullable<Part['transform']>>(),
+      resolveId: hook<NonNullable<Part['resolveId']>>(),
+      load: hook<NonNullable<Part['load']>>(),
+    }),
+  )
+}
+
+type PromiseBundler = NonNullable<Parameters<typeof PluginPromise.fromPromise>[0]['bundler']>
 
 const Module = Schema.Struct({
   default: Schema.Union([
@@ -89,14 +93,14 @@ const Module = Schema.Struct({
       effect: Schema.declare<Plugin<Services, TaggedError>['effect']>(
         (input): input is Plugin<Services, TaggedError>['effect'] => typeof input === 'function',
       ),
-      bundler: BundlerPart,
+      bundler: bundlerPart<Bundler>(),
     }),
     Schema.Struct({
       id: Schema.String,
       setup: Schema.declare<Parameters<typeof PluginPromise.fromPromise>[0]['setup']>(
         (input): input is Parameters<typeof PluginPromise.fromPromise>[0]['setup'] => typeof input === 'function',
       ),
-      bundler: BundlerPart,
+      bundler: bundlerPart<PromiseBundler>(),
     }),
   ]),
 })

@@ -32,17 +32,19 @@ reach the host's bundler; only `@conciv/unplugin` does, and it holds no plugin c
 
 ## Shape
 
-- `@conciv/backend-plugin-api`: the `Plugin` interface (effect and promise entries, `src/effect/plugin.ts:62` and
-  the promise twin) gains `readonly bundler?: Bundler`. `Bundler` is a plain object of the three hooks, typed in
-  this package without importing `unplugin` types into the public API (the hook signatures are written out:
-  `transform(code, id)` returning `{code, map?} | string | null | undefined` or a promise of it; `resolveId(id,
-  importer)` returning `string | null | undefined`; `load(id)` returning `{code, map?} | string | null |
-  undefined`). Check how unplugin types them and match them exactly.
-- Where unplugin gets the plugins: unplugin already boots the engine in the dev server's own process
-  (`packages/unplugin/src/core/boot.ts`, `start` from `@conciv/backend/start`). The engine has loaded the built-in
-  and configured plugins (`ConfiguredPlugins`, `backend-app-api/src/core/config/plugin/source.ts:31`). The engine
-  hands unplugin the loaded definitions' `bundler` parts in load order through what `start` returns; unplugin keeps
-  no copy and holds no module state.
+- `@conciv/backend-plugin-api`: the `Plugin` interface (effect and promise entries, `src/effect/plugin.ts` and the
+  promise twin `src/promise/plugin.ts`) gains `readonly bundler?: Bundler`. `Bundler` is a plain object of the three
+  hooks, typed in this package without importing `unplugin` types into the public API. On the Effect entry every hook
+  returns an Effect with an `unknown` error channel, as opencode's Effect entry types every plugin callback:
+  `transform(code, id)` returns `Effect<{code, map?} | string | null | undefined>`, `resolveId(id, importer)` returns
+  `Effect<string | null | undefined>`, `load(id)` returns `Effect<{code, map?} | string | null | undefined>`. The
+  promise twin types the same hooks promise-style (a value or a promise of it), and `fromPromise`
+  (`src/promise/adapter.ts`) adapts each present hook to its Effect form.
+- Where the chain runs: unplugin already boots the engine in the dev server's own process
+  (`packages/unplugin/src/core/boot.ts`, `start` from `@conciv/backend/start`). The engine's plugin registry
+  (`backend-app-api/src/core/plugin.ts`) runs the chain over the running plugins in load order, and the `Engine` that
+  `start` returns exposes it as `bundler: {transform, resolveId, load}`, promise-returning. unplugin only awaits the
+  engine and calls those three; it keeps no copy, chains nothing and holds no module state.
 - Order: conciv's own `data-tsd-source` stamp (`core/vite.ts` `stampJsxSource`) runs first, then each plugin's
   `transform` in plugin load order, each seeing the previous output. `resolveId` and `load`: the first plugin that
   returns a value wins.

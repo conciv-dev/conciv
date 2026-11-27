@@ -1,5 +1,5 @@
 import type {ExperimentalGenerateApi} from './generate.js'
-import type {Bundler} from '../effect/plugin.js'
+import type {BundlerCode} from '../effect/plugin.js'
 import type {RpcCallOptions} from '@conciv/client'
 import type {PluginInfo} from '@conciv/client'
 import type {App} from '../app.js'
@@ -57,7 +57,16 @@ export interface Plugin {
   readonly bundler?: Bundler
 }
 
-export type {Bundler, BundlerCode, SourceMap} from '../effect/plugin.js'
+export interface Bundler {
+  readonly transform?: (code: string, id: string) => BundlerCode | Promise<BundlerCode>
+  readonly resolveId?: (
+    id: string,
+    importer: string | undefined,
+  ) => string | null | undefined | Promise<string | null | undefined>
+  readonly load?: (id: string) => BundlerCode | Promise<BundlerCode>
+}
+
+export type {BundlerCode, SourceMap} from '../effect/plugin.js'
 
 export function define(plugin: Plugin): Plugin {
   return plugin

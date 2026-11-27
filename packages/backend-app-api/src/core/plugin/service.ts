@@ -1,11 +1,18 @@
 import * as Plugin from '@conciv/protocol/schema/plugin'
-import type {Bundler, Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
-import {Context, type Effect, type Exit} from 'effect'
+import type {
+  BundlerCode,
+  Plugin as PluginDefinition,
+  Services,
+  TaggedError,
+} from '@conciv/backend-plugin-api/effect/plugin'
+import {Context, type Effect, type Exit, Schema} from 'effect'
 
 export interface Interface {
   readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Plugin.Info[]>
-  readonly bundlers: () => Effect.Effect<readonly {readonly id: string; readonly bundler: Bundler}[]>
+  readonly transform: (code: string, id: string) => Effect.Effect<TransformedCode | null, BundlerHookFailed>
+  readonly resolveId: (id: string, importer: string | undefined) => Effect.Effect<string | null, BundlerHookFailed>
+  readonly load: (id: string) => Effect.Effect<TransformedCode | null, BundlerHookFailed>
   readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
   readonly experimentalChunk: (
     id: Plugin.Id,
@@ -15,6 +22,18 @@ export interface Interface {
   readonly awaitActivation: Effect.Effect<void>
   readonly hold: () => Effect.Effect<Effect.Effect<void>>
 }
+
+export type TransformedCode = Exclude<BundlerCode, string | null | undefined>
+
+export const BundlerHookFailed = Schema.TaggedStruct('Plugin.BundlerHookFailed', {
+  hook: Schema.Literals(['transform', 'resolveId', 'load']),
+  plugin: Schema.String,
+  module: Schema.String,
+  message: Schema.String,
+})
+export type BundlerHookFailed = typeof BundlerHookFailed.Type
+
+export type BundlerHook = BundlerHookFailed['hook']
 
 export type Failure = Plugin.Info & {readonly state: Extract<Plugin.State, {readonly status: 'failed'}>}
 

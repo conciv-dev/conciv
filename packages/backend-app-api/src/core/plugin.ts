@@ -17,7 +17,7 @@ import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcess
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
 import {Hash} from '../util/hash.js'
-import type {TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
+import type {Bundler, BundlerCode, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import {
   Cause,
   Context,
@@ -35,10 +35,25 @@ import {
 } from 'effect'
 import * as Bus from './bus.js'
 import * as PluginHost from './plugin/host.js'
-import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
+import {
+  BundlerHookFailed,
+  type BundlerHook,
+  type Chunks,
+  type Failure,
+  type Generation,
+  type TransformedCode,
+  Service,
+} from './plugin/service.js'
 import * as State from './state.js'
 
-export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
+export {
+  awaitActivation,
+  type BundlerHookFailed,
+  type Failure,
+  type Generation,
+  type Interface,
+  Service,
+} from './plugin/service.js'
 
 export const layer = Layer.effect(
   Service,
@@ -74,10 +89,41 @@ export const layer = Layer.effect(
     const list = Effect.fn('Plugin.list')(function* () {
       return inventory
     })
-    const bundlers = Effect.fn('Plugin.bundlers')(function* () {
-      return Array.from(active.values()).flatMap((slot) => {
+    const bundlers = () =>
+      Array.from(active.values()).flatMap((slot) => {
         const running = slot.activation?.failure === undefined ? slot.activation?.plugin : undefined
         return running?.bundler === undefined ? [] : [{id: running.id, bundler: running.bundler}]
+      })
+    const transform = Effect.fn('Plugin.transform')(function* (code: string, id: string) {
+      const chain = yield* Effect.reduce(
+        bundlers(),
+        (): TransformChain => ({result: undefined, changes: 0}),
+        (done: TransformChain, plugin) => {
+          const hook = plugin.bundler.transform
+          if (hook === undefined) return Effect.succeed(done)
+          return runHook('transform', plugin.id, id, () => hook(done.result?.code ?? code, id)).pipe(
+            Effect.map((answer) => {
+              const next = readCode(answer)
+              return next === undefined ? done : {result: next, changes: done.changes + 1}
+            }),
+          )
+        },
+      )
+      if (chain.result === undefined) return null
+      return chain.changes === 1 ? chain.result : {code: chain.result.code}
+    })
+    const resolveId = Effect.fn('Plugin.resolveId')(function* (id: string, importer: string | undefined) {
+      return yield* firstAnswer(bundlers(), (plugin) => {
+        const hook = plugin.bundler.resolveId
+        return hook === undefined ? Effect.succeed(null) : runHook('resolveId', plugin.id, id, () => hook(id, importer))
+      })
+    })
+    const loadModule = Effect.fn('Plugin.loadModule')(function* (id: string) {
+      return yield* firstAnswer(bundlers(), (plugin) => {
+        const hook = plugin.bundler.load
+        return hook === undefined
+          ? Effect.succeed(null)
+          : runHook('load', plugin.id, id, () => hook(id)).pipe(Effect.map(readCode))
       })
     })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
@@ -319,7 +365,9 @@ export const layer = Layer.effect(
       awaitActivation: ready.await,
       hold,
       list,
-      bundlers,
+      transform,
+      resolveId,
+      load: loadModule,
       experimental,
       experimentalChunk,
     })
@@ -393,4 +441,42 @@ function describeTaggedError(error: TaggedError) {
   if (Predicate.isString(error.message) && error.message.length > 0)
     return `failed to load plugin: ${error._tag}: ${error.message}`
   return `failed to load plugin: ${error._tag}`
+}
+
+type RunningBundler = {readonly id: string; readonly bundler: Bundler}
+
+type TransformChain = {readonly result: TransformedCode | undefined; readonly changes: number}
+
+function readCode(answer: BundlerCode): TransformedCode | undefined {
+  if (answer === null || answer === undefined) return undefined
+  return typeof answer === 'string' ? {code: answer} : answer
+}
+
+function runHook<Answer>(hook: BundlerHook, plugin: string, module: string, run: () => Effect.Effect<Answer, unknown>) {
+  return Effect.suspend(run).pipe(
+    Effect.catchCause((cause) => {
+      const failure = Cause.squash(cause)
+      const reason = failure instanceof Error ? failure.message : String(failure)
+      return Effect.fail(
+        BundlerHookFailed.make({
+          hook,
+          plugin,
+          module,
+          message: `conciv: the ${hook} hook of plugin ${plugin} failed on ${module}: ${reason}`,
+        }),
+      )
+    }),
+  )
+}
+
+function firstAnswer<Answer>(
+  plugins: readonly RunningBundler[],
+  ask: (plugin: RunningBundler) => Effect.Effect<Answer | null | undefined, BundlerHookFailed>,
+) {
+  return Effect.reduce(
+    plugins,
+    (): Answer | null => null,
+    (found, plugin) =>
+      found === null ? ask(plugin).pipe(Effect.map((answer) => answer ?? null)) : Effect.succeed(found),
+  )
 }

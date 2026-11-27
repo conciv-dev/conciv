@@ -76,12 +76,9 @@ export type BundlerCode =
   | undefined
 
 export interface Bundler {
-  readonly transform?: (code: string, id: string) => BundlerCode | Promise<BundlerCode>
-  readonly resolveId?: (
-    id: string,
-    importer: string | undefined,
-  ) => string | null | undefined | Promise<string | null | undefined>
-  readonly load?: (id: string) => BundlerCode | Promise<BundlerCode>
+  readonly transform?: (code: string, id: string) => Effect.Effect<BundlerCode, unknown>
+  readonly resolveId?: (id: string, importer: string | undefined) => Effect.Effect<string | null | undefined, unknown>
+  readonly load?: (id: string) => Effect.Effect<BundlerCode, unknown>
 }
 
 export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
