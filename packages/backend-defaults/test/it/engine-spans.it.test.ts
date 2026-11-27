@@ -93,7 +93,6 @@ describe('engine spans', () => {
     'core.permissions.followCards': 'Engine.makeApp',
     'Engine.ensureConfiguredRows': 'Engine.makeApp',
     'Engine.supervisePlugins': 'Engine.makeApp',
-    'SQLiteNodeDrizzle.make': 'Engine.buildPluginHost',
     'core.eventFeed.make': 'Engine.buildPluginHost',
     'core.bundler.followDiagnostics': 'Engine.buildPluginHost',
     'ConfigPluginSource.reconcileWatches': 'Engine.buildPluginHost',
@@ -107,8 +106,8 @@ describe('engine spans', () => {
     'ConfigPluginSource.scan': 'ConfigPluginSource.operations',
     'ConfigPluginSource.watchConfiguredSources': 'ConfigPluginSource.operations',
     'PluginSourceDirectory.discover': 'ConfigPluginSource.scan',
-    'Rpc.sessions.create': null,
-    'Rpc.meta.harnesses': null,
+    'orpc.sessions/create': null,
+    'orpc.meta/harnesses': null,
     'Engine.stop': null,
     'Engine.dispose': 'Engine.stop',
     'Engine.dispose.endListings': 'Engine.dispose',
@@ -128,7 +127,7 @@ describe('engine spans', () => {
   }
 
   const TURN_SPANS = {
-    'Rpc.chat.send': null,
+    'orpc.chat/send': null,
     'ChatServer.turn': null,
     'ChatServer.plan': 'ChatServer.turn',
     'ChatServer.admit': 'ChatServer.turn',
