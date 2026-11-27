@@ -21,6 +21,7 @@ import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as DocsChar123Char125DotmdRouteImport } from './routes/docs/{$}[.]md'
 import { Route as OgChar123Char125DotpngRouteImport } from './routes/og/{$}[.]png'
 import { Route as PairTokenRouteImport } from './routes/pair.$token'
+import { Route as PlaygroundPageSplatRouteImport } from './routes/playground.$page.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +83,11 @@ const PairTokenRoute = PairTokenRouteImport.update({
   path: '/pair/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlaygroundPageSplatRoute = PlaygroundPageSplatRouteImport.update({
+  id: '/playground/$page/$',
+  path: '/playground/$page/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
   '/og/{$}.png': typeof OgChar123Char125DotpngRoute
   '/pair/$token': typeof PairTokenRoute
+  '/playground/$page/$': typeof PlaygroundPageSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
   '/og/{$}.png': typeof OgChar123Char125DotpngRoute
   '/pair/$token': typeof PairTokenRoute
+  '/playground/$page/$': typeof PlaygroundPageSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
   '/og/{$}.png': typeof OgChar123Char125DotpngRoute
   '/pair/$token': typeof PairTokenRoute
+  '/playground/$page/$': typeof PlaygroundPageSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/docs/{$}.md'
     | '/og/{$}.png'
     | '/pair/$token'
+    | '/playground/$page/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/docs/{$}.md'
     | '/og/{$}.png'
     | '/pair/$token'
+    | '/playground/$page/$'
   id:
     | '__root__'
     | '/'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/docs/{$}.md'
     | '/og/{$}.png'
     | '/pair/$token'
+    | '/playground/$page/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,6 +196,7 @@ export interface RootRouteChildren {
   DocsChar123Char125DotmdRoute: typeof DocsChar123Char125DotmdRoute
   OgChar123Char125DotpngRoute: typeof OgChar123Char125DotpngRoute
   PairTokenRoute: typeof PairTokenRoute
+  PlaygroundPageSplatRoute: typeof PlaygroundPageSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PairTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/playground/$page/$': {
+      id: '/playground/$page/$'
+      path: '/playground/$page/$'
+      fullPath: '/playground/$page/$'
+      preLoaderRoute: typeof PlaygroundPageSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -288,6 +308,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsChar123Char125DotmdRoute: DocsChar123Char125DotmdRoute,
   OgChar123Char125DotpngRoute: OgChar123Char125DotpngRoute,
   PairTokenRoute: PairTokenRoute,
+  PlaygroundPageSplatRoute: PlaygroundPageSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

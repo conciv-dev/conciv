@@ -401,7 +401,11 @@
       }
     },
     {
-      "files": ["**/*.worker.ts", "apps/site/src/components/landing/demo/use-local-model.ts"],
+      "files": [
+        "**/*.worker.ts",
+        "apps/site/src/components/landing/demo/use-local-model.ts",
+        "apps/site/src/components/playground.tsx"
+      ],
       "rules": {
         "unicorn/require-post-message-target-origin": "off"
       }

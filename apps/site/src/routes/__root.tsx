@@ -17,6 +17,7 @@ export const Route = createRootRoute({
   search: {middlewares: [retainSearchParams(['widget', 'try'])]},
   beforeLoad: ({matches}) => ({
     widgetHomeDefault: matches.some((match) => match.routeId === '/'),
+    playgroundFrame: matches.some((match) => match.routeId === '/playground/$page/$'),
   }),
   head: ({matches}) => {
     const canonical = canonicalHeadTags(matches)

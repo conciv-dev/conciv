@@ -8,9 +8,9 @@ const rootRoute = getRouteApi('__root__')
 export function LiveWidgetMount() {
   const isMobile = useIsMobile()
   const {widget} = rootRoute.useSearch()
-  const {widgetHomeDefault} = rootRoute.useRouteContext()
+  const {widgetHomeDefault, playgroundFrame} = rootRoute.useRouteContext()
   const widgetOpen = widget ?? widgetHomeDefault
-  if (isMobile) return null
+  if (isMobile || playgroundFrame) return null
   return (
     <ClientOnly>
       <Suspense fallback={null}>
