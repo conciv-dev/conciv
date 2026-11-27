@@ -1,15 +1,15 @@
 ---
 title: Pi
-description: "Connect Pi to conciv, and what conciv runs when it is the session's agent."
+description: 'Pi cannot connect or chat yet. conciv lists its past sessions.'
 ---
 
 [Pi](https://github.com/badlogic/pi-mono) cannot connect to conciv or chat in the panel yet. conciv reads its past
 sessions only.
 
-## Basic
+## Read past Pi sessions
 
 There is nothing to set up. conciv finds Pi's past sessions and lists them in the session picker. A Pi session from
-another project offers **Copy resume command**, which copies the command to continue it in your terminal:
+another project offers **Copy resume command**. It copies the command that continues it in your terminal:
 
 ```bash title="Terminal"
 pi --session <id>
@@ -22,11 +22,12 @@ pi --session <id>
 - `npx @conciv/cli mcp connect pi` refuses, because Pi has no conciv hub connection.
 
 <Accordions type="single">
-  <Accordion title="A turn fails with: pi is not installed or not yet supported?">
+  <Accordion title="A turn fails with: pi is not installed or not yet supported">
     That is the answer to every Pi turn today. Switch the session to another harness in the model menu.
   </Accordion>
-  <Accordion title="Pi's sessions are in another folder?">
-    conciv reads them from `PI_CODING_AGENT_DIR`, the same variable Pi reads, and from `~/.pi/agent` when it is unset.
+  <Accordion title="Pi keeps its sessions in another folder">
+    conciv reads them from `PI_CODING_AGENT_DIR`, the same variable Pi reads. When it is unset, conciv reads
+    `~/.pi/agent`.
   </Accordion>
 </Accordions>
 
