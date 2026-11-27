@@ -211,6 +211,16 @@ command looks for the port in this order:
 3. The newest engine on this machine.
 4. Port 5173.
 
+### No registered engine answered
+
+> no conciv dev server answered: &lt;folder&gt; did not answer (&lt;error&gt;).
+
+**Cause.** Engines are registered on this machine, but none answered when the command asked. This prints when neither
+`CONCIV_PORT` nor a `.conciv/server.json` names a port, so the command tried the registered engines.
+
+**Fix.** A dev server that is still starting answers once it is ready, so run the command again. Restart the dev
+server if it stays silent.
+
 ### No engine state
 
 > no conciv engine state found here or in any parent directory
