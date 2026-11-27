@@ -511,6 +511,21 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     },
   }
 
+  const announcedRetry = (onRetry: RpcClientContext['onRetry']): Pick<RpcClientContext, 'retryDelay' | 'onRetry'> => {
+    const announced: {retryOutcome: ReturnType<NonNullable<RpcClientContext['onRetry']>>} = {retryOutcome: undefined}
+    return {
+      retryDelay: (attempt) => {
+        announced.retryOutcome = onRetry?.(attempt)
+        return retryDelay(attempt)
+      },
+      onRetry: () => {
+        const {retryOutcome} = announced
+        announced.retryOutcome = undefined
+        return retryOutcome
+      },
+    }
+  }
+
   const rpc = new StandardLink<RpcClientContext>(new RPCLinkCodec({headers: sessionHeaders}), socketTransport, {
     plugins: [
       new RetryLinkPlugin<RpcClientContext>({
@@ -526,7 +541,10 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
       runDetached(dispatch({type: 'call-started'}))
       if (isStreamingCall(path))
         return watchedWhileOpen(() =>
-          rpc.call(path, input, {...options, context: {shouldRetry: streamRetriable, ...options.context}}),
+          rpc.call(path, input, {
+            ...options,
+            context: {shouldRetry: streamRetriable, ...options.context, ...announcedRetry(options.context.onRetry)},
+          }),
         )
       const deadline = now() + timings.callDeadlineMs
       const asked = options.context.shouldRetry
