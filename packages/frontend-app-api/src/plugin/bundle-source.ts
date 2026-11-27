@@ -1,3 +1,4 @@
+import {log} from 'evlog'
 import {isEqual, uniqBy} from 'es-toolkit'
 import {observable, untrack, type Accessor} from 'solid-js'
 import {z} from 'zod'
@@ -601,7 +602,9 @@ export function createBundleSource(input: {
   )
   const enableLoaded = runtime.runPromise(driver.enableLoaded)
   const following = runtime.runSync(driver.following)
-  enableLoaded.catch(() => undefined)
+  enableLoaded.catch((error: unknown) =>
+    log.warn({action: 'plugin', message: 'the stored plugin enable state did not load', error}),
+  )
   const listen = (handle: (signal: BundleSignal) => void) => {
     const fiber = runtime.runSync(driver.listen(handle))
 

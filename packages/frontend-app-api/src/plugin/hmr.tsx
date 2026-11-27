@@ -29,7 +29,17 @@ export default function PluginHotReload() {
 
 async function changed(current: Entry, next: Entry) {
   if (!current.windowEntry || !next.windowEntry) return current.windowEntry !== next.windowEntry
-  const [before, after] = await Promise.all([current.windowEntry().catch(() => undefined), next.windowEntry()])
+  const [before, after] = await Promise.all([
+    current.windowEntry().catch((error: unknown) => {
+      log.debug({
+        action: 'plugin',
+        message: 'the replaced plugin window entry did not load; it counts as changed',
+        error,
+      })
+      return undefined
+    }),
+    next.windowEntry(),
+  ])
 
   return before?.default !== after.default
 }

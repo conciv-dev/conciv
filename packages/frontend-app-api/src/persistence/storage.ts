@@ -317,7 +317,15 @@ async function readCurrentAsync(input: {
   const next = input.normalize(raw)
 
   if (next === undefined) {
-    if (input.canCommit()) await input.storage.removeItem(input.key).catch(() => undefined)
+    if (input.canCommit())
+      await input.storage.removeItem(input.key).catch((error: unknown) =>
+        log.warn({
+          action: 'persistence',
+          message: 'a stored value that is not valid could not be removed, so it is read again next time',
+          key: input.key,
+          error,
+        }),
+      )
 
     return null
   }

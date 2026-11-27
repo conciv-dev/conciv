@@ -87,7 +87,9 @@ function mirroredState(
   }
   const inOrder = <Result>(run: () => Promise<Result>): Promise<Result> => {
     const result = mirror.queue.then(run)
-    mirror.queue = result.catch(() => undefined)
+    mirror.queue = result.catch((error: unknown) =>
+      log.debug({action: 'settings', message: 'a settings call failed; its caller has the error', error}),
+    )
     return result
   }
   const state: SettingsState = {

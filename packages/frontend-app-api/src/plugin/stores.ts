@@ -70,7 +70,13 @@ export function persistedHandle<T extends object>(
   const [loadState, setLoadState] = createSignal(createStoreLoadState<T>(input.init !== undefined))
   const settled = input.init && Promise.withResolvers<void>()
 
-  void settled?.promise.catch(() => undefined)
+  void settled?.promise.catch((error: unknown) =>
+    log.debug({
+      action: 'plugin storage',
+      message: 'a store did not load; its load state and waiters have the error',
+      error,
+    }),
+  )
 
   const apply = (write: StoreWrite<T>) => {
     if (write.kind === 'set') return input.set(reconcile(write.value))
@@ -194,7 +200,9 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>, loa
 
   const loaded = opened.promise.then((inner) => whenLoaded(inner, loads))
 
-  void loaded.catch(() => undefined)
+  void loaded.catch((error: unknown) =>
+    log.debug({action: 'plugin storage', message: 'a store did not open; its waiters have the error', error}),
+  )
   loads.set(handle, loaded)
 
   return handle
