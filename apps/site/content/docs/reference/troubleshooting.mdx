@@ -3,231 +3,212 @@ title: Troubleshooting
 description: Find the message conciv shows you, then read its cause and its fix.
 ---
 
-Find the message you see on this page, by where it shows: in the panel, in your dev server's terminal, or from the
-`conciv` command. Each entry gives the cause, then the fix.
-
-When nothing shows at all, start with the first section.
+Each entry here is one message conciv shows, with its cause and its fix. Find it by where it shows: in the panel, in
+your dev server's terminal, or from the CLI. When nothing shows at all, start with the first section.
 
 ## When nothing shows
 
-<Accordions type="single">
+### No conciv button
 
-<Accordion title="The conciv button never appears">
+> The conciv button never appears on the page.
 
 **Cause.** conciv adds the widget in development only, and only when it is turned on.
 
-**Fix.** Check each of these:
+**Fix.** Run the dev server, not a production build. Check that your options set neither `enabled` nor `widget` to
+`false`. Learn more in the [Configuration documentation](/docs/reference/configuration#enabled).
 
-- You run the dev server, not a production build.
-- Your conciv options do not set `enabled` to `false`.
-- Your conciv options do not set `widget` to `false`.
+### No answer in the chat
 
-</Accordion>
+> The chat never answers.
 
-<Accordion title="The chat never answers">
-
-**Cause.** The default harness runs the `claude` CLI, and the dev server cannot find it or it is not logged in.
+**Cause.** The default harness runs the `claude` CLI. The dev server cannot find it, or it is not logged in.
 
 **Fix.** Install Claude Code and log in to it. Make sure `claude` is on the `PATH` of the shell that starts your dev
-server. See [Harnesses](/docs/harnesses) to use another CLI.
-
-</Accordion>
-
-</Accordions>
+server. Learn more in the [Harnesses documentation](/docs/harnesses).
 
 ## In the panel
 
-<Accordions type="single">
+The login messages live on this page only. Learn more in the [Logging in documentation](/docs/usage/logging-in).
 
-<Accordion title="Log in to use conciv on this page.">
+### Not logged in
+
+> Log in to use conciv on this page.
 
 **Cause.** This browser has not logged in to this engine.
 
-**Fix.** Click **Log in** and type the 6-digit code from your dev server's terminal. See [Logging
-in](/docs/usage/logging-in).
+**Fix.** Click **Log in**, and type the 6-digit code from your dev server's terminal.
 
-</Accordion>
+### Logged out
 
-<Accordion title="This browser is no longer authorized to use conciv.">
+> This browser is no longer authorized to use conciv.
 
-**Cause.** Someone logged this browser out with `conciv auth revoke`.
+**Cause.** Someone logged this browser out with `auth revoke`.
 
 **Fix.** Click **Log in** and log in again.
 
-</Accordion>
+### Wrong code
 
-<Accordion title="That code didn't match. Check your terminal and try again.">
+> That code didn't match. Check your terminal and try again.
 
 **Cause.** The digits differ from the newest code in your terminal.
 
 **Fix.** Type the code from the newest box. After 5 wrong tries the code is dropped: click **Send a new code**.
 
-</Accordion>
+### Expired code
 
-<Accordion title="That code expired. Send a new code and use the one your terminal prints.">
+> That code expired. Send a new code and use the one your terminal prints.
 
 **Cause.** A code lives 5 minutes. It is also dropped after 5 wrong tries.
 
 **Fix.** Click **Send a new code**, and type the code from the new box.
 
-</Accordion>
+### No code from the dev server
 
-<Accordion title="Could not ask the dev server for a code. Please try again.">
+> Could not ask the dev server for a code. Please try again.
 
 **Cause.** The engine did not answer the login dialog.
 
 **Fix.** Check that the dev server is running, then click **Send a new code**.
 
-</Accordion>
+### Lost connection
 
-<Accordion title="conciv lost connection to the engine.">
+> conciv lost connection to the engine.
 
 **Cause.** The engine stopped answering, usually because the dev server stopped or restarted.
 
 **Fix.** Start the dev server and click **Retry**. A message you tried to send meanwhile stays in the composer.
 
-<ImageZoom
-  src="/screenshots/lost-connection.png"
-  alt="The chat panel with a red banner: conciv lost connection to the engine, with Retry"
-  width={1920}
-  height={1080}
-/>
+### Engine not reached
 
-</Accordion>
-
-<Accordion title="conciv couldn't reach the engine. Check that the dev server is still running.">
+> conciv couldn't reach the engine. Check that the dev server is still running.
 
 **Cause.** The panel could not load from the engine.
 
 **Fix.** Start the dev server and click **Retry**.
 
-</Accordion>
+### Older engine
 
-<Accordion title="This widget is version <version> but the conciv engine is older.">
+> This widget is version \<version\> but the conciv engine is older.
 
 **Cause.** Your `@conciv/*` packages are on different versions.
 
 **Fix.** Update them all to the version the message names. Then restart your dev server.
 
-</Accordion>
+### Outdated engine code
 
-<Accordion title="Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.">
+> Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.
 
 **Cause.** conciv's code on disk changed after the engine started, for example after an install.
 
 **Fix.** Restart the dev server.
 
-</Accordion>
+### Pi turns fail
 
-<Accordion title="pi is not installed or not yet supported">
+> pi is not installed or not yet supported
 
 **Cause.** The session runs the Pi harness, which has no chat in conciv yet.
 
-**Fix.** Pick a model of another harness in the model menu. See [Harnesses](/docs/harnesses).
+**Fix.** Pick a model of another harness in the model menu. Learn more in the [Harnesses
+documentation](/docs/harnesses#pi).
 
-</Accordion>
+### A path with a space
 
-<Accordion title='claudeExecutable: --plugin-dir path "<path>" contains whitespace.'>
+> claudeExecutable: --plugin-dir path "\<path\>" contains whitespace.
 
 **Cause.** conciv cannot pass a path with a space in it to Claude Code. The message names the path, or `--settings`.
 
 **Fix.** Move that folder to a path without spaces.
 
-</Accordion>
-
-</Accordions>
-
 ## In your dev server's terminal
 
-<Accordions type="single">
+### Port in use
 
-<Accordion title="conciv: port <port> is already in use, the engine is listening on http://127.0.0.1:<other> instead">
+> conciv: port \<port\> is already in use, the engine is listening on http://127.0.0.1:\<other\> instead
 
 **Cause.** On Vite, the `port` you set is taken. The engine took a free port instead, and the widget follows it.
 
 **Fix.** Nothing breaks, so you can leave it. To keep your port, stop what holds it and restart the dev server.
 
-Without a `port` option, the engine reuses its port from last time when it is free.
+### Not a session id
 
-</Accordion>
-
-<Accordion title='the configured conciv session id "<id>" is not a conciv session id (ses_...)'>
+> the configured conciv session id "\<id\>" is not a conciv session id (ses\_...)
 
 **Cause.** The `sessionId` option is not a conciv session id, so the engine does not start.
 
-**Fix.** Use an id that starts with `ses_`, or remove the option. See [Configuration](/docs/reference/configuration).
+**Fix.** Use an id that starts with `ses_`, or remove the option. Learn more in the [Configuration
+documentation](/docs/reference/configuration#sessionid-and-claudesessionid).
 
-</Accordion>
+### Unknown harness
 
-<Accordion title='conciv: unknown harness "<id>". Known harnesses: claude, codex, gemini-cli, opencode, pi.'>
+> conciv: unknown harness "\<id\>". Known harnesses: claude, codex, gemini-cli, opencode, pi.
 
 **Cause.** The `harness` option names a harness conciv does not have.
 
-**Fix.** Use one of the ids the message lists. See [Harnesses](/docs/harnesses).
+**Fix.** Use one of the ids the message lists. Learn more in the [Harnesses documentation](/docs/harnesses).
 
-</Accordion>
+### Plugin path is a file
 
-</Accordions>
+> configured plugin path must be a directory
 
-## From the conciv command
+**Cause.** A path in `plugins` points at a file. A plugin loaded by path is a folder.
 
-<Accordions type="single">
+**Fix.** Point the path at the plugin's folder. Learn more in the [Debug a plugin that does not load
+recipe](/docs/recipes/debug-a-plugin-that-does-not-load).
 
-<Accordion title="No conciv dev server on 127.0.0.1:<port>.">
+## From the CLI
+
+### No dev server
+
+> No conciv dev server on 127.0.0.1:\<port\>.
 
 **Cause.** The command found no engine on that port.
 
-**Fix.** Start your dev server. If it runs, set `CONCIV_PORT` to the engine's port, which is not the dev server's.
+**Fix.** Start your dev server. If it runs, set `CONCIV_PORT` to the engine's port, which is not the dev server's. The
+command looks for the port in this order: `CONCIV_PORT`, then `.conciv/server.json` in this folder or a parent, then
+the newest engine on this machine, then 5173.
 
-The command looks for the port in this order: `CONCIV_PORT`, then `.conciv/server.json` in this folder or a parent,
-then the newest engine running on this machine, then 5173.
+### No engine state
 
-</Accordion>
+> no conciv engine state found here or in any parent directory
 
-<Accordion title="no conciv engine state found here or in any parent directory">
-
-**Cause.** `conciv auth` needs `.conciv/server.json`, which the dev server writes when it starts.
+**Cause.** `auth` needs `.conciv/server.json`, which the dev server writes when it starts.
 
 **Fix.** Run the command in your project folder, after the dev server has started there once.
 
-</Accordion>
+### Unknown browser id
 
-<Accordion title='no trusted browser has the id "<id>"'>
+> no trusted browser has the id "\<id\>"
 
 **Cause.** No logged-in browser has that id.
 
-**Fix.** Run `conciv auth revoke` with no id to list the browsers and their ids.
+**Fix.** Run `npx @conciv/cli auth revoke` with no id. It lists the browsers and their ids, and logs nobody out.
 
-</Accordion>
+### Non-interactive terminal
 
-<Accordion title="Non-interactive terminal">
+> Non-interactive terminal
 
-**Cause.** `conciv init` had no terminal to ask its questions in.
+**Cause.** `init` had no terminal to ask its questions in.
 
 **Fix.** Run it again with `--yes` to take the defaults. Or use `--dry-run` to print the plan only.
 
-</Accordion>
+### Uncommitted changes
 
-<Accordion title="uncommitted changes">
+> uncommitted changes
 
-**Cause.** `conciv init` refuses a git tree with uncommitted changes.
+**Cause.** `init` refuses a git tree with uncommitted changes.
 
 **Fix.** Commit first, or pass `--force`.
 
-</Accordion>
+### No package.json
 
-<Accordion title="no package.json here">
+> no package.json here
 
-**Cause.** `conciv init` runs in your app's folder, the one that holds `package.json`.
+**Cause.** `init` runs in your app's folder, the one that holds `package.json`.
 
 **Fix.** Change to that folder and run it again.
 
-</Accordion>
+## Next steps
 
-</Accordions>
-
-## Next
-
-- [Logging in](/docs/usage/logging-in): codes, links and logging out.
-- [Harnesses](/docs/harnesses): install and pick an agent CLI.
-- [CLI](/docs/reference/cli): every `conciv` command.
+- **[Logging in](/docs/usage/logging-in):** codes, links and logging out.
+- **[Harnesses](/docs/harnesses):** install and pick an agent CLI.
+- **[CLI](/docs/reference/cli):** every command, with its flags.
