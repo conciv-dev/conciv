@@ -6,11 +6,8 @@ import {
   CodeBlockTabsList as FumadocsCodeBlockTabsList,
   Pre,
 } from 'fumadocs-ui/components/codeblock'
-import {PopupContent as TwoslashPopupContent} from 'fumadocs-twoslash/ui'
+import {PopupContent as TwoslashPopupContent, PopupTrigger as TwoslashPopupTrigger} from 'fumadocs-twoslash/ui'
 import {cn} from '@/lib/utils'
-
-const InTwoslashPopup = createContext(false)
-const InCodeTabs = createContext(false)
 
 const boxedCopy = '[&_button]:rounded-md [&_button]:border [&_button]:bg-fd-background [&_button]:shadow-xs'
 
@@ -33,15 +30,33 @@ function TabBarCopyActions({className, children}: {className?: string; children?
   )
 }
 
+type CodeChrome = {
+  plain: boolean
+  figureClass?: string
+  viewportClass?: string
+  UntitledActions: typeof CopyActions
+}
+
+const pageChrome: CodeChrome = {plain: false, UntitledActions: CopyActions}
+const tabChrome: CodeChrome = {
+  plain: false,
+  figureClass: 'contents',
+  viewportClass: 'col-span-full',
+  UntitledActions: TabBarCopyActions,
+}
+const popupChrome: CodeChrome = {plain: true, UntitledActions: CopyActions}
+
+const CodeChromeContext = createContext(pageChrome)
+
 export function CodeBlockPre(props: ComponentProps<'pre'>) {
-  const inTabs = use(InCodeTabs)
-  if (use(InTwoslashPopup)) return <pre {...props} />
+  const chrome = use(CodeChromeContext)
+  if (chrome.plain) return <pre {...props} />
   return (
     <CodeBlock
       {...props}
-      className={cn(inTabs && 'contents', props.className)}
-      viewportProps={{className: cn(inTabs && 'col-span-full')}}
-      Actions={inTabs && !props.title ? TabBarCopyActions : CopyActions}
+      className={cn(chrome.figureClass, props.className)}
+      viewportProps={{className: chrome.viewportClass}}
+      Actions={props.title ? CopyActions : chrome.UntitledActions}
     >
       <Pre>{props.children}</Pre>
     </CodeBlock>
@@ -50,12 +65,12 @@ export function CodeBlockPre(props: ComponentProps<'pre'>) {
 
 export function CodeBlockTabs(props: ComponentProps<typeof FumadocsCodeBlockTabs>) {
   return (
-    <InCodeTabs value>
+    <CodeChromeContext value={tabChrome}>
       <FumadocsCodeBlockTabs
         {...props}
         className={cn('grid grid-cols-[auto_minmax(0,1fr)] overflow-hidden', props.className)}
       />
-    </InCodeTabs>
+    </CodeChromeContext>
   )
 }
 
@@ -69,8 +84,12 @@ export function CodeBlockTab(props: ComponentProps<typeof FumadocsCodeBlockTab>)
 
 export function PopupContent(props: ComponentProps<typeof TwoslashPopupContent>) {
   return (
-    <InTwoslashPopup value>
+    <CodeChromeContext value={popupChrome}>
       <TwoslashPopupContent {...props} />
-    </InTwoslashPopup>
+    </CodeChromeContext>
   )
+}
+
+export function PopupTrigger(props: ComponentProps<typeof TwoslashPopupTrigger>) {
+  return <TwoslashPopupTrigger {...props} className={cn('border-transparent!', props.className)} />
 }

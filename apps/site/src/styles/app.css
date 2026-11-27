@@ -292,7 +292,7 @@ html > body[data-scroll-locked] {
 .fd-twoslash-popover > .twoslash {
   padding: 0.5rem 0.75rem;
 }
-.fd-twoslash-popover > .twoslash pre {
+.fd-twoslash-popover pre {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -302,12 +302,6 @@ html > body[data-scroll-locked] {
   padding: 0.5rem 0.75rem;
   border-top: 1px solid var(--color-fd-border);
   color: var(--color-fd-muted-foreground);
-}
-.twoslash:hover button.twoslash-hover {
-  border-color: transparent;
-}
-.twoslash span.twoslash-hover {
-  border-color: currentColor;
 }
 
 @theme inline {
