@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {findDependencyLoops, findPrivateTypeLeaks} from '../../src/guards.ts'
+import {findDependencyLoops, findPublicTypeViolations} from '../../src/guards.ts'
 import type {Manifest} from '../../src/workspace.ts'
 
 describe('the workspace dependency loop check', () => {
@@ -33,7 +33,7 @@ describe('the workspace dependency loop check', () => {
 })
 
 describe('the published types check', () => {
-  test('fails a private package named by a declaration an export reaches, and passes one no export reaches', () => {
+  test('fails a private package named by a declaration an export reaches, and a bundler helper an export names', () => {
     const files = new Map([
       ['kit/dist/kit.d.ts', "import type {Props} from './props.js'\nexport declare const kit: Props"],
       ['kit/dist/props.d.ts', "export type Props = typeof import('./card.js').card"],
@@ -41,7 +41,7 @@ describe('the published types check', () => {
       ['kit/dist/builtins.d.ts', "import type {Builtins} from '@internal/defaults'\nexport declare const b: Builtins"],
     ])
     const leaks = (exports: string[]) =>
-      findPrivateTypeLeaks({entries: exports, files, privateNames: ['@internal/app-api', '@internal/defaults']})
+      findPublicTypeViolations({entries: exports, files, privateNames: ['@internal/app-api', '@internal/defaults']})
 
     expect(leaks(['kit/dist/kit.js'])).toEqual([
       'kit/dist/kit.d.ts -> kit/dist/props.d.ts -> kit/dist/card.d.ts names private workspace package @internal/app-api',
@@ -53,5 +53,19 @@ describe('the published types check', () => {
     ])
     files.set('kit/dist/card.d.ts', 'export declare const card: string')
     expect(leaks(['kit/dist/kit.js'])).toEqual([])
+
+    files.set('kit/dist/kit.d.ts', "import {card_d_exports} from './card.js'\nexport {card_d_exports as Card}")
+    files.set('kit/dist/card.d.ts', 'declare namespace card_d_exports {}\nexport {card_d_exports}')
+    expect(leaks(['kit/dist/kit.js'])).toEqual([])
+    expect(leaks(['kit/dist/card.js'])).toEqual([
+      'kit/dist/card.d.ts exports card_d_exports, a helper name the bundler generated',
+    ])
+    expect(leaks(['kit/dist/*.js'])).toEqual([
+      'kit/dist/builtins.d.ts names private workspace package @internal/defaults',
+    ])
+    files.set('kit/dist/kit.d.ts', "export * from './card.js'")
+    expect(leaks(['kit/dist/kit.js'])).toEqual([
+      'kit/dist/card.d.ts exports card_d_exports, a helper name the bundler generated',
+    ])
   })
 })
