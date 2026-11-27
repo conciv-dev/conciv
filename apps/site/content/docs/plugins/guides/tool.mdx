@@ -6,7 +6,7 @@ description: Give the agent a tool that runs your code, choose how the agent cal
 A tool is a function in your plugin's engine part that the agent can call. This guide builds `ticket_read`, which
 reads a ticket from your tracker by its id.
 
-## Basic
+## Write the tool
 
 Add tools inside `ctx.tool.transform`. Each `tools.add` call adds one:
 
@@ -83,8 +83,8 @@ A few things to notice:
 ## Direct or code mode
 
 A tool is a code-mode tool unless you set `codemode: false`. In code mode the agent writes a short TypeScript program
-that calls your tool as `external_ticket_read`, and the call shows inside its code card. A direct tool is called by
-its name, and each call gets its own card.
+that calls your tool as `external_ticket_read`. The call shows inside its code card. The agent calls a direct tool by
+its name. Each call gets its own card.
 
 <Playground
   page="vite-react"
@@ -194,14 +194,14 @@ export default Plugin.define({
 })
 ```
 
-`Tool.toolError` makes the error, and its `message` is what the agent sees. In the Promise tab, any other thrown
+`Tool.toolError` makes the error. Its `message` is what the agent sees. In the Promise tab, any other thrown
 error also fails the call, with that error's message. In the Effect tab the failure type is `Tool.Error`, so turn a
 typed error of your own into one with `Effect.mapError`.
 
 ## Draw a card
 
-Each call of a direct tool shows as a card in the chat. Your plugin's browser part can draw its own. The browser part
-is written with Solid components and plain async functions:
+Each call of a direct tool shows as a card in the chat. Your plugin's browser part can draw its own. You write the
+browser part with Solid components and plain async functions:
 
 ```tsx twoslash title="conciv/plugins/tickets/plugin-experimental.tsx"
 // @jsx: preserve
@@ -244,7 +244,7 @@ export default Plugin.define({
 
 A few things to notice:
 
-- `render` draws one call, and runs again as the call moves on. `props.input` is the input the agent sent.
+- `render` draws one call. It runs again as the call moves on. `props.input` is the input the agent sent.
 - A denied or cancelled call reaches `render` too, with text that is not JSON. The guarded parse keeps the card up.
 - `errorComponent` draws a failed call, with the message in `props.error`. Without it the widget shows its error
   card.
@@ -252,10 +252,14 @@ A few things to notice:
 Build it as in [Build the browser part](/docs/plugins/first-plugin#build-the-browser-part), then reload.
 
 <Accordions>
-<Accordion title="Which schemas can a tool take?">
+<Accordion title="The schemas a tool can take">
 
-A tool's input and output schemas can be a zod schema, any other Standard Schema (such as Valibot or ArkType), an
-Effect Schema, or a raw JSON Schema object.
+A tool's input and output schemas can be:
+
+- a zod schema
+- any other Standard Schema, such as Valibot or ArkType
+- an Effect Schema
+- a raw JSON Schema object
 
 </Accordion>
 </Accordions>
