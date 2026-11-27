@@ -12,6 +12,13 @@
 
 @import '@fontsource-variable/geist';
 
+@font-face {
+  font-family: 'Excalifont';
+  src: url('/fonts/Excalifont-Regular-latin.woff2') format('woff2');
+  font-display: swap;
+  unicode-range: U+20-7E, U+A0-FF, U+2013-2014, U+2018-201E, U+2026;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 html {

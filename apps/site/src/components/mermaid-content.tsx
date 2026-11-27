@@ -4,6 +4,8 @@ import {useTheme} from 'next-themes'
 
 const KEPT = {staleTime: Infinity, gcTime: Infinity, structuralSharing: false} as const
 
+const SKETCH = {look: 'handDrawn', font: 'Excalifont', size: 16} as const
+
 type Rgb = readonly [number, number, number]
 
 function readToken(context: CanvasRenderingContext2D, name: string): Rgb {
@@ -23,7 +25,18 @@ function rgb(color: Rgb): string {
   return `rgb(${color.join(', ')})`
 }
 
-function readTheme() {
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+}
+
+async function themeApplied(theme: string | undefined): Promise<void> {
+  for (let frame = 0; frame < 30; frame += 1) {
+    if (theme === undefined || document.documentElement.classList.contains(theme)) return
+    await nextFrame()
+  }
+}
+
+function readConfig() {
   const canvas = document.createElement('canvas')
   canvas.width = 1
   canvas.height = 1
@@ -35,13 +48,18 @@ function readTheme() {
   const muted = readToken(context, 'muted-foreground')
   const primary = readToken(context, 'primary')
   const node = mix(primary, background, 0.14)
-  const outline = mix(primary, background, 0.35)
+  const outline = mix(primary, background, 0.5)
   const line = mix(primary, muted, 0.55)
   return {
     theme: 'base',
+    look: SKETCH.look,
+    handDrawnSeed: 1,
+    fontFamily: SKETCH.font,
+    fontSize: SKETCH.size,
+    flowchart: {nodeSpacing: 40, rankSpacing: 48, padding: 14, curve: 'basis', wrappingWidth: 160, useMaxWidth: false},
     themeVariables: {
       background: rgb(background),
-      fontSize: '14px',
+      fontSize: `${SKETCH.size}px`,
       primaryColor: rgb(node),
       mainBkg: rgb(node),
       primaryBorderColor: rgb(outline),
@@ -56,12 +74,12 @@ function readTheme() {
       edgeLabelBackground: rgb(background),
     },
     themeCSS: [
-      'margin: 1.5rem auto 0;',
-      '.node rect, .node polygon { rx: 8px; ry: 8px; stroke-width: 1px; filter: none; }',
-      '.cluster rect { rx: 12px; ry: 12px; stroke-width: 1px; }',
-      '.flowchart-link { stroke-width: 1px; }',
-      '.cluster-label .nodeLabel, .cluster-label span { font-size: 13px; }',
-      '.edgeLabel, .edgeLabel p { font-size: 12px; }',
+      'margin: 0 auto;',
+      '.node rect, .node polygon { rx: 10px; ry: 10px; filter: none; }',
+      '.cluster rect { rx: 14px; ry: 14px; }',
+      '.nodeLabel, .edgeLabel, .cluster-label { line-height: 1.35; }',
+      `.cluster-label .nodeLabel, .edgeLabel, .edgeLabel p { font-size: ${SKETCH.size - 2}px; }`,
+      '.marker path { transform-box: fill-box; transform-origin: center; transform: scale(0.7); }',
     ].join(' '),
   }
 }
@@ -73,18 +91,23 @@ export function MermaidContent({chart}: {chart: string}) {
     data: {default: mermaid},
   } = useSuspenseQuery({queryKey: ['mermaid'], queryFn: () => import('mermaid'), ...KEPT})
 
-  mermaid.initialize({startOnLoad: false, securityLevel: 'loose', fontFamily: 'inherit'})
+  mermaid.initialize({startOnLoad: false, securityLevel: 'loose'})
 
   const {
     data: {svg, bindFunctions},
   } = useSuspenseQuery({
     queryKey: ['mermaid-render', chart, resolvedTheme],
-    queryFn: () => mermaid.render(id, `%%{init: ${JSON.stringify(readTheme())}}%%\n${chart.replaceAll('\\n', '\n')}`),
+    queryFn: async () => {
+      await themeApplied(resolvedTheme)
+      await document.fonts.load(`${SKETCH.size}px "${SKETCH.font}"`)
+      return mermaid.render(id, `%%{init: ${JSON.stringify(readConfig())}}%%\n${chart.replaceAll('\\n', '\n')}`)
+    },
     ...KEPT,
   })
 
   return (
     <div
+      className="not-prose my-6 overflow-x-auto [&>svg]:mx-auto [&>svg]:block xl:w-[calc(min(100vw,var(--fd-layout-width,97rem))-var(--fd-sidebar-col)-var(--fd-toc-col)-4rem)]"
       ref={(container) => {
         if (container) bindFunctions?.(container)
       }}
