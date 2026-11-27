@@ -1,5 +1,5 @@
 import {isAbsolute, relative} from 'node:path'
-import {Effect, FileSystem, Schema} from 'effect'
+import {Effect, FileSystem} from 'effect'
 import MagicString from 'magic-string'
 import type {JSXOpeningElement} from 'oxc-parser'
 import {
@@ -16,11 +16,9 @@ import {
 import type {Locate, Parsed} from './jsx-openings.js'
 import {carriedKeys, mintKey, readOpenings} from './key-map.js'
 import type {KeyMap} from './key-map.js'
+import {designErrors} from '../errors/errors.js'
 
 const JSX_EXTENSIONS = ['.jsx', '.tsx']
-
-export const Unreadable = Schema.TaggedStruct('Design.Unreadable', {file: Schema.String, message: Schema.String})
-export type Unreadable = typeof Unreadable.Type
 
 type Disk = {readonly text: string; readonly openings: JSXOpeningElement[]; readonly locate: Locate}
 
@@ -30,9 +28,7 @@ export function stampJsx(input: {keys: KeyMap; root: string; code: string; id: s
   return Effect.gen(function* () {
     const file = input.id.split('?')[0] ?? input.id
     if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
-    const parsed = yield* parseModule(file, input.code).pipe(
-      Effect.catchTag('Design.Unparsed', () => Effect.succeed(null)),
-    )
+    const parsed = yield* parseModule(file, input.code).pipe(Effect.orElseSucceed(() => null))
     if (parsed === null || parsed.openings.length === 0) return null
     const disk = yield* readDisk(file, parsed.openings.length)
     return stampParsed({...input, file, parsed, disk})
@@ -86,10 +82,10 @@ function readDisk(file: string, expected: number) {
     const fs = yield* FileSystem.FileSystem
     const text = yield* fs.readFileString(file).pipe(
       Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(null)),
-      Effect.mapError((cause) => Unreadable.make({file, message: cause.message})),
+      Effect.mapError((cause) => designErrors.UNREADABLE({file, detail: cause.message, cause})),
     )
     if (text === null) return null
-    const parsed = yield* parseModule(file, text).pipe(Effect.catchTag('Design.Unparsed', () => Effect.succeed(null)))
+    const parsed = yield* parseModule(file, text).pipe(Effect.orElseSucceed(() => null))
     if (parsed === null || parsed.openings.length !== expected) return null
     const disk: Disk = {text, openings: parsed.openings, locate: makeLocator(text)}
     return disk

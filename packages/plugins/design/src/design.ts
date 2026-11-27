@@ -1,10 +1,9 @@
-import {Effect, FileSystem, Schema} from 'effect'
+import {Effect, FileSystem} from 'effect'
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import type {KeyMap} from './com/key-map.js'
 import {stampJsx} from './com/stamp.js'
-
-const InvalidOptions = Schema.TaggedStruct('Design.InvalidOptions', {message: Schema.String})
+import {designErrors} from './errors/errors.js'
 
 const CatalogOptions = z.object({
   sources: z
@@ -53,8 +52,8 @@ const Options = z.object({
 function readOptions(input: unknown) {
   const parsed = Options.safeParse(input)
   if (parsed.success) return Effect.succeed(parsed.data)
-  const message = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
-  return Effect.fail(InvalidOptions.make({message}))
+  const detail = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
+  return Effect.fail(designErrors.INVALID_OPTIONS({detail}))
 }
 
 export default Plugin.define({

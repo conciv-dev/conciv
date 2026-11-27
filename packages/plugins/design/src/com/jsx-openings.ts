@@ -1,5 +1,7 @@
-import {Effect, Schema} from 'effect'
+import {Effect} from 'effect'
+import type {EvlogError} from 'evlog'
 import {parseSync, Visitor} from 'oxc-parser'
+import {designErrors} from '../errors/errors.js'
 import type {ImportDeclaration, JSXElementName, JSXMemberExpressionObject, JSXOpeningElement, Program} from 'oxc-parser'
 
 export const KEY_ATTRIBUTE = 'data-conciv-key'
@@ -7,21 +9,18 @@ export const SITE_ATTRIBUTE = 'data-conciv-site'
 
 const FRAMEWORK_PACKAGES = ['solid-js', 'react', 'react-dom']
 
-export const Unparsed = Schema.TaggedStruct('Design.Unparsed', {file: Schema.String, message: Schema.String})
-export type Unparsed = typeof Unparsed.Type
-
 export type Parsed = {readonly openings: JSXOpeningElement[]; readonly imported: Set<string>}
 
 export type Locate = (offset: number) => number
 
-export function parseModule(file: string, code: string): Effect.Effect<Parsed, Unparsed> {
+export function parseModule(file: string, code: string): Effect.Effect<Parsed, EvlogError> {
   return Effect.try({
     try: () => parseSync(file, code, {sourceType: 'module', lang: file.endsWith('.tsx') ? 'tsx' : 'jsx'}),
-    catch: (cause) => Unparsed.make({file, message: String(cause)}),
+    catch: (cause) => designErrors.UNPARSED({file, detail: String(cause)}),
   }).pipe(
     Effect.flatMap((parsed) => {
       const [error] = parsed.errors
-      if (error !== undefined) return Effect.fail(Unparsed.make({file, message: error.message}))
+      if (error !== undefined) return Effect.fail(designErrors.UNPARSED({file, detail: error.message}))
       return Effect.succeed({openings: collectOpenings(parsed.program), imported: importedComponents(parsed.program)})
     }),
   )

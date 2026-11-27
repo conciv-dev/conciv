@@ -40,7 +40,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -49,6 +49,7 @@
   "dependencies": {
     "diff": "catalog:",
     "effect": "catalog:",
+    "evlog": "catalog:",
     "magic-string": "^1.4.5",
     "oxc-parser": "catalog:",
     "zod": "catalog:"
@@ -60,10 +61,10 @@
     "@effect/platform-node": "catalog:",
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
@@ -72,5 +73,8 @@
   "peerDependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }
