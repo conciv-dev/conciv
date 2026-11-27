@@ -43,7 +43,8 @@ import type {EngineClient} from './connection/rpc-client.js'
 import {chatConnection, type ChatConnectionOptions} from './chat/chat-connection.js'
 export type {ChatSession} from './chat.js'
 import {createTanstackQueryUtils, type RouterUtils} from '@orpc/tanstack-query'
-import {contractCode, engineErrors} from '@conciv/protocol'
+import {contractCode} from '@conciv/protocol'
+import {engineErrors} from '@conciv/errors'
 
 export function makeQueryUtils(client: EngineClient): RouterUtils<EngineClient> {
   return createTanstackQueryUtils(client)

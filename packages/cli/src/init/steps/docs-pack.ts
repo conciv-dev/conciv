@@ -6,7 +6,7 @@ import type {ManualCard} from '../ledger.js'
 import type {InitContext, InitStep, SpawnBin} from '../pipeline.js'
 import type {AddDep} from './install-it.js'
 import {hasDependency, readManifest} from './manifest.js'
-import {cliErrors} from '../../failure.js'
+import {cliErrors} from '@conciv/errors'
 
 const skillsName = '@conciv/skills'
 const intentPackage = '@tanstack/intent@latest'

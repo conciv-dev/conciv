@@ -2589,6 +2589,9 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../client
+      '@conciv/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -2649,6 +2652,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@conciv/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -4349,6 +4355,9 @@ importers:
 
   packages/protocol:
     dependencies:
+      '@conciv/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@conciv/types':
         specifier: workspace:^
         version: link:../types
@@ -4587,6 +4596,9 @@ importers:
       '@conciv/backend-plugin-api':
         specifier: workspace:^
         version: link:../backend-plugin-api
+      '@conciv/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness

@@ -21,7 +21,7 @@ import {
 import {UiAnswerValueSchema} from '@conciv/types/ui-types'
 import {TtyServerControlSchema} from '@conciv/types/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
-import {engineContractErrors, engineErrorEntries, errorStatuses} from './errors.js'
+import {engineContractErrors, errorStatuses} from './errors.js'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 import {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from './schema/browser-tab.js'
 import {Schema as EffectSchema} from 'effect'
@@ -36,6 +36,7 @@ import {
   LogsWriteInput,
   SetLogLevelInput,
 } from './schema/logs.js'
+import {engineErrorEntries} from '@conciv/errors'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 

@@ -15,7 +15,6 @@ import * as EventFeed from '../../event-feed.js'
 import {
   cappedText,
   contractError,
-  engineErrors,
   failureText,
   isCatalogError,
   pluginRpcError,
@@ -51,6 +50,7 @@ import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/p
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
 import type {SessionId, ChatCommand, ChatCommands} from '@conciv/types/chat-types'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
+import {engineErrors} from '@conciv/errors'
 
 function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeof contract.chat, EngineRpcContext> {
   return {

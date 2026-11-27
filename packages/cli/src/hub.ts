@@ -11,11 +11,9 @@ import {
   codeDiscoverReply,
   codeExecuteReply,
   contractCode,
-  engineErrors,
   type CodeDescriptions,
   type CodeReply,
 } from '@conciv/protocol'
-import {cliErrors} from './failure.js'
 import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId} from '@conciv/types/chat-types'
 import type {InitHarnessId} from '@conciv/types/harness-types'
@@ -39,6 +37,7 @@ import {
   type TabAsk,
   type TabOpen,
 } from './engine-read.js'
+import {cliErrors, engineErrors} from '@conciv/errors'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
 

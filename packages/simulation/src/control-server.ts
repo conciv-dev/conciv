@@ -5,7 +5,8 @@ import {RPCHandler} from '@orpc/server/websocket'
 import {Effect, Queue, type Scope} from 'effect'
 import {WebSocketServer, type WebSocket} from 'ws'
 import {answerCatalogErrors, contractError} from '@conciv/protocol'
-import {SIMULATION_ERROR_STATUS, simulationErrors} from '@conciv/protocol/simulation'
+import {SIMULATION_ERROR_STATUS} from '@conciv/protocol/simulation'
+import {simulationErrors} from '@conciv/errors'
 
 const MAX_OUTBOUND_BYTES = 64 * 1024 * 1024
 

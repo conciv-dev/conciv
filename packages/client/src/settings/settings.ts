@@ -3,7 +3,7 @@ import {createDefu} from 'defu'
 import {z} from 'zod'
 import type {EngineClient} from '../connection/rpc-client.js'
 import type {SettingsScope, SettingsSnapshot} from '@conciv/protocol'
-import {clientErrors} from '../connection/client-errors.js'
+import {clientErrors} from '@conciv/errors'
 
 export type SettingsStore<T extends object = Record<string, unknown>> = {
   get: <K extends keyof T>(key: K) => Promise<T[K] | undefined>

@@ -2,10 +2,10 @@ import {checkEngines, type EngineRow} from '@conciv/home'
 import {z} from 'zod'
 import {ORPCError} from '@orpc/client'
 import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
-import {contractCode, engineErrors, type Project, type SessionMeta} from '@conciv/protocol'
-import {cliErrors} from './failure.js'
+import {contractCode, type Project, type SessionMeta} from '@conciv/protocol'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 import {SessionId} from '@conciv/types/chat-types'
+import {cliErrors, engineErrors} from '@conciv/errors'
 
 export const ENGINE_READ_MS = 2_000
 

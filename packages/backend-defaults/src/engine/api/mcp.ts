@@ -10,7 +10,6 @@ import {
   cappedValue,
   codeDiscoverReply,
   codeExecuteReply,
-  engineErrors,
   failureText,
   safeStringify,
   toolValueReply,
@@ -43,6 +42,7 @@ import {
   ExecuteResultSchema,
   type ExecuteResult,
 } from '@conciv/protocol/execute-schemas'
+import {engineErrors} from '@conciv/errors'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()

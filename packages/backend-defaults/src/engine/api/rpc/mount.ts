@@ -3,7 +3,7 @@ import type * as Identifier from '@conciv/protocol/schema/identifier'
 import '@orpc/effect/extensions/effect'
 import {middlewareGen, type EffectWrapOptions, type WithEffectContext} from '@orpc/effect'
 import {implement, ORPCError, type Implementer} from '@orpc/server'
-import {answerCatalogErrors, contract, engineErrors} from '@conciv/protocol'
+import {answerCatalogErrors, contract} from '@conciv/protocol'
 import {isToolError} from '@conciv/types/tool-call-types'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/types/chat-types'
@@ -51,6 +51,7 @@ import type {PersistentPtys} from '../../pty/persistent-ptys.js'
 import type {EngineRuntime} from '../../lib/logging.js'
 import type * as LogLevel from '../../../util/observability/log-level.js'
 import type * as LogStore from '../../../util/observability/log-store.js'
+import {engineErrors} from '@conciv/errors'
 
 export type EngineServices =
   | Tool.Interface

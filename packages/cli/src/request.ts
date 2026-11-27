@@ -8,12 +8,12 @@ import {
   type SessionId,
 } from '@conciv/types/chat-types'
 import {makeRpcClient, type EngineClient} from '@conciv/client'
-import {contractCode, ENGINE_ERROR_STATUS, engineErrors, ErrorDetailSchema} from '@conciv/protocol'
+import {contractCode, ENGINE_ERROR_STATUS, ErrorDetailSchema} from '@conciv/protocol'
 import {initContributions} from '@conciv/harness/init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import type {CliOutcome} from './envelope.js'
-import {cliErrors} from './failure.js'
 import {engineOrigin} from './engine-origin.js'
+import {cliErrors, engineErrors} from '@conciv/errors'
 
 const OFFLINE_CODES = [
   'ECONNREFUSED',
