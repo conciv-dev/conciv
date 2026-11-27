@@ -67,7 +67,7 @@ const clientLoader = browserCollections.docs.createClientLoader({
     return (
       <DocsPage
         toc={toc}
-        className="*:max-w-175 max-md:pb-24"
+        className="*:max-w-175"
         tableOfContent={{
           single: true,
           footer: actions,

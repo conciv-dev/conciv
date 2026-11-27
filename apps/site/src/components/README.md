@@ -10,7 +10,7 @@ Shared React components for the site: MDX component map, client-only Mermaid, th
 
 ## Invariants
 
-- `live-widget-mount.tsx:LiveWidgetMount`: renders nothing on mobile (`useIsMobile`)
+- `live-widget-mount.tsx:LiveWidgetMount`: renders nothing on mobile (`useIsMobile`), and nothing on docs pages below `md` so the launcher never covers docs content
 - `AnimatedContent.tsx`, `SplitText.tsx`: GSAP plugins are registered only outside SSR (`!import.meta.env.SSR`)
 
 ## Side Effects
