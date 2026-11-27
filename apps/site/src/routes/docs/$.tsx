@@ -134,7 +134,7 @@ const sidebarClass = [
 ].join(' ')
 
 const mobileHeaderClass = [
-  'max-md:[&>#nd-subnav]:z-50',
+  'max-md:[&:has(>#nd-sidebar-mobile[data-state=open])>#nd-subnav]:z-50',
   'max-md:[&_[data-header-body]>div:last-child_[aria-controls=nd-sidebar-mobile]]:hidden',
   'max-md:[&_[data-header-body]>div:last-child>a]:inline-flex',
   'max-md:[&_[data-header-body]>div:last-child>a]:order-1',
