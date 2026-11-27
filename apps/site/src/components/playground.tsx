@@ -1,6 +1,7 @@
 import {useCallback, useId, useState} from 'react'
 import {Play, Square} from 'lucide-react'
 import {useMediaQuery} from '@/lib/use-media-query'
+import {cn} from '@/lib/utils'
 import {
   isPlaygroundPage,
   isPlaygroundScriptId,
@@ -123,7 +124,7 @@ export function Playground(props: {
           <div className="flex flex-col gap-4 p-4 text-sm">
             <div className="flex items-center justify-between gap-3">
               <p className="font-medium text-fd-foreground">{title}</p>
-              <button type="button" className={`${BUTTON} hidden @md:inline-flex`} onClick={() => setChosen('play')}>
+              <button type="button" className={cn(BUTTON, 'hidden @md:inline-flex')} onClick={() => setChosen('play')}>
                 <Play className="size-4" aria-hidden="true" />
                 Play
               </button>
