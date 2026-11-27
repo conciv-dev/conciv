@@ -56,7 +56,7 @@ Plugins (`plugins/*`, one plugin per package, each with its engine part and its 
 - plugins/tanstack: [plugins/tanstack/README.md](./plugins/tanstack/README.md) - `@conciv/plugin-tanstack`, build errors, route manifest and server-function calls of a TanStack app.
 - plugins/test-runner: [plugins/test-runner/README.md](./plugins/test-runner/README.md) - `@conciv/plugin-test-runner`, runs the project's tests and shows them live.
 - plugins/try-it: [plugins/try-it/README.md](./plugins/try-it/README.md) - `@conciv/plugin-try-it`, the plugin conciv.dev composes into its widget.
-- plugins/whiteboard: [plugins/whiteboard/README.md](./plugins/whiteboard/README.md) - `@internal/plugin-whiteboard`, a canvas the user and the agent share.
+- plugins/whiteboard: [plugins/whiteboard/README.md](./plugins/whiteboard/README.md) - `@conciv/plugin-whiteboard`, a canvas the user and the agent share.
 
 The built-ins page and terminal draw with the UI kits directly; `app/src/builtins.ts` composes them. Every other plugin
 draws through `ctx.ui` and imports no `@conciv/ui-kit*` package (`conciv-publish check-plugin-ui-kit`).

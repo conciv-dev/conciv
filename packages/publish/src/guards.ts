@@ -107,6 +107,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/plugin-tanstack',
   '@conciv/plugin-test-runner',
   '@conciv/plugin-try-it',
+  '@conciv/plugin-whiteboard',
   '@conciv/simulation',
   '@conciv/backend-test-utils',
   '@conciv/solid-diffs',

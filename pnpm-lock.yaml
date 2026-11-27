@@ -696,7 +696,7 @@ importers:
       '@conciv/plugin-test-runner':
         specifier: workspace:*
         version: link:../../../packages/plugins/test-runner
-      '@internal/plugin-whiteboard':
+      '@conciv/plugin-whiteboard':
         specifier: workspace:*
         version: link:../../../packages/plugins/whiteboard
       next:
@@ -748,12 +748,12 @@ importers:
       '@conciv/plugin-test-runner':
         specifier: workspace:*
         version: link:../../../packages/plugins/test-runner
+      '@conciv/plugin-whiteboard':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/whiteboard
       '@conciv/types':
         specifier: workspace:*
         version: link:../../../packages/types
-      '@internal/plugin-whiteboard':
-        specifier: workspace:*
-        version: link:../../../packages/plugins/whiteboard
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.5)

@@ -485,7 +485,7 @@
     "@conciv/plugin-tanstack",
     "@conciv/plugin-test-runner",
     "@conciv/plugin-try-it",
-    "@internal/plugin-whiteboard",
+    "@conciv/plugin-whiteboard",
     "@conciv/preact",
     "@conciv/types",
     "@conciv/react",

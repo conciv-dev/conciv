@@ -65,7 +65,7 @@ export function boardCall(id: string, tool: string, input: object) {
   })
 }
 
-export const WHITEBOARD = {plugins: ['@internal/plugin-whiteboard']}
+export const WHITEBOARD = {plugins: ['@conciv/plugin-whiteboard']}
 
 const ChangeKey = z.object({key: z.string()})
 

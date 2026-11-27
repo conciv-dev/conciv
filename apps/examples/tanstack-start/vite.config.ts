@@ -24,7 +24,7 @@ export default defineConfig(async () => {
           './node_modules/@conciv/plugin-test-runner',
           './node_modules/@conciv/plugin-tanstack',
           './node_modules/@conciv/plugin-recorder',
-          './node_modules/@internal/plugin-whiteboard',
+          './node_modules/@conciv/plugin-whiteboard',
         ],
       }),
     ],

@@ -181,7 +181,7 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 
 ## Invariants
 
-- `vite.config.ts` adds `conciv(...)` from `@conciv/it/plugin/vite` with the quick terminal on `Alt+k`, and loads the workspace plugins `@conciv/plugin-test-runner`, `@conciv/plugin-tanstack`, `@conciv/plugin-recorder` and `@internal/plugin-whiteboard` by their package folder; an app outside this repo names a plugin by package, e.g. `plugins: ['@conciv/plugin-test-runner']`.
+- `vite.config.ts` adds `conciv(...)` from `@conciv/it/plugin/vite` with the quick terminal on `Alt+k`, and loads the workspace plugins `@conciv/plugin-test-runner`, `@conciv/plugin-tanstack`, `@conciv/plugin-recorder` and `@conciv/plugin-whiteboard` by their package folder; an app outside this repo names a plugin by package, e.g. `plugins: ['@conciv/plugin-test-runner']`.
 - `CONCIV_NITRO=1` adds the `nitro/vite` plugin.
 - `pnpm dev` builds the deploy plugin's browser part (`plugin:build`), then runs `plugin:watch` and `vite dev --port 3000` side by side.
 - No iOS plugin: the iOS overlay demo lives in [native/swift](../../../native/swift/README.md) so web sessions here never get the iOS system prompt.
