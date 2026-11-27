@@ -3,10 +3,10 @@ title: Claude Code
 description: "Connect Claude Code to conciv, and what conciv runs when it is the session's agent."
 ---
 
-[Claude Code](https://docs.claude.com/en/docs/claude-code) connects to conciv as an MCP server, and it is the harness
+[Claude Code](https://docs.claude.com/en/docs/claude-code) connects to conciv as an MCP server. It is also the harness
 a new chat starts with.
 
-## Basic
+## Connect Claude Code
 
 Run this once, in any folder:
 
@@ -63,10 +63,10 @@ Claude gives the chat the most of any harness: its own commands, image attachmen
 npx @conciv/cli mcp disconnect claude
 ```
 
-This stops conciv answering Claude Code, and removes `conciv-hub` from its config.
+This stops conciv answering Claude Code. It removes `conciv-hub` from its config.
 
 <Accordions type="single">
-<Accordion title="The project plugin failed to install?">
+<Accordion title="If the project plugin fails to install">
 
 init prints the commands to run yourself:
 
@@ -77,7 +77,7 @@ claude plugin update conciv-connect@conciv --scope local
 ```
 
 </Accordion>
-<Accordion title="A turn fails with a path that contains whitespace?">
+<Accordion title="A turn fails on a path with a space">
 
 conciv passes Claude Code a plugin folder and a settings file by path. If either path has a space, the turn fails.
 The error names the path and says to move it to a path with no space.
