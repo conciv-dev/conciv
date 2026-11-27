@@ -1,5 +1,12 @@
 # @conciv/oxlint-plugin
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies [[`9c7cf6e`](https://github.com/conciv-dev/conciv/commit/9c7cf6ed99e51b5945d98d953df2d3d098d08172)]:
+  - @conciv/client@0.0.24
+
 ## 0.0.23
 
 ### Patch Changes
