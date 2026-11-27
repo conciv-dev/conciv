@@ -18,7 +18,7 @@ describe('config', () => {
     CONCIV_LOG_LEVEL: 'DEBUG',
   }
 
-  test.each<[string, ConcivConfig, Record<string, string>, Record<string, unknown>]>([
+  const rows: Array<[string, ConcivConfig, Record<string, string>, Record<string, unknown>]> = [
     [
       'the environment fills what the config leaves out',
       {},
@@ -52,7 +52,9 @@ describe('config', () => {
       {},
       {stateRoot: '/project', harness: 'claude', sessionId: undefined, logLevel: 'off'},
     ],
-  ])('%s', (_label, options, env, expected) => {
+  ]
+
+  test.each(rows)('%s', (_label, options, env, expected) => {
     expect(resolveConfig(options, '/project', ConfigProvider.fromEnvRecord(env))).toMatchObject(expected)
   })
 })

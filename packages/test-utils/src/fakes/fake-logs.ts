@@ -68,15 +68,30 @@ function storedRow(event: ClientEvent): LogEvent {
   }
 }
 
-function matches(row: LogEvent, query: Omit<Query, 'limit'>): boolean {
-  if (query.since !== undefined && row.timestamp < query.since) return false
-  if (query.until !== undefined && row.timestamp > query.until) return false
-  if (query.level !== undefined && query.level.length > 0 && !query.level.some((level) => level === row.level))
-    return false
-  if (query.source !== undefined && row.source !== query.source) return false
-  if (query.sessionId !== undefined && row.sessionId !== query.sessionId) return false
-  const text = query.text
+function inRange(row: LogEvent, query: Omit<Query, 'limit'>): boolean {
+  return (
+    (query.since === undefined || row.timestamp >= query.since) &&
+    (query.until === undefined || row.timestamp <= query.until)
+  )
+}
+
+function ofLevel(row: LogEvent, levels: Query['level']): boolean {
+  return levels === undefined || levels.length === 0 || levels.some((level) => level === row.level)
+}
+
+function ofOrigin(row: LogEvent, query: Omit<Query, 'limit'>): boolean {
+  return (
+    (query.source === undefined || row.source === query.source) &&
+    (query.sessionId === undefined || row.sessionId === query.sessionId)
+  )
+}
+
+function hasText(row: LogEvent, text: string | undefined): boolean {
   return text === undefined || [row.message, row.data].some((field) => field?.includes(text) === true)
+}
+
+function matches(row: LogEvent, query: Omit<Query, 'limit'>): boolean {
+  return inRange(row, query) && ofLevel(row, query.level) && ofOrigin(row, query) && hasText(row, query.text)
 }
 
 const SEVERITY: readonly EventLevel[] = ['trace', 'debug', 'info', 'warn', 'error', 'fatal']
