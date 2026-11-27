@@ -89,13 +89,13 @@ A test lives in the package whose code it tests. The repo's `AGENTS.md` has the 
 
 <Accordions type="single">
   <Accordion title="Published and private">
-    A `@conciv/*` package is published to npm. An `@internal/*` package is never published: it is built into the
-    package that uses it. For example, `@internal/frontend-defaults` ships inside the `@conciv/app` widget bundle.
+    A `@conciv/*` package is published to npm. An `@internal/*` package is never published: it is built into the package
+    that uses it. For example, `@internal/frontend-defaults` ships inside the `@conciv/app` widget bundle.
   </Accordion>
   <Accordion title="No dependency loops">
-    No package may depend on another in a loop, through any dependency field, dev dependencies included. CI checks
-    this. So a package builds only on the ones below it: the plugin API never needs the engine, and the engine never
-    needs a plugin.
+    No package may depend on another in a loop, through any dependency field, dev dependencies included. CI checks this.
+    So a package builds only on the ones below it: the plugin API never needs the engine, and the engine never needs a
+    plugin.
   </Accordion>
   <Accordion id="the-home-folder" title="Where the home folder is">
     The home folder is `CONCIV_HOME` when set. Otherwise it is `~/Library/Application Support/conciv` on macOS,
