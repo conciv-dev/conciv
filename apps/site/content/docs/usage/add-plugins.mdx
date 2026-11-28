@@ -1,0 +1,165 @@
+---
+title: Add plugins
+description: Add a plugin with one line in your config, pass it options, turn one off, and see the plugins conciv ships.
+---
+
+A plugin adds tools for the agent and screens for the widget. You add one with the `plugins` option of your conciv
+config.
+
+## List your plugins
+
+List plugins in `plugins`:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy'], // [!code ++]
+    }),
+  ],
+}
+```
+
+Restart your dev server to load them.
+
+- `'@conciv/plugin-test-runner'` is a package name. The engine installs it from npm into its own cache, so you do not
+  add it to your `package.json`.
+- `'./tools/deploy'` is a folder in your project. It resolves from your project folder, not from the config file.
+
+## Pass options
+
+Write an entry as a pair, the name and then its options:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]], // [!code ++]
+    }),
+  ],
+})
+```
+
+Every option value must be JSON: a string, number, boolean, null, array or object.
+
+## Turn a plugin off
+
+Put `-` before a plugin's id:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['-project-version'], // [!code ++]
+    }),
+  ],
+})
+```
+
+This turns off a plugin that loads on its own, such as one in the `conciv/plugins` folder.
+
+## Add a plugin from your project
+
+Every plugin in a `conciv/plugins` folder at your project root loads with no config entry. A plugin there is one
+`.ts` or `.js` file, or a folder:
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="plugins" defaultOpen>
+      <File name="project-version.ts" />
+      <Folder name="deploy" defaultOpen>
+        <File name="server.ts" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+The engine watches these files. Save a change and the plugin loads again with no restart. Learn to write one in the
+[first plugin guide](/docs/plugins/first-plugin).
+
+## The plugins conciv ships
+
+The first two are on in every widget. Add the others with the line in the third column.
+
+| Plugin      | What it gives you                                                                                             | Add it                          | Options                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
+| Page        | The agent reads and drives the page you have open. See [Page control](/docs/usage/page-control).              | On by default                   | None                                              |
+| Terminal    | The **Terminal** tab, the agent CLI in a terminal. See [Terminal](/docs/usage/terminal).                      | On by default                   | None                                              |
+| Test runner | Runs your tests from the chat, live in a Tests tab. See [Live tests](/docs/usage/live-tests).                 | `'@conciv/plugin-test-runner'`  | `runner`: vitest (default) or playwright          |
+| Recorder    | Records the page, replays it and exports a video. See [Live recorder](/docs/usage/live-recorder).             | `'@conciv/plugin-recorder'`     | `masking`, `windowMinutes`, `console`             |
+| TanStack    | Build errors, routes and server function calls of a TanStack app. See [TanStack](/docs/usage/tanstack).       | `'@conciv/plugin-tanstack'`     | `bundlerWaitMs`                                   |
+| iOS         | Builds, runs, screenshots and reads the logs of your iOS app in the simulator. See [iOS](/docs/bundlers/ios). | `['@conciv/plugin-ios', {...}]` | `projectRoot` and `bundleId` (required), and more |
+| Whiteboard  | A shared canvas over the app. See [Whiteboard](/docs/usage/whiteboard).                                       | `'@conciv/plugin-whiteboard'`   | None                                              |
+| Try it      | The connect pane of the widget on conciv.dev.                                                                 | Not added in config             | None                                              |
+
+<Accordions type="single">
+<Accordion title="You cannot add try-it">
+
+Try-it is published, but conciv.dev composes it into its own widget. It is not a plugin you add in config.
+
+</Accordion>
+<Accordion title="Every way to name a plugin">
+
+- A string that is not a path is a package name, installed from npm.
+- A path that starts with `./` or `../` resolves from your project folder.
+- An absolute path or a `file://` URL is used as it is.
+- A configured path must be a folder. A file there is skipped with the warning
+  `configured plugin path must be a directory`.
+- A string that starts with `-` turns off the plugin with that id.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Live tests](/docs/usage/live-tests):** the test runner, step by step.
+- **[Live recorder](/docs/usage/live-recorder):** the recorder and its options.
+- **[TanStack](/docs/usage/tanstack):** the TanStack plugin and its tools.
+- **[iOS](/docs/bundlers/ios):** every iOS plugin option.
+- **[Plugins](/docs/plugins):** write a plugin of your own.

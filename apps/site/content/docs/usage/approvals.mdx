@@ -1,111 +1,149 @@
 ---
 title: Approvals
-description: What asks before it runs, per harness, and how the Permission card works.
+description: Allow or deny a risky action when its Permission card shows in the chat.
 ---
 
-Two things can ask you before they run: the harness itself, and some of conciv's tools. Either way the question shows
-as a **Permission** card in the chat, and the action runs only once you allow it.
+A Permission card is how the agent asks you before a risky action. The action waits until you answer.
 
-## The card
+## Answer a card
 
-The card names what asks: the action and what it acts on, such as `page_eval` and the code it would run.
+This prompt makes the agent ask before code runs in your page:
 
-<TypeTable
-  type={{
-    'Allow once': {required: true, type: '⌘ Enter or Ctrl Enter', description: 'Runs it this once.'},
-    Deny: {required: true, type: 'Escape', description: 'Refuses it.'},
-    'Allow always': {
-      required: true,
-      type: 'button',
-      description: 'Allows it in this project from now on. Shown only when the ask can be remembered.',
-    },
-  }}
+```text title="Prompt"
+Run some JavaScript in the page to count the buttons on it.
+```
+
+The card names the action and what it acts on, such as the code it would run. Answer it:
+
+- **Allow once** (Cmd Enter or Ctrl Enter) runs it this one time.
+- **Deny** (Escape) refuses it.
+- **Allow always** allows this action in this project from now on. It shows only when the action can be remembered.
+
+The keys work while the card has focus. The card waits as long as you need. Stop the turn, and the card goes with it.
+
+<Playground
+  page="vite-react"
+  script="approvals/allow-once"
+  caption="The agent asks before it runs code in the page, and you allow it once."
 />
 
-The keys work while the card has focus. The card waits until you answer. A harness's ask dies with its turn: stop the
-turn and its card goes.
+## Know what asks
 
-## The harness
+Two things can ask you: your agent CLI, and some of conciv's own tools.
 
-What the harness asks about is up to the harness. conciv shows its questions as cards.
+Your agent CLI decides for itself what it asks about:
 
-| Harness    | What asks                                                                                                                                                                                                                                                                                                                                     |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude     | Claude Code runs in its `auto` permission mode and decides what to ask. conciv also gives it ask rules, so these Bash commands always ask: `git push` with `--force`, `-f`, `--delete`, `-d` or `:branch`; `git reset --hard`; `git clean`; `git branch -D`; `git gc --prune`; `rm -r`, `-R`, `-fr` or `-fR`; `chmod -R`; `chown -R`; `sudo`. |
-| Codex      | Nothing. Codex runs with `approvalPolicy: 'never'` in the `workspace-write` sandbox: the sandbox limits what it can do.                                                                                                                                                                                                                       |
-| Gemini CLI | What Gemini CLI asks about.                                                                                                                                                                                                                                                                                                                   |
-| OpenCode   | Nothing reaches conciv: OpenCode's own asks are not shown as cards yet.                                                                                                                                                                                                                                                                       |
-| Pi         | Pi has no chat yet.                                                                                                                                                                                                                                                                                                                           |
+- **Claude Code** runs in its `auto` mode. It asks when it judges a step risky. conciv adds rules so these commands
+  always ask:
 
-A harness's ask can only be allowed once or denied.
+  - `git push` that forces (`--force`, `-f`) or deletes a remote branch (`--delete`, `-d`, a `:branch` refspec)
+  - `git reset --hard`
+  - `git clean`
+  - `git branch -D`
+  - `git gc --prune`
+  - a recursive `rm` (`-r`, `-R`, `-fr`, `-fR`)
+  - a recursive `chmod -R` or `chown -R`
+  - anything run with `sudo`
 
-## conciv's tools
+- **Codex** never asks. Its `workspace-write` sandbox limits what it can touch.
+- **Gemini CLI** asks by its own rules. Each ask shows as a card.
+- **opencode** asks in its own way. Those asks do not show as cards in conciv yet.
+- **Pi** has no chat in conciv yet.
 
-These tools ask on every call, on every harness, unless you chose **Allow always** for them.
+An ask from your agent CLI can be allowed once or denied, never allowed always. Learn more on each
+[agent's page](/docs/agents).
 
-<TypeTable
-  type={{
-    page_eval: {
-      required: true,
-      type: '@conciv/plugin-page (shipped)',
-      description: 'Runs JavaScript in your page. It always asks: it has no Allow always.',
-    },
-    server_restart: {
-      required: true,
-      type: 'built in',
-      description: 'Restarts the dev server and re-bundles its dependencies.',
-    },
-    whiteboard_canvas_delete: {
-      required: true,
-      type: '@internal/plugin-whiteboard',
-      description: 'Removes an element from the canvas.',
-    },
-    whiteboard_canvas_clear: {
-      required: true,
-      type: '@internal/plugin-whiteboard',
-      description: 'Removes every element from the canvas.',
-    },
-    whiteboard_comment_resolve: {
-      required: true,
-      type: '@internal/plugin-whiteboard',
-      description: 'Marks a comment resolved.',
-    },
-    whiteboard_comment_delete: {
-      required: true,
-      type: '@internal/plugin-whiteboard',
-      description: 'Removes a comment, or its whole thread.',
-    },
-    ios_build: {
-      required: true,
-      type: '@conciv/plugin-ios',
-      description: 'Compiles the iOS project for the simulator.',
-    },
-    ios_run: {
-      required: true,
-      type: '@conciv/plugin-ios',
-      description: 'Boots the simulator, installs the app and launches it.',
-    },
-  }}
-/>
+conciv's own tools that ask, on every CLI:
 
-A plugin's tools exist only when that plugin is loaded. See [Plugins](/docs/plugins).
+- running JavaScript in your page. This one asks every time: it has no **Allow always**.
+- restarting the dev server
+- with the iOS plugin: building the app, and running it in the simulator
+- with the whiteboard: deleting an element, clearing the canvas, and resolving or deleting a
+  comment
 
-## Outside agents
+A plugin's tools exist only when you load that plugin. Learn more in [Add plugins](/docs/usage/add-plugins).
 
-An agent CLI connected with `conciv mcp connect` can drive your open tabs from your own terminal (see [Connect your
-agents](/docs/quick-start/agents)). `hubAccess` decides whether it has to be let in first.
+## Forget a saved answer
 
-<TypeTable
-  type={{
-    open: {required: true, type: 'default', description: 'No card. A connected agent can use any open session.'},
-    project: {
-      required: true,
-      type: 'option',
-      description:
-        'The first call to a session shows a Permission card for the agent. Allow once lets that call in; Allow always lets the agent in for this project from now on.',
-    },
-  }}
-/>
+An **Allow always** answer is saved for the project, in its `.conciv/conciv.db`. conciv has no button or command to
+list or clear saved answers yet.
 
-The call waits on the card until you answer it, or until the agent gives up on the call. An outside agent can never
-answer a Permission card, and never connect or disconnect agents: you do that in the tab.
+<Callout type="warn" title="Allow always is hard to undo">
+  Until a way to clear saved answers lands, click **Allow always** only for an action you will never want to check
+  again.
+</Callout>
+
+## Let outside agents in
+
+An agent CLI in your own terminal can drive your open tabs once you [connect it](/docs/agents). By default it can
+use any open tab with no card. To make it ask first, set `hubAccess` to `'project'`:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      hubAccess: 'project', // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  hubAccess: 'project', // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      hubAccess: 'project', // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      hubAccess: 'project', // [!code ++]
+    }),
+  ],
+}
+```
+
+Now the first call from an outside agent shows a Permission card in the tab. **Allow once** lets that one call in.
+**Allow always** lets that agent in for this project from now on.
+
+<Accordions type="single">
+  <Accordion title="An outside agent cannot answer a card for you">
+    An agent connected from your terminal can never answer a Permission card. It cannot connect or disconnect agents
+    either. You do that in the tab.
+  </Accordion>
+  <Accordion title="A card disappears before you answer">
+    An ask from your agent CLI lives only as long as its turn. When you stop the turn, or the CLI gives up on the call,
+    the card goes.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Agents and permissions](/docs/agents-and-permissions):** the rules behind each card.
+- **[Page control](/docs/usage/page-control):** what the agent does in your page.
+- **[Configuration](/docs/reference/configuration):** `hubAccess` and the permission rules.

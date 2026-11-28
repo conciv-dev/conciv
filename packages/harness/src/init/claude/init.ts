@@ -32,7 +32,7 @@ function installPlan(stateDir: string): HarnessInitPlan {
 function installCard(root: string): HarnessInitCard {
   return {
     title: 'Install the conciv claude plugin',
-    body: 'Register the generated conciv marketplace and install the connect plugin with the claude CLI. Full steps: https://conciv.dev/docs/quick-start/agents',
+    body: 'Register the generated conciv marketplace and install the connect plugin with the claude CLI. Full steps: https://conciv.dev/docs/agents',
     snippet: [
       `claude plugin marketplace add ${shellQuoted(root)}`,
       `claude ${INSTALL_ARGS.join(' ')}`,

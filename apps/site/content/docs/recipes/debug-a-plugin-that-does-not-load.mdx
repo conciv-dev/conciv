@@ -1,0 +1,78 @@
+---
+title: Debug a plugin that does not load
+label: Debug a plugin
+description: Find out why a plugin's tools, card or panel do not show, and fix it.
+---
+
+## Problem
+
+You added a plugin, but nothing changed. This often shows as:
+
+- the agent says it has no such tool;
+- the tool works, but its calls show the generic card, not yours;
+- the plugin's panel or pill never appears.
+
+<Callout type="warn" title="Some misses are silent">
+  The engine skips a folder it cannot read as a plugin without a word. Guessing at the cause wastes a lot of time.
+</Callout>
+
+## Solution
+
+Open **Settings > Plugins** in the panel. Every plugin the engine found has a row there:
+
+- **Failed** means it was found but did not start. The row shows the first line of the error. **Show details** opens
+  the rest.
+- **Loading** means it has not started yet.
+- No status means it is running.
+
+Fix the error, then click **Reload** on its row. The engine also watches the `conciv` folder and every configured
+path, so a saved change reloads the plugin by itself. Your dev server's terminal shows the same failure as `failed to
+load plugin`.
+
+### The plugin has no row
+
+The engine never found it. Check where it lives:
+
+```text title="Project"
+conciv/
+  plugins/
+    tickets/          <- one folder per plugin, or a single .ts or .js file
+      server.ts       <- the engine part: server, or index
+      plugin-experimental.cjs   <- the browser part, built
+```
+
+- A folder plugin sits in `conciv/plugins/` at the project root. `conciv/plugin/` works too.
+- A folder needs a `server` or `index` file, or a built `plugin-experimental.cjs`. A folder with none is skipped.
+- A path in the `plugins` option starts with `./` or `../`. Without it, the engine reads the value as an npm package
+  name.
+- A path to a single file is refused with `configured plugin path must be a directory`.
+
+Learn more in [Add plugins](/docs/usage/add-plugins).
+
+### The tools are missing
+
+List what the running engine serves:
+
+```bash title="Terminal"
+npx @conciv/cli tools --help
+```
+
+A tool in the list is there for the agent. A tool in code mode is called `external_` plus its name, inside the code
+card. Learn more in [Tools and code mode](/docs/tools-and-code-mode).
+
+### The card or panel is missing
+
+The browser part loads from `plugin-experimental.cjs` in the plugin folder. The engine looks for exactly that name. A source file next to it is not enough. Build it, then reload the page. A
+code-mode call never shows your card. Only a direct tool's call does. Learn more in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+<Accordions>
+  <Accordion title="It says Duplicate plugin ID">
+    Two plugins share one `id`, for example a copy of a folder plugin that is also installed from npm. The later one
+    fails with `Duplicate plugin ID: <id>`. Give each plugin its own id, or remove one.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Build your first plugin](/docs/plugins/first-plugin):** the folder, the tool and the build step, end to end.
+- **[Troubleshooting](/docs/reference/troubleshooting):** every message conciv shows, with its fix.

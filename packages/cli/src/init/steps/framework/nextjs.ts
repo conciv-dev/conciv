@@ -21,7 +21,7 @@ export default withConciv(nextConfig)`
 function configCard(): ManualCard {
   return {
     title: 'Wrap your next config',
-    body: 'conciv could not prove the shape of your next config. Wrap the default export yourself. Full steps: https://conciv.dev/docs/quick-start/nextjs',
+    body: 'conciv could not prove the shape of your next config. Wrap the default export yourself. Full steps: https://conciv.dev/docs/bundlers/nextjs',
     snippet: configSnippet,
   }
 }
@@ -37,7 +37,7 @@ function fileCard(name: string, line: string): ManualCard {
 function quickStartCard(): ManualCard {
   return {
     title: 'Wire conciv into next.js',
-    body: 'Add the three wires from the quick-start yourself. Full steps: https://conciv.dev/docs/quick-start/nextjs',
+    body: 'Add the three wires from the quick-start yourself. Full steps: https://conciv.dev/docs/bundlers/nextjs',
     snippet: `${configSnippet}\n\n${instrumentationName}:\n${instrumentationLine}\n\n${clientName}:\n${clientLine}`,
   }
 }

@@ -1,15 +1,24 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {source} from '@/lib/source'
-import {createFromSource} from 'fumadocs-core/search/server'
-
-const server = createFromSource(source, {
-  language: 'english',
-})
+import {searchDocs} from '@/lib/docs.functions'
 
 export const Route = createFileRoute('/api/search')({
   server: {
     handlers: {
-      GET: async ({request}) => server.GET(request),
+      GET: async ({request}) => {
+        const params = new URL(request.url).searchParams
+        const query = params.get('query')
+        if (!query) return Response.json([])
+        const limit = Number(params.get('limit'))
+        return Response.json(
+          await searchDocs({
+            data: {
+              query,
+              tag: params.get('tag')?.split(','),
+              limit: Number.isInteger(limit) && limit > 0 ? limit : undefined,
+            },
+          }),
+        )
+      },
     },
   },
 })

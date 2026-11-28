@@ -1,0 +1,37 @@
+---
+title: Pi
+description: 'Pi cannot connect or chat yet. conciv lists its past sessions.'
+---
+
+[Pi](https://github.com/badlogic/pi-mono) cannot connect to conciv or chat in the panel yet. conciv reads its past
+sessions only.
+
+## Read past Pi sessions
+
+There is nothing to set up. conciv finds Pi's past sessions and lists them in the session picker. A Pi session from
+another project offers **Copy resume command**. It copies the command that continues it in your terminal:
+
+```bash title="Terminal"
+pi --session <id>
+```
+
+## What works
+
+- Past Pi sessions show in the session list, with their titles and their messages.
+- Pi shows in the model menu, but a turn with it fails.
+- `npx @conciv/cli mcp connect pi` refuses, because Pi has no conciv hub connection.
+
+<Accordions type="single">
+  <Accordion title="A turn fails with: pi is not installed or not yet supported">
+    That is the answer to every Pi turn today. Switch the session to another harness in the model menu.
+  </Accordion>
+  <Accordion title="Pi keeps its sessions in another folder">
+    conciv reads them from `PI_CODING_AGENT_DIR`, the same variable Pi reads. When it is unset, conciv reads
+    `~/.pi/agent`.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Harnesses](/docs/harnesses):** the harnesses that chat in the panel.
+- **[Claude Code](/docs/agents/claude-code):** the harness a new chat starts with.

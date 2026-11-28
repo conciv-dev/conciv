@@ -86,7 +86,7 @@ export default defineConfig({
         cards: [
           {
             title: 'Wire the conciv webpack plugin',
-            body: 'conciv could not prove the shape of your webpack config. Add the plugin yourself. Full steps: https://conciv.dev/docs/quick-start/webpack',
+            body: 'conciv could not prove the shape of your webpack config. Add the plugin yourself. Full steps: https://conciv.dev/docs/bundlers/webpack',
             snippet: `const conciv = require('@conciv/it/plugin/webpack')
 
 module.exports = {

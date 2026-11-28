@@ -1,14 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&text=%E2%95%AD%E2%94%80%E2%95%AE%E2%94%82%E2%95%B0%E2%95%AF&display=swap');
 
 @import 'tailwindcss';
-@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/shadcn.css';
 @import 'fumadocs-ui/css/preset.css';
+@import 'fumadocs-twoslash/twoslash.css';
 
 @import 'tw-animate-css';
 
 @import 'shadcn/tailwind.css';
 
 @import '@fontsource-variable/geist';
+
+@font-face {
+  font-family: 'Excalifont';
+  src: url('/fonts/Excalifont-Regular-latin.woff2') format('woff2');
+  font-display: swap;
+  unicode-range: U+20-7E, U+A0-FF, U+2013-2014, U+2018-201E, U+2026;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -57,14 +66,14 @@ html > body[data-scroll-locked] {
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--od-paper);
+  --sidebar-foreground: var(--od-ink);
+  --sidebar-primary: var(--od-accent);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: var(--od-accent-soft);
+  --sidebar-accent-foreground: var(--od-accent);
+  --sidebar-border: var(--od-line);
+  --sidebar-ring: var(--od-accent);
 }
 
 .dark {
@@ -99,14 +108,6 @@ html > body[data-scroll-locked] {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 .od-display {
@@ -292,9 +293,113 @@ html > body[data-scroll-locked] {
   }
 }
 
+figure.twoslash .twoslash-hover {
+  text-decoration: underline dotted transparent 1px;
+  text-underline-offset: 3px;
+}
+@media (hover: hover) {
+  figure.twoslash:hover .twoslash-hover {
+    text-decoration-color: currentColor;
+  }
+}
+figure.twoslash:has(:focus-visible) .twoslash-hover {
+  text-decoration-color: currentColor;
+}
+
+[data-sliding-tabs] :is([role='tablist'], [role='tab']) {
+  position: relative;
+}
+[data-sliding-tabs] [role='tab']:focus-visible {
+  outline: none;
+}
+@media (hover: hover) {
+  [data-sliding-tabs] [role='tab'][data-state='inactive']:hover {
+    color: var(--color-fd-foreground);
+  }
+}
+[data-sliding-tabs] [role='tab']:focus-visible::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.25rem;
+  inset-inline: calc(var(--tab-inset, 0px) - 0.375rem);
+  border-radius: 0.375rem;
+  box-shadow: 0 0 0 2px var(--color-fd-ring);
+  pointer-events: none;
+}
+[data-tab-indicator] > [role='tab'] {
+  border-bottom-color: transparent;
+}
+[data-tab-indicator]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--tab-left) + var(--tab-inset, 0px));
+  width: calc(var(--tab-width) - 2 * var(--tab-inset, 0px));
+  height: 1px;
+  background-color: var(--color-fd-primary);
+  pointer-events: none;
+  transition-property: left, width;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tab-indicator]::after {
+    transition-duration: 0.01ms;
+  }
+}
+
+.fd-twoslash-popover {
+  max-width: min(420px, calc(100vw - 1.5rem));
+  max-height: min(24rem, var(--available-height, 24rem));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+}
+.fd-twoslash-popover > .twoslash-popup-docs-tags {
+  display: none;
+}
+.fd-twoslash-popover > .twoslash {
+  padding: 0.5rem 0.75rem;
+}
+.fd-twoslash-popover pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fd-twoslash-popover > .twoslash-popup-docs {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--color-fd-border);
+  color: var(--color-fd-muted-foreground);
+}
+
+.fd-scroll-container::-webkit-scrollbar {
+  height: 8px;
+}
+.fd-scroll-container::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--color-fd-muted-foreground) 45%, transparent);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .fd-scroll-container {
+    scrollbar-color: color-mix(in oklch, var(--color-fd-muted-foreground) 45%, transparent) transparent;
+  }
+}
+.twoslash-popup-container {
+  margin-right: 0;
+}
+figure.shiki pre {
+  letter-spacing: 0;
+  line-height: calc(1em + 4px);
+}
+
+@utility docs-breakout {
+  width: calc(min(100vw, var(--fd-layout-width, 97rem)) - var(--fd-sidebar-col) - var(--fd-toc-col) - 4rem);
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
+  --font-mono: var(--od-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

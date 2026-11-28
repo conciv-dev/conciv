@@ -1,0 +1,133 @@
+---
+title: iOS
+description: Attach conciv to a native iOS app running in the simulator.
+---
+
+conciv for iOS floats the widget over your native app in the simulator. A web dev server runs the engine and serves
+the widget.
+
+<Callout type="warn" title="Early alpha">
+  The Swift API can change without notice. The iOS simulator is the only supported target.
+</Callout>
+
+<Callout type="success" title="Prefer to let your agent do it?">
+  Copy this prompt into your coding agent. It sets up the dev server and the Swift package for you.
+
+  <SetupPrompt framework="ios" />
+</Callout>
+
+## Attach conciv to your app
+
+First set up a web dev server with conciv, as on the [Vite page](/docs/bundlers/vite), and start it. The app loads the
+widget from the engine that server runs.
+
+In Xcode, use File > Add Package Dependencies and paste this URL:
+
+```text title="Package URL"
+https://github.com/conciv-dev/conciv-swift.git
+```
+
+Pick the version that matches your `@conciv/it` version. Add the `ConcivWidget` product to the target that shows your
+UI. The package needs iOS 17.
+
+Call `attach()` once at app start:
+
+```swift title="MyApp.swift"
+import SwiftUI
+import ConcivWidget // [!code ++]
+
+@main
+struct MyApp: App {
+  init() { // [!code ++]
+    ConcivWidget.attach() // [!code ++]
+  } // [!code ++]
+
+  var body: some Scene {
+    WindowGroup {
+      ContentView()
+    }
+  }
+}
+```
+
+`attach()` finds the key window and the engine itself, so `App.init` is early enough. Build and run a Debug build in
+the simulator. Tap the conciv button and type the 6-digit code your dev server prints.
+
+## What works
+
+- The chat and the panel over your own UI.
+- Pick mode, which hands a native view to the agent.
+- A Release build shows no widget.
+- A Swift edit reaches the screen only after a build and a run. There is no hot reload.
+
+## Let the agent build and run the app
+
+Add the iOS plugin to the plugins of your conciv config. The engine installs it from npm, so there is nothing to
+install:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: [['@conciv/plugin-ios', {projectRoot: './ios', bundleId: 'com.example.MyApp'}]], // [!code ++]
+    }),
+  ],
+})
+```
+
+- `projectRoot` is the folder of your Xcode project, relative to the dev server.
+- `bundleId` is the bundle id the agent installs and launches.
+
+The agent then gets four tools, named `ios_*`: build, run, screenshot and logs. The first two ask you first, with a
+[Permission card](/docs/usage/approvals). Without options, every tool answers that the plugin is not configured.
+
+<Accordions type="single">
+<Accordion id="finds-engine" title="How the app finds the engine">
+
+With `CONCIV_URL` set, the app uses that address, for example `http://127.0.0.1:4599`. Leave `/widget` off the end.
+Without it, the app reads `~/.conciv/dev-endpoint.json`. The engine writes that file when it starts. Otherwise it tries
+`http://127.0.0.1` on ports 4599, 8787 and 3000.
+
+`ios_run` passes the address for you. A fixed `port` in your conciv config keeps it the same across restarts. With
+`devEndpointDir` set, the engine writes the file elsewhere. Set `CONCIV_URL` in that case.
+
+</Accordion>
+<Accordion id="scene-delegate" title="A UIKit app with a scene delegate">
+
+Call `attach()` in your scene delegate's willConnectTo method, before or after the window becomes key:
+
+```swift title="SceneDelegate.swift"
+import UIKit
+import ConcivWidget // [!code ++]
+
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+    ConcivWidget.attach() // [!code ++]
+  }
+}
+```
+
+For a round native button instead of the mascot, call `ConcivWidget.attach(launcher: .native)`.
+
+</Accordion>
+<Accordion id="options" title="More plugin options">
+
+- `scheme`: the Xcode scheme to build. Unset, it comes from the end of `bundleId`.
+- `simulator`: the simulator to boot. Default `iPhone 17 Pro`.
+- `buildMode`: `xcodebuild` (the default) or `swiftc`.
+- `developerDir`: the Xcode developer folder. Default `/Applications/Xcode.app/Contents/Developer`.
+- `extraSourceDirs`: more Swift source folders to compile.
+- `concivUrl`: the engine address the app gets. Default: the engine that runs the tool.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Use conciv](/docs/usage):** what the agent can do in your app.
+- **[Approvals](/docs/usage/approvals):** the ask before a build and a run.

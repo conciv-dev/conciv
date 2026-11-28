@@ -4,10 +4,6 @@ const repoStatsSchema = z.object({
   stargazers_count: z.number().int().nonnegative(),
 })
 
-export const starsResponseSchema = z.object({
-  stars: z.number().int().nonnegative().nullable(),
-})
-
 export function parseStarCount(payload: unknown): number | null {
   const result = repoStatsSchema.safeParse(payload)
   if (!result.success) return null

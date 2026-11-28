@@ -21,7 +21,7 @@ Landing page sections: nav, hero with the demo, framework install tabs with pre-
 - `try-live-button.tsx`: `window` listener for `CONNECTION_CHANGED_EVENT`
 - `theme-toggle.tsx`: `setTheme` from `next-themes`
 - `framework-tabs.tsx`: `requestAnimationFrame` layout refreshes
-- `github-star-link.tsx`: reads the star count store, which fetches `/api/stars`
+- `github-star-link.tsx`: reads the star count from the root route's loader data (fetched on the server, rendered as text)
 
 ## Verification
 

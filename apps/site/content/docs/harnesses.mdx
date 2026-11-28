@@ -1,64 +1,97 @@
 ---
 title: Harnesses
-description: The agent CLI behind the chat, which ones conciv runs, and what each one can do.
-icon: Bot
+description: Pick the agent CLI that answers in the chat, and see what each one can do.
+icon: Plug
 ---
 
 A harness is the agent CLI that answers in the chat. conciv runs it on your machine, in your project folder, with your
-own login. Install the CLI and log in to it first; conciv does not log it in for you.
+own login, models and settings.
 
-## Pick one
+## Pick a harness
 
-`harness` sets the harness a new chat starts with. Claude is the default. `CONCIV_HARNESS` sets it from the
-environment when the config does not. An id conciv does not know stops the engine with `conciv: unknown harness
-"<id>". Known harnesses: claude, codex, gemini-cli, opencode, pi.`
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
 
-The model menu in the panel lists that harness, plus every other harness whose CLI is on the `PATH` of the process
-that started your dev server. You can switch harness from the menu during a session (see
-[Chat](/docs/usage/chat#model-and-harness)).
+export default defineConfig({
+  plugins: [
+    conciv({
+      harness: 'codex', // <- a new session starts with Codex; the default is claude
+    }),
+  ],
+})
+```
 
-## The harnesses
+`harness` is one of `claude`, `codex`, `opencode`, `gemini-cli` or `pi`. The full comparison is at the [end of the
+page](#what-each-one-can-do).
 
-| `harness`    | CLI on your `PATH` | Default model                                              | Models in the menu                             |
-| ------------ | ------------------ | ---------------------------------------------------------- | ---------------------------------------------- |
-| `claude`     | `claude`           | `opus`                                                     | Claude Code's list                             |
-| `codex`      | `codex`            | the `model` in Codex's `config.toml`, else its first model | Codex's `models_cache.json` in its home folder |
-| `opencode`   | `opencode`         | `opencode/claude-sonnet-4-5`                               | what `opencode models --verbose` lists         |
-| `gemini-cli` | `gemini`           | `gemini-3-pro-preview`                                     | a fixed list of four Gemini models             |
-| `pi`         | `pi`               | none                                                       | none                                           |
+<Callout type="success" title="Use the CLI you already have">
+  Each harness keeps its own login and settings, and conciv reuses them. Pick the one you already work with.
+</Callout>
 
-Gemini CLI runs over ACP, as `gemini --acp -m <model>`.
+## Install and log in
 
-## What each one can do
+conciv does not install the CLI or log you in. Do both first, in your own terminal. For Claude Code, run `claude`, log
+in when it asks, then quit. conciv finds the CLI on the `PATH` of the process that started your dev server.
 
-|                                  | Claude | Codex | OpenCode | Gemini CLI | Pi  |
-| -------------------------------- | ------ | ----- | -------- | ---------- | --- |
-| Chat                             | yes    | yes   | yes      | yes        | no  |
-| Its sessions in the session list | yes    | yes   | yes      | no         | yes |
-| `/` commands from the CLI        | yes    | no    | no       | no         | no  |
-| Image attachments                | yes    | no    | no       | no         | no  |
-| Permission cards                 | yes    | no    | no       | yes        | no  |
-| Terminal tab                     | yes    | no    | no       | no         | no  |
+## Switch in a session
 
-**Compress the conversation** works on every harness: Claude runs its own `/compact`, the others get a prompt to
-summarize the conversation. Permission cards are covered in [Approvals](/docs/usage/approvals).
+The model menu in the panel lists the harness you set. It also lists every other harness whose CLI is on your `PATH`.
+Pick a model there to switch the session. Learn more in [Sessions](/docs/sessions#switching-harness).
+
+## Set it for one run
+
+`CONCIV_HARNESS` picks a harness without a config edit:
+
+```bash title="Terminal"
+CONCIV_HARNESS=opencode pnpm dev
+```
+
+`harness` in the config wins over the variable.
 
 ## Claude
 
-Needs `claude` on your `PATH`. conciv runs it in Claude Code's `auto` permission mode, adds ask rules for risky Bash
-commands, and appends conciv's instructions to Claude Code's own system prompt.
-
-<Callout type="warn">
-  conciv passes Claude Code a plugin folder and a settings file by path. If either path contains a space, the turn fails
-  with an error that names the path and says to move it to a space-free path.
-</Callout>
+conciv runs Claude Code in its `auto` permission mode. It adds ask rules for risky Bash commands, and those asks
+become permission cards. conciv's instructions come after Claude Code's own system prompt. Claude gives you the most:
+`/` commands, image attachments, permission cards and a **Terminal** tab.
 
 ## Codex
 
-Needs `codex` on your `PATH`. conciv runs it with `approvalPolicy: 'never'` in the `workspace-write` sandbox, so it
-never asks: the sandbox limits what it can do.
+conciv runs Codex in the `workspace-write` sandbox, with `approvalPolicy: 'never'`. It never shows a permission card.
+Its sandbox limits what it can touch instead.
+
+## Gemini CLI
+
+conciv runs Gemini CLI over ACP, as `gemini --acp -m <model>`. The default model is `gemini-3-pro-preview`. Its asks
+show as permission cards.
+
+## OpenCode
+
+OpenCode chats in the panel. It can ask for permission, but its asks do not reach conciv yet. No card shows.
 
 ## Pi
 
-Pi has no chat in conciv yet. If `pi` is on your `PATH` it still shows in the model menu, and a turn ends with the error
-"pi is not installed or not yet supported". Pi sessions do show in the session list.
+Pi has no chat in conciv yet. Its past sessions still show in the session list. A turn with it ends with "pi is not
+installed or not yet supported".
+
+## What each one can do
+
+conciv generates this table from its harness registry.
+
+<HarnessTable />
+
+**Compress the conversation** works on every harness. A harness with no compaction of its own gets a prompt to sum up
+the conversation instead.
+
+<Accordions>
+  <Accordion title="The engine stops on an unknown harness">
+    A `harness` value conciv does not know stops the engine with `conciv: unknown harness "<id>"`. The message lists the
+    known ids. Learn more in [Troubleshooting](/docs/reference/troubleshooting#unknown-harness).
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Agents and permissions](/docs/agents-and-permissions):** what each harness asks, and how you answer.
+- **[Sessions](/docs/sessions):** what a harness transcript is, and how a session switches harness.
+- **[Agents](/docs/agents):** drive conciv from your own terminal agent instead.

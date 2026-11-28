@@ -1,0 +1,27 @@
+---
+title: Bundlers
+description: Add conciv to the dev server of your bundler or framework, one page each.
+---
+
+A bundler page shows the config that adds conciv to your dev server, and what the agent can do there. The widget and
+the chat are the same everywhere. Only the wiring and the dev server tools differ.
+
+## Vite
+
+- [Vite](/docs/bundlers/vite): Vite apps, Astro included. The agent also reads your dev server.
+- [TanStack Start](/docs/bundlers/tanstack-start): TanStack Start apps, which run on Vite.
+
+## Other bundlers
+
+- [Next.js](/docs/bundlers/nextjs): `withConciv` plus two instrumentation files.
+- [webpack](/docs/bundlers/webpack): the widget and the engine in your development build.
+- [Rspack](/docs/bundlers/rspack): the widget and the engine in your development build.
+
+## Native apps
+
+- [iOS](/docs/bundlers/ios): the widget over a native app in the simulator, in early alpha.
+
+## Not supported yet
+
+Rollup and esbuild do not run conciv yet. Their plugin entries exist but do nothing. Serve your app with
+[Vite](/docs/bundlers/vite) instead.

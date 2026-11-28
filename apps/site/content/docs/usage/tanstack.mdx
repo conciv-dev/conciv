@@ -1,0 +1,169 @@
+---
+title: TanStack
+description: Give the agent your TanStack app's build errors, route list, server function calls, router state and query cache.
+---
+
+The TanStack plugin, `@conciv/plugin-tanstack`, is for apps on TanStack Router or TanStack Start. It lets the agent
+read your dev server's build errors, every route you define and the server functions that ran. With your app open, it
+also reads and drives the router and the query cache.
+
+## Add the TanStack plugin
+
+Add the plugin to the `plugins` option of your conciv config:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-tanstack'], // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  plugins: ['@conciv/plugin-tanstack'], // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-tanstack'], // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-tanstack'], // [!code ++]
+    }),
+  ],
+}
+```
+
+Restart your dev server. The engine installs the plugin from npm into its own cache, so it does not go in your
+`package.json`. On TanStack Start, see [TanStack Start](/docs/bundlers/tanstack-start) for the full config.
+
+With the plugin on, the session's status line shows **TanStack inspector active**.
+
+## What the agent reads from the dev server
+
+These tools work with or without your app open. The agent calls them from code mode. Learn more in
+[Tools and code mode](/docs/tools-and-code-mode).
+
+| Tool                                | What it gives back                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `external_tanstack_build_errors`    | The dev server's last 50 build and transform errors, with file, line and column.           |
+| `external_tanstack_route_manifest`  | Every route in `src/routeTree.gen.ts`, with its path, page or layout, and source file.     |
+| `external_tanstack_server_fn_trace` | The latest server function calls, with name, duration and status, and every function seen. |
+
+The server function trace keeps the last 100 calls. The agent can ask for fewer, from 1 to 100.
+
+Each call shows as a card in the thread, such as **Read the build errors** or **Read the route manifest**.
+
+<Callout type="info" title="Build errors and server functions need Vite">
+  The build errors and the server function calls come from a Vite dev server. TanStack Start runs on Vite. On webpack or
+  Rspack, build errors answer `BUNDLER_UNAVAILABLE` and no server function calls show. The route list works on any
+  bundler.
+</Callout>
+
+## What the agent does in your app
+
+While your app is open with the conciv panel, the agent also reads and drives TanStack in that page:
+
+- **Read:** the router state, the route tree, the loader data of a route, the query cache and the page's runtime
+  errors.
+- **Act:** navigate to a path, go back, re-run the router's loaders, and invalidate or refetch one query.
+
+Nothing it does deletes data. A navigation or an invalidation changes what you see, and you can go back. With several
+tabs open, the agent works on the tab you focused last unless it names another.
+
+These tools need page control. Learn more in [Page control](/docs/usage/page-control).
+
+## When it goes wrong
+
+| The agent says           | Why                                                  | What to do                                          |
+| ------------------------ | ---------------------------------------------------- | --------------------------------------------------- |
+| `BUNDLER_UNAVAILABLE`    | No dev server is attached to the engine.             | Start the app through its dev server.               |
+| `MANIFEST_UNREADABLE`    | `src/routeTree.gen.ts` is missing or cannot be read. | Start the dev server once, so the router writes it. |
+| `router_not_found`       | The page has no TanStack Router.                     | Open a page of your TanStack app.                   |
+| `query_client_not_found` | The page has no TanStack Query client.               | Nothing: the app does not use TanStack Query there. |
+
+The errors, routes and data the plugin reads come from your project. The agent treats them as data, never as
+instructions.
+
+## Options
+
+Write the entry as a pair, the package name and then its options:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]], // [!code ++]
+    }),
+  ],
+})
+```
+
+| Option          | What it does                                                                    | Default |
+| --------------- | ------------------------------------------------------------------------------- | ------- |
+| `bundlerWaitMs` | How long, in milliseconds, build errors wait for a dev server before they fail. | `10000` |
+
+`bundlerWaitMs` must be a positive whole number. Any other value stops the plugin from loading, and the engine says
+which option it refused.
+
+## Typical uses
+
+### Find out why the app broke
+
+```text title="Prompt"
+The page is blank after my last change. Read the build errors and fix them.
+```
+
+### Check the routes
+
+```text title="Prompt"
+List every route in the app and tell me which ones take a dynamic segment.
+```
+
+### Debug a slow server function
+
+```text title="Prompt"
+I just clicked Save. Which server functions ran, and which one was slow?
+```
+
+### Refresh stale data
+
+```text title="Prompt"
+The cart count is stale. Look at the query cache and refetch the cart query.
+```
+
+## Next steps
+
+- **[TanStack Start](/docs/bundlers/tanstack-start):** add conciv to a TanStack Start app.
+- **[Dev server tools](/docs/usage/dev-server):** what the agent reads from Vite.
+- **[Add plugins](/docs/usage/add-plugins):** the other plugins you can add.

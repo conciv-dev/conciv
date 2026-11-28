@@ -144,18 +144,16 @@ Call it from a terminal in the project: `conciv plugin call deploy run --data '{
 plugin conciv ships uses it. `Plugin.define({id, effect})` runs `effect(ctx)` in a scope that closes
 when the plugin stops, reloads or is turned off: every tool, skill and RPC handler it registered goes
 with it, and so does a fiber started with `Effect.forkScoped`. The test runner, from
-`packages/plugins/test-runner/src/test-runner.ts:62-81`:
+`packages/plugins/test-runner/src/test-runner.ts:58-77`:
 
 ```ts
 export default Plugin.define<RunnerServices>({
   id: 'test-runner',
   effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
-    const config = testRunnerConfig.safeParse(ctx.options)
+    const config = TestRunnerConfigSchema.safeParse(ctx.options)
     if (!config.success) return yield* Effect.die(config.error)
     const adapter = getRunner(config.data.runner) ?? vitest
-    const manager = yield* adapter
-      .create(ctx.location.directory)
-      .pipe(Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, Effect.die))
+    const manager = yield* adapter.create(ctx.location.directory).pipe(Effect.orDie)
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
@@ -240,7 +238,7 @@ a tool. See [rpc-and-testing](references/rpc-and-testing.md).
 `Plugin.define({setup})` is the default export. It declares no id: the widget gives it the engine
 part's id as `ctx.id`. `setup` runs synchronously. Everything added with `ctx.add(Registry, item)` is
 removed when the plugin reloads or stops, and `ctx.signal` aborts then
-(`apps/site/content/docs/plugins/browser.mdx`).
+(`apps/site/content/docs/plugins/first-plugin.mdx`).
 
 `ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the contract. The client is
 new after the engine restarts, so read `ctx.client` where you call it. From
@@ -340,7 +338,7 @@ What a plugin outside this repo cannot use: `@internal/frontend-test-utils` (`re
 `renderTestApp`, `createExtensionTester`) and `@internal/vitest-config` (`concivTest()`) are private
 and not published. So it has no widget render helpers, and no browser-mode `createEngine`: the browser
 commands are exported from `@conciv/backend-test-utils/vitest`, but registering them is `concivTest()`'s
-job (`apps/site/content/docs/plugins/testing.mdx`). Test the engine part in node with `createEngine`.
+job (`apps/site/content/docs/plugins/guides/testing.mdx`). Test the engine part in node with `createEngine`.
 
 ## Publishing
 
@@ -396,6 +394,6 @@ builds the `./plugin-experimental` bundle with `experimental()`. `@conciv/backen
 - `packages/plugins/test-runner/src/follow.ts`
 - `packages/plugins/test-runner/test/it/tools.it.test.ts`
 - `apps/site/content/docs/plugins/index.mdx`
-- `apps/site/content/docs/plugins/engine.mdx`
-- `apps/site/content/docs/plugins/browser.mdx`
-- `apps/site/content/docs/plugins/testing.mdx`
+- `apps/site/content/docs/plugins/guides/tool.mdx`
+- `apps/site/content/docs/plugins/first-plugin.mdx`
+- `apps/site/content/docs/plugins/guides/testing.mdx`

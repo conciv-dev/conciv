@@ -1,0 +1,77 @@
+---
+title: Sessions
+description: 'A session is one conversation with the agent: its messages, its queue and its harness transcript.'
+icon: MessagesSquare
+---
+
+A session is one conversation with the agent. It holds your messages, the agent's answers, your draft and the messages
+waiting to be sent. The engine keeps every session in `.conciv/conciv.db`.
+
+## Pick the harness and the opening session
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      harness: 'claude', // <- a new session starts with this harness
+      claudeSessionId: 'release-notes', // <- the engine opens on this session when it starts
+    }),
+  ],
+})
+```
+
+<Playground
+  page="vite-react"
+  script="chat/send-and-queue"
+  caption="A session: a message sent, a second one queued while the agent works."
+/>
+
+## Session id
+
+Every session has a conciv id that starts with `ses_`. The CLI's `--tab` flag takes it. The agent finds it in
+`CONCIV_SESSION_ID`. A deleted session stays deleted. conciv never brings its id back. Learn more in
+the [CLI documentation](/docs/reference/cli#tools).
+
+## Messages
+
+A session's messages are its chat history. They stream into the panel as the agent works. They stay after a reload. Learn more in [Chat](/docs/usage/chat).
+
+## Draft
+
+The draft is what you typed and have not sent yet, attachments included. Each session keeps its own draft, so it comes
+back after a reload.
+
+## Queue
+
+The queue holds the messages you send while the agent works. Each one waits under the composer. **Steer** sends it into
+the running turn now, and **Remove** drops it. Learn more in [Chat](/docs/usage/chat).
+
+## Harness transcript
+
+The harness keeps its own record of the conversation, such as Claude Code's session. A conciv session points at that
+record, so the next turn resumes it. `claudeSessionId` names the harness session to open. Learn more in
+[Harnesses](/docs/harnesses).
+
+## Past CLI sessions
+
+The session list also shows sessions you started in your agent CLI, outside the browser. This needs a harness that
+keeps a history conciv can read. Open one, and the next message goes on from where it ended.
+
+## Switching harness
+
+A session can change harness halfway, from the model menu. The new harness starts its own transcript. The session
+keeps the earlier one, so the list still shows it once, under the same session.
+
+## Compression
+
+You can compress a long session. The agent sums up the decisions, the current state and the open threads. It goes on
+from the summary. On Claude, conciv runs Claude Code's own `/compact` instead.
+
+## Next steps
+
+- **[Chat](/docs/usage/chat):** send, queue, search and switch sessions in the panel.
+- **[Harnesses](/docs/harnesses):** which agent CLIs keep a history conciv can read.
+- **[Engine and widget](/docs/engine-and-widget):** where `conciv.db` and the other state files live.

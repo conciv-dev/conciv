@@ -52,7 +52,7 @@ ask is a tool.
   `ctx.client.event.subscribe({types: ['rpc.<id>.<event>']})`, and `server.connected` marks the moment
   to read the current state again (`packages/plugins/test-runner/src/follow.ts:15-33`).
 - A terminal: `conciv plugin call <rpcId> <method> [--data <json>]`
-  (`apps/site/content/docs/plugins/terminal.mdx`).
+  (`apps/site/content/docs/plugins/guides/terminal.mdx`).
 
 ## Testing with `@conciv/backend-test-utils`
 
@@ -93,7 +93,7 @@ the real RPC contract that answers like the real one. Inside this repo the widge
 `concivTest()` (from `@internal/vitest-config`, which registers the browser commands browser-mode
 `createEngine` needs) drive a plugin's screens. Both are private and not published, so a plugin outside
 this repo tests its engine part in node and has no widget render helpers today
-(`apps/site/content/docs/plugins/testing.mdx`).
+(`apps/site/content/docs/plugins/guides/testing.mdx`).
 
 Rules: drive the widget by role and visible text; assert with the jest-dom matchers (`toBeVisible`,
 `toHaveAccessibleName`, ...), never `toBeDefined()` or `toBeTruthy()` on a query, which already throws
@@ -110,5 +110,5 @@ when nothing matches; no test-ids or class selectors; no mocks and no sleeps; re
 - `packages/plugins/tanstack/src/tools.ts`
 - `packages/backend-test-utils/src/backend-test-utils.ts`
 - `packages/engine-kit/src/harness-engine.ts`
-- `apps/site/content/docs/plugins/testing.mdx`
-- `apps/site/content/docs/plugins/terminal.mdx`
+- `apps/site/content/docs/plugins/guides/testing.mdx`
+- `apps/site/content/docs/plugins/guides/terminal.mdx`

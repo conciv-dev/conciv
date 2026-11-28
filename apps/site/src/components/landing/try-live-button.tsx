@@ -1,6 +1,6 @@
 import {useCallback, useSyncExternalStore} from 'react'
 import {type QueryClient, useQueryClient} from '@tanstack/react-query'
-import {Link} from '@tanstack/react-router'
+import {Link, useSearch} from '@tanstack/react-router'
 import {Button} from '@/components/ui/button'
 import {
   CONNECTION_CHANGED_EVENT,
@@ -45,10 +45,18 @@ function useBusState(): EventBusClientState {
 export function TryLiveButton() {
   const isConnected = useConcivConnected()
   const busState = useBusState()
+  const tryRequested = useSearch({strict: false, select: (search) => search.try === 1})
   return (
     <div className="mt-6">
       <Button variant="default" asChild aria-busy={busState === 'connecting'}>
-        <Link to="/" search={(previous) => ({...previous, try: 1})} resetScroll={false}>
+        <Link
+          to="/"
+          search={(previous) => ({...previous, try: 1})}
+          resetScroll={false}
+          onClick={() => {
+            if (tryRequested) panelCommands.emit('open', undefined)
+          }}
+        >
           <span className="size-1.5 rounded-full bg-primary-foreground" aria-hidden />
           {tryButtonLabel({connected: isConnected, pending: busState === 'connecting'})}
         </Link>

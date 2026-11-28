@@ -1,0 +1,189 @@
+---
+title: Ask for permission
+description: Make the user approve a tool call before it does something they would want to check.
+---
+
+Ask first when a tool changes something the user cares about: it deploys, deletes, pays or sends. The user gets a
+card in the chat. Your tool waits for the answer.
+
+## Ask before the tool acts
+
+Call `ctx.permission.assert` at the start of the tool, before it acts:
+
+```ts twoslash title="conciv/plugins/release/server.ts" tab="Promise" tab-group="plugin-api"
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+export default Plugin.define({
+  id: 'release',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'release_ship',
+        description: 'Ship a branch to production, once the user allows it.',
+        input: z.object({branch: z.string()}),
+        output: z.object({shipped: z.boolean()}),
+        options: {codemode: false},
+        execute: async ({branch}, tool) => {
+          await ctx.permission.assert({
+            action: 'release_ship', // <- a rule names this action
+            resources: [branch], // <- what the action touches; rules match on it
+            save: [branch], // <- what "Allow always" remembers
+            fallback: 'ask', // <- ask even when only a catch-all rule allows it
+            metadata: {branch}, // <- shown on the card as the call's details
+            sessionId: tool.sessionId,
+            agent: tool.agent,
+            source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+          })
+          return {output: {shipped: true}}
+        },
+      })
+    })
+  },
+})
+```
+
+```ts twoslash title="conciv/plugins/release/server.ts" tab="Effect" tab-group="plugin-api"
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+
+export default Plugin.define({
+  id: 'release',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'release_ship',
+        description: 'Ship a branch to production, once the user allows it.',
+        input: z.object({branch: z.string()}),
+        output: z.object({shipped: z.boolean()}),
+        options: {codemode: false},
+        execute: ({branch}, tool) =>
+          ctx.permission
+            .assert({
+              action: 'release_ship', // <- a rule names this action
+              resources: [branch], // <- what the action touches; rules match on it
+              save: [branch], // <- what "Allow always" remembers
+              fallback: 'ask', // <- ask even when only a catch-all rule allows it
+              metadata: {branch}, // <- shown on the card as the call's details
+              sessionId: tool.sessionId,
+              agent: tool.agent,
+              source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+            })
+            .pipe(Effect.as({output: {shipped: true}})),
+      })
+    }),
+})
+```
+
+A few things to notice:
+
+- The last three fields come from the tool context, the second argument of `execute`. They tie the card to this
+  call in this chat.
+- `agent` is the engine's agent profile running the call. Its permission rules decide whether to ask. Learn more in
+  the [Agents and permissions documentation](/docs/agents-and-permissions).
+- `metadata` is optional. The card shows it under its title, so pass what helps the user decide.
+- Without `fallback: 'ask'`, an agent whose rules allow everything would never ask.
+
+## What the user sees
+
+The chat shows a card titled with the action and its resources, here "release_ship main". It has three buttons:
+
+- **Allow once.** This call runs.
+- **Allow always.** This call runs, and the project remembers the `save` values for this action.
+- **Deny.** The call fails, and conciv tells the agent.
+
+<Playground page="vite-react" script="plugins/permission-card" caption="A permission card, answered Allow once" />
+
+When the user picks Deny, the call fails. In the Promise tab `assert` rejects. In the Effect tab a plain Deny
+interrupts your effect as a defect, so a typed handler never sees it. A deny rule, or a Deny with feedback, fails
+with a `Tool.Error`. Either way the agent reads that the user refused.
+
+## Ask on every call
+
+Leave out `save` for a call that must ask every time. The card then has no Allow always button, so no saved answer
+can skip it later:
+
+```ts twoslash title="conciv/plugins/release/server.ts" tab="Promise" tab-group="plugin-api"
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+export default Plugin.define({
+  id: 'release',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'release_rollback',
+        description: 'Roll production back to the last release, once the user allows it.',
+        input: z.object({}),
+        options: {codemode: false},
+        execute: async (_input, tool) => {
+          await ctx.permission.assert({
+            action: 'release_rollback',
+            resources: ['production'],
+            fallback: 'ask',
+            sessionId: tool.sessionId,
+            agent: tool.agent,
+            source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+          })
+          return {content: 'Production is back on the last release.'}
+        },
+      })
+    })
+  },
+})
+```
+
+```ts twoslash title="conciv/plugins/release/server.ts" tab="Effect" tab-group="plugin-api"
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+
+export default Plugin.define({
+  id: 'release',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'release_rollback',
+        description: 'Roll production back to the last release, once the user allows it.',
+        input: z.object({}),
+        options: {codemode: false},
+        execute: (_input, tool) =>
+          ctx.permission
+            .assert({
+              action: 'release_rollback',
+              resources: ['production'],
+              fallback: 'ask',
+              sessionId: tool.sessionId,
+              agent: tool.agent,
+              source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+            })
+            .pipe(Effect.as({content: 'Production is back on the last release.'})),
+      })
+    }),
+})
+```
+
+<Accordions>
+<Accordion title="An ask rule alone does not ask every time">
+
+The last rule that matches wins. The engine reads them in this order:
+
+1. the agent profile's rules, including your config rules and the rules plugins add;
+2. the tool's fallback;
+3. the session's own rules;
+4. saved answers.
+
+A `deny` among the first three always wins. Learn more in [Agents and permissions](/docs/agents-and-permissions).
+
+An `ask` rule you push onto an agent with `ctx.agent.transform` beats the catch-all rules before it. A saved
+Allow always answer still wins, because it comes after. Leaving out `save` is the way to ask on every call.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Add a tool](/docs/plugins/guides/tool)**: the tool this page guards.
+- **[Test your plugin](/docs/plugins/guides/testing)**: check in a test that the call asks.
+- **[Approvals](/docs/usage/approvals)**: what the user does with the card.

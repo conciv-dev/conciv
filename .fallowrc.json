@@ -413,6 +413,10 @@
   },
   "overrides": [],
   "ignoreDependencies": [
+    "@conciv/backend-test-utils",
+    "@conciv/preact",
+    "@conciv/react",
+    "@internal/frontend-test-utils",
     "@orpc/contract",
     "@internal/test-utils",
     "@parcel/watcher-darwin-arm64",
@@ -898,6 +902,8 @@
     }
   ],
   "entry": [
+    "apps/site/content/docs/**/*.ts",
+    "apps/site/playground-shell/start-playground.ts",
     "packages/backend-app-api/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/app/src/global-entry.ts",

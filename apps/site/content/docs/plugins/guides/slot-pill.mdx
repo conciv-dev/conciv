@@ -1,0 +1,342 @@
+---
+title: Add a slot or composer pill
+label: Slot or pill
+description: Put a small piece of your plugin at a fixed place in the widget, or a pill above the composer.
+---
+
+A slot puts your content at a fixed place in the widget, such as a session's status area. A pill sits above the
+composer. It runs an action when the user clicks it. You write the browser part in Solid, React, Preact or plain DOM.
+
+In React and Preact the code lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+<AgentPrompt prompt="slot-pill" />
+
+## Add a slot
+
+Add a slot in your plugin's browser part:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// ---cut---
+import {Plugin, Slot} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Slot, {
+      at: 'session.status', // <- the place in the widget
+      render: (input) => <span>{input.session.run.status() === 'running' ? 'Agent working' : 'Agent idle'}</span>,
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="React">
+
+`run.status()` is a Solid signal, so a React component does not draw again when it changes. Pass a function to
+`ctx.add` instead. The widget runs it again when the status changes:
+
+```tsx twoslash title="src/conciv/status.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {Slot, type Plugin} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+
+function Working() {
+  return <span>Agent working</span>
+}
+
+function Idle() {
+  return <span>Agent idle</span>
+}
+
+const working: Slot = {at: 'session.status', render: reactRender(Working)} // <- the place in the widget
+const idle: Slot = {at: 'session.status', render: reactRender(Idle)}
+
+export const status: Plugin.Setup = (ctx) => {
+  ctx.add(Slot, () => (ctx.sessions.current()?.run.status() === 'running' ? working : idle))
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+`run.status()` is a Solid signal, so a Preact component does not draw again when it changes. Pass a function to
+`ctx.add` instead. The widget runs it again when the status changes:
+
+```tsx twoslash title="src/conciv/status.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {Slot, type Plugin} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+
+function Working() {
+  return <span>Agent working</span>
+}
+
+function Idle() {
+  return <span>Agent idle</span>
+}
+
+const working: Slot = {at: 'session.status', render: preactRender(Working)} // <- the place in the widget
+const idle: Slot = {at: 'session.status', render: preactRender(Idle)}
+
+export const status: Plugin.Setup = (ctx) => {
+  ctx.add(Slot, () => (ctx.sessions.current()?.run.status() === 'running' ? working : idle))
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+`run.status()` is a Solid signal, so `subscribe` does not call you when it changes. Pass a function to `ctx.add`
+instead. The widget runs it again when the status changes:
+
+```ts twoslash title="conciv/plugins/status/plugin-experimental.ts"
+import {mountRender, Plugin, Slot} from '@conciv/frontend-plugin-api'
+
+function drawText(text: string): Slot {
+  return {
+    at: 'session.status', // <- the place in the widget
+    render: mountRender((element) => {
+      const span = element.appendChild(document.createElement('span'))
+      span.textContent = text
+      return () => span.remove()
+    }),
+  }
+}
+
+const working = drawText('Agent working')
+const idle = drawText('Agent idle')
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Slot, () => (ctx.sessions.current()?.run.status() === 'running' ? working : idle))
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+`render` draws the content once. Read `input.session` where you use it, so it follows the session on screen. The
+places a slot can go:
+
+- `session.header`: a session's header.
+- `session.status`: a session's status area.
+- `window.bottom`: the bottom of the widget window.
+- `page.overlay`: over your app's page, outside the widget. It keeps keyboard focus inside, unless you set
+  `hides: false`.
+
+Build or wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part),
+then reload.
+
+## Add a pill above the composer
+
+A pill can put text in the composer for the user to send. It draws no UI of its own, so the code is the same in
+every tab. Only where it lives changes:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
+import {ComposerPill, Plugin} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ComposerPill, {
+      id: 'review',
+      order: 20, // <- sorts it among the other pills
+      show: (input) => ({
+        label: 'Review',
+        icon: 'eye',
+        run: () => input.screen.composer.insert('Review my last change and list what could break.'),
+      }),
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="React">
+
+```ts twoslash title="src/conciv/status.ts"
+import {ComposerPill, type Plugin} from '@conciv/frontend-plugin-api'
+
+export const status: Plugin.Setup = (ctx) => {
+  ctx.add(ComposerPill, {
+    id: 'review',
+    order: 20, // <- sorts it among the other pills
+    show: (input) => ({
+      label: 'Review',
+      icon: 'eye',
+      run: () => input.screen.composer.insert('Review my last change and list what could break.'),
+    }),
+  })
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+```ts twoslash title="src/conciv/status.ts"
+import {ComposerPill, type Plugin} from '@conciv/frontend-plugin-api'
+
+export const status: Plugin.Setup = (ctx) => {
+  ctx.add(ComposerPill, {
+    id: 'review',
+    order: 20, // <- sorts it among the other pills
+    show: (input) => ({
+      label: 'Review',
+      icon: 'eye',
+      run: () => input.screen.composer.insert('Review my last change and list what could break.'),
+    }),
+  })
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/status/plugin-experimental.ts"
+import {ComposerPill, Plugin} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ComposerPill, {
+      id: 'review',
+      order: 20, // <- sorts it among the other pills
+      show: (input) => ({
+        label: 'Review',
+        icon: 'eye',
+        run: () => input.screen.composer.insert('Review my last change and list what could break.'),
+      }),
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+A few things to notice:
+
+- `show` returns what the pill looks like, or `undefined` to hide it. It runs once per composer on screen.
+- `icon` is a name from the widget's icon set. The names are [lucide](https://lucide.dev/icons) names.
+- `run` is what a click does. Here it puts a prompt in the composer. The user sends it.
+
+Build or wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part),
+then reload.
+
+## Show something only some of the time
+
+Pass a function to `ctx.add`. The widget runs it again when what it reads changes. Returning `undefined` adds nothing:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/status/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// ---cut---
+import {Plugin, Slot} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    const badge: Slot = {at: 'window.bottom', render: () => <span>Dev build</span>}
+    ctx.add(Slot, () => (ctx.app.channel === 'dev' ? badge : undefined)) // <- only in a dev build
+  },
+})
+```
+
+</Tab>
+<Tab value="React">
+
+```tsx twoslash title="src/conciv/status.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {Slot, type Plugin} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+
+function DevBadge() {
+  return <span>Dev build</span>
+}
+
+const badge: Slot = {at: 'window.bottom', render: reactRender(DevBadge)}
+
+export const status: Plugin.Setup = (ctx) => {
+  ctx.add(Slot, () => (ctx.app.channel === 'dev' ? badge : undefined)) // <- only in a dev build
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+```tsx twoslash title="src/conciv/status.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {Slot, type Plugin} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+
+function DevBadge() {
+  return <span>Dev build</span>
+}
+
+const badge: Slot = {at: 'window.bottom', render: preactRender(DevBadge)}
+
+export const status: Plugin.Setup = (ctx) => {
+  ctx.add(Slot, () => (ctx.app.channel === 'dev' ? badge : undefined)) // <- only in a dev build
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/status/plugin-experimental.ts"
+import {mountRender, Plugin, Slot} from '@conciv/frontend-plugin-api'
+
+const badge: Slot = {
+  at: 'window.bottom',
+  render: mountRender((element) => {
+    const span = element.appendChild(document.createElement('span'))
+    span.textContent = 'Dev build'
+    return () => span.remove()
+  }),
+}
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Slot, () => (ctx.app.channel === 'dev' ? badge : undefined)) // <- only in a dev build
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+`ctx.app.channel` is the widget's release channel. Build or wire it as in
+[Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part), then reload.
+
+<Accordions>
+<Accordion title="A pill that opens a menu">
+
+Instead of `run`, return `rows`: a list, each row with a `label` and its own `run`. For anything more, give the
+pill a `menu` function that renders your own content in the popover. `reactRender`, `preactRender` and
+`mountRender` each make one too.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Add a panel](/docs/plugins/guides/panel)**: a whole tab next to the chat.
+- **[Add settings](/docs/plugins/guides/settings)**: let the user switch your slot on and off.

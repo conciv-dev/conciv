@@ -1,0 +1,264 @@
+---
+title: Troubleshooting
+description: Find the message conciv shows you, then read its cause and its fix.
+---
+
+Each entry here is one message conciv shows, with its cause and its fix. Find it by where it shows: in the panel, in
+your dev server's terminal, or from the CLI. When nothing shows at all, start with the first section.
+
+## When nothing shows
+
+### No conciv button
+
+> The conciv button never appears on the page.
+
+**Cause.** conciv adds the widget in development only, and only when it is turned on.
+
+**Fix.** Run the dev server, not a production build. Check that your options set neither `enabled` nor `widget` to
+`false`. Learn more in [Configuration](/docs/reference/configuration#enabled).
+
+### No answer in the chat
+
+> The chat never answers.
+
+**Cause.** The default harness runs the `claude` CLI. The dev server cannot find it, or it is not logged in.
+
+**Fix.** Install Claude Code and log in to it. Make sure `claude` is on the `PATH` of the shell that starts your dev
+server. Learn more in [Harnesses](/docs/harnesses).
+
+## In the panel
+
+The login messages live on this page only. Learn more in [Logging in](/docs/usage/logging-in).
+
+### Not logged in
+
+> Log in to use conciv on this page.
+
+**Cause.** This browser has not logged in to this engine.
+
+**Fix.** Click **Log in**, and type the 6-digit code from your dev server's terminal.
+
+### Logged out
+
+> This browser is no longer authorized to use conciv.
+
+**Cause.** Someone logged this browser out with `auth revoke`.
+
+**Fix.** Click **Log in** and log in again.
+
+### Wrong code
+
+> That code didn't match. Check your terminal and try again.
+
+**Cause.** The digits differ from the newest code in your terminal.
+
+**Fix.** Type the code from the newest box. After 5 wrong tries the engine drops the code. Then click **Send a new
+code**.
+
+### Expired code
+
+> That code expired. Send a new code and use the one your terminal prints.
+
+**Cause.** A code lives 5 minutes. It is also dropped after 5 wrong tries.
+
+**Fix.** Click **Send a new code**, and type the code from the new box.
+
+### No code from the dev server
+
+> Could not ask the dev server for a code. Please try again.
+
+**Cause.** The engine did not answer the login dialog.
+
+**Fix.** Check that the dev server is running, then click **Send a new code**.
+
+### Lost connection
+
+> conciv lost connection to the engine.
+
+**Cause.** The engine stopped answering, usually because the dev server stopped or restarted.
+
+**Fix.** Start the dev server and click **Retry**. A message you tried to send meanwhile stays in the composer.
+
+### Engine not reached
+
+> conciv couldn't reach the engine. Check that the dev server is still running.
+
+**Cause.** The panel could not load from the engine.
+
+**Fix.** Start the dev server and click **Retry**.
+
+### Older engine
+
+> This widget is version &lt;version&gt; but the conciv engine is older.
+
+**Cause.** Your `@conciv/*` packages are on different versions.
+
+**Fix.** Update them all to the version the message names. Then restart your dev server.
+
+### Outdated engine code
+
+> Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.
+
+**Cause.** conciv's code on disk changed after the engine started, for example after an install.
+
+**Fix.** Restart the dev server.
+
+### Pi turns fail
+
+> pi is not installed or not yet supported
+
+**Cause.** The session runs the Pi harness, which has no chat in conciv yet.
+
+**Fix.** Pick a model of another harness in the model menu. Learn more in [Harnesses](/docs/harnesses#pi).
+
+### A path with a space
+
+> claudeExecutable: --plugin-dir path "&lt;path&gt;" contains whitespace.
+
+**Cause.** conciv cannot pass a path with a space in it to Claude Code. The message names the path, or `--settings`.
+
+**Fix.** Move that folder to a path without spaces.
+
+## In your dev server's terminal
+
+### Port in use
+
+> conciv: port &lt;port&gt; is already in use, the engine is listening on http://127.0.0.1:&lt;other&gt; instead
+
+**Cause.** On Vite, the `port` you set is taken. The engine took a free port instead, and the widget follows it.
+
+**Fix.** Nothing breaks, so you can leave it. To keep your port, stop what holds it and restart the dev server.
+
+### Not a session id
+
+> the configured conciv session id "&lt;id&gt;" is not a conciv session id (ses\_...)
+
+**Cause.** The `sessionId` option is not a conciv session id, so the engine does not start.
+
+**Fix.** Use an id that starts with `ses_`, or remove the option. Learn more in [Configuration](/docs/reference/configuration#sessionid-and-claudesessionid).
+
+### Unknown harness
+
+> conciv: unknown harness "&lt;id&gt;". Known harnesses: claude, codex, gemini-cli, opencode, pi.
+
+**Cause.** The `harness` option names a harness conciv does not have.
+
+**Fix.** Use one of the ids the message lists. Learn more in [Harnesses](/docs/harnesses).
+
+### Plugin path is a file
+
+> configured plugin path must be a directory
+
+**Cause.** A path in `plugins` points at a file. A plugin loaded by path is a folder.
+
+**Fix.** Point the path at the plugin's folder. Learn more in [Debug a plugin that does not load](/docs/recipes/debug-a-plugin-that-does-not-load).
+
+## In simulation
+
+These show when the engine runs with a driver. Learn more in [Drive the widget from a script](/docs/recipes/drive-the-widget-from-a-script).
+
+### No driver
+
+> the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused
+
+**Cause.** `CONCIV_SIMULATE` is set without `CONCIV_DRIVE`. No socket opens, so nothing answers the model.
+
+**Fix.** Set both variables.
+
+### Address not on the list
+
+> Simulation denied unregistered network destination
+
+**Cause.** The engine tried to reach an address that is not on the simulation's fixed list. The message names the
+method and the address.
+
+**Fix.** Leave the call out of the flow you simulate. The list is fixed.
+
+### Widget call not supported
+
+> the widget does not support &lt;call&gt;
+
+**Cause.** The widget does not answer `ui.capture`, `ui.recording.finish`, `ui.mouse` or `ui.resize`.
+
+**Fix.** Use the calls under `client.ui` that it answers, such as `snapshot` and `click`.
+
+### Widget socket did not start
+
+> conciv drive ui websocket did not start
+
+**Cause.** The widget socket could not listen, for example because its port is taken.
+
+**Fix.** Free the port, or name an instance with other ports. The engine runs on without the socket, and the model
+socket still works.
+
+## From the CLI
+
+### No dev server
+
+> No conciv dev server on 127.0.0.1:&lt;port&gt;.
+
+**Cause.** The command found no engine on that port.
+
+**Fix.** Start your dev server. If it runs, set `CONCIV_PORT` to the engine's port, which is not the dev server's. The
+command looks for the port in this order:
+
+1. `CONCIV_PORT`.
+2. `.conciv/server.json` in this folder or a parent.
+3. The newest engine on this machine.
+4. Port 5173.
+
+### No registered engine answered
+
+> no conciv dev server answered: &lt;folder&gt; did not answer (&lt;error&gt;).
+
+**Cause.** Engines are registered on this machine, but none answered when the command asked. This prints when neither
+`CONCIV_PORT` nor a `.conciv/server.json` names a port, so the command tried the registered engines.
+
+**Fix.** A dev server that is still starting answers once it is ready, so run the command again. Restart the dev
+server if it stays silent.
+
+### No engine state
+
+> no conciv engine state found here or in any parent directory
+
+**Cause.** `auth` needs `.conciv/server.json`, which the dev server writes when it starts.
+
+**Fix.** Run the command in your project folder, after the dev server has started there once.
+
+### Unknown browser id
+
+> no trusted browser has the id "&lt;id&gt;"
+
+**Cause.** No logged-in browser has that id.
+
+**Fix.** Run `npx @conciv/cli auth revoke` with no id. It lists the browsers and their ids, and logs nobody out.
+
+### Non-interactive terminal
+
+> Non-interactive terminal
+
+**Cause.** `init` had no terminal to ask its questions in.
+
+**Fix.** Run it again with `--yes` to take the defaults. Or use `--dry-run` to print the plan only.
+
+### Uncommitted changes
+
+> uncommitted changes
+
+**Cause.** `init` refuses a git tree with uncommitted changes.
+
+**Fix.** Commit first, or pass `--force`.
+
+### No package.json
+
+> no package.json here
+
+**Cause.** `init` runs in your app's folder, the one that holds `package.json`.
+
+**Fix.** Change to that folder and run it again.
+
+## Next steps
+
+- **[Logging in](/docs/usage/logging-in):** codes, links and logging out.
+- **[Harnesses](/docs/harnesses):** install and pick an agent CLI.
+- **[CLI](/docs/reference/cli):** every command, with its flags.

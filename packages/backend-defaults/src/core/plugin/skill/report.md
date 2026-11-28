@@ -13,7 +13,7 @@ useful GitHub issue with standard diagnostics plus the context needed to reprodu
 Do not publish an issue without user confirmation. If GitHub CLI is not installed or not authenticated, explain
 the blocker and provide the exact issue title and body for the user.
 
-Before drafting, fetch <https://conciv.dev/docs/troubleshooting>. If the page covers the problem, tell the user
+Before drafting, fetch <https://conciv.dev/docs/reference/troubleshooting>. If the page covers the problem, tell the user
 what it says first; report only if the problem remains or the page is wrong.
 
 ## Standard diagnostics

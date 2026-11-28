@@ -1,0 +1,4 @@
+{
+  "title": "Agents",
+  "pages": ["claude-code", "codex", "gemini-cli", "opencode", "pi"]
+}

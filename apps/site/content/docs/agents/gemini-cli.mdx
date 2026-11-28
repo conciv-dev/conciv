@@ -1,0 +1,68 @@
+---
+title: Gemini CLI
+description: "Connect Gemini CLI to conciv, and what conciv runs when it is the session's agent."
+---
+
+[Gemini CLI](https://github.com/google-gemini/gemini-cli) connects to conciv as an MCP server. In the panel it chats
+over the Agent Client Protocol (ACP).
+
+## Connect Gemini CLI
+
+Run this once, in any folder:
+
+```bash title="Terminal"
+npx @conciv/cli mcp connect gemini-cli
+```
+
+It adds conciv's MCP server, named conciv-hub, to Gemini CLI for your user. Under the hood it runs
+`gemini mcp add -s user`. On success it prints:
+
+```json title="Output"
+{"ok": true, "data": {"connected": "gemini-cli"}}
+```
+
+With your dev server running and your app open, ask Gemini CLI in your terminal:
+
+```text title="Prompt"
+List my open conciv tabs. Then read the page in the first one and tell me what is on it.
+```
+
+Learn what it can call in the [Agents documentation](/docs/agents#what-a-connected-agent-gets).
+
+## What conciv runs in the chat
+
+When Gemini CLI is the session's harness, conciv runs it on your machine, in your project, with your own login:
+
+```text title="What conciv runs"
+gemini --acp -m gemini-3-pro-preview   <- ACP mode, with the model you picked
+```
+
+Every permission Gemini CLI asks for shows as a [Permission card](/docs/usage/approvals). The model menu lists four
+models:
+
+- `gemini-3-pro-preview`, the default
+- `gemini-3-flash-preview`
+- `gemini-2.5-pro`
+- `gemini-2.5-flash`
+
+Gemini CLI keeps no history conciv can read, so its past sessions do not show in the session list.
+
+## Disconnect
+
+```bash title="Terminal"
+npx @conciv/cli mcp disconnect gemini-cli
+```
+
+This stops conciv answering Gemini CLI. It removes `conciv-hub` from its config.
+
+<Accordions type="single">
+  <Accordion title="Pick a Gemini model that is not in the menu">
+    You cannot. The list is fixed in conciv today. Pick the closest one in the model menu.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Harnesses](/docs/harnesses):** compare what each harness can do.
+- **[Approvals](/docs/usage/approvals):** what asks before the agent acts.
+- **[opencode](/docs/agents/opencode):** the same for opencode.

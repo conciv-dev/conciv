@@ -1,0 +1,90 @@
+---
+title: Terminal
+description: Run the session's agent CLI in a real terminal, in the Terminal tab of the session's pane.
+---
+
+The **Terminal** tab runs your agent's own CLI in a real terminal, inside the widget. You type to the CLI as you would
+in your shell. Each session has its own terminal.
+
+It comes from the terminal plugin. It is on in every widget, so there is nothing to add.
+
+<Callout title="Not the quick terminal">
+  The [quick terminal](/docs/usage/quick-terminal) is the chat in a sheet that drops from the top of the page. The
+  **Terminal** tab is a real terminal running the CLI. They are separate things.
+</Callout>
+
+## When you see the tab
+
+The tab shows for a session whose agent CLI has a terminal command. Today that is Claude Code. A session on another
+CLI has no **Terminal** tab.
+
+The tab is pinned in the session's pane, next to **Chat**. Click it to switch, and click **Chat** to go back.
+
+## Start the CLI
+
+The CLI starts the first time you open the tab. Until then nothing runs. After a page reload, the tab shows what the
+terminal printed before.
+
+## The toolbar
+
+The toolbar sits above the terminal:
+
+- **New terminal** ends the CLI and starts a fresh one.
+- **Select model** picks the model the CLI runs. A new pick restarts the CLI with that model.
+- **Select an element from the page** lets you pick an element on your app. It is there while page control is on.
+
+The model you pick stays with its session. It is also the default for your next session.
+
+While the CLI is working, **New terminal** and **Select model** are locked. They unlock when it finishes.
+
+## Send an element to the CLI
+
+Click **Select an element from the page**, then click an element on your app. It shows as a chip in the toolbar. Pick
+more to hold several. Click the **x** on a chip to drop it.
+
+Press Enter in the terminal. The held elements are pasted into the CLI with your line, and the chips clear. They never
+go to the chat. Learn more in [Page control](/docs/usage/page-control).
+
+## Stop the CLI
+
+Press Escape with focus in the terminal to interrupt the CLI while it works. Keys you press on your app stay there.
+
+When the CLI ends, the terminal dims and says **Terminal session ended**. Click **Back to chat** to return to the chat,
+or **New terminal** to start again.
+
+## When it goes wrong
+
+| You see                                                 | Why                                                        | What to do                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------- |
+| The CLI is busy. Wait for it to finish, then try again. | You asked for a new terminal or model while the CLI works. | Wait for the CLI to finish, then try again. |
+| Couldn’t restart the terminal.                          | The old terminal could not be ended.                       | Try **New terminal** again.                 |
+| Couldn’t open the terminal.                             | The terminal did not start, such as on a CLI with none.    | Click **Retry**. Check the session's CLI.   |
+
+## Turn it off
+
+You cannot turn the terminal off in config. It only shows for a CLI with a terminal, and starts only when you open
+the tab.
+
+## Typical uses
+
+### Use a CLI command the chat does not have
+
+Open the **Terminal** tab and type the CLI's own command, such as a slash command, as you would in your shell.
+
+### Point the CLI at an element
+
+Click **Select an element from the page**, pick the broken button, then type:
+
+```text title="Terminal"
+This button does nothing on click. Find out why.
+```
+
+### Try another model
+
+Click **Select model** and pick another model. The CLI restarts with it, and the session keeps that pick.
+
+## Next steps
+
+- **[Quick terminal](/docs/usage/quick-terminal):** the chat as a drop-down sheet.
+- **[Chat](/docs/usage/chat):** talk to the agent in the chat instead.
+- **[Add plugins](/docs/usage/add-plugins):** the other plugins conciv ships.

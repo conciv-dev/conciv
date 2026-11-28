@@ -1,0 +1,101 @@
+---
+title: Claude Code
+description: "Connect Claude Code to conciv, and what conciv runs when it is the session's agent."
+---
+
+[Claude Code](https://docs.claude.com/en/docs/claude-code) connects to conciv as an MCP server. It is also the harness
+a new chat starts with.
+
+## Connect Claude Code
+
+Run this once, in any folder:
+
+```bash title="Terminal"
+npx @conciv/cli mcp connect claude
+```
+
+It adds conciv's MCP server, named conciv-hub, to Claude Code for your user. Under the hood it runs
+`claude mcp add -s user`. On success it prints:
+
+```json title="Output"
+{"ok": true, "data": {"connected": "claude"}}
+```
+
+With your dev server running and your app open, ask Claude Code in your terminal:
+
+```text title="Prompt"
+List my open conciv tabs. Then read the page in the first one and tell me what is on it.
+```
+
+Learn what it can call in the [Agents documentation](/docs/agents#what-a-connected-agent-gets).
+
+## The project plugin
+
+conciv's init also installs a Claude Code plugin, conciv-connect, for this project only. It lives in
+`.conciv/claude-connect`. It holds a conciv skill and an MCP bridge. The bridge reads the engine's address from
+`.conciv/mcp-endpoint.json`, which the engine writes when it starts.
+
+## What conciv runs in the chat
+
+When Claude is the session's harness, conciv runs Claude Code on your machine, in your project, with your own login:
+
+```text title="What conciv passes Claude Code"
+permission mode   auto                     <- Claude Code asks when it judges a step risky
+ask rules         git push --force, ...    <- these commands always ask, as a card
+system prompt     appended                 <- conciv's instructions follow Claude Code's own
+AskUserQuestion   off                      <- the agent asks with a card in the thread instead
+model             opus                     <- unless you pick another in the model menu
+```
+
+conciv adds ask rules, so these commands always ask, even in auto mode:
+
+- `git push` that forces (`--force`, `-f`) or deletes a remote branch (`--delete`, `-d`, a `:branch` refspec)
+- `git reset --hard`
+- `git clean`
+- `git branch -D`
+- `git gc --prune`
+- a recursive `rm` (`-r`, `-R`, `-fr`, `-fR`)
+- a recursive `chmod -R` or `chown -R`
+- anything run with `sudo`
+
+Each ask shows as a [Permission card](/docs/usage/approvals). A tool call waits up to an hour for your answer.
+
+The model menu lists your account's own models, the same list as Claude Code's model picker. A picked effort level
+reaches Claude Code as its effort setting.
+
+Claude gives the chat the most of any harness: its own commands, image attachments, compaction, past sessions and the
+**Terminal** tab. Learn more in [Harnesses](/docs/harnesses).
+
+## Disconnect
+
+```bash title="Terminal"
+npx @conciv/cli mcp disconnect claude
+```
+
+This stops conciv answering Claude Code. It removes `conciv-hub` from its config.
+
+<Accordions type="single">
+<Accordion title="If the project plugin fails to install">
+
+init prints the commands to run yourself:
+
+```bash title="Terminal"
+claude plugin marketplace add .conciv/claude-connect
+claude plugin install conciv-connect@conciv --scope local
+claude plugin update conciv-connect@conciv --scope local
+```
+
+</Accordion>
+<Accordion title="A turn fails on a path with a space">
+
+conciv passes Claude Code a plugin folder and a settings file by path. If either path has a space, the turn fails.
+The error names the path and says to move it to a path with no space.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Approvals](/docs/usage/approvals):** answer the cards Claude Code asks.
+- **[Chat](/docs/usage/chat):** what you do in the chat.
+- **[Codex](/docs/agents/codex):** the same for Codex.

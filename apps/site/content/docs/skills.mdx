@@ -1,69 +1,103 @@
 ---
 title: Skills
-description: The built-in skills, and your own skills from a folder in the project.
+description: Give the agent a written guide for one kind of work, in a Markdown file in your project.
+icon: BookOpen
 ---
 
-A skill is a Markdown guide the agent loads when a task needs it. The agent sees each skill's id, name and
-description, and loads the full text with its `skill` tool.
+A skill is a Markdown guide the agent reads when a task needs it. Write one when you keep telling the agent the same
+steps: how your team names components, how to add a route, what to check before a release.
 
-## Built-in skills
+## Write a skill
 
-| id       | What it covers                                                                                                                                 |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `conciv` | Questions about conciv itself: how it works, installing and configuring it, choosing a harness, the widget, the CLI, plugins, troubleshooting. |
-| `report` | Reporting a conciv issue: it collects diagnostics, adds your reproduction steps and publishes the issue with the GitHub CLI.                   |
-
-## Add your own
-
-Put a folder with a `SKILL.md` in `conciv/skills` at the project root:
-
-<Files>
-  <Folder name="conciv" defaultOpen>
-    <Folder name="skills" defaultOpen>
-      <Folder name="greet" defaultOpen>
-        <File name="SKILL.md" />
-      </Folder>
-    </Folder>
-  </Folder>
-</Files>
-
-```md title="conciv/skills/greet/SKILL.md"
+```md title="conciv/skills/new-route/SKILL.md"
 ---
-name: greet
-description: How to greet the user
+name: new-route
+description: How to add a page route in this app. Use when the user asks for a new page or URL.
 ---
 
-Greet twice.
+1. Add the route file under `src/routes`, named after the URL.
+2. Export the route with `createFileRoute`.
+3. Add a link to it in `src/components/Nav.tsx`.
+4. Run the tests for the routes folder.
 ```
 
-The engine watches the folder: a new or changed skill reaches the agent without a restart.
+- `name` is what the agent sees in its list of skills.
+- `description` decides when the agent picks the skill.
+- The body is the guide. Write it as you would brief a new teammate.
 
-- The skill's id is its folder name. A `.md` file directly in `conciv/skills` is a skill too, with the file name as
-  its id.
-- Files beside `SKILL.md` belong to the skill. The agent sees their paths when it loads the skill.
-- `conciv/skill` works the same way. So do `skills` and `skill` in the conciv home folder (`CONCIV_HOME`), for skills
-  every project gets.
+Save the file. The engine watches the folder, so the agent sees the skill with no restart.
+
+<Callout type="success" title="A skill or a plugin?">
+  Use a skill when written steps are enough. When the agent needs a new tool, a card or a panel, write a
+  [plugin](/docs/plugins) instead.
+</Callout>
+
+## Locations
+
+conciv loads skills from two places:
+
+- **The project:** `conciv/skills/` at your project root. These belong to this project.
+- **Your conciv home folder:** `skills/` there. These apply to every project.
+
+The home folder is `CONCIV_HOME` when you set it. Otherwise it is:
+
+- macOS: `~/Library/Application Support/conciv`
+- Linux: `~/.local/share/conciv`
+- Windows: `%LOCALAPPDATA%\conciv\Data`
+
+A project skill replaces a home skill
+with the same id. A folder named `skill` works the same as `skills`, in both places.
+
+## How skills work
+
+The agent sees each skill's name and description up front. It reads the full guide only when your request matches the
+description. So a skill costs nothing until the agent reads it.
+
+To make sure it reads one, name it in your message, or type `@` in the composer and pick it:
+
+```text title="Message"
+Use the new-route skill to add a /pricing page.
+```
+
+## Skill structure
+
+A skill is a folder with a `SKILL.md` inside. The folder name is the skill's id. A single `.md` file in
+`conciv/skills/` is a skill too. Its file name is its id. The folder form is better, because it can hold more files.
 
 ## Frontmatter
 
-<TypeTable
-  type={{
-    name: {type: 'string', description: 'The name the agent sees. Defaults to the id.'},
-    description: {
-      type: 'string',
-      description: 'When to use the skill. A skill without one is left out of the list the agent sees.',
-    },
-    'disable-model-invocation': {
-      type: 'boolean',
-      description: '`true` leaves the skill out of the list the agent sees.',
-    },
-  }}
-/>
+- `name` is the name the agent sees. Without it, the id is used.
+- `description` says what the skill does and when it applies. A skill with no description is never offered on its own.
+- `disable-model-invocation: true` keeps the skill out of the agent's list. It still reads the skill when you name it.
 
-The agent can still load a skill left out of the list when you name it.
+## Files beside a skill
 
-## Skills from a plugin
+Put examples, templates or scripts next to `SKILL.md`. When the agent loads the skill, it gets their paths too. So the
+guide can point at them:
 
-A plugin adds skills in code with `ctx.skill.transform`. The page plugin, which conciv ships, adds `page`; the
-test-runner, whiteboard, recorder and TanStack plugins add `test-runner`, `whiteboard`, `recorder` and `tanstack` when
-you load them. See [Engine part](/docs/plugins/engine).
+```md title="conciv/skills/new-route/SKILL.md"
+Copy `template.tsx` from this skill's folder as the start of the new route file.
+```
+
+<Callout type="warn" title="Review a skill before you add it">
+  A skill can tell the agent to do anything, and its scripts run with your rights. Read a skill you did not write before
+  you add it.
+</Callout>
+
+## Built-in skills
+
+conciv comes with two skills of its own:
+
+- `conciv` answers questions about conciv: setup, configuration, harnesses, the widget, the CLI and plugins.
+- `report` files a bug about conciv. It collects diagnostics, adds your steps and opens the issue with the GitHub CLI.
+
+## Skills from plugins
+
+Plugins add skills too. The page plugin, which conciv ships, adds `page`. The test runner, TanStack and recorder
+plugins each add a skill named after themselves when you load them. Learn more in [Add a skill](/docs/plugins/guides/skill).
+
+## Next steps
+
+- **[Chat](/docs/usage/chat):** mention a skill with `@` in the composer.
+- **[Add a skill](/docs/plugins/guides/skill):** ship a skill from a plugin.
+- **[Plugins](/docs/plugins):** when written steps are not enough, give the agent a tool.

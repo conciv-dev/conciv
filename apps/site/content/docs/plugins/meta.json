@@ -1,5 +1,4 @@
 {
   "title": "Plugins",
-  "icon": "Puzzle",
-  "pages": ["index", "engine", "browser", "testing", "built-ins", "terminal"]
+  "pages": ["index", "first-plugin", "guides", "reference"]
 }

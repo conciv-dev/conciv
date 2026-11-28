@@ -1,69 +1,30 @@
 ---
-title: Usage
-description: A tour of the widget, and which parts come with conciv and which come from a plugin you add.
-icon: MousePointerClick
+title: Use conciv
+description: Everything you do with the widget in your running app, one task per page.
 ---
 
-Once conciv is installed, a conciv button sits in the corner of your dev app.
+The widget is the conciv button and chat panel in the corner of your dev app. You open it and ask for an outcome in
+plain words. The agent works on the page you see and in your source. These pages cover one task each.
 
-<ImageZoom
-  src="/screenshots/widget-fab.png"
-  alt="The conciv robot button in the corner of a running app"
-  width={1920}
-  height={1080}
-/>
+## First steps
 
-Click it to open the chat panel. From here you talk to the agent, watch it work, and answer its questions.
+- [Logging in](/docs/usage/logging-in): let a browser in once, with the code your dev server prints.
+- [Chat](/docs/usage/chat): send a message, queue the next one, switch sessions and models.
 
-<ImageZoom src="/screenshots/panel-open.png" alt="The conciv chat panel open over the app" width={1920} height={1080} />
+## Work on your app
 
-## Capabilities
+- [Page control](/docs/usage/page-control): point at an element and have the agent change it.
+- [Dev server](/docs/usage/dev-server): ask how an import resolves, what a file pulls in, or restart the server.
+- [Live tests](/docs/usage/live-tests): run your tests from the chat and read the result.
+- [Live recorder](/docs/usage/live-recorder): record what you do on the page, and send it to the agent.
+- [Quick terminal](/docs/usage/quick-terminal): drop the chat from the top of the page and split it into panes.
 
-<Cards>
-  <Card title="Logging in" href="/docs/usage/logging-in" description="Each browser logs in once with a code." />
-  <Card
-    title="Chat"
-    href="/docs/usage/chat"
-    description="Ask about the page you are on. The agent reads the rendered page to ground itself."
-  />
-  <Card
-    title="Quick terminal"
-    href="/docs/usage/quick-terminal"
-    description="Drop the chat from the top of the page on a hotkey, and split it into panes."
-  />
-  <Card
-    title="Page control"
-    href="/docs/usage/page-control"
-    description="It drives and edits the live page, then writes the change to your source."
-  />
-  <Card
-    title="Dev server"
-    href="/docs/usage/dev-server"
-    description="The agent reads the dev server's config, module graph and served code."
-  />
-  <Card title="Live tests" href="/docs/usage/live-tests" description="Run your tests and read the result in a card." />
-  <Card
-    title="Whiteboard"
-    href="/docs/usage/whiteboard"
-    description="A shared Excalidraw canvas over the app. You sketch, the agent draws back."
-  />
-  <Card title="Approvals" href="/docs/usage/approvals" description="Allow or deny risky actions before they run." />
-</Cards>
+## Stay in control
 
-## What comes with conciv, and what you add
+- [Approvals](/docs/usage/approvals): allow or deny a risky action before it runs.
+- [Skills](/docs/skills): write the steps once, and the agent follows them.
 
-The chat, sessions, the quick terminal, logging in, approvals, settings and the dev server tools are part of conciv
-itself. The rest comes from plugins. `@conciv/it` ships two of them; you add the others to `plugins` in your conciv
-config (see [Plugins](/docs/plugins)).
+## Add more
 
-| Feature                                           | Plugin                        | How you get it                                       |
-| ------------------------------------------------- | ----------------------------- | ---------------------------------------------------- |
-| [Page control](/docs/usage/page-control) and grab | `@conciv/plugin-page`         | Shipped, always on.                                  |
-| The Terminal tab in the panel                     | `@internal/plugin-terminal`   | Shipped, always on.                                  |
-| [Live tests](/docs/usage/live-tests)              | `@conciv/plugin-test-runner`  | Install it and add it to `plugins`.                  |
-| [Whiteboard](/docs/usage/whiteboard)              | `@internal/plugin-whiteboard` | Not published yet: only loaded by path, in the repo. |
-| Recorder tab                                      | `@conciv/plugin-recorder`     | Install it and add it to `plugins`.                  |
-| TanStack Router and Start tools                   | `@conciv/plugin-tanstack`     | Install it and add it to `plugins`.                  |
-| The iOS simulator                                 | `@conciv/plugin-ios`          | Install it and add it to `plugins`.                  |
-
-See [Built-ins](/docs/plugins/built-ins) for what each plugin adds.
+- [Add plugins](/docs/usage/add-plugins): the `plugins` option, and the plugins conciv ships.
+- [Whiteboard](/docs/usage/whiteboard): a shared canvas over the app.

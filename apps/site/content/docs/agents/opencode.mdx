@@ -1,0 +1,62 @@
+---
+title: opencode
+description: "Connect opencode to conciv, and what conciv runs when it is the session's agent."
+---
+
+[opencode](https://opencode.ai) connects to conciv as an MCP server. In the panel it chats with the models
+opencode can use.
+
+## Connect opencode
+
+Run this once, in any folder:
+
+```bash title="Terminal"
+npx @conciv/cli mcp connect opencode
+```
+
+It adds conciv's MCP server, named conciv-hub, to opencode. Under the hood it runs `opencode mcp add`. On success
+it prints:
+
+```json title="Output"
+{"ok": true, "data": {"connected": "opencode"}}
+```
+
+With your dev server running and your app open, ask opencode in your terminal:
+
+```text title="Prompt"
+List my open conciv tabs. Then read the page in the first one and tell me what is on it.
+```
+
+Learn what it can call in the [Agents documentation](/docs/agents#what-a-connected-agent-gets).
+
+## What conciv runs in the chat
+
+When opencode is the session's harness, conciv runs it on your machine, in your project, with your own login:
+
+```text title="What conciv passes opencode"
+model   opencode/claude-sonnet-4-5   <- the default, unless you pick another
+```
+
+The model menu lists the models opencode reports as usable, newest first. Past opencode sessions in this project
+show in the session list.
+
+## Disconnect
+
+```bash title="Terminal"
+npx @conciv/cli mcp disconnect opencode
+```
+
+This stops conciv answering opencode. The `conciv-hub` entry stays in `opencode.json`. conciv
+refuses it until you connect again.
+
+<Accordions type="single">
+  <Accordion title="opencode asks for permission and no card shows">
+    opencode asks in its own way, and those asks do not reach conciv yet. No Permission card shows in the chat.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Harnesses](/docs/harnesses):** compare what each harness can do.
+- **[Approvals](/docs/usage/approvals):** what asks before the agent acts.
+- **[Pi](/docs/agents/pi):** the same for Pi.

@@ -1,0 +1,36 @@
+---
+title: Agents
+description: Connect the coding agent in your terminal to conciv, and see what conciv runs when it answers in the chat.
+---
+
+conciv works with an agent CLI in two ways. A connected agent runs in your own terminal and drives your open conciv
+tabs through the `conciv-hub` MCP server. The session's harness is the agent CLI that conciv itself runs to answer in
+the chat. Each page covers both for one agent.
+
+## Pick your agent
+
+- [Claude Code](/docs/agents/claude-code): connects, and gives the chat the most: cards, commands and a terminal tab.
+- [Codex](/docs/agents/codex): connects, and chats in its sandbox with no permission cards.
+- [Gemini CLI](/docs/agents/gemini-cli): connects, and chats over ACP with permission cards.
+- [opencode](/docs/agents/opencode): connects, and chats with opencode's own models.
+- [Pi](/docs/agents/pi): no connection and no chat yet. Its past sessions show in the list.
+
+## What a connected agent gets
+
+- `list_tabs` lists the open conciv tabs of every running dev server on this machine.
+- `discover_tools` lists the tools it can call on a tab.
+- `execute_typescript` runs those tools on the tab you name.
+- Work a call leaves running is a job. Its result comes back at the top of the next reply on that tab.
+- By default it can use any open tab with no card. Learn to make it ask in [Approvals](/docs/usage/approvals).
+
+## What init sets up
+
+- conciv's init connects every agent it finds on your machine.
+- It writes a conciv section to `AGENTS.md`. It writes the same section to `CLAUDE.md` when that file does not import it.
+- For Claude Code it also installs a project plugin with a conciv skill. See [Claude Code](/docs/agents/claude-code).
+- Re-running init updates the section in place.
+
+## Learn more
+
+- [Harnesses](/docs/harnesses): pick the harness a new chat starts with, and compare what each can do.
+- [CLI](/docs/reference/cli): every `mcp` command.
