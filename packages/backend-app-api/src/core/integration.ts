@@ -8,7 +8,7 @@ import * as State from './state.js'
 import * as Bus from './bus.js'
 import * as IntegrationConnection from './integration/connection.js'
 import type * as Form from './form.js'
-import {authorizationError, authorize, makeAttempts} from './integration/attempts.js'
+import {answerRefused, authorize, makeAttempts} from './integration/attempts.js'
 import {answerError, sameMethod, type Editor, type OAuthImplementation} from './integration/implementation.js'
 
 export type {
@@ -313,7 +313,7 @@ export const layer = Layer.effect(
             return yield* Effect.die(new Error(`Key method not found: ${input.integrationId}`))
           const answer = input.answer ?? {}
           const invalid = answerError(method.form, answer, 'Key')
-          if (invalid) return yield* Effect.fail(authorizationError(new Error(invalid)))
+          if (invalid) return yield* Effect.fail(answerRefused(invalid))
           yield* createCredential({
             integrationId: input.integrationId,
             label: input.label,
@@ -329,10 +329,10 @@ export const layer = Layer.effect(
             (candidate) => candidate.type === 'external' && candidate.id === input.methodId,
           )
           if (method?.type !== 'external')
-            return yield* Effect.fail(authorizationError(new Error(`External method not found: ${input.methodId}`)))
+            return yield* Effect.fail(answerRefused(`External method not found: ${input.methodId}`))
           const answer = input.answer ?? {}
           const invalid = answerError(method.form, answer, 'External')
-          if (invalid) return yield* Effect.fail(authorizationError(new Error(invalid)))
+          if (invalid) return yield* Effect.fail(answerRefused(invalid))
           yield* createCredential({
             integrationId: input.integrationId,
             label: input.label,

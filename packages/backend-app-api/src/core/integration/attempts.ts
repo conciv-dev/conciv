@@ -42,7 +42,6 @@ type PendingCommandAttempt = {
   status: 'pending'
   integrationId: Id
   label?: string
-  message?: string
   persisting: boolean
   scope: Scope.Closeable
   time: AttemptTime
@@ -66,19 +65,22 @@ export interface AttemptDeps {
 }
 
 export const authorize = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(Effect.mapError((cause) => authorizationError(cause)))
+  effect.pipe(
+    Effect.tapError((cause) => Effect.logWarning('integration authorization failed', {cause})),
+    Effect.mapError((cause) => authorizationError(cause)),
+  )
 
 export function authorizationError(cause: unknown): EvlogError {
-  const reason = cause instanceof Error && cause.message ? cause.message : 'Authorization failed'
+  const reason = 'Authentication failed'
   return cause instanceof Error
     ? integrationErrors.AUTHORIZATION({reason, cause})
     : integrationErrors.AUTHORIZATION({reason, internal: {cause: String(cause)}})
 }
 
-const message = (cause: Cause.Cause<unknown>) => {
-  const error = Cause.squash(cause)
-  return error instanceof Error ? error.message : String(error)
-}
+export const answerRefused = (reason: string) => integrationErrors.AUTHORIZATION({reason})
+
+const logFailedAttempt = (attemptId: AttemptId, cause: Cause.Cause<unknown>) =>
+  Effect.logWarning('integration attempt failed', {attemptId, cause})
 
 export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
   const {scope} = deps
@@ -102,13 +104,15 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
         : {
             status: 'failed',
             integrationId: match.integrationId,
-            message: message(exit.cause),
             time: match.time,
             removeAt: now + terminalRetention,
           }
       return [match, new Map(current).set(attemptId, next)]
     })
-    if (attempt && Exit.isFailure(exit)) yield* close(attempt.scope)
+    if (attempt && Exit.isFailure(exit)) {
+      yield* logFailedAttempt(attemptId, exit.cause)
+      yield* close(attempt.scope)
+    }
     return attempt
   })
 
@@ -129,10 +133,10 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
       : {
           status: 'failed',
           integrationId: attempt.integrationId,
-          message: message(persistence.cause),
           time: attempt.time,
           removeAt: settledAt + terminalRetention,
         }
+    if (Exit.isFailure(persistence)) yield* logFailedAttempt(attemptId, persistence.cause)
     yield* SynchronizedRef.update(ref, (current) => new Map(current).set(attemptId, terminal))
   })
 
@@ -238,7 +242,7 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
     }
     const answer = input.answer ?? {}
     const invalid = deps.answerError(method.method.form, answer)
-    if (invalid) return yield* Effect.fail(authorizationError(new Error(invalid)))
+    if (invalid) return yield* Effect.fail(answerRefused(invalid))
     const attemptScope = yield* Scope.fork(scope)
     const authorization = yield* authorize(method.authorize(answer)).pipe(
       Scope.provide(attemptScope),
@@ -311,22 +315,11 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
         }),
       )
       const stdout = yield* handle.stdout.pipe(Stream.decodeText, Stream.mkString, Effect.forkScoped)
-      yield* handle.stderr.pipe(
-        Stream.decodeText,
-        Stream.tap((chunk) =>
-          SynchronizedRef.update(commandAttempts, (current) => {
-            const attempt = current.get(attemptId)
-            if (!attempt || attempt.status !== 'pending') return current
-            const text = (attempt.message ?? '') + chunk
-            return new Map(current).set(attemptId, {...attempt, message: text})
-          }),
-        ),
-        Stream.runDrain,
-      )
+      const stderr = yield* handle.stderr.pipe(Stream.decodeText, Stream.mkString)
       const exitCode = yield* handle.exitCode
       if (exitCode !== 0) {
-        const attempt = (yield* SynchronizedRef.get(commandAttempts)).get(attemptId)
-        return yield* Effect.fail(new Error(attempt?.message?.trim() || `Authentication command exited ${exitCode}`))
+        yield* Effect.logWarning('authentication command failed', {attemptId, exitCode, stderr: stderr.trim()})
+        return yield* Effect.fail(new Error(`Authentication command exited ${exitCode}`))
       }
       const credential = Redacted.make((yield* Fiber.join(stdout)).trim())
       if (!Redacted.value(credential))
@@ -405,7 +398,6 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
       if (attempt.status === 'pending') {
         return {
           status: attempt.status,
-          ...(attempt.message ? {message: attempt.message} : {}),
           time: attempt.time,
         } satisfies IntegrationSchema.CommandAttemptStatus
       }

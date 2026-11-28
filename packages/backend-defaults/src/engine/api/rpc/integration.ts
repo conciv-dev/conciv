@@ -29,9 +29,8 @@ const isCode = (error: EvlogError, factory: {readonly code: string}) => error.co
 
 const authenticationFailed = (error: EvlogError) => {
   if (isCode(error, engineErrors.HOME_UNREACHABLE)) return error
-  const cause = error.cause
   return engineErrors.INTEGRATION_AUTHORIZATION({
-    message: cause instanceof Error && cause.message.trim() ? cause.message : 'Authentication failed',
+    message: isCode(error, integrationErrors.AUTHORIZATION) ? error.message : 'Authentication failed',
     cause: error,
   })
 }

@@ -122,7 +122,7 @@ describe('a user connects a plugin integration', () => {
     seen.push(refused, String(refused))
     expect(refused).toMatchObject({
       code: 'INTEGRATION_AUTHORIZATION',
-      message: 'figma sign-in is not part of this fixture',
+      message: 'Authentication failed',
     })
 
     for (const credential of await rpc.credential.list())
@@ -135,6 +135,7 @@ describe('a user connects a plugin integration', () => {
     reading.abort()
     await collecting
     expect(JSON.stringify(logs.events)).toContain('credential')
+    expect(JSON.stringify(logs.events)).toContain('figma sign-in is not part of this fixture')
     expect(seen.some((event) => JSON.stringify(event).includes('credential.switched'))).toBe(true)
     const everything = JSON.stringify([seen, logs.events])
     for (const plain of [ENV_KEY, TYPED_KEY, SPARE_KEY, OAUTH_ACCESS, OAUTH_REFRESH, REFRESHED_ACCESS])
