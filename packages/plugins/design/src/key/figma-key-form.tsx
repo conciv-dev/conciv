@@ -1,6 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
+import Lock from 'lucide-solid/icons/lock'
 import {usePlugin} from '@conciv/frontend-plugin-api'
 import {createFigmaKey} from './figma-key-model.js'
+import {FIGMA_KEY_PRIVATE, FIGMA_KEY_PRIVATE_DESCRIPTION} from './figma-key-text.js'
 
 export function FigmaKeyForm(props: {afterSave?: string; children?: JSX.Element}): JSX.Element {
   const ctx = usePlugin()
@@ -8,6 +10,9 @@ export function FigmaKeyForm(props: {afterSave?: string; children?: JSX.Element}
   const key = createFigmaKey(ctx.client)
   return (
     <div class="flex flex-col gap-2">
+      <ui.Callout tone="info" icon={<Lock />} title={FIGMA_KEY_PRIVATE}>
+        {FIGMA_KEY_PRIVATE_DESCRIPTION}
+      </ui.Callout>
       <form
         class="flex gap-2 items-end"
         onSubmit={(event) => {

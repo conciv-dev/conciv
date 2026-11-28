@@ -9,9 +9,10 @@ export function FigmaKeySettings(): JSX.Element {
   return (
     <ui.SettingsLayout title="Figma" description="The key design_get reads Figma frames with.">
       <ui.SettingsSection title="Key">
-        <ui.SettingsRow title="New key" description="A Figma personal access token.">
+        <ui.SettingsRow title="New key" description="A Figma personal access token." />
+        <div class="p-3">
           <FigmaKeyForm afterSave="Key saved." />
-        </ui.SettingsRow>
+        </div>
         <FigmaKeys />
       </ui.SettingsSection>
     </ui.SettingsLayout>

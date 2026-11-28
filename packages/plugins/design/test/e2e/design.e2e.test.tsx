@@ -6,6 +6,9 @@ import {renderTestApp} from '@internal/frontend-test-utils/app'
 
 describe('the user gives the design plugin a Figma key', () => {
   const HERO = 'https://www.figma.com/design/HERO/Site?node-id=100-1170'
+  const PRIVATE = 'Your key stays private'
+  const PRIVATE_DESCRIPTION =
+    'The key is saved on this computer and used only to call Figma. The agent and the chat only ever see it hidden.'
 
   test('the failed design_get card takes a key, says the agent can try again, opens settings where the saved key shows hidden and is removed', async ({
     createEngine,
@@ -30,6 +33,8 @@ describe('the user gives the design plugin a Figma key', () => {
 
     const card = await screen.findByRole('region', {name: 'Read the design'})
     expect(within(card).getByRole('alert')).toHaveTextContent('the Figma key is missing')
+    expect(within(card).getByText(PRIVATE)).toBeVisible()
+    expect(within(card).getByText(PRIVATE_DESCRIPTION)).toBeVisible()
     const field = within(card).getByLabelText('Figma API key')
     await user.click(field)
     expect(field).toHaveFocus()
@@ -60,6 +65,8 @@ describe('the user gives the design plugin a Figma key', () => {
 
     expect(await screen.findByRole('heading', {name: 'Figma'})).toBeVisible()
     expect(await screen.findByText('FIGMA_API_KEY')).toBeVisible()
+    expect(screen.getByText(PRIVATE)).toBeVisible()
+    expect(screen.getByText(PRIVATE_DESCRIPTION)).toBeVisible()
     const field = screen.getByLabelText('Figma API key')
     await user.click(field)
     expect(field).toHaveFocus()
