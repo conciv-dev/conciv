@@ -32,7 +32,8 @@ describe('the user gives the design plugin a Figma key', () => {
     expect(await screen.findByText('Figma needs a key')).toBeVisible()
 
     const card = await screen.findByRole('region', {name: 'Read the design'})
-    expect(within(card).getByRole('alert')).toHaveTextContent('the Figma key is missing')
+    expect(within(card).getByRole('alert')).toHaveTextContent('Figma needs a key to read this frame.')
+    expect(card).not.toHaveTextContent('the Figma key is missing')
     expect(within(card).getByText(PRIVATE)).toBeVisible()
     expect(within(card).getByText(PRIVATE_DESCRIPTION)).toBeVisible()
     const field = within(card).getByLabelText('Figma API key')

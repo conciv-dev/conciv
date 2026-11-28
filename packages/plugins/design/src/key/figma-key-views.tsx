@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import {usePlugin, type ToolProps} from '@conciv/frontend-plugin-api'
 import {FigmaKeyForm, FigmaKeys} from './figma-key-form.js'
 import {FIGMA_KEY_SETTINGS} from './figma-key-model.js'
-import {asksForFigmaKey} from './figma-key-text.js'
+import {readFigmaKeyAsk} from './figma-key-text.js'
 
 export function FigmaKeySettings(): JSX.Element {
   const ui = usePlugin().ui
@@ -22,11 +22,11 @@ export function FigmaKeySettings(): JSX.Element {
 export function DesignGetFailed(props: ToolProps): JSX.Element {
   const ctx = usePlugin()
   const ui = ctx.ui
-  const asked = () => asksForFigmaKey(props.error ?? '')
+  const asked = () => readFigmaKeyAsk(props.error ?? '')
   return (
     <section aria-label="Read the design" class="p-3 flex flex-col gap-2">
-      <p role="alert">{props.error}</p>
-      <Show when={asked()}>
+      <p role="alert">{asked() ?? props.error}</p>
+      <Show when={asked() !== undefined}>
         <FigmaKeyForm afterSave="Key saved. Ask the agent to try again.">
           <ui.Button variant="ghost" icon="settings" onClick={() => ctx.layout.settings(FIGMA_KEY_SETTINGS)}>
             Open settings
