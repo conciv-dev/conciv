@@ -33,6 +33,8 @@
     "@huggingface/transformers": "~4.2.0",
     "@internal/brand": "workspace:*",
     "@internal/brand-react": "workspace:*",
+    "@sentry/cloudflare": "catalog:",
+    "@sentry/tanstackstart-react": "catalog:",
     "@shikijs/magic-move": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
