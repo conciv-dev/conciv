@@ -11,6 +11,6 @@ export default defineConfig({
   build: {
     lib: {entry: ['src/ui-kit-terminal.tsx'], formats: ['es']},
     emptyOutDir: false,
-    rolldownOptions: {external, output: {}},
+    rolldownOptions: {external},
   },
 })
