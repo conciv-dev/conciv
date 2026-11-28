@@ -3,10 +3,9 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   entry: ['src/{{name}}.ts'],
   platform: '{{platform}}',
-{{#if nodeTarget}}
-  target: 'node22',
-{{/if}}
   tsconfig: 'tsconfig.build.json',
   dts: true,
+{{#if nodePlatform}}
   fixedExtension: false,
+{{/if}}
 })

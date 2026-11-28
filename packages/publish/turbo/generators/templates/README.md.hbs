@@ -9,6 +9,18 @@
 {{#if sourceOnly}}
 - Private to conciv and never published: its exports point at `src`, nothing builds it, and the packages that use it
   inline it into their own builds.
+{{else if plugin}}
+{{#if engine}}
+- `src/{{name}}.ts` is the engine part (`Plugin.define` from `@conciv/backend-plugin-api/effect`), exported as `.` and
+  `./server`; `tsdown` (`tsdown.config.ts`) emits its JavaScript and declarations.
+{{/if}}
+{{#if browserPart}}
+- `src/plugin-experimental.tsx` is the browser part (`Plugin.define` from `@conciv/frontend-plugin-api`), exported as
+  `./plugin-experimental`: `tsdown` emits its declarations and `vite build` (`vite.config.ts`, `experimental()`) the
+  CommonJS bundle the app loads.
+- Its UnoCSS sheet: `build:css` (`scripts/build-css.ts`, run first by `build`) writes `src/.generated/css.ts` from
+  `pluginSheetConfig` over `src`, and the browser part adds it with `ctx.add(Style, css)`.
+{{/if}}
 {{else}}
 - `tsdown` (`tsdown.config.ts`) emits the JavaScript and the declarations (types from `tsconfig.build.json`); its
   dependencies and peerDependencies stay external.
@@ -19,12 +31,12 @@
 {{#if sourceOnly}}
 - None: the package root holds configs and the manifest only.
 {{else}}
-- `build` script (`package.json`): writes dist/
+- `build` script (`package.json`): writes dist/{{#if browserPart}}{{#if plugin}} and `src/.generated/css.ts`{{/if}}{{/if}}
 {{/if}}
 
 ## Verification
 
 - Typecheck and lint: run the `typecheck` script in `{{directory}}`, then `pnpm lint` at the repo root.
 - Tests: the package has no `test` script yet, because `vitest run` with no test file fails. Add
-  `"test": "vitest run"` to `package.json` with the first test. `vitest.config.ts` runs `test/unit/**/*.unit.test.ts`
+  `"test": "vitest run"` to `package.json` with the first test. {{#if browserPart}}{{#if plugin}}`vite.config.ts`{{else}}`vitest.config.ts`{{/if}}{{else}}`vitest.config.ts`{{/if}} runs `test/unit/**/*.unit.test.ts`
   and `test/it/**/*.it.test.ts`{{#if browserTests}}, and `test/e2e/**/*.e2e.test.tsx` in browser mode{{/if}}.
