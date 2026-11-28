@@ -58,6 +58,10 @@ const BRIDGE_MANIFEST = 'packages/plugins/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
 
+function validateTasks(names: readonly string[]) {
+  return ['build', 'publint', 'attw', ...names.map((name) => `--filter=${name}`)]
+}
+
 async function atRoot(childStdout: 'inherit' | 2 = 'inherit') {
   const cwd = process.cwd()
   await assertWorkspaceRoot(cwd)
@@ -204,10 +208,10 @@ const checkNodeFloorCommand = defineCommand({
 })
 
 const check = defineCommand({
-  meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
+  meta: {name: 'check', description: 'Validate every published package: build + publint + attw'},
   async run() {
     const {cwd, turbo} = await atRoot()
-    await turbo('build', 'publint', 'attw')
+    await turbo(...validateTasks(PUBLIC_PACKAGES))
     await assertPublicTypesPublic(cwd)
   },
 })
@@ -219,7 +223,7 @@ const release = defineCommand({
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
-    await turbo('build', 'publint', 'attw')
+    await turbo(...validateTasks(PUBLIC_PACKAGES))
     await assertPublicTypesPublic(cwd)
     await changeset('publish')
   },
@@ -234,7 +238,7 @@ const snapshot = defineCommand({
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
-    await turbo('build', 'publint', 'attw')
+    await turbo(...validateTasks(PUBLIC_PACKAGES))
     await assertPublicTypesPublic(cwd)
     await changeset('publish', '--tag', args.tag)
   },
@@ -488,7 +492,7 @@ const printSyncPlan = Effect.fn('sync.printPlan')(function* (
 async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): Promise<void> {
   await Promise.all(names.map((name) => assertBootstrappable(cwd, name)))
   if (names.length === 0) return
-  await turbo('build', 'publint', 'attw', ...names.map((name) => `--filter=${name}`))
+  await turbo(...validateTasks(names))
   await assertPublicTypesPublic(cwd, names)
 }
 
