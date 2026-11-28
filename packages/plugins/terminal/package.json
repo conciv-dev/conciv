@@ -67,6 +67,7 @@
     "solid-js": "catalog:"
   },
   "conciv": {
-    "builtin": true
+    "builtin": true,
+    "testBudget": 5
   }
 }

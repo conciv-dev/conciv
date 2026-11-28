@@ -13,5 +13,8 @@
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
+  },
+  "conciv": {
+    "testBudget": 3
   }
 }

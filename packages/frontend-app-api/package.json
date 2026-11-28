@@ -73,5 +73,8 @@
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
+  },
+  "conciv": {
+    "testBudget": 2
   }
 }
