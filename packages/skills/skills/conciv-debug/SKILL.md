@@ -67,11 +67,11 @@ user, not hung.
 - **Plugin tools** ask through their own `ctx.permission.assert`. In a chat turn the call runs
   inside `settlingAsks` (`packages/backend-defaults/src/engine/app.ts:728`); from outside a turn (external MCP, the
   `conciv` CLI, raw RPC) `registry.invoke` runs it the same way (`runPluginTool`,
-  `packages/backend-defaults/src/engine/api/rpc/router.ts:180-194`). Either way the call waits on the card: allow runs
+  `packages/backend-defaults/src/engine/api/rpc/router.ts:222-235`). Either way the call waits on the card: allow runs
   the tool. A reject in a chat turn becomes the tool result `The user denied running tool "<name>".
   Do not retry it; continue without it.` (`approvalDenied`, `packages/backend-defaults/src/ai/approval-denied.ts:4-6`,
   mapped in `packages/backend-defaults/src/code-mode.ts:102-107`); through `registry.invoke` it answers
-  `APPROVAL_DENIED` (`pluginToolError`, `packages/backend-defaults/src/engine/api/rpc/router.ts:164-174`).
+  `APPROVAL_DENIED` (`pluginToolError`, `packages/backend-defaults/src/engine/api/rpc/router.ts:197-207`).
 - **CLI commands** belong to the CLI's own permission mode first: Claude Code runs with
   `permissionMode: 'auto'` (`packages/harness/src/claude/chat.ts:129`) plus the ask rules
   `CLAUDE_ASK_RULES` (`packages/harness/src/claude/chat.ts:35`), so its classifier decides. What it escalates reaches
@@ -106,7 +106,7 @@ user, not hung.
   (`packages/backend-defaults/src/engine/runtime/permission-cards.ts:269-290`). `decidePermissionCard` drops a `gone` card
   and returns `false` for anything but `replied`
   (`packages/backend-defaults/src/engine/runtime/permission-cards.ts:308-316`), and the RPC turns that into
-  `UNKNOWN_REQUEST` (`packages/backend-defaults/src/engine/api/rpc/router.ts:66-76`), so a second click on an answered card
+  `UNKNOWN_REQUEST` (`packages/backend-defaults/src/engine/api/rpc/router.ts:96-110`), so a second click on an answered card
   surfaces as "no pending approval", not silence.
 - **A card lives exactly as long as its ask.** Pending cards are read from the permission service's
   pending list (`pendingPermissionCards`, `packages/backend-defaults/src/engine/runtime/permission-cards.ts:204-212`),

@@ -1,5 +1,13 @@
 # ios-example
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`74d3b55`](https://github.com/conciv-dev/conciv/commit/74d3b550f749a7beb5fade7d735d7a41caf8ad41), [`1e1c3e5`](https://github.com/conciv-dev/conciv/commit/1e1c3e51d7e1adeb709b54136f5d3e3e2f8d3243), [`1173bd1`](https://github.com/conciv-dev/conciv/commit/1173bd1df39283754eae2b9e3f420ba33777941a), [`1237734`](https://github.com/conciv-dev/conciv/commit/1237734bce516783f7dbc4f40e6ef2c8fba4765d)]:
+  - @conciv/it@0.0.25
+  - @conciv/plugin-ios@0.0.25
+
 ## 0.0.3
 
 ### Patch Changes

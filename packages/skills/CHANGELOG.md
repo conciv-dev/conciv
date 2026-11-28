@@ -1,5 +1,29 @@
 # @conciv/skills
 
+## 0.0.25
+
+### Patch Changes
+
+- [#1203](https://github.com/conciv-dev/conciv/pull/1203) [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee) Thanks [@omridevk](https://github.com/omridevk)! - The docs links conciv prints and ships (init hints, the conciv skill, the setup and debug skills) point at the new docs structure: bundlers, getting started, reference.
+
+- [#1210](https://github.com/conciv-dev/conciv/pull/1210) [`1e1c3e5`](https://github.com/conciv-dev/conciv/commit/1e1c3e51d7e1adeb709b54136f5d3e3e2f8d3243) Thanks [@omridevk](https://github.com/omridevk)! - Every error conciv makes now comes from an evlog error catalog, with a stable code, a plain message and, where
+  someone can act on it, a why and a fix. The core catalogs live in one new package, @conciv/errors, so packages
+  compare codes without importing each other; each plugin keeps its own catalog, and the app provides @conciv/errors
+  to plugins. Plugin.define accepts any Error, so a plugin fails its entry with its own catalog error; a plugin that
+  fails to load reports its code, message and fix. Error screens, the run error row, toasts and plugin load errors show
+  the fix when the error carries one, and the conciv-try CLI prints a failure as its code and message, then its why and
+  fix only when they are set.
+
+  Codes that reach agents and the widget change with it: an outside run without a tab answers `ai.NO_TAB` (was
+  `NO_TAB`), a send to a deleted session fails with `session.DELETED` (was `session_deleted`), a code-mode tool error
+  reaches the agent as `<code>: message` with its full catalog code, and the widget shows the engine's fix for an rpc
+  error. The protocol's `ValueTooLargeError` is gone: an oversized instruction entry fails with
+  `instructions.VALUE_TOO_LARGE`.
+
+- [#1203](https://github.com/conciv-dev/conciv/pull/1203) [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee) Thanks [@omridevk](https://github.com/omridevk)! - The conciv and conciv-develop skills link the new plugin pages: the first-plugin tutorial and the guides.
+
+- [#1212](https://github.com/conciv-dev/conciv/pull/1212) [`1237734`](https://github.com/conciv-dev/conciv/commit/1237734bce516783f7dbc4f40e6ef2c8fba4765d) Thanks [@omridevk](https://github.com/omridevk)! - Every package builds with Vite: one shared library build in `@internal/vite-config` (Vite environments, `rolldown-plugin-dts` for the declarations). tsdown and the separate `tsc` declaration step are gone. Libraries with several entries ship one file per module, so no declaration chunk sits outside `exports`. `experimental()` configures only the `client` environment.
+
 ## 0.0.24
 
 No changes in this release.

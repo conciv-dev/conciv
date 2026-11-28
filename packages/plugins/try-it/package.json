@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-try-it",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "The conciv try-it plugin: offers the widget a local conciv engine that a visitor starts with npx, and covers the panel with the connect steps until that engine answers.",
   "keywords": [
     "conciv",

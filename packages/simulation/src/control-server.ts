@@ -1,5 +1,4 @@
 import {AsyncIteratorClass, ORPCError, type Router} from '@orpc/server'
-import '@orpc/effect/extensions/effect'
 import type {EffectWrapOptions, WithEffectContext} from '@orpc/effect'
 import {RPCHandler} from '@orpc/server/websocket'
 import {Effect, Queue, type Scope} from 'effect'

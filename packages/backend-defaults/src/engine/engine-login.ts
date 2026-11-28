@@ -1,4 +1,5 @@
 import {randomInt, timingSafeEqual} from 'node:crypto'
+import {handlerGen} from '@orpc/effect'
 import {unwatchFile, watchFile} from 'node:fs'
 import {join} from 'node:path'
 import {Effect} from 'effect'
@@ -303,27 +304,35 @@ export function makeAuthRouter(deps: {
   now: () => number
 }) {
   return {
-    trust: os.auth.trust.effect(function* ({input, context}) {
-      return yield* Effect.sync(() => {
-        const trusted = deps.trust.trusts(input.token)
-        if (trusted) context.socket?.admit(input.token)
-        return {trusted}
-      })
-    }),
-    exchange: os.auth.exchange.effect(function* ({input, context}) {
-      const outcome = deps.codes.exchange(input.code)
-      if (outcome !== 'trusted') return {refused: outcome}
-      const token = yield* Effect.promise(() => deps.browsers.grant(describeRequester(context), deps.now()))
-      context.socket?.admit(token)
-      return {token}
-    }),
-    requestCode: os.auth.requestCode.effect(function* ({input, context}) {
-      return yield* Effect.sync(() => deps.codes.request(describeRequester(context), input.reissue ?? false))
-    }),
-    issueCode: os.auth.issueCode.effect(function* ({context}) {
-      if (!context.engineCaller) return yield* Effect.fail(engineErrors.FORBIDDEN())
-      return yield* Effect.sync(() => deps.codes.issue())
-    }),
+    trust: os.auth.trust.handler(
+      handlerGen(function* ({input, context}) {
+        return yield* Effect.sync(() => {
+          const trusted = deps.trust.trusts(input.token)
+          if (trusted) context.socket?.admit(input.token)
+          return {trusted}
+        })
+      }),
+    ),
+    exchange: os.auth.exchange.handler(
+      handlerGen(function* ({input, context}) {
+        const outcome = deps.codes.exchange(input.code)
+        if (outcome !== 'trusted') return {refused: outcome}
+        const token = yield* Effect.promise(() => deps.browsers.grant(describeRequester(context), deps.now()))
+        context.socket?.admit(token)
+        return {token}
+      }),
+    ),
+    requestCode: os.auth.requestCode.handler(
+      handlerGen(function* ({input, context}) {
+        return yield* Effect.sync(() => deps.codes.request(describeRequester(context), input.reissue ?? false))
+      }),
+    ),
+    issueCode: os.auth.issueCode.handler(
+      handlerGen(function* ({context}) {
+        if (!context.engineCaller) return yield* Effect.fail(engineErrors.FORBIDDEN())
+        return yield* Effect.sync(() => deps.codes.issue())
+      }),
+    ),
   }
 }
 
