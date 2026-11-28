@@ -35,7 +35,7 @@ export function adaptIntegration({host, run, register, adaptMethod}: Integration
   readonly integration: IntegrationDomain
 } {
   const integration = host.integration
-  const input = <Fields extends Schema.Struct.Fields>(fields: Fields) =>
+  const located = <Fields extends Schema.Struct.Fields>(fields: Fields) =>
     Schema.Struct({...LocationQuery.fields, ...fields})
   const integrationId = {integrationId: Schema.String}
   const attempt = {...integrationId, attemptId: Schema.String}
@@ -51,14 +51,14 @@ export function adaptIntegration({host, run, register, adaptMethod}: Integration
     },
     integration: {
       list: adaptMethod(
-        {input: input({}), output: Location.response(Schema.Array(Integration.Info))},
+        {input: located({}), output: Location.response(Schema.Array(Integration.Info))},
         integration.list,
       ),
-      get: adaptMethod({input: input(integrationId), output: Location.response(Integration.Info)}, integration.get),
+      get: adaptMethod({input: located(integrationId), output: Location.response(Integration.Info)}, integration.get),
       connect: {
         key: adaptMethod(
           {
-            input: input({
+            input: located({
               ...integrationId,
               key: Schema.RedactedFromValue(Schema.String),
               answer: Schema.optional(Form.Answer),
@@ -67,36 +67,36 @@ export function adaptIntegration({host, run, register, adaptMethod}: Integration
           },
           integration.connect.key,
         ),
-        external: adaptMethod({input: input(connect)}, integration.connect.external),
+        external: adaptMethod({input: located(connect)}, integration.connect.external),
       },
       oauth: {
         connect: adaptMethod(
-          {input: input(connect), output: Location.response(Integration.Attempt)},
+          {input: located(connect), output: Location.response(Integration.Attempt)},
           integration.oauth.connect,
         ),
         status: adaptMethod(
-          {input: input(attempt), output: Location.response(Integration.AttemptStatus)},
+          {input: located(attempt), output: Location.response(Integration.AttemptStatus)},
           integration.oauth.status,
         ),
         complete: adaptMethod(
-          {input: input({...attempt, code: Schema.optional(Schema.String)})},
+          {input: located({...attempt, code: Schema.optional(Schema.String)})},
           integration.oauth.complete,
         ),
-        cancel: adaptMethod({input: input(attempt)}, integration.oauth.cancel),
+        cancel: adaptMethod({input: located(attempt)}, integration.oauth.cancel),
       },
       command: {
         connect: adaptMethod(
           {
-            input: input({...integrationId, methodId: Schema.String, label: Schema.optional(Schema.String)}),
+            input: located({...integrationId, methodId: Schema.String, label: Schema.optional(Schema.String)}),
             output: Location.response(Integration.CommandAttempt),
           },
           integration.command.connect,
         ),
         status: adaptMethod(
-          {input: input(attempt), output: Location.response(Integration.CommandAttemptStatus)},
+          {input: located(attempt), output: Location.response(Integration.CommandAttemptStatus)},
           integration.command.status,
         ),
-        cancel: adaptMethod({input: input(attempt)}, integration.command.cancel),
+        cancel: adaptMethod({input: located(attempt)}, integration.command.cancel),
       },
       transform: (callback) =>
         register(
