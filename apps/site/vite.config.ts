@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
+import {sentryTanstackStart} from '@sentry/tanstackstart-react/vite'
 import {cloudflare} from '@cloudflare/vite-plugin'
 import {defineConfig, type Plugin} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
@@ -48,6 +49,7 @@ export default defineConfig(({mode}) => ({
     react(),
     conciv({widget: false}),
     concivTest(),
+    sentryTanstackStart({org: 'conciv', project: 'site', authToken: process.env.SENTRY_AUTH_TOKEN}),
   ],
   optimizeDeps: {
     include: ['fumadocs-ui > react-remove-scroll > tslib'],
