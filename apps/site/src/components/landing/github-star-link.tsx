@@ -11,7 +11,7 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
-export function GitHubStarLink({className}: {className?: string}) {
+export function GitHubStarLink({className, compact = false}: {className?: string; compact?: boolean}) {
   const stars = useStarCount()
 
   return (
@@ -22,9 +22,14 @@ export function GitHubStarLink({className}: {className?: string}) {
     >
       <span className="inline-flex items-center gap-1.5">
         <GithubMark className="size-4" />
-        GitHub
+        {compact ? null : 'GitHub'}
         {stars !== null ? (
-          <span className="inline-flex min-w-[2.5ch] justify-end tabular-nums">
+          <span
+            className={cn(
+              'inline-flex min-w-[2.5ch] justify-end tabular-nums',
+              compact && 'rounded-md bg-muted px-1.5 font-mono text-xs leading-5 text-foreground',
+            )}
+          >
             <span aria-hidden="true">{formatStarCount(stars)}</span>
             <span className="sr-only">{stars} stars</span>
           </span>

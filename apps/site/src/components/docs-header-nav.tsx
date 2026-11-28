@@ -22,6 +22,9 @@ import {
 } from 'fumadocs-ui/layouts/shared'
 import {repoUrl} from '@/lib/shared'
 import {QuickstartDialog} from './quickstart-dialog'
+import {ThemeSwitch} from 'fumadocs-ui/layouts/shared/slots/theme-switch'
+import {GitHubStarLink} from './landing/github-star-link'
+import {themeSwitchClass} from '@/lib/layout.shared'
 
 type SectionLink = MainItemType & {sections?: readonly string[]}
 
@@ -75,7 +78,6 @@ function DrawerMore() {
 
 export function docsDrawerLinks(): LinkItemType[] {
   return [
-    {type: 'custom', on: 'nav', secondary: true, children: <QuickstartDialog />},
     {type: 'custom', on: 'menu', children: <QuickstartDialog className="mt-2 w-full" />},
     {...docs, on: 'menu'},
     {...changelog, on: 'menu'},
@@ -192,5 +194,15 @@ export function DocsHeaderNav() {
         ),
       )}
     </nav>
+  )
+}
+
+export function DocsHeaderActions() {
+  return (
+    <div className="flex items-center gap-2">
+      <GitHubStarLink compact className="px-2 py-1.5 leading-5 text-fd-muted-foreground hover:text-fd-foreground" />
+      <ThemeSwitch className={themeSwitchClass} />
+      <QuickstartDialog className="max-md:hidden" />
+    </div>
   )
 }

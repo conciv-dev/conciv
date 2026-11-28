@@ -13,7 +13,7 @@ export function SiteNav() {
       <Link
         to="/"
         aria-label="conciv home"
-        className="mr-auto flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <ConcivLockup interactive className="h-7 w-auto" />
       </Link>
@@ -21,20 +21,22 @@ export function SiteNav() {
         to="/"
         hash="how"
         onClick={smoothAnchor('#how')}
-        className="whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground max-sm:hidden"
+        className="whitespace-nowrap text-sm font-medium leading-5 text-muted-foreground transition-colors hover:text-foreground max-sm:hidden"
       >
         How it works
       </Link>
       <Link
         to="/docs/$"
         params={{_splat: ''}}
-        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className="text-sm font-medium leading-5 text-muted-foreground transition-colors hover:text-foreground"
       >
         Docs
       </Link>
-      <QuickstartDialog />
-      <GitHubStarLink className="max-sm:hidden" />
-      <ThemeToggle />
+      <div className="ms-auto flex items-center gap-2 sm:gap-3">
+        <GitHubStarLink compact className="px-2 py-1.5 leading-5 max-sm:hidden" />
+        <ThemeToggle />
+        <QuickstartDialog />
+      </div>
     </nav>
   )
 }

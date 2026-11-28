@@ -1,4 +1,5 @@
 import {useId, type ReactNode} from 'react'
+import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
 import {Checkbox} from '@/components/ui/checkbox'
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group'
@@ -122,7 +123,9 @@ export function QuickstartDialog({className}: {className?: string}) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" className={className}>
+        <Button
+          className={cn('h-auto bg-foreground px-3 py-1.5 leading-5 text-background hover:bg-foreground/85', className)}
+        >
           Quickstart
         </Button>
       </DialogTrigger>

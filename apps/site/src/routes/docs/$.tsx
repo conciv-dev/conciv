@@ -5,12 +5,13 @@ import {slugsToMarkdownPath, source} from '@/lib/source'
 import browserCollections from 'collections/browser'
 import {DocsBody, DocsDescription, DocsPage, DocsTitle} from 'fumadocs-ui/layouts/notebook/page'
 import {baseOptions} from '@/lib/layout.shared'
-import {gitConfig, repoUrl} from '@/lib/shared'
+import {gitConfig} from '@/lib/shared'
 import {DocsSidebarSeparator} from '@/components/docs-sidebar-separator'
 import {
   DocsDrawerTrigger,
   DocsHeaderNav,
   docsDrawerLinks,
+  DocsHeaderActions,
   docsSlots,
   SidebarBanner,
   SidebarFooter,
@@ -168,7 +169,7 @@ function Page() {
       }}
       links={docsDrawerLinks()}
       containerProps={{className: mobileHeaderClass}}
-      githubUrl={repoUrl}
+      themeSwitch={{component: <DocsHeaderActions />}}
       slots={docsSlots}
       sidebar={{
         collapsible: false,
