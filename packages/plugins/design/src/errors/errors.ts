@@ -1,5 +1,5 @@
 import {defineErrorCatalog} from 'evlog'
-import {FIGMA_KEY_MISSING} from '../key/figma-key-text.js'
+import {FIGMA_KEY_MISSING, FIGMA_KEY_REFUSED} from '../key/figma-key-text.js'
 
 export const designErrors = defineErrorCatalog('design', {
   INVALID_OPTIONS: {
@@ -33,7 +33,7 @@ export const designErrors = defineErrorCatalog('design', {
   },
   FIGMA_TOKEN: {
     status: 401,
-    message: ({detail}: {detail: string}) => `Figma refused the token: ${detail}`,
+    message: ({detail}: {detail: string}) => `${FIGMA_KEY_REFUSED}: ${detail}`,
     fix: 'Ask the user to save a fresh Figma personal access token in the design settings, then call design_get again.',
   },
   FIGMA_DOCUMENT: {
