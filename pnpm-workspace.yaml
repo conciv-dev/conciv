@@ -186,6 +186,7 @@ catalog:
   motion: '^14.7.1'
   next: 16.4.3
   nitro: npm:nitro-nightly@3.0.1-20261028-065025-1a9a371c
+  ocache: 0.3.2
   oxc-parser: '^0.156.0'
   oxfmt: 0.75.0
   oxlint: 1.90.0
