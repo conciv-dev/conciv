@@ -46,6 +46,10 @@ export const publishErrors = defineErrorCatalog('publish', {
   CHANGESET_UNKNOWN_PACKAGES: {
     message: ({problems}: {problems: string[]}) => `invalid changeset package names:\n${problems.join('\n')}`,
   },
+  CHANGESET_PRIVATE_PACKAGES: {
+    message: ({problems}: {problems: string[]}) => `changesets name private packages:\n${problems.join('\n')}`,
+    fix: 'Name a published @conciv/* package instead; one entry releases them all.',
+  },
   CHANGESET_MISSING: {
     message: ({packages}: {packages: string}) => `no changeset covers changed published packages: ${packages}`,
     fix: 'Add a changeset naming any published @conciv package (fixed versioning releases the whole set together), or apply the "no-changeset" label if this PR intentionally ships no release.',

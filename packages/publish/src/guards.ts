@@ -187,28 +187,37 @@ async function assertNotSymlink(filePath: string): Promise<void> {
   }
 }
 
+export type ChangesetNames = {file: string; names: string[]}
+
+export function findChangesetProblems(
+  changesets: ChangesetNames[],
+  packages: WorkspacePackage[],
+): {unknown: string[]; private: string[]} {
+  const byName = new Map(packages.map((pkg) => [pkg.manifest.name, pkg.manifest]))
+  const named = changesets.flatMap(({file, names}) => names.map((name) => ({file, name, manifest: byName.get(name)})))
+  return {
+    unknown: named
+      .filter(({manifest}) => manifest === undefined)
+      .map(({file, name}) => `${file}: package ${JSON.stringify(name)} is not in the workspace`),
+    private: named
+      .filter(({manifest}) => manifest?.private === true)
+      .map(({file, name}) => `${file}: package ${JSON.stringify(name)} is private, and changesets do not version it`),
+  }
+}
+
 export async function assertChangesetsResolve(cwd: string): Promise<void> {
   const changesetDir = join(cwd, CHANGESET_DIR)
   const files = await listChangesetFiles(changesetDir)
   if (files.length === 0) return
-  const packages = await readWorkspacePackages(cwd)
-  const workspaceNames = new Set(
-    packages.map((pkg) => pkg.manifest.name).filter((name): name is string => typeof name === 'string'),
-  )
-  const errors: string[] = []
+  const changesets: ChangesetNames[] = []
   for (const file of files) {
     const filePath = join(changesetDir, file)
     await assertNotSymlink(filePath)
-    const content = await readFile(filePath, 'utf8')
-    for (const name of parseChangesetPackageNames(content, file)) {
-      if (!workspaceNames.has(name)) {
-        errors.push(`${file}: package ${JSON.stringify(name)} is not in the workspace`)
-      }
-    }
+    changesets.push({file, names: parseChangesetPackageNames(await readFile(filePath, 'utf8'), file)})
   }
-  if (errors.length > 0) {
-    throw publishErrors.CHANGESET_UNKNOWN_PACKAGES({problems: errors})
-  }
+  const problems = findChangesetProblems(changesets, await readWorkspacePackages(cwd))
+  if (problems.unknown.length > 0) throw publishErrors.CHANGESET_UNKNOWN_PACKAGES({problems: problems.unknown})
+  if (problems.private.length > 0) throw publishErrors.CHANGESET_PRIVATE_PACKAGES({problems: problems.private})
 }
 
 type DiffEntry = {status: string; path: string}

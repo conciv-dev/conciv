@@ -388,7 +388,8 @@ maintainer's yes.
   any `@conciv/*` package is enough to release them all.
 - EVERY PR that changes published packages (including `@internal/frontend-defaults`, which ships inside the `@conciv/app` widget bundle)
   needs a changeset or the `no-changeset` label — CI `check-changesets --require-coverage` blocks
-  otherwise. Verify locally before handoff:
+  otherwise. A changeset names only `@conciv/*` packages, never a private one: for a frontend-defaults change, name
+  `@conciv/app` (`check-changesets` refuses a private name, which would stop changesets' version run). Verify locally before handoff:
   `pnpm conciv-publish check-changesets --require-coverage --base origin/main`.
 - Adding a new PUBLISHED package (`private` unset/false)? Add its name to `PUBLIC_PACKAGES` in
   `packages/publish/src/guards.ts` or `assertPublicSet` aborts the release on drift; give it

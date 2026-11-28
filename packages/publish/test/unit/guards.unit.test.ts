@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {findDependencyLoops, findPublicTypeViolations} from '../../src/guards.ts'
+import {findChangesetProblems, findDependencyLoops, findPublicTypeViolations} from '../../src/guards.ts'
 import type {Manifest} from '../../src/workspace.ts'
 
 describe('the workspace dependency loop check', () => {
@@ -67,5 +67,35 @@ describe('the published types check', () => {
     expect(leaks(['kit/dist/kit.js'])).toEqual([
       'kit/dist/card.d.ts exports card_d_exports, a helper name the bundler generated',
     ])
+  })
+})
+
+describe('the changeset names check', () => {
+  test('refuses a private package next to a published one, and a name outside the workspace', () => {
+    const packages = [
+      {dir: '/repo/packages/app', relativeDir: 'packages/app', manifest: {name: '@conciv/app', version: '0.0.9'}},
+      {
+        dir: '/repo/packages/frontend-defaults',
+        relativeDir: 'packages/frontend-defaults',
+        manifest: {name: '@internal/frontend-defaults', private: true},
+      },
+    ]
+
+    expect(
+      findChangesetProblems(
+        [
+          {file: 'shell.md', names: ['@conciv/app', '@internal/frontend-defaults']},
+          {file: 'typo.md', names: ['@conciv/ap']},
+        ],
+        packages,
+      ),
+    ).toEqual({
+      unknown: ['typo.md: package "@conciv/ap" is not in the workspace'],
+      private: ['shell.md: package "@internal/frontend-defaults" is private, and changesets do not version it'],
+    })
+    expect(findChangesetProblems([{file: 'app.md', names: ['@conciv/app']}], packages)).toEqual({
+      unknown: [],
+      private: [],
+    })
   })
 })
