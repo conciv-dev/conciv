@@ -42,6 +42,8 @@ export function make(
     agent: raw.agent,
     fs: raw.fs,
     plugin: raw.plugin,
+    credential: raw.credential,
+    integration: raw.integration,
     experimental: raw.experimental,
     event: raw.event,
     logs: raw.logs,

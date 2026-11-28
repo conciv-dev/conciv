@@ -3,7 +3,7 @@ import {Effect, Redacted} from 'effect'
 import type {EvlogError} from 'evlog'
 import type {contract} from '@conciv/protocol'
 import {engineErrors, integrationErrors} from '@conciv/errors'
-import {Integration, Location, ManagedPolicy} from '@conciv/backend-app-api'
+import {Integration, Location, ManagedPolicy, WellKnown} from '@conciv/backend-app-api'
 import {os, type EngineRpcContext} from './mount.js'
 
 const ok = {ok: true as const}
@@ -184,6 +184,26 @@ export function integrationRouter(): ContractedRouter<typeof contract.integratio
       }),
       cancel: os.integration.command.cancel.effect(function* ({input}) {
         yield* Integration.Service.use((service) => service.command.cancel(ids(input)))
+        return ok
+      }),
+    },
+  }
+}
+
+export function experimentalIntegrationRouter(): ContractedRouter<
+  typeof contract.experimental.integration,
+  EngineRpcContext
+> {
+  return {
+    wellknown: {
+      add: os.experimental.integration.wellknown.add.effect(function* ({input}) {
+        const wellknown = yield* WellKnown.Service
+        const integration = yield* Integration.Service
+        yield* requireConnectable(Integration.Id.make(input.url.replace(/\/+$/, '')))
+        yield* wellknown
+          .add(input.url)
+          .pipe(Effect.mapError((error) => engineErrors.WELL_KNOWN_DISCOVERY({message: error.message, cause: error})))
+        yield* integration.reload()
         return ok
       }),
     },

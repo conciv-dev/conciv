@@ -118,3 +118,12 @@ export const integrationContract = {
     cancel: oc.input(AttemptInput).output(Ok),
   },
 }
+
+export const experimentalIntegrationContract = {
+  wellknown: {
+    add: oc
+      .errors(engineContractErrors('INTEGRATION_POLICY', 'WELL_KNOWN_DISCOVERY'))
+      .input(z.object({url: z.string().min(1).max(2048)}))
+      .output(Ok),
+  },
+}
