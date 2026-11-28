@@ -5,6 +5,8 @@ export type {StorageEntry, StorageScanOptions, StorageScanResult} from '../stora
 export * as Plugin from './plugin.js'
 
 export * as Agent from '@conciv/protocol/schema/agent'
+export * as Credential from '@conciv/protocol/schema/credential'
+export * as Integration from '@conciv/protocol/schema/integration'
 export * as Location from '@conciv/protocol/schema/location'
 export * as Model from '@conciv/protocol/schema/model'
 export * as Rpc from '@conciv/protocol/schema/rpc'
@@ -17,6 +19,16 @@ export type {Rule, Ruleset} from '@conciv/protocol/schema/permission'
 export type {AgentDomain, AgentEditor} from './agent.js'
 export type {BundlerCode, BundlerDomain, BundlerEditor, BundlerHooks, SourceMap} from './bundler.js'
 export type {EventDomain} from './event.js'
+export type {
+  ConnectionInfo,
+  CredentialDomain,
+  IntegrationApi,
+  IntegrationDomain,
+  IntegrationEditor,
+  IntegrationMethodRegistration,
+  IntegrationOAuthAuthorization,
+  IntegrationOAuthMethodRegistration,
+} from './integration.js'
 export type {ModelDomain, ModelEditor} from './model.js'
 export type {PermissionDomain, PermissionEvaluation, PermissionHooks} from './permission.js'
 export type {RpcCallContext, RpcDomain, RpcHandlers, RpcRegistration} from './rpc.js'

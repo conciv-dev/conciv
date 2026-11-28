@@ -27,6 +27,7 @@ import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
 import type {ToolFailures, ToolHooks} from '../effect/tool.js'
 import {AssertInput} from '../permission.js'
+import {adaptIntegration} from './integration-adapter.js'
 
 type HostRegistration = {readonly dispose: Effect.Effect<void>}
 type Registration = {readonly dispose: () => Promise<void>}
@@ -366,6 +367,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
                 options,
               ),
           },
+          ...adaptIntegration({host, run, register}),
           experimental: {
             generate: undefined,
           },

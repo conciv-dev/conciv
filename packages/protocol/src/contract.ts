@@ -26,6 +26,7 @@ import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} fr
 import {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from './schema/browser-tab.js'
 import {Schema as EffectSchema} from 'effect'
 import * as Job from './schema/job.js'
+import {credentialContract, integrationContract} from './integration-contract.js'
 import {
   LogEvent,
   LogLevels,
@@ -541,6 +542,8 @@ export const contract = {
       .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
       .output(locationResponse(PluginExperimentalChunksSchema)),
   },
+  credential: credentialContract,
+  integration: integrationContract,
   experimental: {
     persistentPty: {
       create: oc

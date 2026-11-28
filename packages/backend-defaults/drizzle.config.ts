@@ -8,6 +8,7 @@ const pluginHostTables = [
   'core/permission/sql',
   'core/tab/sql',
   'core/job/sql',
+  'core/credential/sql',
 ].map((table) => fileURLToPath(import.meta.resolve(`@conciv/backend-app-api/${table}`)))
 
 export default defineConfig({

@@ -1,5 +1,6 @@
 export * from './rows.js'
 export * from './source-location.js'
 export * from './contract.js'
+export type {CredentialValueInput} from './integration-contract.js'
 export * from './code-reply.js'
 export * from './errors.js'

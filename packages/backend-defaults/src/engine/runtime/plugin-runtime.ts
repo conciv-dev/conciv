@@ -14,7 +14,10 @@ import {
   Agent,
   Bus,
   ConfigPluginSource,
+  Credential,
   EffectFlock,
+  Form,
+  Integration,
   FSUtil,
   InstancePlugins,
   KV,
@@ -266,7 +269,16 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideInstructionEntries,
       ),
     ),
-    Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        Agent.layer,
+        PermissionSaved.layer,
+        permissionSessions(input.db),
+        Skill.layer,
+        Form.layer,
+        Integration.layer.pipe(Layer.provideMerge(Credential.layer), Layer.provide(EffectFlock.layer)),
+      ),
+    ),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, ImageLayer.layer)),
     Layer.provideMerge(
       Layer.mergeAll(

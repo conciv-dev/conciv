@@ -30,6 +30,10 @@ import type * as Job from '@conciv/backend-app-api/core/job'
 import type {
   Agent,
   Bus,
+  Credential,
+  Form,
+  Integration,
+  ConfigPolicy,
   Database,
   InstructionEntry,
   KV,
@@ -77,6 +81,10 @@ export type EngineServices =
   | LogLevel.Interface
   | LogStore.Interface
   | Identifier.Maker
+  | Credential.Interface
+  | Integration.Interface
+  | Form.Interface
+  | readonly ConfigPolicy.Info[]
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<EngineServices, never>
 
