@@ -71,6 +71,7 @@
     "@effect/vitest": "catalog:",
     "@internal/engine-kit": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
+    "@internal/test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",

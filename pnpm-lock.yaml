@@ -3714,6 +3714,9 @@ importers:
       '@internal/frontend-test-utils':
         specifier: workspace:*
         version: link:../../frontend-test-utils
+      '@internal/test-utils':
+        specifier: workspace:*
+        version: link:../../test-utils
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
