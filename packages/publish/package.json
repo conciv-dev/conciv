@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@changesets/parse": "^1.0.0",
+    "@clack/prompts": "catalog:",
     "citty": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",

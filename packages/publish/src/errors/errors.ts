@@ -103,6 +103,10 @@ export const publishErrors = defineErrorCatalog('publish', {
     message: ({name, httpStatus}: {name: string; httpStatus: number}) =>
       `registry lookup for ${name} failed with ${httpStatus}`,
   },
+  NPM_TOO_OLD: {
+    message: ({version}: {version: string}) => `sync needs npm >= 11.15 for npm trust, found ${version}`,
+    fix: 'Run npm i -g npm@latest.',
+  },
   SYNC_FAILED: {
     message: ({names}: {names: string}) => `sync failed for ${names}; tags not pushed.`,
     fix: 'Rerun sync, it is idempotent.',
