@@ -19,6 +19,8 @@ type Wanted = {id: string; ext: Extension; box: Box; stack: Layer[] | null; back
 type Files = Readonly<Record<string, Uint8Array>>
 type Rest = {link: FigmaLink; key: FigmaKey}
 
+type MaybeRest = {link: FigmaLink; key: FigmaKey | null}
+
 const NO_URLS: Readonly<Record<string, string>> = {}
 const VECTORS: readonly string[] = ['VECTOR', 'BOOLEAN_OPERATION', 'STAR', 'LINE', 'ELLIPSE', 'REGULAR_POLYGON']
 const GROUPS: readonly string[] = ['FRAME', 'GROUP', 'INSTANCE', 'COMPONENT']
@@ -32,7 +34,7 @@ const WeightSchema = z.number().catch(0)
 const SolidsSchema = z.array(z.looseObject({type: z.string(), color: z.string().optional()})).catch([])
 
 export const figmaAssets = Effect.fn('design.figmaAssets')(function* (
-  input: Rest & AssetFolders & {design: Design; raster: Raster},
+  input: MaybeRest & AssetFolders & {design: Design; raster: Raster},
 ) {
   const {design} = input
   const fs = yield* FileSystem.FileSystem
@@ -168,8 +170,9 @@ const fromCache = Effect.fn('design.assetsFromCache')(function* (input: {wanted:
   return files
 })
 
-const fromRest = Effect.fn('design.assetsFromRest')(function* (input: Rest & {design: Design; wanted: Wanted[]}) {
+const fromRest = Effect.fn('design.assetsFromRest')(function* (input: MaybeRest & {design: Design; wanted: Wanted[]}) {
   const {link, key} = input
+  if (key === null) return {files: {}, reason: 'no Figma key', notes: []}
   const backgrounds = input.wanted.filter((entry) => entry.stack !== null)
   const urls = yield* Effect.all(
     [

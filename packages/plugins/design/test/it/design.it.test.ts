@@ -1,7 +1,7 @@
 import {describe, expect} from 'vitest'
 import {test} from '@conciv/backend-test-utils'
 import {listerPlugin} from '@internal/engine-kit'
-import {existsSync} from 'node:fs'
+import {copyFileSync, existsSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import * as NodeServices from '@effect/platform-node/NodeServices'
 import {Effect, Layer} from 'effect'
@@ -42,7 +42,7 @@ describe('the design plugin is configured', () => {
 })
 
 describe('the agent reads a Figma frame with design_get', () => {
-  test('with no key the agent is told the key is missing, the FIGMA_API_KEY of the engine reads the frame and its assets, and a key the user saves wins over it', async ({
+  test('with no key the agent is told the key is missing or reads the document and image it attaches, the FIGMA_API_KEY of the engine reads the frame and its assets, a key the user saves wins over it, and an attached document wins over REST', async ({
     createEngine,
   }) => {
     const accepted = 'figd_engine-env-key'
@@ -72,6 +72,24 @@ describe('the agent reads a Figma frame with design_get', () => {
     expect(await keyless.session.tool('design_get').failure({figma: hero})).toMatchObject({
       message: expect.stringContaining('the Figma key is missing'),
     })
+    const fixtures = join(import.meta.dirname, '..', 'fixtures')
+    const narrow = 'https://www.figma.com/design/ATTACHED/Site?node-id=100-1480'
+    copyFileSync(join(fixtures, 'figma-hero-390-nodes.json'), join(keyless.root, 'hero-390.json'))
+    expect(await keyless.session.tool('design_get').failure({figma: narrow, document: 'hero-390.json'})).toMatchObject({
+      message: expect.stringContaining('document goes with figma and image'),
+    })
+    expect(
+      await keyless.session.tool('design_get').failure({figma: narrow, document: 'missing.json', image: 'missing.png'}),
+    ).toMatchObject({message: expect.stringContaining('no Figma document at missing.json')})
+    const attached = await keyless.session.tool('design_get').call({
+      figma: narrow,
+      document: 'hero-390.json',
+      image: readFileSync(join(fixtures, 'figma-hero-390-render.png')).toString('base64'),
+    })
+    expect(attached).toMatchObject({
+      root: '100:1480',
+      nodes: expect.arrayContaining([expect.objectContaining({id: '100:1481', type: 'TEXT', within: '100:1480'})]),
+    })
 
     const engine = await createEngine({}, {plugins: [design], env: {FIGMA_API_KEY: accepted}})
     const get = engine.session.tool('design_get')
@@ -92,6 +110,9 @@ describe('the agent reads a Figma frame with design_get', () => {
     await rpc.integration.connect.key({integrationId: 'figma', key: 'figd_saved-by-the-user'})
     const refused = await get.failure({figma: 'https://www.figma.com/design/HERO/Site?node-id=100-1480'})
     expect(refused).toMatchObject({message: expect.stringContaining('Figma refused the token: Invalid token')})
+    copyFileSync(join(fixtures, 'figma-hero-390-render.png'), join(engine.root, 'hero-390.png'))
+    const hero390 = JSON.parse(readFileSync(join(fixtures, 'figma-hero-390-nodes.json'), 'utf8'))
+    expect(await get.call({figma: narrow, document: hero390, image: 'hero-390.png'})).toEqual(attached)
     expect(JSON.stringify([got, refused])).not.toContain('figd_')
   })
 })

@@ -33,7 +33,9 @@ describe('a Figma frame becomes the design tree', () => {
       const pricing = figmaFrame({name: 'pricing', fileKey: 'FILEKEY', node: '1:2'})
       const variables = {url: '/files/FILEKEY/variables/local', fixture: 'figma-pricing-variables.json'}
 
-      const {design, warnings} = yield* loadFigma({...where, link, key}).pipe(answered([...pricing, variables]))
+      const {design, warnings} = yield* loadFigma({...where, link, key, attached: null}).pipe(
+        answered([...pricing, variables]),
+      )
       expect(design.source).toEqual({kind: 'figma', ref: 'FILEKEY/1:2'})
       expect(design.viewport).toEqual({width: 1440, height: 900})
       expect(warnings).toEqual([
@@ -83,14 +85,14 @@ describe('a Figma frame becomes the design tree', () => {
       expect(nodeIn(design.root, '1:40')?.figma?.fields.asset).toBe('/design/1-40.png')
       expect(yield* fs.exists(path.join(where.folder, '1-40.png'))).toBe(true)
 
-      const keptIds = yield* loadFigma({...where, link, key}).pipe(answered(pricing))
+      const keptIds = yield* loadFigma({...where, link, key, attached: null}).pipe(answered(pricing))
       expect(keptIds.warnings).toEqual([
         expect.stringContaining('tokens: variable ids kept'),
         expect.stringContaining('from cache'),
       ])
       expect(nodeIn(keptIds.design.root, '1:10')?.figma?.fields.tokens).toEqual({fill: 'VariableID:1:1'})
 
-      const hero = yield* loadFigma({...where, link: {fileKey: 'HERO', nodeId: '100:1170'}, key}).pipe(
+      const hero = yield* loadFigma({...where, link: {fileKey: 'HERO', nodeId: '100:1170'}, key, attached: null}).pipe(
         answered([
           ...figmaFrame({name: 'hero-1440', fileKey: 'HERO', node: '100:1170'}),
           ...figmaFills({fileKey: 'HERO', fixture: 'figma-image-fill.png'}),
@@ -110,7 +112,7 @@ describe('a Figma frame becomes the design tree', () => {
       expect({width: flattened.width, height: flattened.height}).toEqual({width: 2560, height: 560})
       expect(hero.warnings.at(-1)).toBe('assets: 1 png of 1 nodes, from figma rest 1, crop from the frame render 0')
 
-      const heic = yield* loadFigma({...where, link: {fileKey: 'HEIC', nodeId: '100:1480'}, key}).pipe(
+      const heic = yield* loadFigma({...where, link: {fileKey: 'HEIC', nodeId: '100:1480'}, key, attached: null}).pipe(
         answered([
           ...figmaFrame({name: 'hero-390', fileKey: 'HEIC', node: '100:1480'}),
           ...figmaFills({fileKey: 'HEIC', fixture: 'figma-image-fill.heic'}),
@@ -121,13 +123,16 @@ describe('a Figma frame becomes the design tree', () => {
       )
       expect(nodeIn(heic.design.root, '100:1480')?.figma?.fields.asset).toBeUndefined()
 
-      const contact = yield* loadFigma({...where, link: {fileKey: 'CONTACT', nodeId: '100:1403'}, key}).pipe(
-        answered(figmaFrame({name: 'contact-section', fileKey: 'CONTACT', node: '100:1403'})),
-      )
+      const contact = yield* loadFigma({
+        ...where,
+        link: {fileKey: 'CONTACT', nodeId: '100:1403'},
+        key,
+        attached: null,
+      }).pipe(answered(figmaFrame({name: 'contact-section', fileKey: 'CONTACT', node: '100:1403'})))
       expect(contact.warnings.at(-1)).toMatch(/crop from the frame render \d+ \(rest: Figma answered 404/)
       expect(nodeIn(contact.design.root, '100:1406')?.figma?.fields.asset).toMatch(/^\/design\/100-1406\.png$/)
 
-      const refused = yield* loadFigma({...where, link, key: Redacted.make('figd_stale')}).pipe(
+      const refused = yield* loadFigma({...where, link, key: Redacted.make('figd_stale'), attached: null}).pipe(
         answered(pricing),
         Effect.flip,
       )

@@ -8,7 +8,8 @@ import type {Design} from '../model/design.js'
 import {designErrors} from '../errors/errors.js'
 import {loadFigma} from '../sources/figma.js'
 import type {AssetFolders} from '../sources/figma-assets.js'
-import {readFigmaKey} from '../sources/figma-key.js'
+import {findFigmaKey} from '../sources/figma-key.js'
+import {readAttached} from '../sources/figma-attached.js'
 import {figmaRef, parseFigmaLink} from '../sources/figma-link.js'
 import {GetInputSchema, GetReplySchema, type GetInput} from './get-schema.js'
 import {renderDocument, variantRule} from './document.js'
@@ -31,8 +32,9 @@ const EMPTY: SessionTargets = {targets: [], current: []}
 export const registerDesignGet = Effect.fn('design.registerDesignGet')(function* (input: {
   ctx: Pick<Context, 'tool' | 'integration'>
   folders: AssetFolders
+  project: string
 }) {
-  const {ctx, folders} = input
+  const {ctx, folders, project} = input
   const services = yield* Effect.context<HttpClient.HttpClient | FileSystem.FileSystem | Path.Path>()
   const sessions = yield* Ref.make<Readonly<Record<string, SessionTargets>>>({})
 
@@ -43,14 +45,19 @@ export const registerDesignGet = Effect.fn('design.registerDesignGet')(function*
       if (current.length === 0) return yield* Effect.fail(designErrors.NO_TARGET())
       return current
     }
-    return yield* Effect.forEach(links, (link) =>
+    return yield* Effect.forEach(links, (link, index) =>
       Effect.gen(function* () {
         const parsed = parseFigmaLink(link)
         if (parsed === null) return yield* Effect.fail(designErrors.FIGMA_LINK())
         const found = known.targets.find((target) => target.ref === figmaRef(parsed))
         if (found !== undefined) return found
-        const key = yield* readFigmaKey(ctx)
-        const loaded = yield* loadFigma({...folders, link: parsed, key})
+        const attached = yield* readAttached({
+          directory: project,
+          document: documentAt(query.document, index),
+          image: imageAt(query.image, index),
+        })
+        const key = yield* findFigmaKey(ctx)
+        const loaded = yield* loadFigma({...folders, link: parsed, key, attached})
         const target: Target = {
           id: loaded.design.id,
           ref: loaded.design.source.ref,
@@ -104,4 +111,14 @@ function toolFailure(failure: EvlogError): Tool.Error {
 function linkList(figma: GetInput['figma']): readonly string[] {
   if (figma === undefined) return []
   return typeof figma === 'string' ? [figma] : figma
+}
+
+function documentAt(document: unknown, index: number): unknown {
+  if (Array.isArray(document)) return document[index]
+  return index === 0 ? document : undefined
+}
+
+function imageAt(image: GetInput['image'], index: number): string | undefined {
+  if (typeof image === 'string') return index === 0 ? image : undefined
+  return image?.[index]
 }

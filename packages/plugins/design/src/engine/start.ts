@@ -67,6 +67,7 @@ export const startDesign = Effect.fn('design.start')(function* (ctx: Context) {
   const path = yield* Path.Path
   yield* declareFigmaKey(ctx)
   yield* registerDesignGet({
+    project: ctx.location.directory,
     ctx,
     folders: {
       folder: path.join(ctx.location.directory, ...ASSET_FOLDER),

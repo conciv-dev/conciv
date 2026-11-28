@@ -49,18 +49,13 @@ const SIZINGS: Pairs<NonNullable<NodeLayout['size']>> = [
   ['FIXED', 'fixed'],
 ]
 
+export type AttachedFigma = {readonly document: unknown; readonly image: Uint8Array}
+
 export const loadFigma = Effect.fn('design.loadFigma')(function* (
-  input: AssetFolders & {link: FigmaLink; key: FigmaKey},
+  input: AssetFolders & {link: FigmaLink; key: FigmaKey | null; attached: AttachedFigma | null},
 ) {
   const {link, key} = input
-  const ids = encodeURIComponent(link.nodeId)
-  const [document, render] = yield* Effect.all(
-    [
-      figmaGet({path: `/files/${link.fileKey}/nodes?ids=${ids}`, key, link}).pipe(Effect.flatMap(parsedDocument)),
-      frameRender({link, key}),
-    ],
-    {concurrency: 'unbounded'},
-  )
+  const [document, render] = yield* fetched(input)
   const frame = yield* pickFrame({document, nodeId: link.nodeId})
   const raster = createRaster(render)
   const built = linkComponents({root: designRoot({frame: frame.node, raster}), entry: frame.entry})
@@ -77,6 +72,24 @@ export const loadFigma = Effect.fn('design.loadFigma')(function* (
   const design: Design = {...assets.design, root: hashed(assets.design.root)}
   return {design, warnings: [...frame.warnings, ...unmapped(frame.node), named.line, assets.line]}
 })
+
+function fetched(input: {link: FigmaLink; key: FigmaKey | null; attached: AttachedFigma | null}) {
+  const {link, key, attached} = input
+  if (attached !== null)
+    return Effect.all([
+      parsedDocument(attached.document),
+      readPng({bytes: attached.image, what: `the image of ${link.nodeId}`}),
+    ])
+  if (key === null) return Effect.fail(designErrors.FIGMA_KEY_MISSING())
+  const ids = encodeURIComponent(link.nodeId)
+  return Effect.all(
+    [
+      figmaGet({path: `/files/${link.fileKey}/nodes?ids=${ids}`, key, link}).pipe(Effect.flatMap(parsedDocument)),
+      frameRender({link, key}),
+    ],
+    {concurrency: 'unbounded'},
+  )
+}
 
 const frameRender = Effect.fn('design.frameRender')(function* (input: {link: FigmaLink; key: FigmaKey}) {
   const {link, key} = input

@@ -12,9 +12,10 @@ const TokensSchema = z.record(z.string(), z.string())
 export const namedTokens = Effect.fn('design.namedTokens')(function* (input: {
   root: DesignNode
   link: FigmaLink
-  key: FigmaKey
+  key: FigmaKey | null
 }) {
   const {root, link, key} = input
+  if (key === null) return {root, line: 'tokens: variable ids kept, no Figma key'}
   return yield* figmaGet({path: `/files/${link.fileKey}/variables/local`, key, link}).pipe(
     Effect.match({
       onFailure: (error) => ({
