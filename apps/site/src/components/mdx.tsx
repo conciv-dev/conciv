@@ -24,6 +24,7 @@ import {CliCommands, HarnessTable} from './reference-tables'
 import {AgentPrompt, CopyPrompt, SetupPrompt} from './setup-prompt'
 import {No, Partly, Yes} from './comparison-status'
 import {InstallSteps} from './landing/install-steps'
+import {OutsideAgentVideo} from './outside-agent-video'
 import type {MDXComponents} from 'mdx/types'
 
 function getMDXComponents(components?: MDXComponents) {
@@ -58,6 +59,7 @@ function getMDXComponents(components?: MDXComponents) {
     CopyPrompt,
     AgentPrompt,
     InstallSteps,
+    OutsideAgentVideo,
     Yes,
     Partly,
     No,
