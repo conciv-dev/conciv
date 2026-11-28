@@ -1,6 +1,6 @@
 {
   "name": "@conciv/simulation",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "The conciv engine's simulation: the scripted agent and fixed network table an engine started in simulation is built with, the control socket a driver answers model turns and tool calls through, and the driver.",
   "keywords": [
     "conciv",

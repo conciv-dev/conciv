@@ -1,5 +1,15 @@
 # @conciv/solid-diffs
 
+## 0.0.25
+
+### Patch Changes
+
+- [#1217](https://github.com/conciv-dev/conciv/pull/1217) [`74d3b55`](https://github.com/conciv-dev/conciv/commit/74d3b550f749a7beb5fade7d735d7a41caf8ad41) Thanks [@omridevk](https://github.com/omridevk)! - Every library builds with tsdown, as devframe builds its packages; Vite builds only the app bundles (the widget, the
+  shell and the plugins' `./plugin-experimental` bundles). A library's `dependencies` and `peerDependencies` stay
+  external, so some kits now import packages they used to bundle. `@conciv/unplugin` depends on `@conciv/protocol`.
+
+- [#1212](https://github.com/conciv-dev/conciv/pull/1212) [`1237734`](https://github.com/conciv-dev/conciv/commit/1237734bce516783f7dbc4f40e6ef2c8fba4765d) Thanks [@omridevk](https://github.com/omridevk)! - Every package builds with Vite: one shared library build in `@internal/vite-config` (Vite environments, `rolldown-plugin-dts` for the declarations). tsdown and the separate `tsc` declaration step are gone. Libraries with several entries ship one file per module, so no declaration chunk sits outside `exports`. `experimental()` configures only the `client` environment.
+
 ## 0.0.24
 
 No changes in this release.
