@@ -79,6 +79,7 @@ import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
+import * as DatabaseHome from '../../core/database/home.js'
 import type {HarnessModel} from '@conciv/types/harness-types'
 import {uniq} from 'es-toolkit'
 import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
@@ -276,7 +277,10 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         permissionSessions(input.db),
         Skill.layer,
         Form.layer,
-        Integration.layer.pipe(Layer.provideMerge(Credential.layer), Layer.provide(EffectFlock.layer)),
+        Integration.layer.pipe(
+          Layer.provideMerge(Credential.layer.pipe(Layer.provide(DatabaseHome.homeLayer(input.home)))),
+          Layer.provide(EffectFlock.layer),
+        ),
       ),
     ),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, ImageLayer.layer)),

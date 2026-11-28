@@ -1,4 +1,8 @@
 import {createHash} from 'node:crypto'
+import {join} from 'node:path'
+import {DatabaseSync} from 'node:sqlite'
+import {concivStateDir} from '@conciv/types/state-types'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {describe, expect} from 'vitest'
 import {test} from '../utils/engine-test.js'
 
@@ -17,7 +21,8 @@ describe('a user connects a plugin integration', () => {
     createEngine,
     connect,
   }) => {
-    const engine = await createEngine({plugins, logLevel: 'debug'}, {env: {FIGMA_API_KEY: ENV_KEY}})
+    const home = tempDir('conciv-shared-home-')
+    const engine = await createEngine({plugins, logLevel: 'debug'}, {home, env: {FIGMA_API_KEY: ENV_KEY}})
     const rpc = connect(engine)
     const secretTool = engine.session.tool('figma_secret')
     const seen: unknown[] = []
@@ -68,6 +73,16 @@ describe('a user connects a plugin integration', () => {
       fingerprint: fingerprint(TYPED_KEY),
       value: {type: 'key', key: '<redacted>'},
     })
+
+    const project = new DatabaseSync(join(concivStateDir(engine.root), 'conciv.db'), {readOnly: true})
+    const tables = project.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()
+    project.close()
+    expect(tables).toContainEqual({name: 'kv'})
+    expect(tables).not.toContainEqual({name: 'credential'})
+    const neighbour = await createEngine({plugins}, {home, directory: tempDir('conciv-other-project-')})
+    const neighbourCredentials = await connect(neighbour).credential.list()
+    seen.push(neighbourCredentials)
+    expect(neighbourCredentials).toEqual(afterKey)
 
     const signedIn = await rpc.credential.create({
       integrationId: 'figma',

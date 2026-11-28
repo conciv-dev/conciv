@@ -7,8 +7,7 @@ import {describe, expect} from 'vitest'
 import {Bus, Credential, EffectFlock, FSUtil, Global} from '@conciv/backend-app-api'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import * as IntegrationSchema from '@conciv/protocol/schema/integration'
-import {openDb} from '../../src/db/connection.js'
-import {DatabaseLayer} from '../../src/backend-defaults.js'
+import {homeLayer} from '../../src/core/database/home.js'
 
 describe('a user keeps several credentials for one integration', () => {
   const integrationId = IntegrationSchema.Id.make('figma')
@@ -32,9 +31,8 @@ describe('a user keeps several credentials for one integration', () => {
   }
 
   const store = Layer.unwrap(
-    Effect.gen(function* () {
+    Effect.sync(() => {
       const root = tempDir('conciv-credential-')
-      const db = yield* openDb(root)
       const roots = {cache: join(root, 'cache'), config: root, state: join(root, 'state'), log: join(root, 'log')}
       return Credential.layer.pipe(
         Layer.provide(EffectFlock.layer),
@@ -42,7 +40,8 @@ describe('a user keeps several credentials for one integration', () => {
         Layer.provide(FSUtil.layer),
         Layer.provide(NodeFileSystem.layer),
         Layer.provideMerge(Bus.configured()),
-        Layer.provideMerge(DatabaseLayer.configuredClient(db)),
+        Layer.provideMerge(homeLayer(join(root, 'home'))),
+        Layer.provide(NodeFileSystem.layer),
         Layer.provide(Layer.succeed(Identifier.Service, Identifier.makeMaker())),
       )
     }),
