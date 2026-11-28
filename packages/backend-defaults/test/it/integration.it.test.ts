@@ -126,6 +126,7 @@ describe('a user connects a plugin integration', () => {
     reading.abort()
     await expect(collecting).rejects.toMatchObject({name: 'AbortError'})
     expect(JSON.stringify(logs.events)).toContain('credential')
+    expect(JSON.stringify(logs.events)).toContain('authentication command failed')
     expect(seen.some((event) => JSON.stringify(event).includes('credential.switched'))).toBe(true)
     const everything = JSON.stringify([seen, logs.events])
     for (const plain of [
