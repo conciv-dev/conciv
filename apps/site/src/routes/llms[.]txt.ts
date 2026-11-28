@@ -1,6 +1,5 @@
-import {source} from '@/lib/source'
 import {createFileRoute} from '@tanstack/react-router'
-import {llms} from 'fumadocs-core/source'
+import {getLlmsIndex} from '@/lib/docs.functions'
 import {SITE} from '@/lib/site-urls'
 
 const details = [
@@ -26,7 +25,7 @@ export const Route = createFileRoute('/llms.txt')({
   server: {
     handlers: {
       async GET() {
-        return new Response(withDetails(await llms(source).index()))
+        return new Response(withDetails(await getLlmsIndex()))
       },
     },
   },
