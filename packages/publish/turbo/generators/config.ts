@@ -2,6 +2,7 @@ import * as NodeServices from '@effect/platform-node/NodeServices'
 import type {PlopTypes} from '@turbo/gen'
 import {Effect, FileSystem, Path, Schema} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
+import {readWorkspacePackages} from '../../src/workspace.ts'
 import {generatorErrors} from './errors.ts'
 
 const KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
@@ -27,12 +28,6 @@ const Answers = Schema.Struct({
 
 const SharedVersion = Schema.fromJsonString(
   Schema.Struct({version: Schema.String, engines: Schema.Struct({node: Schema.String})}),
-)
-
-const WorkspacePackages = Schema.fromJsonString(
-  Schema.Struct({
-    packages: Schema.Struct({items: Schema.Array(Schema.Struct({name: Schema.String, path: Schema.String}))}),
-  }),
 )
 
 type Spec = Omit<typeof Answers.Type, 'turbo'>
@@ -317,18 +312,11 @@ const assertNewPackage = Effect.fn('assertNewPackage')(function* (context: Gener
   }
   const fs = yield* FileSystem.FileSystem
   const paths = yield* Path.Path
-  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-  const listing = yield* spawner.string(
-    ChildProcess.make(paths.join(context.root, 'node_modules/.bin/turbo'), ['ls', '--output=json'], {
-      cwd: context.root,
-      extendEnv: true,
-    }),
-  )
-  const {packages} = yield* Schema.decodeUnknownEffect(WorkspacePackages)(listing)
-  const owner = packages.items.find((item) => item.name === packageName(spec))
+  const packages = yield* Effect.tryPromise({try: () => readWorkspacePackages(context.root), catch: describeFailure})
+  const owner = packages.find((item) => item.manifest.name === packageName(spec))
   if (owner) {
     return yield* Effect.fail(
-      generatorErrors.PACKAGE_EXISTS({reason: `${packageName(spec)} is already declared by ${owner.path}`}),
+      generatorErrors.PACKAGE_EXISTS({reason: `${packageName(spec)} is already declared by ${owner.relativeDir}`}),
     )
   }
   if (yield* fs.exists(paths.join(context.root, directory(spec)))) {
