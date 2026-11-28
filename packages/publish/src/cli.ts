@@ -247,20 +247,14 @@ function say(line: string) {
   })
 }
 
-const NPM_CONCURRENCY = 8
+const NPM_READ_CONCURRENCY = 8
 
-const NPM_CAPTURED = {stdin: 'ignore', stdout: 'pipe', stderr: 'pipe'} as const
-const NPM_TERMINAL = {stdin: 'inherit', stdout: 'inherit', stderr: 'inherit'} as const
-const NPM_TERMINAL_READ = {stdin: 'inherit', stdout: 'pipe', stderr: 'inherit'} as const
-
-type NpmStdio = typeof NPM_CAPTURED | typeof NPM_TERMINAL | typeof NPM_TERMINAL_READ
-
-function npmCall<Stdio extends NpmStdio>(name: string, file: string, args: string[], stdio: Stdio) {
+function npmCall<A>(name: string, file: string, args: string[], spawn: () => Promise<A>) {
   const command = `${file} ${args.join(' ')}`
   return Effect.logDebug(`running ${command}`).pipe(
     Effect.andThen(
       Effect.tryPromise({
-        try: () => execa(file, args, {cwd: process.cwd(), ...stdio, all: true}),
+        try: spawn,
         catch: (cause): SyncFailure => ({
           name,
           hint: '',
@@ -275,33 +269,23 @@ function npmCall<Stdio extends NpmStdio>(name: string, file: string, args: strin
   )
 }
 
+function npmOnTerminal(run: Run, name: string, file: string, args: string[]) {
+  return npmCall(name, file, args, () => run(file, args)).pipe(Effect.asVoid)
+}
+
+function readTrustList(name: string) {
+  const args = npmTrust('list', name, '--json')
+  return npmCall(name, 'npx', args, () => execa('npx', args, {cwd: process.cwd(), stdin: 'ignore', all: true})).pipe(
+    Effect.map(({stdout}) => stdout),
+  )
+}
+
 function failWith(hint: string) {
   return (failure: SyncFailure) => Effect.fail({...failure, hint})
 }
 
-function firstAloneThenConcurrent<A, B>(
-  items: readonly A[],
-  step: (item: A, interactive: boolean) => Effect.Effect<B, SyncFailure>,
-) {
-  return Effect.gen(function* () {
-    const [head, ...rest] = items
-    if (head === undefined) return [[], []] as [B[], SyncFailure[]]
-    const [firstPasses, firstFails] = yield* Effect.partition([head], (item) => step(item, true))
-    const [passes, fails] = yield* Effect.partition(rest, (item) => step(item, false), {concurrency: NPM_CONCURRENCY})
-    return [
-      [...firstPasses, ...passes],
-      [...firstFails, ...fails],
-    ] as [B[], SyncFailure[]]
-  })
-}
-
-function firstPublish(name: string, interactive: boolean) {
-  return npmCall(
-    name,
-    'pnpm',
-    ['--filter', name, 'publish', '--access', 'public', '--no-git-checks'],
-    interactive ? NPM_TERMINAL : NPM_CAPTURED,
-  ).pipe(
+function firstPublish(run: Run, name: string) {
+  return npmOnTerminal(run, name, 'pnpm', ['--filter', name, 'publish', '--access', 'public', '--no-git-checks']).pipe(
     Effect.catch(
       failWith(
         'publish failed. If npm reported "previously published versions", the registry 404 cache is stale and the package is fine - rerun sync in a few minutes. If it reported EOTP or E403, run "npm login" (browser + 2FA) and rerun sync from a real terminal.',
@@ -311,16 +295,16 @@ function firstPublish(name: string, interactive: boolean) {
   )
 }
 
-function wireTrust(name: string, interactive: boolean) {
-  return npmCall(
+function wireTrust(run: Run, name: string) {
+  return npmOnTerminal(
+    run,
     name,
     'npx',
     npmTrust('github', name, '--repo', REPOSITORY, '--file', RELEASE_WORKFLOW, '--allow-publish', '--yes'),
-    interactive ? NPM_TERMINAL : NPM_CAPTURED,
   ).pipe(
     Effect.andThen(say(`${name}: trust set up`)),
     Effect.catch((failure) =>
-      trustAlreadySetUp(name, false).pipe(Effect.flatMap((wired) => (wired ? Effect.void : Effect.fail(failure)))),
+      trustAlreadySetUp(name).pipe(Effect.flatMap((wired) => (wired ? Effect.void : Effect.fail(failure)))),
     ),
     Effect.catch(
       failWith(
@@ -332,9 +316,9 @@ function wireTrust(name: string, interactive: boolean) {
 
 const TrustConfig = z.object({repository: z.string().optional(), file: z.string().optional()})
 
-function trustAlreadySetUp(name: string, interactive: boolean) {
-  return npmCall(name, 'npx', npmTrust('list', name, '--json'), interactive ? NPM_TERMINAL_READ : NPM_CAPTURED).pipe(
-    Effect.map(({stdout}) =>
+function trustAlreadySetUp(name: string) {
+  return readTrustList(name).pipe(
+    Effect.map((stdout) =>
       stdout
         .split(/\n\s*\n/)
         .filter((chunk) => chunk.trim() !== '')
@@ -342,7 +326,7 @@ function trustAlreadySetUp(name: string, interactive: boolean) {
         .some(({success, data}) => success && data.repository === REPOSITORY && data.file === RELEASE_WORKFLOW),
     ),
     Effect.catch((failure) =>
-      Effect.logWarning(`npm trust list failed, planning trust setup\n${failure.output}`).pipe(
+      Effect.logWarning(`npm trust list failed, counting trust as not set up\n${failure.output}`).pipe(
         Effect.annotateLogs('package', name),
         Effect.as(false),
       ),
@@ -368,10 +352,10 @@ const gatherSyncStates = Effect.fn('sync.gatherStates')(function* () {
     (name) => Effect.promise(async () => ({name, ...(await registryRecord(name))})),
     {concurrency: 'unbounded'},
   )
-  const [wired] = yield* firstAloneThenConcurrent(
+  const wired = yield* Effect.forEach(
     records.filter(({state}) => state === 'untrusted'),
-    ({name}, interactive) =>
-      trustAlreadySetUp(name, interactive).pipe(Effect.map((trusted) => (trusted ? [name] : []))),
+    ({name}) => trustAlreadySetUp(name).pipe(Effect.map((trusted) => (trusted ? [name] : []))),
+    {concurrency: NPM_READ_CONCURRENCY},
   )
   const trusted = wired.flat()
   return records.map((record): SyncPackageState =>
@@ -402,10 +386,10 @@ async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): 
   await assertPublicTypesPublic(cwd, names)
 }
 
-function applyNpmActions({name, actions}: SyncPlanEntry, interactive: boolean) {
+function applyNpmActions(run: Run, {name, actions}: SyncPlanEntry) {
   return Effect.gen(function* () {
-    if (actions.includes('publish')) yield* firstPublish(name, interactive)
-    if (actions.includes('trust')) yield* wireTrust(name, interactive)
+    if (actions.includes('publish')) yield* firstPublish(run, name)
+    if (actions.includes('trust')) yield* wireTrust(run, name)
   })
 }
 
@@ -417,9 +401,9 @@ const applySyncPlan = Effect.fn('sync.apply')(function* (cwd: string, run: Run, 
       plan.filter(({actions}) => actions.includes('publish')).map(({name}) => name),
     ),
   )
-  const [, failures] = yield* firstAloneThenConcurrent(
+  const [, failures] = yield* Effect.partition(
     plan.filter(({actions}) => actions.includes('publish') || actions.includes('trust')),
-    applyNpmActions,
+    (entry) => applyNpmActions(run, entry),
   )
   for (const {name, hint, output} of failures) {
     yield* Effect.logError(output).pipe(Effect.annotateLogs('package', name))
