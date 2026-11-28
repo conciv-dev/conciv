@@ -19,7 +19,7 @@
     }
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -40,9 +40,10 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "solid-js": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unplugin-solid": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },

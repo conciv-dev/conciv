@@ -1,16 +1,17 @@
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
-import {libConfig} from '@internal/vite-config'
+import manifest from './package.json' with {type: 'json'}
 
-export default defineConfig(
-  libConfig({
-    root: import.meta.url,
-    plugins: [solid()],
-    environments: {
-      client: {
-        entries: ['src/solid-diffs.tsx'],
-        external: [/^solid-js/, /^@pierre\/diffs(?!.*\?worker)/, /^shiki/, /^@shikijs\//, /^@tanstack\/solid-pacer/],
-      },
-    },
-  }),
+const external = Object.keys({...manifest.dependencies, ...manifest.peerDependencies}).map(
+  (name) => new RegExp(`^${name}(/|$)(?!.*\\?)`),
 )
+
+export default defineConfig({
+  plugins: [solid()],
+  build: {
+    lib: {entry: ['src/solid-diffs.tsx'], formats: ['es']},
+    emptyOutDir: false,
+    sourcemap: true,
+    rolldownOptions: {external, output: {}},
+  },
+})

@@ -28,7 +28,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "gen-migrations": "node src/scripts/gen-migrations.ts",
     "publint": "publint",
@@ -45,10 +45,10 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

@@ -19,10 +19,15 @@
       "types": "./src/uno-preset.ts",
       "import": "./dist/uno-preset.js",
       "default": "./dist/uno-preset.js"
+    },
+    "./build-shadow-css": {
+      "types": "./src/build-shadow-css.ts",
+      "import": "./dist/build-shadow-css.js",
+      "default": "./dist/build-shadow-css.js"
     }
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -31,11 +36,10 @@
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@types/node": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:",
-    "vite": "catalog:"
+    "unocss": "catalog:"
   },
   "peerDependencies": {
     "unocss": "^66.7.2"

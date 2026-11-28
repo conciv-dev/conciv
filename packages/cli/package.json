@@ -30,7 +30,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && chmod +x dist/bin.js && node dist/commands-json.js",
+    "build": "tsdown && chmod +x dist/bin.js && node dist/commands-json.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -51,7 +51,6 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
     "@internal/tsconfig": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@orpc/client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
@@ -61,6 +60,7 @@
     "evlog": "catalog:",
     "nypm": "^0.6.12",
     "picocolors": "^1.1.1",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",

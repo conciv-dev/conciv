@@ -7,7 +7,8 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 ## Interface
 
 - `package.json:exports` - `.` (`dist/solid-streamdown.js`) and `./styles.css` (`src/styles.css`).
-- `vite.config.ts` - library build of `src/solid-streamdown.tsx` to `solid-streamdown.js`, ES format; `solid-js`, `solid-js/web` and `solid-js/store` external.
+- `tsdown.config.ts` - library build of `src/solid-streamdown.tsx` to `solid-streamdown.js`, ES format; its dependencies and the `solid-js` peer stay external (tsdown's default).
+- `vitest.config.ts` - `vite-plugin-solid` and `concivTest()`.
 - Source: [src](./src/README.md).
 
 ## Invariants

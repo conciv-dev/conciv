@@ -122,8 +122,9 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Component styles go through `packages/uno-preset` (keyframes, `anim-*` shortcuts, rules, preflights).
   A new `.css` file in a ui-kit `src/` is a blocker; only token/theme sheets are `.css`.
 - A plugin other than the built-ins (page, terminal, iOS, which `packages/app/uno.config.ts` scans) builds its own
-  sheet: `uno.config.ts` is `pluginSheetConfig(import.meta.url)` and the browser part adds `virtual:uno.css?inline`
-  with `ctx.add(Style, css)`. Adding a plugin's `src` to the app's or frontend-defaults' `uno.config.ts` is a
+  sheet: `uno.config.ts` is `pluginSheetConfig(import.meta.url)`, `scripts/build-css.ts` (`build:css`, run first in
+  `build`) writes it to `src/.generated/css.ts`, and the browser part imports `./.generated/css.js` and adds it with
+  `ctx.add(Style, css)`. Adding a plugin's `src` to the app's or frontend-defaults' `uno.config.ts` is a
   blocker.
 - Piles of arbitrary props (`[overflow-x:hidden]`, `[display:-webkit-box]`) where a preset utility
   exists (`truncate`, `line-clamp-N`).
@@ -183,8 +184,8 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - No tests under `apps/examples/*` (example apps are demos), except the handful of demo tests in
   `apps/examples/tanstack-start`. Behaviour is verified by the owning package's tests,
   its test utilities, or an `e2e/` consumer app.
-- A package's tests are configured only through `concivTest(...)` in its one `vite.config.ts` (no
-  `vitest*.config` file); `test/unit` runs in node unless the package passes `environment: 'happy-dom'`.
+- A package's tests are configured only through `concivTest(...)` in its `vitest.config.ts`, or in its
+  `vite.config.ts` when the package has a Vite app config (never both); `test/unit` runs in node unless the package passes `environment: 'happy-dom'`.
   Flag a hand-written test project or environment.
 - A bug fix ships with a regression test that fails without the fix.
 - A flaky-test "fix" that only bumps a timeout or adds a retry is not acceptable. The mechanism gets

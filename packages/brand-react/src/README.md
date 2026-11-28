@@ -2,7 +2,7 @@
 
 ## Overview
 
-React version of the conciv logo: the full lockup (mark plus wordmark) and the standalone mark, rendered as inline SVG path data. With `interactive` set, the lockup runs a hover/focus animation built on `motion/react`. `conciv-lockup.tsx` is the package's `.` export (built by `vite.config.ts`).
+React version of the conciv logo: the full lockup (mark plus wordmark) and the standalone mark, rendered as inline SVG path data. With `interactive` set, the lockup runs a hover/focus animation built on `motion/react`. `conciv-lockup.tsx` is the package's `.` export (built by `tsdown.config.ts`).
 
 ## Interface
 

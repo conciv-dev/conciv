@@ -46,7 +46,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build:css": "node scripts/build-css.ts",
+    "build": "pnpm run build:css && tsdown",
     "gen:fixtures": "node test/fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
@@ -70,12 +71,13 @@
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
+    "unplugin-solid": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

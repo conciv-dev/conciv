@@ -40,7 +40,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -61,11 +61,12 @@
     "@effect/platform-node": "catalog:",
     "@internal/engine-kit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unplugin-solid": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

@@ -32,7 +32,7 @@
     "./assets/*": "./assets/*"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -42,16 +42,16 @@
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@storybook/addon-docs": "catalog:",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
-    "vite": "catalog:",
-    "vite-plugin-solid": "catalog:"
+    "unplugin-solid": "catalog:",
+    "vite": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

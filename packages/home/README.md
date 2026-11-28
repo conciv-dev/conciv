@@ -2,7 +2,7 @@
 
 ## Overview
 
-The per-user conciv home registry, internal to `@conciv/it`: `home.db` on `node:sqlite` holds the running engines and the hub connections every engine and the CLI share. Built with `vite build` to `dist/` as ESM.
+The per-user conciv home registry, internal to `@conciv/it`: `home.db` on `node:sqlite` holds the running engines and the hub connections every engine and the CLI share. Built with `tsdown` to `dist/` as ESM.
 
 ## Interface
 
