@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "error": false,
+  "meta": {
+    "variables": {
+      "VariableID:1:1": {
+        "id": "VariableID:1:1",
+        "name": "surface/card",
+        "resolvedType": "COLOR"
+      }
+    },
+    "variableCollections": {}
+  }
+}

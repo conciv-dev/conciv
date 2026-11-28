@@ -1,0 +1,11 @@
+{
+  "error": false,
+  "status": 200,
+  "meta": {
+    "images": {
+      "3205392a01dcf643e731fe2d5bed129994290d15": "https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/fill-3205392a01dcf643e731fe2d5bed129994290d15",
+      "3cf97699bf6b954360c49ad34e129d1ebd1f7693": "https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/fill-3cf97699bf6b954360c49ad34e129d1ebd1f7693",
+      "f4fdd2a23aecc907f995d84427b3721050e3a086": "https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/fill-f4fdd2a23aecc907f995d84427b3721050e3a086"
+    }
+  }
+}

@@ -336,6 +336,9 @@ catalogs:
     '@turbo/gen':
       specifier: 2.11.10
       version: 2.11.10
+    '@types/culori':
+      specifier: ^4.0.1
+      version: 4.0.1
     '@types/node':
       specifier: ^26.6.6
       version: 26.6.6
@@ -348,6 +351,9 @@ catalogs:
     '@types/pacote':
       specifier: 11.1.8
       version: 11.1.8
+    '@types/pngjs':
+      specifier: ^6.0.5
+      version: 6.0.5
     '@types/react':
       specifier: ^19.3.0
       version: 19.3.0
@@ -405,6 +411,12 @@ catalogs:
     class-variance-authority:
       specifier: ^0.7.1
       version: 0.7.1
+    color-blend:
+      specifier: ^4.0.0
+      version: 4.0.0
+    culori:
+      specifier: ^4.0.2
+      version: 4.0.2
     defu:
       specifier: 6.1.7
       version: 6.1.7
@@ -516,6 +528,9 @@ catalogs:
     playwright-core:
       specifier: ^1.64.1
       version: 1.64.1
+    pngjs:
+      specifier: ^7.0.0
+      version: 7.0.0
     postcss:
       specifier: ^8.5.32
       version: 8.5.32
@@ -3635,21 +3650,42 @@ importers:
 
   packages/plugins/design:
     dependencies:
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
+      '@silvia-odwyer/photon-node':
+        specifier: 'catalog:'
+        version: 0.3.4
+      color-blend:
+        specifier: 'catalog:'
+        version: 4.0.0
+      culori:
+        specifier: 'catalog:'
+        version: 4.0.2
       diff:
         specifier: 'catalog:'
         version: 9.0.0
       effect:
         specifier: 'catalog:'
         version: 4.1.5
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       evlog:
         specifier: 'catalog:'
         version: 2.37.1(@orpc/server@2.0.0-beta.53(crossws@0.4.17(srvx@1.0.8)))(@tanstack/start-client-core@1.170.39)(effect@4.1.5)(h3@1.15.11)(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5)
+      lucide-solid:
+        specifier: 'catalog:'
+        version: 1.66.0(solid-js@1.9.17)
       magic-string:
         specifier: ^1.4.5
         version: 1.4.5
       oxc-parser:
         specifier: 'catalog:'
         version: 0.156.0
+      pngjs:
+        specifier: 'catalog:'
+        version: 7.0.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3660,24 +3696,51 @@ importers:
       '@conciv/backend-test-utils':
         specifier: workspace:*
         version: link:../../backend-test-utils
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../../client
       '@conciv/frontend-plugin-api':
         specifier: workspace:^
         version: link:../../frontend-plugin-api
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.1.5(effect@4.1.5)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.1.5(effect@4.1.5)(vitest@5.1.0)
       '@internal/engine-kit':
         specifier: workspace:*
         version: link:../../engine-kit
+      '@internal/frontend-test-utils':
+        specifier: workspace:*
+        version: link:../../frontend-test-utils
+      '@internal/test-utils':
+        specifier: workspace:*
+        version: link:../../test-utils
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.8(@testing-library/dom@10.4.2)
+      '@types/culori':
+        specifier: 'catalog:'
+        version: 4.0.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/pngjs':
+        specifier: 'catalog:'
+        version: 6.0.5
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -3687,9 +3750,12 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(@oxc-project/types@0.159.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.3.3)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       unplugin-solid:
         specifier: 'catalog:'
-        version: 2.0.0(@rspack/core@2.3.2(@swc/helpers@0.5.23))(@testing-library/jest-dom@6.9.1)(esbuild@0.28.2)(rolldown@1.3.3)(rollup@4.62.2)(solid-js@1.9.17)(vite@8.3.5)(webpack@5.112.2(esbuild@0.28.2))
+        version: 2.0.0(@rspack/core@2.3.2(@swc/helpers@0.5.23))(@testing-library/jest-dom@6.9.1)(esbuild@0.28.2)(rolldown@1.3.3)(rollup@4.62.2)(solid-js@1.9.17)(vite@8.3.5)(webpack@5.112.2(esbuild@0.28.2)(postcss@8.5.32))
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -12873,6 +12939,9 @@ packages:
   '@types/css-font-loading-module@0.0.7':
     resolution: {integrity: sha512-nl09VhutdjINdWyXxHWN/w9zlNCfr60JUqJbd24YXUuCwgeL0TpFSdElCwb6cxfB6ybE19Gjj4g0jsgkXxKv1Q==}
 
+  '@types/culori@4.0.1':
+    resolution: {integrity: sha512-43M51r/22CjhbOXyGT361GZ9vncSVQ39u62x5eJdBQFviI8zWp2X5jzqg7k4M6PVgDQAClpy2bUe2dtwEgEDVQ==}
+
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
 
@@ -13034,6 +13103,9 @@ packages:
 
   '@types/pacote@11.1.8':
     resolution: {integrity: sha512-/XLR0VoTh2JEO0jJg1q/e6Rh9bxjBq9vorJuQmtT7rRrXSiWz7e7NsvXVYJQ0i8JxMlBMPPYDTnrRe7MZRFA8Q==}
+
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
 
   '@types/react-dom@19.3.0':
     resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
@@ -14907,6 +14979,10 @@ packages:
   collapse-white-space@2.1.0:
     resolution: {integrity: sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw==}
 
+  color-blend@4.0.0:
+    resolution: {integrity: sha512-fYODTHhI/NG+B5GnzvuL3kiFrK/UnkUezWFTgEPBTY5V+kpyfAn95Vn9sJeeCX6omrCOdxnqCL3CvH+6sXtIbw==}
+    engines: {node: '>=10.0.0'}
+
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
     engines: {node: '>=7.0.0'}
@@ -15115,6 +15191,10 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  culori@4.0.2:
+    resolution: {integrity: sha512-1+BhOB8ahCn4O0cep0Sh2l9KCOfOdY+BXJnKMHFFzDEouSr/el18QwXEMRlOj9UY5nCeA8UN3a/82rUWRBeyBw==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   cytoscape-cose-bilkent@4.1.0:
     resolution: {integrity: sha512-wgQlVIUJF13Quxiv5e1gstZ08rnZj2XaLHGoFMYXz7SkNfCDOOteKBE6SYRfA9WxxI/iBc3ajfDoc6hb/MRAHQ==}
@@ -27595,6 +27675,8 @@ snapshots:
 
   '@types/css-font-loading-module@0.0.7': {}
 
+  '@types/culori@4.0.1': {}
+
   '@types/d3-array@3.2.2': {}
 
   '@types/d3-axis@3.0.6':
@@ -27793,6 +27875,10 @@ snapshots:
       '@types/npm-registry-fetch': 8.0.9
       '@types/npmlog': 7.0.0
       '@types/ssri': 7.1.5
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 26.6.6
 
   '@types/react-dom@19.3.0(@types/react@19.3.0)':
     dependencies:
@@ -30091,6 +30177,8 @@ snapshots:
 
   collapse-white-space@2.1.0: {}
 
+  color-blend@4.0.0: {}
+
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
@@ -30266,6 +30354,8 @@ snapshots:
     optional: true
 
   csstype@3.2.3: {}
+
+  culori@4.0.2: {}
 
   cytoscape-cose-bilkent@4.1.0(cytoscape@3.34.4):
     dependencies:

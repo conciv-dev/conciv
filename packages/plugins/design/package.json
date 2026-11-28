@@ -40,32 +40,50 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build",
+    "build": "pnpm run build:css && tsdown && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:css": "node scripts/build-css.ts"
   },
   "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "@silvia-odwyer/photon-node": "catalog:",
+    "color-blend": "catalog:",
+    "culori": "catalog:",
     "diff": "catalog:",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "evlog": "catalog:",
+    "lucide-solid": "catalog:",
     "magic-string": "^1.4.5",
     "oxc-parser": "catalog:",
+    "pngjs": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/backend-test-utils": "workspace:*",
+    "@conciv/client": "workspace:^",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@internal/engine-kit": "workspace:*",
+    "@internal/frontend-test-utils": "workspace:*",
+    "@internal/test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/culori": "catalog:",
     "@types/node": "catalog:",
+    "@types/pngjs": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
     "unplugin-solid": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
@@ -79,6 +97,6 @@
     "node": ">=22.16.0"
   },
   "conciv": {
-    "testBudget": 3
+    "testBudget": 9
   }
 }
