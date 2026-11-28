@@ -8,16 +8,15 @@ import {sentryOptions} from './lib/sentry-options'
 import {readStarCount} from './lib/star-count.server'
 import {withStarCount} from './lib/star-count-rewriter'
 
-async function routeRequest(request: Request, opts?: RequestOptions<Register>): Promise<Response> {
-  if (request.method !== 'GET') return handler.fetch(request, opts)
-  const asset = await env.ASSETS.fetch(request)
-  return asset.status === 404 ? handler.fetch(request, opts) : asset
+function isPage(response: Response): boolean {
+  return response.ok && (response.headers.get('content-type')?.startsWith('text/html') ?? false)
 }
 
 async function fetchPage(request: Request, opts?: RequestOptions<Register>): Promise<Response> {
-  const response = await routeRequest(request, opts)
-  if (!response.headers.get('content-type')?.startsWith('text/html')) return response
-  return withStarCount(response, await readStarCount())
+  if (request.method !== 'GET') return handler.fetch(request, opts)
+  const asset = await env.ASSETS.fetch(request)
+  if (asset.status === 404) return handler.fetch(request, opts)
+  return isPage(asset) ? withStarCount(asset, await readStarCount()) : asset
 }
 
 const worker: ExportedHandler<Env> = Sentry.withSentry(() => sentryOptions(), wrapFetchWithSentry({fetch: fetchPage}))
