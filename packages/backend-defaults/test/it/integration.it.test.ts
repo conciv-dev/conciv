@@ -32,7 +32,7 @@ describe('a user connects a plugin integration', () => {
     async function collect() {
       for await (const event of events) seen.push(event)
     }
-    const collecting = collect().catch(() => undefined)
+    const collecting = collect()
     async function secret() {
       const output = await secretTool.call({})
       seen.push(output)
@@ -144,7 +144,7 @@ describe('a user connects a plugin integration', () => {
 
     const logs = await rpc.logs.query({limit: 2000})
     reading.abort()
-    await collecting
+    await expect(collecting).rejects.toMatchObject({name: 'AbortError'})
     expect(JSON.stringify(logs.events)).toContain('credential')
     expect(seen.some((event) => JSON.stringify(event).includes('credential.switched'))).toBe(true)
     const everything = JSON.stringify([seen, logs.events])
