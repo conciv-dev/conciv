@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin-design",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "The conciv design plugin: joins the Figma design, the page's DOM and CSSOM and the source into one id tree.",
   "keywords": [
     "conciv",
