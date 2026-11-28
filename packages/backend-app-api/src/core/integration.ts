@@ -150,7 +150,7 @@ export const layer = Layer.effect(
     const statuses = new Map<string, IntegrationConnection.Status>()
     const statusKey = (integrationId: Id, connection: IntegrationConnection.Info) =>
       `${integrationId}:${IntegrationConnection.key(connection)}`
-    const readEnv = (name: string) => Config.option(Config.Redacted(name)).parse(env).pipe(Effect.orDie)
+    const readEnv = (name: string) => Effect.runSync(Config.option(Config.Redacted(name)).parse(env).pipe(Effect.orDie))
     const state = State.create<Data, Editor>({
       name: 'integration',
       initial: () => ({integrations: new Map<Id, Entry>()}),
@@ -198,7 +198,7 @@ export const layer = Layer.effect(
       },
       notify: State.changes(
         (data) =>
-          Array.from(data.integrations.values(), (entry) => project(entry, credentialConnections([]))).toSorted(
+          Array.from(data.integrations.values(), (entry) => project(entry, resolveConnections(entry, []))).toSorted(
             (a, b) => a.name.localeCompare(b.name),
           ),
         () => bus.publish(IntegrationSchema.Event.Updated, {}).pipe(Effect.asVoid),
@@ -236,17 +236,16 @@ export const layer = Layer.effect(
         }))
         .toReversed()
 
-    const resolveConnections = Effect.fnUntraced(function* (
-      entry: Entry | undefined,
-      saved: readonly Credential.Info[],
-    ) {
-      const names = (entry?.methods ?? []).flatMap((method) => (method.type === 'env' ? method.names : []))
-      const present = yield* Effect.filter(names, (name) =>
-        readEnv(name).pipe(Effect.map((value) => Option.isSome(value) && Redacted.value(value.value).length > 0)),
-      )
-      const envConnections = present.map((name) => ({type: 'env' as const, name}))
+    const resolveConnections = (entry: Entry | undefined, saved: readonly Credential.Info[]) => {
+      const envConnections = (entry?.methods ?? [])
+        .flatMap((method) => (method.type === 'env' ? method.names : []))
+        .filter((name) => {
+          const value = readEnv(name)
+          return Option.isSome(value) && Redacted.value(value.value).length > 0
+        })
+        .map((name) => ({type: 'env' as const, name}))
       return [...credentialConnections(saved), ...envConnections]
-    })
+    }
 
     const project = (entry: Entry, connections: IntegrationConnection.Info[]): Info =>
       Info.make({
@@ -282,24 +281,20 @@ export const layer = Layer.effect(
       get: Effect.fn('Integration.get')(function* (id) {
         const entry = lookup(id)
         if (!entry) return undefined
-        return project(entry, yield* resolveConnections(entry, yield* credentials.list(id)))
+        return project(entry, resolveConnections(entry, yield* credentials.list(id)))
       }),
       list: Effect.fn('Integration.list')(function* () {
         const saved = Map.groupBy(yield* credentials.all(), (credential) => credential.integrationId)
-        return yield* Effect.forEach(sortedEntries(), (entry) =>
-          resolveConnections(entry, saved.get(entry.ref.id) ?? []).pipe(
-            Effect.map((connections) => project(entry, connections)),
-          ),
-        )
+        return sortedEntries().map((entry) => project(entry, resolveConnections(entry, saved.get(entry.ref.id) ?? [])))
       }),
       connection: {
         active: Effect.fn('Integration.connection.active')(function* (id) {
           const entry = lookup(id)
-          return (yield* resolveConnections(entry, yield* credentials.list(id)))[0]
+          return resolveConnections(entry, yield* credentials.list(id))[0]
         }),
         resolve: Effect.fn('Integration.connection.resolve')(function* (connection) {
           if (connection.type === 'env') {
-            const key = yield* readEnv(connection.name)
+            const key = readEnv(connection.name)
             return Option.isSome(key) && Redacted.value(key.value).length > 0
               ? Credential.Key.make({type: 'key', key: key.value})
               : undefined
