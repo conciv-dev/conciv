@@ -13,6 +13,7 @@ const readSecret = (value: Credential.Value) =>
 export default Plugin.define({
   id: 'figma-account',
   async setup(ctx) {
+    const refreshes = {count: 0}
     await ctx.integration.transform((editor) => {
       editor.update('figma', (integration) => {
         integration.name = 'Figma'
@@ -25,11 +26,14 @@ export default Plugin.define({
         authorize: async () => {
           throw new Error('figma sign-in is not part of this fixture')
         },
-        refresh: async (credential) => ({
-          ...credential,
-          access: Redacted.make('figma-refreshed-access'),
-          expires: Date.now() + 3_600_000,
-        }),
+        refresh: async (credential) => {
+          refreshes.count += 1
+          return {
+            ...credential,
+            access: Redacted.make('figma-refreshed-access'),
+            expires: Date.now() + 3_600_000,
+          }
+        },
       })
     })
     await ctx.tool.transform((tools) => {
@@ -37,7 +41,12 @@ export default Plugin.define({
         name: 'figma_secret',
         description: 'Read the secret of the active Figma connection',
         input: z.object({}),
-        output: z.object({kind: z.string(), fingerprint: z.string().nullable(), value: z.unknown()}),
+        output: z.object({
+          kind: z.string(),
+          fingerprint: z.string().nullable(),
+          value: z.unknown(),
+          refreshes: z.number(),
+        }),
         execute: async () => {
           const active = await ctx.integration.connection.active('figma')
           const value = active && (await ctx.integration.connection.resolve(active))
@@ -47,6 +56,7 @@ export default Plugin.define({
               kind: active?.type ?? 'none',
               fingerprint: secret ? fingerprint(secret) : null,
               value: value ?? null,
+              refreshes: refreshes.count,
             },
           }
         },

@@ -7,12 +7,11 @@ import {describe, expect} from 'vitest'
 import {Bus, Credential, EffectFlock, FSUtil, Global} from '@conciv/backend-app-api'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import * as IntegrationSchema from '@conciv/protocol/schema/integration'
-import {homeLayer} from '../../src/core/database/home.js'
+import {credentialLayer, openHomeDatabase} from '../../src/core/database/home.js'
+import {DatabaseLayer} from '../../src/backend-defaults.js'
 
-describe('a user keeps several credentials for one integration', () => {
+describe('an expiring sign-in refreshes while other callers wait', () => {
   const integrationId = IntegrationSchema.Id.make('figma')
-
-  const key = (value: string) => Credential.Key.make({type: 'key', key: Redacted.make(value)})
 
   const oauth = (access: string, refresh: string, expires: number) =>
     Credential.OAuth.make({
@@ -31,50 +30,21 @@ describe('a user keeps several credentials for one integration', () => {
   }
 
   const store = Layer.unwrap(
-    Effect.sync(() => {
+    Effect.gen(function* () {
       const root = tempDir('conciv-credential-')
       const roots = {cache: join(root, 'cache'), config: root, state: join(root, 'state'), log: join(root, 'log')}
-      return Credential.layer.pipe(
+      const home = yield* Effect.promise(() => openHomeDatabase(join(root, 'home')))
+      return credentialLayer(home).pipe(
         Layer.provide(EffectFlock.layer),
         Layer.provide(Global.layerWith(roots)),
         Layer.provide(FSUtil.layer),
         Layer.provide(NodeFileSystem.layer),
         Layer.provideMerge(Bus.configured()),
-        Layer.provideMerge(homeLayer(join(root, 'home'))),
+        Layer.provide(DatabaseLayer.layer()),
         Layer.provide(NodeFileSystem.layer),
         Layer.provide(Layer.succeed(Identifier.Service, Identifier.makeMaker())),
       )
     }),
-  )
-
-  const activeId = Effect.fn(function* () {
-    const credentials = yield* Credential.Service
-    return (yield* credentials.list(integrationId)).at(-1)?.id
-  })
-
-  it.live('the first credential is active, one added inactive leaves it so, and removing it activates the newest', () =>
-    Effect.gen(function* () {
-      const credentials = yield* Credential.Service
-      const work = yield* credentials.create({integrationId, label: 'Work', value: key('work-key')})
-      expect(yield* activeId()).toBe(work.id)
-
-      const personal = yield* credentials.create({
-        integrationId,
-        label: 'Personal',
-        value: key('personal-key'),
-        activate: false,
-      })
-      expect(yield* activeId()).toBe(work.id)
-
-      const spare = yield* credentials.create({integrationId, label: 'Spare', value: key('spare-key'), activate: false})
-      yield* credentials.remove(work.id)
-      expect(yield* activeId()).toBe(spare.id)
-      expect((yield* credentials.list(integrationId)).map((credential) => credential.id)).toEqual([
-        personal.id,
-        spare.id,
-      ])
-      expect(reveal((yield* credentials.get(spare.id))?.value)).toEqual({key: 'spare-key'})
-    }).pipe(Effect.provide(store)),
   )
 
   it.live('concurrent refreshes share one run, and a row changed while a refresh ran is kept', () =>

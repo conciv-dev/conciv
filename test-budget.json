@@ -1,6 +1,6 @@
 {
   "@internal/frontend-defaults": 123,
-  "@conciv/backend-defaults": 127,
+  "@conciv/backend-defaults": 126,
   "@conciv/cli": 16,
   "@conciv/home": 2,
   "@conciv/errors": 1,

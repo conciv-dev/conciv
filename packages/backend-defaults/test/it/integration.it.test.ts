@@ -1,7 +1,6 @@
 import {createHash} from 'node:crypto'
+import {mkdirSync, symlinkSync} from 'node:fs'
 import {join} from 'node:path'
-import {DatabaseSync} from 'node:sqlite'
-import {concivStateDir} from '@conciv/types/state-types'
 import {tempDir} from '@internal/vitest-config/temp-dir'
 import {describe, expect} from 'vitest'
 import {test} from '../utils/engine-test.js'
@@ -16,6 +15,7 @@ describe('a user connects a plugin integration', () => {
   const OAUTH_ACCESS = 'figma-oauth-access-1d02'
   const OAUTH_REFRESH = 'figma-oauth-refresh-5a77'
   const REFRESHED_ACCESS = 'figma-refreshed-access'
+  const SPARE_KEY = 'figma-spare-key-40d8'
 
   test('the engine env answers first, a typed key then wins, an expiring sign-in refreshes, and removing them falls back to the env', async ({
     createEngine,
@@ -50,11 +50,7 @@ describe('a user connects a plugin integration', () => {
         ]),
       }),
     )
-    expect(await secret()).toEqual({
-      kind: 'env',
-      fingerprint: fingerprint(ENV_KEY),
-      value: {type: 'key', key: '<redacted>'},
-    })
+    expect(await secret()).toMatchObject({kind: 'env', fingerprint: fingerprint(ENV_KEY)})
 
     seen.push(await rpc.integration.connect.key({integrationId: 'figma', key: TYPED_KEY, label: 'Work'}))
     const afterKey = await rpc.credential.list()
@@ -68,21 +64,28 @@ describe('a user connects a plugin integration', () => {
         value: {type: 'key', key: '<redacted>'},
       },
     ])
-    expect(await secret()).toEqual({
+    expect(await secret()).toMatchObject({
       kind: 'credential',
       fingerprint: fingerprint(TYPED_KEY),
       value: {type: 'key', key: '<redacted>'},
     })
 
-    const project = new DatabaseSync(join(concivStateDir(engine.root), 'conciv.db'), {readOnly: true})
-    const tables = project.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()
-    project.close()
-    expect(tables).toContainEqual({name: 'kv'})
-    expect(tables).not.toContainEqual({name: 'credential'})
-    const neighbour = await createEngine({plugins}, {home, directory: tempDir('conciv-other-project-')})
-    const neighbourCredentials = await connect(neighbour).credential.list()
-    seen.push(neighbourCredentials)
-    expect(neighbourCredentials).toEqual(afterKey)
+    const otherHome = await createEngine({plugins}, {home: tempDir('conciv-other-home-'), directory: engine.root})
+    expect(await connect(otherHome).credential.list()).toEqual([])
+    const otherProject = await createEngine({plugins}, {home, directory: tempDir('conciv-other-project-')})
+    const shared = await connect(otherProject).credential.list()
+    seen.push(shared)
+    expect(shared).toEqual(afterKey)
+
+    const spare = await rpc.credential.create({
+      integrationId: 'figma',
+      label: 'Spare',
+      value: {type: 'key', key: SPARE_KEY},
+      activate: false,
+    })
+    seen.push(spare)
+    expect(spare).toMatchObject({label: 'Spare', active: false})
+    expect(await secret()).toMatchObject({fingerprint: fingerprint(TYPED_KEY)})
 
     const signedIn = await rpc.credential.create({
       integrationId: 'figma',
@@ -91,23 +94,39 @@ describe('a user connects a plugin integration', () => {
     })
     seen.push(signedIn)
     expect(signedIn).toMatchObject({label: 'Sign-in', active: true})
-    expect(await secret()).toMatchObject({kind: 'credential', fingerprint: fingerprint(REFRESHED_ACCESS)})
+    expect(await Promise.all([secret(), secret()])).toEqual([
+      expect.objectContaining({fingerprint: fingerprint(REFRESHED_ACCESS), refreshes: 1}),
+      expect.objectContaining({fingerprint: fingerprint(REFRESHED_ACCESS), refreshes: 1}),
+    ])
 
-    const failure = await rpc.integration.connect
+    seen.push(await rpc.credential.remove({credentialId: signedIn.id}))
+    const afterRemove = await rpc.credential.list()
+    seen.push(afterRemove)
+    expect(afterRemove.map(({label, active}) => ({label, active}))).toEqual([
+      {label: 'Work', active: false},
+      {label: 'Spare', active: true},
+    ])
+    expect(await secret()).toMatchObject({fingerprint: fingerprint(SPARE_KEY)})
+
+    const missing = await rpc.integration.connect
       .key({integrationId: 'missing', key: TYPED_KEY})
       .catch((error) => error)
-    seen.push(failure, String(failure), failure?.cause)
-    expect(failure).toMatchObject({code: 'INTEGRATION_NOT_FOUND'})
+    seen.push(missing, String(missing), missing?.cause)
+    expect(missing).toMatchObject({code: 'INTEGRATION_NOT_FOUND'})
+    const refused = await rpc.integration.oauth
+      .connect({integrationId: 'figma', methodId: 'oauth'})
+      .catch((error) => error)
+    seen.push(refused, String(refused))
+    expect(refused).toMatchObject({
+      code: 'INTEGRATION_AUTHORIZATION',
+      message: 'figma sign-in is not part of this fixture',
+    })
 
     for (const credential of await rpc.credential.list())
       seen.push(await rpc.credential.remove({credentialId: credential.id}))
     seen.push(await rpc.credential.list())
     expect(await rpc.credential.list()).toEqual([])
-    expect(await secret()).toEqual({
-      kind: 'env',
-      fingerprint: fingerprint(ENV_KEY),
-      value: {type: 'key', key: '<redacted>'},
-    })
+    expect(await secret()).toMatchObject({kind: 'env', fingerprint: fingerprint(ENV_KEY)})
 
     const logs = await rpc.logs.query({limit: 2000})
     reading.abort()
@@ -115,7 +134,19 @@ describe('a user connects a plugin integration', () => {
     expect(JSON.stringify(logs.events)).toContain('credential')
     expect(seen.some((event) => JSON.stringify(event).includes('credential.switched'))).toBe(true)
     const everything = JSON.stringify([seen, logs.events])
-    for (const plain of [ENV_KEY, TYPED_KEY, OAUTH_ACCESS, OAUTH_REFRESH, REFRESHED_ACCESS])
+    for (const plain of [ENV_KEY, TYPED_KEY, SPARE_KEY, OAUTH_ACCESS, OAUTH_REFRESH, REFRESHED_ACCESS])
       expect(everything).not.toContain(plain)
+
+    const realHome = tempDir('conciv-real-home-')
+    const linkedHome = join(tempDir('conciv-linked-home-'), 'home')
+    mkdirSync(realHome, {recursive: true})
+    symlinkSync(realHome, linkedHome)
+    const homeless = await createEngine({plugins}, {home: linkedHome})
+    const homelessRpc = connect(homeless)
+    expect(await homelessRpc.meta.harnesses()).toMatchObject({harnesses: expect.any(Array)})
+    await expect(homelessRpc.credential.list()).rejects.toMatchObject({code: 'HOME_UNREACHABLE'})
+    await expect(homelessRpc.integration.connect.key({integrationId: 'figma', key: TYPED_KEY})).rejects.toMatchObject({
+      code: 'HOME_UNREACHABLE',
+    })
   })
 })
