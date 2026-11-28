@@ -36,6 +36,8 @@ in options. They are stored per user as credentials of an integration a plugin d
    with `Redacted.value` at that call; printing, logging, tool output and JSON encoding give `<redacted>`, so no agent
    and no browser ever receives it. Only the credential table stores the plain value, through an explicit encode in
    the credential service. The rpc listing's `value` therefore carries the redacted form.
+   A database failure in the credential service is logged with its query parameters replaced by `[redacted]` and dies
+   with an error that carries only the error types, since a driver error carries the bound values (the secret).
 
 ## Where each piece goes
 
