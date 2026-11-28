@@ -95,7 +95,7 @@ const RESIZE =
 const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'
 const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
 
-export const Route = createFileRoute('/panel')({component: PanelLayout})
+export const Route = createFileRoute('/panel')({codeSplitGroupings: [], component: PanelLayout})
 
 function PanelLayout(): JSX.Element {
   const fabAnchor = useFabAnchor()

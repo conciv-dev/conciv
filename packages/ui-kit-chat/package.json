@@ -23,6 +23,9 @@
     "src/theme/tokens.css"
   ],
   "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     ".": {
       "types": "./dist/ui-kit-chat.d.ts",
