@@ -27,5 +27,8 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:"
+  },
+  "conciv": {
+    "testBudget": 1
   }
 }

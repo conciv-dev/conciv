@@ -131,7 +131,7 @@ const checkTestBudget = defineCommand({
   meta: {
     name: 'check-test-budget',
     description:
-      'Fail when a workspace package has more test cases than test-budget.json allows; a package under its budget prints a note to lower it',
+      'Fail when a workspace package has more test cases than its package.json "conciv.testBudget" allows; a package under its budget prints a note to lower it',
   },
   async run() {
     const {cwd} = await atRoot()

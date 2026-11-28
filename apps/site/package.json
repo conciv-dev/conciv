@@ -108,5 +108,8 @@
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:",
     "wrangler": "4.160.0"
+  },
+  "conciv": {
+    "testBudget": 3
   }
 }

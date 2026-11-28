@@ -7,4 +7,3 @@
 /.github/CODEOWNERS      @omridevk
 /pnpm-workspace.yaml     @omridevk
 /pnpm-lock.yaml          @omridevk
-/test-budget.json        @omridevk

@@ -43,5 +43,8 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "conciv": {
+    "testBudget": 14
   }
 }

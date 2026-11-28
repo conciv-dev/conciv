@@ -22,5 +22,8 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "zod": "catalog:"
+  },
+  "conciv": {
+    "testBudget": 1
   }
 }

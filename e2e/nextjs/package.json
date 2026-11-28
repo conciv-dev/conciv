@@ -35,5 +35,8 @@
     "@conciv/it": {
       "injected": true
     }
+  },
+  "conciv": {
+    "testBudget": 3
   }
 }
