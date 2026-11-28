@@ -249,18 +249,18 @@ function say(line: string) {
 
 const NPM_CONCURRENCY = 8
 
-function npmCall(name: string, file: string, args: string[], interactive: boolean) {
+const NPM_CAPTURED = {stdin: 'ignore', stdout: 'pipe', stderr: 'pipe'} as const
+const NPM_TERMINAL = {stdin: 'inherit', stdout: 'inherit', stderr: 'inherit'} as const
+const NPM_TERMINAL_READ = {stdin: 'inherit', stdout: 'pipe', stderr: 'inherit'} as const
+
+type NpmStdio = typeof NPM_CAPTURED | typeof NPM_TERMINAL | typeof NPM_TERMINAL_READ
+
+function npmCall<Stdio extends NpmStdio>(name: string, file: string, args: string[], stdio: Stdio) {
   const command = `${file} ${args.join(' ')}`
   return Effect.logDebug(`running ${command}`).pipe(
     Effect.andThen(
       Effect.tryPromise({
-        try: () =>
-          execa(file, args, {
-            cwd: process.cwd(),
-            stdin: interactive ? 'inherit' : 'ignore',
-            stderr: interactive ? 'inherit' : 'pipe',
-            all: true,
-          }),
+        try: () => execa(file, args, {cwd: process.cwd(), ...stdio, all: true}),
         catch: (cause): SyncFailure => ({
           name,
           hint: '',
@@ -300,7 +300,7 @@ function firstPublish(name: string, interactive: boolean) {
     name,
     'pnpm',
     ['--filter', name, 'publish', '--access', 'public', '--no-git-checks'],
-    interactive,
+    interactive ? NPM_TERMINAL : NPM_CAPTURED,
   ).pipe(
     Effect.catch(
       failWith(
@@ -316,21 +316,24 @@ function wireTrust(name: string, interactive: boolean) {
     name,
     'npx',
     npmTrust('github', name, '--repo', REPOSITORY, '--file', RELEASE_WORKFLOW, '--allow-publish', '--yes'),
-    interactive,
+    interactive ? NPM_TERMINAL : NPM_CAPTURED,
   ).pipe(
+    Effect.andThen(say(`${name}: trust set up`)),
+    Effect.catch((failure) =>
+      trustAlreadySetUp(name, false).pipe(Effect.flatMap((wired) => (wired ? Effect.void : Effect.fail(failure)))),
+    ),
     Effect.catch(
       failWith(
         'trust setup failed. npm trust needs a real terminal, an "npm login" browser session, and 2FA on the account (bypass-2FA tokens are rejected). If the 2FA window expired (EOTP), rerun sync.',
       ),
     ),
-    Effect.andThen(say(`${name}: trust set up`)),
   )
 }
 
 const TrustConfig = z.object({repository: z.string().optional(), file: z.string().optional()})
 
 function trustAlreadySetUp(name: string, interactive: boolean) {
-  return npmCall(name, 'npx', npmTrust('list', name, '--json'), interactive).pipe(
+  return npmCall(name, 'npx', npmTrust('list', name, '--json'), interactive ? NPM_TERMINAL_READ : NPM_CAPTURED).pipe(
     Effect.map(({stdout}) =>
       stdout
         .split(/\n\s*\n/)
@@ -402,7 +405,7 @@ async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): 
 function applyNpmActions({name, actions}: SyncPlanEntry, interactive: boolean) {
   return Effect.gen(function* () {
     if (actions.includes('publish')) yield* firstPublish(name, interactive)
-    if (actions.includes('trust')) yield* wireTrust(name, interactive && !actions.includes('publish'))
+    if (actions.includes('trust')) yield* wireTrust(name, interactive)
   })
 }
 
