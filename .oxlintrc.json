@@ -170,6 +170,10 @@
   },
   "overrides": [
     {
+      "files": ["apps/site/src/routes/__root.tsx"],
+      "rules": {"conciv/no-suppress-hydration-warning": "off"}
+    },
+    {
       "files": [
         "packages/plugins/page/src/rpc.ts",
         "packages/plugins/page/src/machine.ts",
