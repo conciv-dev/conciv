@@ -1,6 +1,7 @@
 {
   "extends": "@internal/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "types": ["node"]
+    "lib": ["ES2025", "DOM"],
+    "types": ["node", "vite/client"]
   }
 }
