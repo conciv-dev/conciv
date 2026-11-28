@@ -1,0 +1,131 @@
+---
+title: Drive the widget from a script
+label: Drive the widget
+description: Run conciv with a script of yours in place of the model, and drive the widget from outside the browser.
+---
+
+## Problem
+
+You want a flow through the widget to run the same way every time. This often comes up when:
+
+- you show a scripted demo, and a real model answers differently each run;
+- you try a flow end to end, a permission card or a tool card, without a model;
+- you want a script to type into the widget and click it, as a user does.
+
+<Callout type="warn" title="A real model costs and varies">
+  Each run against a real model takes time, costs tokens and gives a different answer. A demo or a check built on it
+  breaks for reasons that have nothing to do with your app.
+</Callout>
+
+## Solution
+
+Run the engine in simulation, and answer the model from a driver. A driver is a small node script of yours. Start the dev server
+with two variables:
+
+```bash title="Terminal"
+CONCIV_SIMULATE=1 CONCIV_DRIVE=1 pnpm dev
+```
+
+`CONCIV_SIMULATE=1` puts the engine in simulation. `CONCIV_DRIVE=1` opens two local sockets. One answers the model.
+The other acts on the widget. Once both listen, the dev server prints their addresses:
+
+```text title="Terminal"
+conciv drive backend websocket: ws://127.0.0.1:40950
+conciv drive ui websocket: ws://127.0.0.1:40900
+```
+
+Open your app in the browser and log in, so a widget is on the page. Then install the driver package:
+
+```package-install
+npm install -D @conciv/simulation
+```
+
+The driver answers every model call and drives the widget:
+
+```js title="driver.mjs"
+import {connectDriver, text} from '@conciv/simulation/driver'
+import {clickByRole, connectUi, typeInto} from '@conciv/simulation/frontend'
+
+const model = await connectDriver('ws://127.0.0.1:40950') // <- the model socket
+model.serve(() => text('Hello from the driver')) // <- every model call gets this answer
+
+const widget = await connectUi('ws://127.0.0.1:40900') // <- the widget socket
+await typeInto(widget.client, 'textbox', 'Message the conciv agent', 'Say hello') // <- found by role and label
+await clickByRole(widget.client, 'button', 'Send message')
+```
+
+Run it with `node driver.mjs`. "Say hello" is sent from the composer, and "Hello from the driver" streams into the
+thread. The driver keeps answering until you stop it with Ctrl C.
+
+### Answer with a tool call
+
+A real model often calls a tool first, then answers. Return a different answer for each call:
+
+```js title="driver.mjs"
+import {connectDriver, text, toolCall} from '@conciv/simulation/driver'
+
+const model = await connectDriver('ws://127.0.0.1:40950')
+let turn = 0
+model.serve(() => {
+  turn += 1
+  if (turn === 1)
+    return toolCall('call-1', 'execute_typescript', {typescriptCode: 'return await external_server_urls()'}) // <- code mode
+  return text('The app listens on the address in the card above.')
+})
+```
+
+The first call runs a code-mode program that asks the dev server where it listens. Its card shows in the thread. The
+next call, after the tool's result, answers with text. The handler also gets the model request, so it can answer from
+the messages instead of counting turns.
+
+The driver has one function per kind of answer: `text`, `thinking`, `toolCall`, `toolCalls`, `disconnect` (a dropped
+call) and `hang` (no answer at all). Learn more in [Tools and code mode](/docs/tools-and-code-mode).
+
+### Read the widget
+
+`widget.client.ui.snapshot()` lists every element of the widget by its role and label:
+
+```js title="driver.mjs"
+import {byRole, connectUi} from '@conciv/simulation/frontend'
+
+const widget = await connectUi('ws://127.0.0.1:40900')
+const snapshot = await widget.client.ui.snapshot()
+console.log(byRole(snapshot, 'textbox', 'Message the conciv agent').label) // <- throws when there is no such element
+widget.close()
+```
+
+`client.ui` has one call per action: `snapshot`, `state`, `matches`, `type`, `press`, `enter`, `arrow`, `focus` and
+`click`.
+
+### What changes in simulation
+
+Only the model is fake. The engine, the tools, the widget and your app are all real. The engine's own network calls go
+through a fixed list of allowed addresses, and the rest are refused. Tools your driver registers on the model socket
+are offered to the agent, next to the plugins' tools. The widget takes driver calls in development builds only.
+
+<Accordions>
+  <Accordion title="Put the sockets on other ports">
+    Any value of `CONCIV_DRIVE` other than `1` is an instance name. The engine reads `<name>.json` with the two
+    addresses:
+
+    ```json title="~/.local/state/conciv-drive/instances/demo.json"
+    {"endpoints": {"ui": "ws://127.0.0.1:41900", "backend": "ws://127.0.0.1:41950"}}
+    ```
+
+    Start with `CONCIV_DRIVE=demo`. The engine looks for the file in the first of these that applies:
+
+    - `DRIVE_REGISTRY_DIR`, when set
+    - `conciv-drive/instances` under `XDG_STATE_HOME`, when set
+    - the path above
+
+    Both addresses must be `ws://127.0.0.1` with a port. A missing or broken
+    file stops the engine with `Drive manifest not found` or `Invalid Drive manifest`.
+
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Troubleshooting](/docs/reference/troubleshooting):** messages from the engine and the CLI.
+- **[Sessions](/docs/sessions):** what the driver's turns add to a session.
+- **[Contributing: packages](/docs/contributing/packages):** where `@conciv/simulation` lives in the repo.

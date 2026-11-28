@@ -10,7 +10,7 @@ import {
 } from '@conciv/types/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import type {GrabMode} from './rpc.js'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 import {IosBridge} from './bridge.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 

@@ -1,0 +1,91 @@
+---
+title: Share a plugin across projects
+label: Share a plugin
+description: Use one plugin in several projects, from a shared folder or from npm, instead of a copy in each.
+---
+
+<AgentPrompt prompt="share-a-plugin" />
+
+## Problem
+
+A plugin in `conciv/plugins/` belongs to one project. You want the same plugin in several. This comes up when:
+
+- your team's apps share one ticket tracker or one deploy tool;
+- several apps live in one monorepo;
+- you want to publish a plugin for others to add.
+
+<Callout type="warn" title="Copies drift">
+  A copy of the plugin folder in each project works, but you then make every fix in every copy. Sooner or later one
+  project runs an old version.
+</Callout>
+
+## Solution
+
+Keep the plugin in one place and point each project at it. In a monorepo, or on one machine, use a path:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['../../shared/conciv-plugins/tickets'], // <- a folder outside the project
+    }),
+  ],
+})
+```
+
+A path that starts with `./` or `../` is read from the project folder. The engine watches it, so a change there reloads
+the plugin in every running project. The plugin's imports resolve from its own folder, so install its dependencies
+there.
+
+### Publish it to npm
+
+For projects in other repos, publish the plugin as a package. Its `package.json` names the two parts in `exports`:
+
+```json title="package.json"
+{
+  "name": "@acme/conciv-plugin-tickets",
+  "type": "module",
+  "exports": {
+    "./server": "./dist/server.js",
+    "./plugin-experimental": "./dist/plugin-experimental.cjs"
+  },
+  "peerDependencies": {
+    "@conciv/backend-plugin-api": "*",
+    "@conciv/frontend-plugin-api": "*"
+  }
+}
+```
+
+- `./server` is the engine part.
+- `./plugin-experimental` is the built browser part.
+
+The browser part is built with `experimental()`, which compiles Solid. So a shared package's UI is Solid or plain
+DOM. React or Preact UI lives in each app instead. Learn more in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part).
+
+Ship JavaScript. Node does not run TypeScript from a package. Each project then adds the plugin by name:
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({plugins: [['@acme/conciv-plugin-tickets', {board: 'web'}]]}) // <- a name, with options
+```
+
+The engine installs the package from npm into its own cache. You do not add it to the project's `package.json`. Learn
+more in the [Add plugins documentation](/docs/usage/add-plugins).
+
+<Accordions>
+  <Accordion title="Link the folder into conciv/plugins instead">
+    The engine follows a symbolic link in `conciv/plugins/` to a folder. That shares the plugin without a config entry,
+    but every project needs its own link.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Build your first plugin](/docs/plugins/first-plugin):** write the engine part and build the browser part.
+- **[Debug a plugin that does not load](/docs/recipes/debug-a-plugin-that-does-not-load):** when a shared plugin does
+  not show up.

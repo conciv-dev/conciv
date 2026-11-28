@@ -1,64 +1,33 @@
 ---
 title: What is conciv
-description: An AI dev agent inside your running app. Chat, page control and live tests, added by a build plugin.
-icon: Rocket
+description: Your coding agent, inside the app you are running. It sees the page you are on and changes it for you.
+icon: Info
 ---
 
-conciv puts an AI dev agent inside the app you are already running. Add one build plugin, and a conciv button appears
-in your dev build. Open it to chat with an agent that reads the page you are on, drives and edits it, and runs your
-tests, without leaving the app. The name is the pitch: say `@conciv/it` out loud, and conceive it.
+An agent in a terminal works on files it cannot see rendered. You describe the page to it, then copy errors and markup
+back and forth. conciv adds a panel to your app in development. The agent there reads the page you are on, drives it,
+and edits the source that renders it. With the test runner plugin, it runs your tests too. It uses the agent CLI
+you already have, on your own machine.
 
-This is the Vite config `conciv init` writes:
+Reach for conciv when:
 
-```ts title="vite.config.ts"
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
+- You want to point at something on the page and say "change this".
+- A bug only shows in the running app, with its real data and state.
+- You want the agent to check its own change in the browser before it says it is done.
+- You want the agent in your terminal to see and drive the tab you have open.
 
-export default defineConfig({plugins: [conciv()]})
-```
-
-## What you can do
-
-<Cards>
-  <Card
-    title="Chat"
-    href="/docs/usage/chat"
-    description="Talk to the agent about the page you are looking at. It reads the rendered page first."
-  />
-  <Card
-    title="Page control"
-    href="/docs/usage/page-control"
-    description="The agent reads and drives your live page, then writes the change to your source."
-  />
-  <Card
-    title="Live tests"
-    href="/docs/usage/live-tests"
-    description="Ask it to run your tests and read the result in the thread."
-  />
-  <Card
-    title="Whiteboard"
-    href="/docs/usage/whiteboard"
-    description="A shared Excalidraw canvas over the page. You sketch, the agent draws back."
-  />
-  <Card
-    title="Approvals"
-    href="/docs/usage/approvals"
-    description="Risky actions show a Permission card (Allow once or Deny) before they run."
-  />
-  <Card
-    title="Plugins"
-    href="/docs/plugins"
-    description="Give the agent new tools and the widget new panels with a plugin."
-  />
-</Cards>
-
-<Callout>
-  conciv is in beta and mounts in dev builds only. The chat needs a harness CLI on your `PATH`, `claude` by default.
-</Callout>
-
-## Next
+<Playground
+  page="vite-react"
+  script="intro/first-session"
+  caption="One session: a question about the page, a change, and the agent checking the result."
+/>
 
 <Cards>
-  <Card title="Quick start" href="/docs/quick-start" description="Add conciv to your framework in a few steps." />
-  <Card title="How it works" href="/docs/how-it-works" description="The pieces behind the widget." />
+  <Card
+    title="Getting started"
+    href="/docs/getting-started"
+    description="Install conciv, log in, and ask your first question about the page."
+  />
+  <Card title="Use conciv" href="/docs/usage" description="Chat, page control, live tests and approvals, one by one." />
+  <Card title="Plugins" href="/docs/plugins" description="Give the agent new tools and the widget new panels." />
 </Cards>

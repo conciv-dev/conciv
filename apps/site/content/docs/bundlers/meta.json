@@ -1,0 +1,4 @@
+{
+  "title": "Bundlers",
+  "pages": ["vite", "nextjs", "webpack", "rspack", "tanstack-start", "ios"]
+}

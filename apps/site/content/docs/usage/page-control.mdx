@@ -1,56 +1,86 @@
 ---
 title: Page control
-description: The agent reads and drives your live page, then writes the change to your source.
+description: Point at an element, ask for a change, see it live, then keep it in your source.
 ---
 
-The agent works against the page you see, in your own browser tab. It reads the page with a snapshot of its controls,
-acts on an element, waits for the page to settle, and takes a fresh snapshot. Page control comes from the page plugin,
-`@conciv/plugin-page`, which conciv ships and always loads.
+Page control lets the agent read and change the page you have open, in your own browser tab. It is built in, with
+nothing to install.
 
-## Point at what you mean
+## Point at an element
 
-**Select an element from the page**, the crosshair beside the composer, picks any element on the page and pins it to
-your next message, with its source file and line when conciv can find them.
+Click **Select an element from the page**, the crosshair beside the composer. Then click an element in your app.
+conciv pins it to your next message, with its source file and line when it can find them:
 
-<ImageZoom
-  src="/screenshots/grab-element.png"
-  alt="A grabbed heading pinned to the composer with its source location"
-  width={1920}
-  height={1080}
+```text title="Prompt"
+Give this card more padding, and round its corners.
+```
+
+The agent reads the page, finds the element, changes it, and checks the result.
+
+<Playground
+  page="vite-react"
+  script="page-control/point-and-change"
+  caption="Point at an element, ask for a change, and watch it land on the page."
 />
 
-## What the agent can do on the page
+## Try a change live
 
-The agent calls the page tools from code mode as `external_page_*`, such as `external_page_click`. Every tool takes an
-optional tab: without one, the tab you focused last answers.
+The agent can restyle the page on the spot. You see an idea at once:
 
-- **Read**: `snapshot`, `screenshot`, `text`, `value`, `query`, `console`, and the current `route`.
-- **Act**: `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover`, `scroll` and `submit`, on an element from
-  the latest snapshot, a CSS selector, or a React component name. `queue` plays a list of actions in order.
-- **Restyle**: `setstyle`, `addclass`, `settext` and `css`.
-- **Inspect React**: `inspect`, `tree`, `locate` and `find`. `locate` names the source file and line that rendered an
-  element.
-- **Wait**: `wait` for an element to show or hide, and `hmr` for a hot update to land after a file edit.
-- **Run code**: `eval` runs JavaScript in your page. It asks you first, every time (see
-  [Approvals](/docs/usage/approvals)).
+```text title="Prompt"
+Try the header in dark blue, without saving it.
+```
 
-Page text, console messages and screenshots are untrusted page content: the agent is told never to follow
-instructions found in them.
+A live change lives only in the page. The next hot reload wipes it, because it is not in your source.
 
-## Preview, then persist
+## Keep the change
 
-The restyle tools change the page live, so you see an idea at once. These edits live only in the page: the next hot
-reload wipes them, because they are not in your source. When you keep a change, the agent edits the real files so it
-survives a reload. It can open the source file in your editor too.
+When you like it, ask the agent to keep it. It edits the source file, so the change survives a reload:
 
-<ImageZoom
-  src="/screenshots/page-control.png"
-  alt="The agent restyled the page heading live, with its page edit card in the thread"
-  width={1920}
-  height={1080}
-/>
+```text title="Prompt"
+Keep that. Save it to the component.
+```
 
-<Callout>
-  Ask for something visible, like "make the heading larger". You see it at once, then the agent can write it to your
-  source as a real edit.
-</Callout>
+The agent can also open the file in your editor:
+
+```text title="Prompt"
+Open the file that renders this card in my editor.
+```
+
+## Have it use the page
+
+The agent can click, type and scroll like a user. Use it to reproduce a bug or walk through a flow:
+
+```text title="Prompt"
+Fill the signup form with a test user, submit it, and tell me what the console says.
+```
+
+What the agent can do on the page:
+
+- **Read** the page: its controls, its text, a field's value, a screenshot, the console and the current route.
+- **Act** on it: click, fill, select, check, press a key, hover, scroll and submit.
+- **Restyle** it: change styles, classes and text, live.
+- **Inspect React**: the component tree, and the file and line that rendered an element.
+- **Wait** for an element to show or hide, or for a hot update to land after a file edit.
+- **Run code** in the page. This asks you first, every time.
+
+Learn more about the ask in the [Approvals documentation](/docs/usage/approvals).
+
+<Accordions type="single">
+  <Accordion title="Several tabs are open">
+    The tab you focused last answers. Name another tab in your message to point the agent at it.
+  </Accordion>
+  <Accordion title="Text on the page cannot give the agent orders">
+    Page text, console messages and screenshots are untrusted. The agent is told never to follow instructions found in
+    them.
+  </Accordion>
+  <Accordion title="The cards say external_page_click">
+    That is the tool's name in code mode, where the agent calls tools from a short program. Learn more in [Tools and
+    code mode](/docs/tools-and-code-mode).
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Approvals](/docs/usage/approvals):** the card that asks before code runs in your page.
+- **[Dev server](/docs/usage/dev-server):** how the agent reads the server behind the page.

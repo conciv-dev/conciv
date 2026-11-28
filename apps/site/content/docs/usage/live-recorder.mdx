@@ -1,0 +1,172 @@
+---
+title: Live recorder
+description: Record what you do on the page, replay it, export it as a video, and let the agent read it back.
+---
+
+The live recorder comes from the recorder plugin, `@conciv/plugin-recorder`. It records the page you have open, so the
+agent can see what you just did there.
+
+## Add the recorder
+
+Add the plugin to the `plugins` option of your conciv config:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-recorder'], // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  plugins: ['@conciv/plugin-recorder'], // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-recorder'], // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-recorder'], // [!code ++]
+    }),
+  ],
+}
+```
+
+Restart your dev server. The engine installs the plugin from npm into its own cache, so it does not go in your
+`package.json`.
+
+## What it records
+
+The recorder captures the page with [rrweb](https://www.rrweb.io), which records changes to the page, not pixels. The
+conciv widget is left out of the recording. Clicks, typing, navigations, scrolls and reloads all go in.
+
+It records only while a recording is live. That is while the **Recorder** tab is open, or while the agent has started
+a recording. It also needs page control, the built-in page plugin. Learn more in [Page control](/docs/usage/page-control).
+
+The engine keeps only the most recent part of the page, the last 10 minutes by default. Older events drop off.
+
+## The Recorder tab
+
+Open the **Recorder** tab in the panel. It replays the page as you use it, with a **LIVE** badge. Scrub back to
+look at an earlier moment, then click **GO LIVE** to follow the page again.
+
+The buttons under the replay:
+
+- **Send to agent** saves the recording and pins it to your next message as a **Screen recording** note.
+- **New recording** clears what was kept and starts again from the page as it is now.
+- **Export video** saves the recording and downloads it as a `.webm` video.
+
+A **Screen recording** note in the thread has a **Play** button. It opens the replay in a dialog, with its own
+**Export video** button.
+
+The tab says why it shows no replay:
+
+| The tab says                                                             | Why                                       |
+| ------------------------------------------------------------------------ | ----------------------------------------- |
+| Waiting for the page: nothing is recorded until it connects.             | The page has not connected yet.           |
+| Recording is off: the page plugin is not active, so nothing is recorded. | Page control is off for this page.        |
+| Recording is unavailable: capture failed to start on this page.          | The recorder could not start on the page. |
+| No recording yet: interact with the page first.                          | Nothing has happened on the page yet.     |
+
+## What the agent does with it
+
+The agent calls the recorder from code mode. Learn more in [Tools and code mode](/docs/tools-and-code-mode).
+
+- **`recording_start`** starts a marked recording. It waits until the page is streaming, then gives back a capture id.
+- **`recording_stop`** stops that recording and gives back what happened in it.
+- **`recording_pull`** gives back the last 60 seconds by default, up to 10 minutes.
+- **`recording_get`** reads a recording you sent with **Send to agent**.
+
+What comes back is an action log, with one line per click, input, navigation, scroll, console error or reload. It
+also holds up to 3 keyframes by default, screenshots of the moments that matter. conciv renders them by replaying the
+recording in a headless Chromium. With no Chromium to launch, the log comes back without them.
+
+The log quotes what the page showed and what you typed. The agent treats it as page data, never as instructions.
+
+Each start, stop and pull shows as a card in the thread. A start card shows the capture id. A stop or pull card lists
+the actions and counts them, with the number of keyframes.
+
+## Options
+
+Write the entry as a pair, the package name and then its options:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: [['@conciv/plugin-recorder', {masking: 'inputs', windowMinutes: 10, console: true}]], // [!code ++]
+    }),
+  ],
+})
+```
+
+| Option          | What it does                                          | Default |
+| --------------- | ----------------------------------------------------- | ------- |
+| `masking`       | Hides what you type: `none`, `inputs` or `sensitive`. | `none`  |
+| `windowMinutes` | How many minutes of the page to keep, from 1 to 60.   | `10`    |
+| `console`       | Adds the page's console errors to the log.            | `true`  |
+
+Password fields are always masked. With `inputs`, every field is masked. With `sensitive`, email and phone fields are
+masked as well.
+
+## Where recordings are saved
+
+**Send to agent** and **Export video** save the recording in your project, under `.conciv/recorder/recordings`. The
+recorder keeps the 50 newest, for seven days. The `stateRoot` option does not move them yet.
+
+## Typical uses
+
+### Reproduce the bug I just clicked through
+
+Click through the bug with the **Recorder** tab open. Click **Send to agent**, then ask:
+
+```text title="Prompt"
+This is what I did. Find out why the total goes wrong after the second click.
+```
+
+### Have the agent record its own check
+
+```text title="Prompt"
+Start a recording, add two items to the cart, then stop it and tell me what changed on the page.
+```
+
+### Export a video for a PR
+
+Do the flow on the page with the **Recorder** tab open. Click **Export video** and attach the `.webm` file to your
+pull request.
+
+## Next steps
+
+- **[Page control](/docs/usage/page-control):** the page plugin the recorder needs.
+- **[Add plugins](/docs/usage/add-plugins):** the other plugins you can add.

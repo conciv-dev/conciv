@@ -1,8 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import Magnet from '@/components/Magnet'
 import {CopyButton} from './copy-button'
-
-const COMMAND = 'npm i -D @conciv/it'
+import {INIT_COMMAND as COMMAND} from './install-steps'
 
 export function InstallChip() {
   return (
@@ -20,10 +19,10 @@ export function InstallChip() {
       <Magnet padding={44} magnetStrength={3}>
         <Link
           to="/docs/$"
-          params={{_splat: 'quick-start'}}
+          params={{_splat: 'getting-started'}}
           className="text-[13.5px] font-semibold text-primary hover:underline"
         >
-          Quick start →
+          Getting started →
         </Link>
       </Magnet>
     </div>

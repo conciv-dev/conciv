@@ -1,0 +1,11 @@
+import {defineConfig} from 'tsdown'
+
+export default defineConfig({
+  entry: ['src/{{name}}.ts'],
+  platform: '{{platform}}',
+  tsconfig: 'tsconfig.build.json',
+  dts: true,
+{{#if nodePlatform}}
+  fixedExtension: false,
+{{/if}}
+})

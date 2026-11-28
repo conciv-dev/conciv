@@ -1,32 +1,25 @@
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
-import {libConfig} from '@internal/vite-config'
+import manifest from './package.json' with {type: 'json'}
 
-export default defineConfig(
-  libConfig({
-    root: import.meta.url,
-    plugins: [solid()],
-    environments: {
-      client: {
-        entries: [
-          'src/ui-kit-chat.tsx',
-          'src/tools.tsx',
-          'src/draft-storage.ts',
-          'src/theme/fonts.ts',
-          'src/theme/code-theme.ts',
-        ],
-        external: [
-          /^solid-js/,
-          /^zod/,
-          /^mermaid/,
-          /^@tanstack\//,
-          /^@conciv\//,
-          /^@pierre\/diffs/,
-          /^shiki/,
-          /^@shikijs\//,
-        ],
-        bundle: true,
-      },
-    },
-  }),
+const external = Object.keys({...manifest.dependencies, ...manifest.peerDependencies}).map(
+  (name) => new RegExp(`^${name}(/|$)(?!.*\\?)`),
 )
+
+export default defineConfig({
+  plugins: [solid()],
+  build: {
+    lib: {
+      entry: {
+        'ui-kit-chat': 'src/ui-kit-chat.tsx',
+        tools: 'src/tools.tsx',
+        'draft-storage': 'src/draft-storage.ts',
+        'theme/fonts': 'src/theme/fonts.ts',
+        'theme/code-theme': 'src/theme/code-theme.ts',
+      },
+      formats: ['es'],
+    },
+    emptyOutDir: false,
+    rolldownOptions: {external},
+  },
+})

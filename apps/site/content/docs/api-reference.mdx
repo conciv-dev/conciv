@@ -1,0 +1,79 @@
+---
+title: API reference
+description: 'Every published conciv package, what it is for, and the guides that use it.'
+icon: BookMarked
+---
+
+Each package name links to its page on npm. The guides beside it show the package in use. Most apps install only
+`@conciv/it`. It brings in everything under [Installed for you](#installed-for-you).
+
+<Callout type="success" title="Looking for an option or a command?">
+  Every config option is in the [Configuration reference](/docs/reference/configuration), and every command in the [CLI
+  reference](/docs/reference/cli). The plugin API has its own [reference](/docs/plugins/reference).
+</Callout>
+
+## Set up
+
+| Package                                                        | Purpose                                                                | Related guides                                                                                                                    |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [@conciv/it](https://www.npmjs.com/package/@conciv/it)         | The bundler plugin: adds the engine and the widget to your dev server. | [Vite](/docs/bundlers/vite), [Next.js](/docs/bundlers/nextjs), [webpack](/docs/bundlers/webpack), [Rspack](/docs/bundlers/rspack) |
+| [@conciv/cli](https://www.npmjs.com/package/@conciv/cli)       | `init`, the tools your agent calls, login and MCP connections.         | [Getting started](/docs/getting-started), [CLI](/docs/reference/cli), [Connect your agents](/docs/agents)                         |
+| [@conciv/skills](https://www.npmjs.com/package/@conciv/skills) | Agent skills that teach coding agents to build with conciv.            | [Getting started](/docs/getting-started#installation)                                                                             |
+| [@conciv/try](https://www.npmjs.com/package/@conciv/try)       | Try conciv live on conciv.dev, with the agent already on your machine. | [Playground](/docs/playground)                                                                                                    |
+
+## Widget components
+
+| Package                                                                    | Purpose                                                   | Related guides                                        |
+| -------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| [@conciv/react](https://www.npmjs.com/package/@conciv/react)               | Mount the widget as a `<ConcivWidget />` React component. | [widget option](/docs/reference/configuration#widget) |
+| [@conciv/preact](https://www.npmjs.com/package/@conciv/preact)             | Mount the widget as a Preact component.                   | [widget option](/docs/reference/configuration#widget) |
+| [@conciv/solid](https://www.npmjs.com/package/@conciv/solid)               | Mount the widget as a Solid component.                    | [widget option](/docs/reference/configuration#widget) |
+| [@conciv/mascot-react](https://www.npmjs.com/package/@conciv/mascot-react) | The conciv robot mascot as a React component.             | none                                                  |
+
+## Plugins
+
+| Package                                                                                | Purpose                                                             | Related guides                                                                          |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [@conciv/plugin-page](https://www.npmjs.com/package/@conciv/plugin-page)               | Built in: the page tools that read and drive your open tab.         | [Tools and code mode](/docs/tools-and-code-mode)                                        |
+| [@conciv/plugin-test-runner](https://www.npmjs.com/package/@conciv/plugin-test-runner) | Runs your vitest or Playwright tests, live in the Tests tab.        | [Add plugins](/docs/usage/add-plugins)                                                  |
+| [@conciv/plugin-tanstack](https://www.npmjs.com/package/@conciv/plugin-tanstack)       | Build errors, routes and server-function traces of a TanStack app.  | [Add plugins](/docs/usage/add-plugins), [TanStack Start](/docs/bundlers/tanstack-start) |
+| [@conciv/plugin-recorder](https://www.npmjs.com/package/@conciv/plugin-recorder)       | Records the page, so the agent can read what you just did.          | [Add plugins](/docs/usage/add-plugins)                                                  |
+| [@conciv/plugin-ios](https://www.npmjs.com/package/@conciv/plugin-ios)                 | Builds, runs and reads a native iOS app in the simulator.           | [iOS](/docs/bundlers/ios)                                                               |
+| [@conciv/plugin-try-it](https://www.npmjs.com/package/@conciv/plugin-try-it)           | The connect steps conciv.dev shows. conciv.dev adds it; you do not. | [Playground](/docs/playground)                                                          |
+
+## Build plugins
+
+| Package                                                                                  | Purpose                                                                | Related guides                                                                               |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [@conciv/backend-plugin-api](https://www.npmjs.com/package/@conciv/backend-plugin-api)   | A plugin's engine part: `Plugin.define`, tools, rpc and context types. | [Build your first plugin](/docs/plugins/first-plugin), [Plugin API](/docs/plugins/reference) |
+| [@conciv/frontend-plugin-api](https://www.npmjs.com/package/@conciv/frontend-plugin-api) | A plugin's browser part: cards, panels, slots and the rpc client.      | [Build your first plugin](/docs/plugins/first-plugin), [Plugin API](/docs/plugins/reference) |
+| [@conciv/backend-test-utils](https://www.npmjs.com/package/@conciv/backend-test-utils)   | Starts the real engine with a scripted model, for plugin tests.        | [Test your plugin](/docs/plugins/guides/testing)                                             |
+| [@conciv/simulation](https://www.npmjs.com/package/@conciv/simulation)                   | The scripted agent, and the driver that answers its turns.             | [Drive the widget from a script](/docs/recipes/drive-the-widget-from-a-script)               |
+
+## Installed for you
+
+`@conciv/it` depends on these. Do not install them yourself.
+
+| Package                                                                              | Purpose                                                             | Related guides                                                 |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [@conciv/unplugin](https://www.npmjs.com/package/@conciv/unplugin)                   | The bundler plugin itself, one entry per bundler.                   | [Vite](/docs/bundlers/vite), [webpack](/docs/bundlers/webpack) |
+| [@conciv/backend](https://www.npmjs.com/package/@conciv/backend)                     | The engine app, with the built-in page plugin.                      | [Engine and widget](/docs/engine-and-widget)                   |
+| [@conciv/backend-defaults](https://www.npmjs.com/package/@conciv/backend-defaults)   | The engine with no plugin in it: chat, sessions, permissions.       | [Engine and widget](/docs/engine-and-widget)                   |
+| [@conciv/backend-app-api](https://www.npmjs.com/package/@conciv/backend-app-api)     | The engine's plugin host: plugin state, hooks and the tool service. | [Tools and code mode](/docs/tools-and-code-mode)               |
+| [@conciv/serve](https://www.npmjs.com/package/@conciv/serve)                         | The engine's HTTP server.                                           | [Engine and widget](/docs/engine-and-widget)                   |
+| [@conciv/harness](https://www.npmjs.com/package/@conciv/harness)                     | The adapters for each agent CLI.                                    | [Connect your agents](/docs/agents)                            |
+| [@conciv/protocol](https://www.npmjs.com/package/@conciv/protocol)                   | The oRPC contract between the engine and its clients.               | [Engine and widget](/docs/engine-and-widget)                   |
+| [@conciv/types](https://www.npmjs.com/package/@conciv/types)                         | Wire types shared by the plugin and the widget.                     | [Configuration](/docs/reference/configuration)                 |
+| [@conciv/client](https://www.npmjs.com/package/@conciv/client)                       | The browser's connection to the engine.                             | [Engine and widget](/docs/engine-and-widget)                   |
+| [@conciv/home](https://www.npmjs.com/package/@conciv/home)                           | The per-user registry of running engines and agent connections.     | [Connect your agents](/docs/agents)                            |
+| [@conciv/app](https://www.npmjs.com/package/@conciv/app)                             | The widget bundle the page loads.                                   | [Engine and widget](/docs/engine-and-widget)                   |
+| [@conciv/grab](https://www.npmjs.com/package/@conciv/grab)                           | The shape of an element you pin from the page.                      | [Tools and code mode](/docs/tools-and-code-mode)               |
+| [@conciv/storage-history](https://www.npmjs.com/package/@conciv/storage-history)     | The widget's own navigation history, kept in web storage.           | none                                                           |
+| [@conciv/ui-kit-system](https://www.npmjs.com/package/@conciv/ui-kit-system)         | The widget's design system.                                         | none                                                           |
+| [@conciv/ui-kit-chat](https://www.npmjs.com/package/@conciv/ui-kit-chat)             | The chat thread, messages and composer.                             | [Sessions](/docs/sessions)                                     |
+| [@conciv/ui-kit-chat-tools](https://www.npmjs.com/package/@conciv/ui-kit-chat-tools) | The cards for built-in tool calls.                                  | [Tools and code mode](/docs/tools-and-code-mode)               |
+| [@conciv/ui-kit-tap](https://www.npmjs.com/package/@conciv/ui-kit-tap)               | The rich-text composer.                                             | none                                                           |
+| [@conciv/ui-kit-terminal](https://www.npmjs.com/package/@conciv/ui-kit-terminal)     | The terminal in the panel.                                          | none                                                           |
+| [@conciv/solid-diffs](https://www.npmjs.com/package/@conciv/solid-diffs)             | The diff and code views in tool cards.                              | none                                                           |
+| [@conciv/solid-streamdown](https://www.npmjs.com/package/@conciv/solid-streamdown)   | Streaming markdown for agent replies.                               | none                                                           |
+| [@conciv/mascot](https://www.npmjs.com/package/@conciv/mascot)                       | The conciv robot mascot.                                            | none                                                           |

@@ -31,7 +31,7 @@ import {
   type Operation,
 } from './rpc.js'
 import {tanstackLogo} from './tanstack-logo.js'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 
 const LABEL = 'TanStack inspector active'
 

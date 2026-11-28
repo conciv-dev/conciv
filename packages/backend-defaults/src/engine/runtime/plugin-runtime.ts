@@ -15,6 +15,8 @@ import {
   Bus,
   ConfigPluginSource,
   EffectFlock,
+  Form,
+  Integration,
   FSUtil,
   InstancePlugins,
   KV,
@@ -76,6 +78,7 @@ import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
+import * as DatabaseHome from '../../core/database/home.js'
 import type {HarnessModel} from '@conciv/types/harness-types'
 import {uniq} from 'es-toolkit'
 import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
@@ -207,6 +210,7 @@ export type PluginRuntimeInput = {
   db: ConcivDb
   cwd: string
   home: string
+  homeDatabase: DatabaseHome.HomeDatabase
   engineId: string
   ids: Identifier.Maker
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
@@ -266,7 +270,19 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideInstructionEntries,
       ),
     ),
-    Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        Agent.layer,
+        PermissionSaved.layer,
+        permissionSessions(input.db),
+        Skill.layer,
+        Form.layer,
+        Integration.layer.pipe(
+          Layer.provideMerge(DatabaseHome.credentialLayer(input.homeDatabase)),
+          Layer.provide(EffectFlock.layer),
+        ),
+      ),
+    ),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, ImageLayer.layer)),
     Layer.provideMerge(
       Layer.mergeAll(

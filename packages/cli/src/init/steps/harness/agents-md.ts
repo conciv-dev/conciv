@@ -166,7 +166,7 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
 function manualCard(consented: HarnessId[]): ManualCard {
   return {
     title: 'Teach your agents the conciv CLI',
-    body: 'Paste this section into AGENTS.md (and CLAUDE.md if you keep one). Full steps: https://conciv.dev/docs/quick-start/agents',
+    body: 'Paste this section into AGENTS.md (and CLAUDE.md if you keep one). Full steps: https://conciv.dev/docs/agents',
     snippet: agentsSection(consented),
   }
 }

@@ -3,70 +3,130 @@ title: Quick terminal
 description: Drop the chat down from the top of the page on a hotkey, and split it into panes.
 ---
 
-The quick terminal is a full-width sheet that drops from the top of the page, over your app, without dimming it. You
-can split it into panes, each with its own session. It is part of conciv itself, not a plugin.
+The quick terminal is the chat as a full-width sheet that drops from the top of the page, over your app.
 
-<ImageZoom
-  src="/screenshots/quick-terminal.png"
-  alt="The conciv quick terminal dropped over an app"
-  width={1920}
-  height={1080}
-/>
-
-## Open and close
-
-<TypeTable
-  type={{
-    'Mod+`': {required: true, type: 'default', description: 'Opens the quick terminal, or closes it.'},
-    Escape: {required: true, type: 'key', description: 'Closes it.'},
-    'Mod+D': {required: true, type: 'default', description: 'Adds a pane.'},
-  }}
-/>
-
-`Mod` is Cmd on macOS and Ctrl elsewhere. Change these in **Settings > Shortcuts**, where `Mod+.` opens or closes the
-corner panel too. The corner panel and the quick terminal show one at a time: opening one closes the other.
-
-## Set it in your config
-
-It is on by default. Set the hotkey, or turn it off. This is the TanStack Start example's config:
-
-```ts title="apps/examples/tanstack-start/vite.config.ts"
-conciv({
-  widget: {quickTerminal: {hotkey: 'Alt+k'}},
-  plugins: [testRunnerPlugin, tanstackPlugin, recorderPlugin, whiteboardPlugin],
-}),
-```
-
-`hotkey` takes one binding or a list of them. `widget: {quickTerminal: false}` turns the quick terminal off. A hotkey
-set in the config locks the shortcut in **Settings > Shortcuts**, with the note "Set in conciv(\{quickTerminal:
-\{hotkey\}\}) by this project."
-
-## Panes
-
-<Steps>
-  <Step>The first pane opens your latest session.</Step>
-  <Step>
-    **Split pane** in the header, or `Mod+D`, adds a pane with a new session. Drag the gutter between panes to resize
-    them.
-  </Step>
-  <Step>Each pane has its own session picker, usage, refresh and **Close pane**.</Step>
-</Steps>
-
-<Callout type="warn">
-  Closing a pane deletes its session, with its draft. Closing the last pane closes the quick terminal.
+<Callout title="Not the Terminal tab">
+  The quick terminal is still the chat. To run the agent CLI itself in a real terminal, use the **Terminal** tab. Learn
+  more in [Terminal](/docs/usage/terminal).
 </Callout>
 
-<ImageZoom
-  src="/screenshots/quick-terminal-split.png"
-  alt="The quick terminal split into two panes"
-  width={1920}
-  height={1080}
+## Open it
+
+Press `Mod+backtick` to open it, where `Mod` is Cmd on macOS and Ctrl elsewhere. Press it again, or Escape, to close
+it. The app stays visible and usable below the sheet.
+
+<Playground
+  page="vite-react"
+  script="quick-terminal/command"
+  caption="Open the quick terminal on its hotkey and run a command in it."
 />
 
-## Resize and pop out
+## Split it into panes
 
-Drag the grip on the bottom edge to set the height; it is remembered. Drag it almost to the top to close the quick
-terminal.
+The first pane opens your latest session. Click **Split pane** in the header, or press `Mod+D`, for a new pane with a
+new session. Drag the gutter between two panes to resize them.
 
-**Pop out to a window** opens the focused pane's session in its own browser window. If the browser blocks the window,
-the session opens in the corner panel instead.
+Each pane has its own session picker, usage, refresh and **Close pane** button.
+
+<Callout type="warn" title="Closing a pane deletes its session">
+  Closing a pane deletes its session and its draft. Closing the last pane closes the quick terminal.
+</Callout>
+
+## Resize it
+
+Drag the grip on the bottom edge to set the height. conciv remembers it. Drag the grip almost to the top to close
+the sheet.
+
+## Pop a pane out
+
+Click **Pop out to a window** to open the focused pane's session in its own browser window. If the browser blocks the
+window, the session opens in the corner panel instead.
+
+## Change the hotkey
+
+Open **Settings > Shortcuts**, click **Quick terminal** and press the new keys. The same list holds the corner panel's
+key, `Mod+.` by default.
+
+To set the hotkey for everyone on the project, add it to your conciv options:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      widget: {quickTerminal: {hotkey: 'Alt+k'}}, // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  widget: {quickTerminal: {hotkey: 'Alt+k'}}, // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      widget: {quickTerminal: {hotkey: 'Alt+k'}}, // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      widget: {quickTerminal: {hotkey: 'Alt+k'}}, // [!code ++]
+    }),
+  ],
+}
+```
+
+`hotkey` takes one key or a list of keys. A key set here is locked in **Settings > Shortcuts**. Its row says the
+project set it.
+
+## Turn it off
+
+Set `quickTerminal` to `false` in the same place. The hotkey then does nothing, and only the corner panel opens:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      widget: {quickTerminal: false}, // [!code ++]
+    }),
+  ],
+})
+```
+
+<Accordions type="single">
+  <Accordion title="The corner panel and the quick terminal never show together">
+    Opening one closes the other.
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Chat](/docs/usage/chat):** what each pane's composer does.
+- **[Terminal](/docs/usage/terminal):** the agent CLI in a real terminal.
+- **[Configuration](/docs/reference/configuration):** every conciv option.

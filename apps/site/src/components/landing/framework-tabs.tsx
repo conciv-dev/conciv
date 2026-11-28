@@ -4,11 +4,12 @@ import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode} from 'react'
 import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
-import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/select'
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from '@/components/ui/select'
 import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
 import {siteErrors} from '@conciv/errors'
+import {useSound} from '@/lib/sounds'
 
 type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
 
@@ -86,39 +87,17 @@ function Root({snippets, children}: {snippets: FrameworkSnippet[]; children: Rea
 
 function List() {
   const {snippets} = useFrameworkTabs()
-  const [clipped, setClipped] = useState(false)
-  const observerRef = useRef<ResizeObserver | null>(null)
-
-  const attach = useCallback((el: HTMLDivElement | null) => {
-    observerRef.current?.disconnect()
-    observerRef.current = null
-    if (!el) return
-    const measure = () => setClipped(el.scrollWidth > el.clientWidth + 1)
-    observerRef.current = new ResizeObserver(measure)
-    observerRef.current.observe(el)
-    measure()
-  }, [])
-
   return (
     <>
       <FrameworkSelect />
-      <div className="relative mb-2.5 hidden w-fit max-w-full sm:block">
-        <TabsPrimitive.List
-          ref={attach}
-          aria-label="Frameworks"
-          className="flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
-        >
-          {snippets.map((snippet) => (
-            <Trigger key={snippet.id} snippet={snippet} />
-          ))}
-        </TabsPrimitive.List>
-        {clipped && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-[3px] right-[3px] w-8 rounded-r-[8px] bg-gradient-to-l from-card to-transparent"
-          />
-        )}
-      </div>
+      <TabsPrimitive.List
+        aria-label="Frameworks"
+        className="mb-2.5 hidden w-fit max-w-full flex-wrap gap-0.5 rounded-[10px] border bg-card p-[3px] sm:flex"
+      >
+        {snippets.map((snippet) => (
+          <Trigger key={snippet.id} snippet={snippet} />
+        ))}
+      </TabsPrimitive.List>
     </>
   )
 }
@@ -137,24 +116,31 @@ function FrameworkSelect() {
         </span>
       </SelectTrigger>
       <SelectContent position="popper" className="w-(--radix-select-trigger-width) font-mono text-[12.5px]">
-        {snippets.map((snippet) => (
-          <SelectItem key={snippet.id} value={snippet.id} disabled={snippet.soon} className="min-h-11 gap-2 font-mono">
-            <span className="flex items-center gap-2">
-              <img src={snippet.icon} alt="" className="size-[15px]" />
-              {snippet.label}
-              {snippet.soon && (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
-                  soon
-                </span>
-              )}
-              {snippet.alpha && (
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
-                  alpha
-                </span>
-              )}
-            </span>
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {snippets.map((snippet) => (
+            <SelectItem
+              key={snippet.id}
+              value={snippet.id}
+              disabled={snippet.soon}
+              className="min-h-11 gap-2 font-mono"
+            >
+              <span className="flex items-center gap-2">
+                <img src={snippet.icon} alt="" className="size-[15px]" />
+                {snippet.label}
+                {snippet.soon && (
+                  <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
+                    soon
+                  </span>
+                )}
+                {snippet.alpha && (
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
+                    alpha
+                  </span>
+                )}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )
@@ -162,14 +148,13 @@ function FrameworkSelect() {
 
 function Trigger({snippet}: {snippet: FrameworkSnippet}) {
   const {active} = useFrameworkTabs()
-  const scrollIntoView = (event: React.MouseEvent<HTMLButtonElement>) =>
-    event.currentTarget.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'})
+  const sound = useSound('kvm-switch')
 
   return (
     <TabsPrimitive.Trigger
       value={snippet.id}
       disabled={snippet.soon}
-      onClick={scrollIntoView}
+      onPointerDown={active.id === snippet.id ? undefined : sound}
       className="group relative inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:text-foreground"
     >
       {active.id === snippet.id && (
@@ -199,13 +184,25 @@ function Trigger({snippet}: {snippet: FrameworkSnippet}) {
   )
 }
 
+const panelCard = 'col-start-1 row-start-1 overflow-hidden rounded-xl border bg-card'
+
 function Panel({children}: {children: ReactNode}) {
-  const {snippets, active} = useFrameworkTabs()
+  const context = useFrameworkTabs()
+  const {snippets, active} = context
   return (
-    <>
+    <div className="grid">
+      {snippets
+        .filter((snippet) => snippet.soon !== true)
+        .map((snippet) => (
+          <div key={snippet.id} aria-hidden inert className={`${panelCard} invisible`}>
+            <FrameworkTabsContext.Provider value={{...context, active: snippet}}>
+              {children}
+            </FrameworkTabsContext.Provider>
+          </div>
+        ))}
       <TabsPrimitive.Content
         value={active.id}
-        className="overflow-hidden rounded-xl border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className={`${panelCard} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60`}
       >
         {children}
       </TabsPrimitive.Content>
@@ -214,7 +211,7 @@ function Panel({children}: {children: ReactNode}) {
         .map((snippet) => (
           <TabsPrimitive.Content key={snippet.id} value={snippet.id} className="hidden" />
         ))}
-    </>
+    </div>
   )
 }
 
@@ -332,7 +329,7 @@ function Code() {
         tabIndex={0}
         role="region"
         aria-label={`${active.file ?? active.label} config`}
-        className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className="od-snippet relative overflow-x-auto px-4 py-3.5 [&_.shiki-magic-move-container]:whitespace-pre-wrap! [&_.shiki-magic-move-container]:wrap-anywhere [&_.shiki-magic-move-item]:whitespace-pre-wrap! font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <ShikiMagicMovePrecompiled
           steps={MAGIC_MOVE_STEPS}

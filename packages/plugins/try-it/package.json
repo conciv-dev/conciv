@@ -31,7 +31,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build:css": "node scripts/build-css.ts",
+    "build": "pnpm run build:css && tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -54,14 +55,15 @@
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
-    "@internal/vite-config": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
+    "unplugin-solid": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

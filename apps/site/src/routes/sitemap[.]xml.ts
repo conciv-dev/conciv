@@ -1,12 +1,12 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {source} from '@/lib/source'
+import {getDocsUrls} from '@/lib/docs.functions'
 import {brandPageUrl, buildSitemapXml, landingPageUrl, SITE} from '@/lib/site-urls'
 
 export const Route = createFileRoute('/sitemap.xml')({
   server: {
     handlers: {
-      GET() {
-        const docsUrls = source.getPages().map((page) => `${SITE}${page.url}`)
+      async GET() {
+        const docsUrls = (await getDocsUrls()).map((url) => `${SITE}${url}`)
         const xml = buildSitemapXml([landingPageUrl(), brandPageUrl(), ...docsUrls])
 
         return new Response(xml, {

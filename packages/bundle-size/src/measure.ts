@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process'
-import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs'
+import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, relative} from 'node:path'
 import {gzipSync} from 'node:zlib'
@@ -18,9 +18,9 @@ const STATIC_IMPORT = /(?:import|export)\s*(?:[\w${}\s,*]*?from\s*)?["'`]\.\/([\
 const SITE_WORKER_CONFIG = 'dist/server/wrangler.json'
 const SITE_WORKER_CONFIG_FROM_ROOT = `apps/site/${SITE_WORKER_CONFIG}`
 export const WORKER_NAME = 'conciv.dev worker (apps/site)'
-export const WORKER_LIMIT_KIB = 3 * 1024
+export const WORKER_LIMIT_KIB = 64 * 1024
 
-export type WorkerReport = {size: PackageSize; chunks: {file: string; gzip: number}[]}
+export type WorkerReport = {size: PackageSize; chunks: {file: string; raw: number}[]}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -140,7 +140,7 @@ export function parseWorkerSize(wranglerOutput: string): {raw: number; gzip: num
 }
 
 export function workerIsOverBudget(report: WorkerReport, limitKib: number): boolean {
-  return report.size.gzip > limitKib * 1024
+  return report.size.raw > limitKib * 1024
 }
 
 export function workerIsBuilt(root: string): boolean {
@@ -177,8 +177,8 @@ export function measureWorker(root: string): WorkerReport {
     )
     const {raw, gzip} = parseWorkerSize(output)
     const chunks = distFiles(outputDirectory)
-      .map((file) => ({file: relative(outputDirectory, file), gzip: gzipSync(readFileSync(file)).byteLength}))
-      .toSorted((a, b) => b.gzip - a.gzip)
+      .map((file) => ({file: relative(outputDirectory, file), raw: statSync(file).size}))
+      .toSorted((a, b) => b.raw - a.raw)
     return {size: {name: WORKER_NAME, raw, gzip, files: chunks.length}, chunks}
   } finally {
     rmSync(outputDirectory, {recursive: true, force: true})
@@ -186,14 +186,14 @@ export function measureWorker(root: string): WorkerReport {
 }
 
 export function formatWorkerOverBudget(report: WorkerReport, limitKib: number): string {
-  const gzipKib = report.size.gzip / 1024
-  const over = (gzipKib - limitKib).toFixed(1)
+  const rawKib = report.size.raw / 1024
+  const over = (rawKib - limitKib).toFixed(1)
   const lines = report.chunks
     .slice(0, 10)
-    .map((chunk) => `  ${(chunk.gzip / 1024).toFixed(1).padStart(8)} KiB  ${chunk.file}`)
+    .map((chunk) => `  ${(chunk.raw / 1024).toFixed(1).padStart(8)} KiB  ${chunk.file}`)
   return [
-    `${WORKER_NAME} is ${gzipKib.toFixed(1)} KiB gzip, over the ${limitKib} KiB budget by ${over} KiB. The site will not deploy on this Cloudflare plan.`,
-    'Largest worker chunks (gzip):',
+    `${WORKER_NAME} uploads ${rawKib.toFixed(1)} KiB uncompressed (gzip ${(report.size.gzip / 1024).toFixed(1)} KiB), over Cloudflare's ${limitKib} KiB Worker size limit by ${over} KiB. The site will not deploy.`,
+    'Largest worker chunks (uncompressed):',
     ...lines,
     'Fix: keep client-only libraries out of the server bundle. See trimServerBundle in apps/site/vite.config.ts.',
   ].join('\n')

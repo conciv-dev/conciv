@@ -20,15 +20,16 @@ that opens it:
 
 - `package.json:exports["."]` - `dist/mount.js` with types in `dist/mount.d.ts`.
 - `src/builtins.ts` - the browser plugins the widget ships, composed from the built-ins list each plugin package exports (the page and the terminal) plus the drive entry; it names no plugin id.
+- `build` (`package.json`) runs `tsdown && vite build`. `tsdown.config.ts` emits only the declarations (`dist/mount.d.ts`).
 - `vite.config.ts` - two Vite build environments, built in order by `builder.buildApp`.
-  - `client`: the library build of `src/mount.ts` to `mount.js` (ES format, shared packages external). `@internal/frontend-defaults`, the page plugin's built-ins list (`@conciv/plugin-page/builtins`) and the private terminal plugin's (`@internal/plugin-terminal/builtins`) are bundled in (`INLINED_PREFIXES`).
+  - `client`: the ESM bundle of `src/mount.ts` to `mount.js` (ES format, shared packages external). `@internal/frontend-defaults`, the page plugin's built-ins list (`@conciv/plugin-page/builtins`) and the private terminal plugin's (`@internal/plugin-terminal/builtins`) are bundled in: the `rolldownOptions.external` patterns do not match them.
   - `widget`: one code-split ES build of `src/global-entry.ts` and `src/native-entry.ts` into shared chunks under `dist/widget/`, plus the classic-script loaders `conciv-widget.global.js` and `conciv-widget-native.global.js` that `import()` their entry chunk relative to `document.currentScript.src`. Rolldown cannot code-split IIFE output, so the loader is what keeps a plain `<script src>` working. No source maps. Serving a loader means serving `dist/widget/` beside it, same origin (module chunks need CORS cross-origin).
 - Source: [src](./src/README.md).
 
 ## Invariants
 
 - `uno.config.ts` scans only this package and packages it depends on (frontend-defaults, frontend-app-api, the ui-kits), so a class edit there rebuilds the widget through `^build` and the package has no `turbo.json`. It scans no plugin: every plugin, the built-ins page, terminal and iOS included, ships its own sheet.
-- The shared Ark/Solid/`@conciv/*` packages stay external (`EXTERNAL_PREFIXES`); a second bundled copy splits the Solid/Ark context. Guarded by `test/unit/mount-impl.unit.test.ts`.
+- The shared Ark/Solid/Effect/`@conciv/*` packages stay external (the `client` environment's `rolldownOptions.external`); a second bundled copy splits the Solid/Ark context. Guarded by `test/unit/mount-impl.unit.test.ts`.
 
 ## Side Effects
 

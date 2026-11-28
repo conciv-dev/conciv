@@ -31,8 +31,12 @@ export function Hero() {
         {isMobile ? (
           <p className="text-[13.5px] text-muted-foreground">
             The live try-it flow needs a terminal, so it's desktop-only.{' '}
-            <Link to="/docs/$" params={{_splat: 'quick-start'}} className="font-semibold text-primary hover:underline">
-              Read the quick start →
+            <Link
+              to="/docs/$"
+              params={{_splat: 'getting-started'}}
+              className="font-semibold text-primary hover:underline"
+            >
+              Read Getting started →
             </Link>
           </p>
         ) : (

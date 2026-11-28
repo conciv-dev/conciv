@@ -1,0 +1,286 @@
+---
+title: Configuration
+description: Set conciv's options where you add it to your bundler, one option at a time.
+---
+
+conciv takes one options object where you add it to your bundler. Every option is optional. Set only the ones you
+need.
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({harness: 'codex', port: 4321})], // <- the options object
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {harness: 'codex', port: 4321}) // <- the second argument
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [conciv.default({harness: 'codex', port: 4321})], // <- the plugin's argument
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [conciv.default({harness: 'codex', port: 4321})], // <- the plugin's argument
+}
+```
+
+The examples below use Vite. The object is the same on every bundler. The full list with types and defaults is at the
+[end of the page](#all-options).
+
+## Options
+
+### enabled
+
+Turn conciv off without removing it. No engine starts and no widget is added.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({enabled: false})
+```
+
+### port
+
+Ask the engine for a port.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({port: 4321})
+```
+
+Without `port`, the engine takes the port it used last time in this project. With no port from last time, Vite takes a
+free one. Next.js, webpack and Rspack take one of 1000 ports from 24170 up, picked from the project folder, so two
+projects rarely ask for the same one. The engine listens on `127.0.0.1` only. It writes the port it took to
+`.conciv/server.json`.
+
+When the port is taken, the engine takes a free one. On Vite it prints a warning. Next.js, webpack and Rspack switch
+with no message. They switch before they build the widget, so the widget and the engine still agree.
+
+### widget
+
+Move or turn off the two layouts. `modal` is the corner panel. `quickTerminal` is the sheet that drops from the top.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({widget: {modal: {position: 'top-left'}, quickTerminal: {hotkey: 'Alt+k'}}})
+```
+
+- `modal.position` is a corner or a middle edge. The default is `bottom-right`.
+- `quickTerminal.hotkey` replaces the default ``Mod+` ``. Pass an array for more than one key.
+- `false` for a layout turns it off.
+
+Set `widget: false` when you render the widget yourself with `<ConcivWidget />`. The engine still runs, and the page
+does not get two widgets. Learn more in [Quick terminal](/docs/usage/quick-terminal).
+
+### plugins
+
+Load plugins by package name or by path.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({plugins: ['@conciv/plugin-test-runner', ['./my-plugin', {team: 'core'}]]})
+```
+
+- A string loads the plugin with no options.
+- `[name, options]` passes options to the plugin. Every option value must be JSON.
+- A path starts with `./` or `../` (from the project folder), or is absolute. Anything else is a package name.
+- A name with a leading `-` removes that plugin.
+
+Learn more in [Add plugins](/docs/usage/add-plugins).
+
+### harness
+
+Pick the agent CLI a new session starts with. The default is `claude`.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({harness: 'opencode'})
+```
+
+You can still switch harness from the model menu. Learn more in [Harnesses](/docs/harnesses).
+
+### systemPrompt
+
+Replace the prompt conciv gives the agent, or give none.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({systemPrompt: 'Answer in one short paragraph.'})
+```
+
+- A string replaces conciv's built-in prompt.
+- `false` gives no conciv prompt.
+- Left out, the agent gets conciv's built-in prompt.
+
+The engine writes the prompt it used to `.conciv/chat-system-prompt.txt`. Claude gets it after Claude Code's own prompt.
+
+### permission
+
+Answer permission cards ahead of time, when you already know the answer.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({permission: {page_eval: 'allow'}})
+```
+
+`permission` takes three short forms:
+
+- One effect for every action: `'allow'`.
+- One effect per action: `{page_eval: 'deny'}`.
+- One effect per action and resource: `{page_eval: {'document.title': 'allow'}}`.
+
+The effect is `allow`, `deny` or `ask`. Learn more in [Agents and permissions](/docs/agents-and-permissions).
+
+### permissions
+
+Write permission rules in full, as a list.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({permissions: [{action: 'page_eval', resource: '*', effect: 'ask'}]})
+```
+
+These rules apply after the short forms in `permission`. A saved **Allow always** answer still beats an `ask` rule.
+
+### policies
+
+Allow or deny a whole kind of use, such as one plugin.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({policies: [{action: 'plugin.use', resource: '*/greeter', effect: 'deny'}]})
+```
+
+The actions are:
+
+- `provider.use`
+- `tool.use`
+- `integration.connect`
+- `integration.use`
+- `mcp.use`
+- `skill.use`
+- `plugin.use`
+- `websearch.use`
+
+The effect is `allow` or `deny`.
+
+### hubAccess
+
+Decide whether an agent outside the tab needs your yes first. An outside agent runs in your own terminal, connected
+with `npx @conciv/cli mcp connect`.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({hubAccess: 'project'})
+```
+
+- `open`, the default, lets a connected agent into every open tab.
+- `project` shows a card in the tab the first time an outside agent calls it. You allow it once, always, or not at all.
+
+Learn more in [Agents](/docs/agents).
+
+### stateRoot
+
+Move the `.conciv` state folder out of the project root.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({stateRoot: '../shared-state'})
+```
+
+### homeDir
+
+Move the folder conciv shares across projects, such as the agents you connected.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({homeDir: '/tmp/conciv-home'})
+```
+
+The default is your platform's data folder.
+
+### devEndpointDir
+
+Move `dev-endpoint.json`, the file the iOS SDK reads to find the engine. The default is `~/.conciv`.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({devEndpointDir: '/tmp/conciv-endpoint'})
+```
+
+### sessionId and claudeSessionId
+
+Open the engine on a session you name.
+
+```ts twoslash title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+// ---cut---
+conciv({claudeSessionId: 'release-notes'})
+```
+
+- `sessionId` is a conciv session id (`ses_...`). Any other value stops the engine with an error.
+- `claudeSessionId` is a harness session id: up to 128 letters, digits, `_` and `-`.
+
+The engine makes sure the session exists when it starts. Learn more in [Sessions](/docs/sessions).
+
+## Set an option from the environment
+
+Some options also read an environment variable. Use one to change an option for a single run:
+
+```bash title="Terminal"
+CONCIV_HARNESS=codex pnpm dev
+```
+
+An option set in the config wins over its variable.
+
+<TypeTable
+  type={{
+    CONCIV_HARNESS: {type: 'string', description: 'Sets harness.'},
+    CONCIV_STATE_ROOT: {type: 'string', description: 'Sets stateRoot.'},
+    CONCIV_SESSION_ID: {type: 'string', description: 'Sets sessionId.'},
+    CONCIV_CLAUDE_SESSION_ID: {type: 'string', description: 'Sets claudeSessionId.'},
+    CONCIV_HOME: {type: 'string', description: 'Sets homeDir.'},
+  }}
+/>
+
+## All options
+
+conciv generates this table from the config schema it validates your options with.
+
+<ConfigOptions />
+
+## Next steps
+
+- **[Add plugins](/docs/usage/add-plugins):** load a plugin and pass it options.
+- **[Harnesses](/docs/harnesses):** the agent CLIs `harness` can name.
+- **[Agents and permissions](/docs/agents-and-permissions):** how `permission`, `permissions` and saved answers combine.

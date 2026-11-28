@@ -8,7 +8,7 @@ import {ConnectPane} from './connect-pane.js'
 import {localNetworkAccess} from './local-network-access.js'
 import {probeCore, TryItProbe} from './probe.js'
 import {z} from 'zod'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 
 const Milliseconds = z.number().int().positive()
 

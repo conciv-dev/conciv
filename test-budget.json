@@ -10,7 +10,7 @@
   "@conciv/simulation": 17,
   "@conciv/mascot": 9,
   "@conciv/backend-plugin-api": 2,
-  "@conciv/backend-app-api": 0,
+  "@conciv/backend-app-api": 2,
   "@conciv/plugin-design": 4,
   "@conciv/plugin-ios": 5,
   "@conciv/plugin-page": 32,

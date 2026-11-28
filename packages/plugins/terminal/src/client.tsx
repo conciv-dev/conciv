@@ -4,7 +4,7 @@ import {createScopedRuntime, Panel, Plugin, Style, type PanelTab} from '@conciv/
 import {terminalDeclarations} from './stores.js'
 import {TerminalPanel} from './terminal-panel.js'
 import {createTerminalState} from './terminal-state.js'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 
 const TAB_ID = 'terminal'
 

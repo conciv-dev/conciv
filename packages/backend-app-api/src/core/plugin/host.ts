@@ -17,9 +17,12 @@ import * as Model from '../model.js'
 import * as Session from '../session.js'
 import * as Tab from '../tab.js'
 import * as Job from '../job.js'
+import * as Credential from '../credential.js'
+import * as Integration from '../integration.js'
+import type {IntegrationMethodRegistration} from '@conciv/backend-plugin-api/effect/plugin'
 import * as InstructionEntry from '../session/instruction-entry.js'
 import * as Rpc from '../rpc.js'
-import {permissionErrors, pluginHostErrors} from '@conciv/errors'
+import {engineErrors, permissionErrors, pluginHostErrors} from '@conciv/errors'
 import type {DeepMutable} from '../schema.js'
 import * as Skill from '../skill.js'
 import * as Tool from '../tool.js'
@@ -81,6 +84,7 @@ export const make = Effect.fn('PluginHost.make')(function* (
   const browserTabs = yield* Tab.Service
   const jobs = yield* Job.Service
   const instructionEntries = yield* InstructionEntry.Service
+  const integration = yield* Integration.Service
   const servers = yield* ServersSource
   const bundler = yield* BundlerSource
   const global = yield* Global.Service
@@ -128,6 +132,88 @@ export const make = Effect.fn('PluginHost.make')(function* (
       transform: (callback) =>
         plugin.bundler((editor) => {
           callback({add: (part) => editor.add(decodeBundlerPart(part, pluginId), pluginId)})
+        }),
+    },
+    credential: {
+      activate: (input) => integration.connection.activate(Credential.Id.make(input.credentialId)),
+    },
+    integration: {
+      list: () => response(integration.list()),
+      get: Effect.fn(function* (input) {
+        const item = yield* integration.get(Integration.Id.make(input.integrationId))
+        if (!item)
+          return yield* Effect.fail(
+            engineErrors.INTEGRATION_NOT_FOUND({message: `Integration not found: ${input.integrationId}`}),
+          )
+        return yield* response(Effect.succeed(item))
+      }),
+      connect: {
+        key: (input) =>
+          integration.connection.key({
+            integrationId: Integration.Id.make(input.integrationId),
+            key: input.key,
+            answer: input.answer,
+            label: input.label,
+          }),
+        external: (input) =>
+          integration.connection.external({
+            integrationId: Integration.Id.make(input.integrationId),
+            methodId: Integration.MethodId.make(input.methodId),
+            answer: input.answer,
+            label: input.label,
+          }),
+      },
+      oauth: {
+        connect: (input) =>
+          response(
+            integration.oauth.connect({
+              integrationId: Integration.Id.make(input.integrationId),
+              methodId: Integration.MethodId.make(input.methodId),
+              answer: input.answer,
+              label: input.label,
+            }),
+          ),
+        status: (input) => response(integration.oauth.status(attemptInput(input))),
+        complete: (input) => integration.oauth.complete({...attemptInput(input), code: input.code}),
+        cancel: (input) => integration.oauth.cancel(attemptInput(input)),
+      },
+      command: {
+        connect: (input) =>
+          response(
+            integration.command.connect({
+              integrationId: Integration.Id.make(input.integrationId),
+              methodId: Integration.MethodId.make(input.methodId),
+              label: input.label,
+            }),
+          ),
+        status: (input) => response(integration.command.status(attemptInput(input))),
+        cancel: (input) => integration.command.cancel(attemptInput(input)),
+      },
+      reload: integration.reload,
+      connection: {
+        active: (id) => integration.connection.active(Integration.Id.make(id)),
+        resolve: (connection) => integration.connection.resolve(connection),
+        status: (input) =>
+          integration.connection.status({
+            integrationId: Integration.Id.make(input.integrationId),
+            connection: input.connection,
+            status: input.status,
+          }),
+      },
+      transform: (callback) =>
+        integration.transform((editor) => {
+          callback({
+            list: editor.list,
+            get: (id) => editor.get(Integration.Id.make(id)),
+            update: (id, update) => editor.update(Integration.Id.make(id), update),
+            remove: (id) => editor.remove(Integration.Id.make(id)),
+            method: {
+              list: (id) => editor.method.list(Integration.Id.make(id)),
+              update: (input) => editor.method.update(methodImplementation(input)),
+              remove: (id, method) =>
+                editor.method.remove(Integration.Id.make(id), Schema.decodeUnknownSync(Integration.Method)(method)),
+            },
+          })
         }),
     },
     model: {
@@ -288,6 +374,47 @@ export const make = Effect.fn('PluginHost.make')(function* (
   }
   return context
 })
+
+function attemptInput(input: {readonly integrationId: string; readonly attemptId: string}) {
+  return {
+    integrationId: Integration.Id.make(input.integrationId),
+    attemptId: Integration.AttemptId.make(input.attemptId),
+  }
+}
+
+function methodImplementation(input: IntegrationMethodRegistration): Integration.Implementation {
+  const integrationId = Integration.Id.make(input.integrationId)
+  if ('authorize' in input) {
+    const refresh = input.refresh
+    return {
+      integrationId,
+      method: {...input.method, id: Integration.MethodId.make(input.method.id)},
+      authorize: (answer) =>
+        input.authorize(answer).pipe(
+          Effect.map((authorization): Integration.OAuthAuthorization => {
+            if (authorization.mode === 'auto') {
+              return {...authorization, callback: authorization.callback.pipe(Effect.map(credential))}
+            }
+            return {
+              ...authorization,
+              callback: (code: string) => authorization.callback(code).pipe(Effect.map(credential)),
+            }
+          }),
+        ),
+      ...(refresh ? {refresh: (value: Credential.OAuth) => refresh(value).pipe(Effect.map(credential))} : {}),
+      ...(input.label ? {label: input.label} : {}),
+    }
+  }
+  if (input.method.type === 'env') return {integrationId, method: input.method}
+  if (input.method.type === 'key') return {integrationId, method: input.method}
+  if (input.method.type === 'command')
+    return {integrationId, method: {...input.method, id: Integration.MethodId.make(input.method.id)}}
+  return {integrationId, method: {...input.method, id: Integration.MethodId.make(input.method.id)}}
+}
+
+function credential(value: Credential.OAuth) {
+  return Credential.OAuth.make({...value, methodId: Integration.MethodId.make(value.methodId)})
+}
 
 function encodePluginId(pluginId: string) {
   return pluginId

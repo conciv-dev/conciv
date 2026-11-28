@@ -99,7 +99,7 @@ Install and log in to the agent CLI you want (Claude Code by default), start you
 in the corner of your app, and type the code your terminal prints.
 
 Override defaults via `conciv({harness, plugins, port, …})`. Next.js uses `@conciv/it/plugin/nextjs`, webpack and
-Rspack `@conciv/it/plugin/webpack` and `/rspack`; see the [quick start](https://conciv.dev/docs/quick-start).
+Rspack `@conciv/it/plugin/webpack` and `/rspack`; see the [quick start](https://conciv.dev/docs/getting-started).
 
 ## Plugins
 

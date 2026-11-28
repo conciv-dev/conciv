@@ -7,14 +7,14 @@ Private package (`"private": true`, `"sideEffects": false`) that ships the conci
 ## Interface
 
 - [src/README.md](./src/README.md): `ConcivLockup` and `ConcivMark`.
-- `exports["."]` (`package.json`): `import` from `./dist/conciv-lockup.js` (`vite build`), `types` from `./src/conciv-lockup.tsx`.
+- `exports["."]` (`package.json`): `import` from `./dist/conciv-lockup.js` (`tsdown`), `types` from `./src/conciv-lockup.tsx`.
 - Peer dependency `react` ^19; runtime dep `motion`.
 - Scripts: `build`, `typecheck`.
 
 ## Invariants
 
-- The bundle carries the `'use client';` banner and keeps `react` and `motion*` external (`vite.config.ts` `banner` / `external`).
-- `vite build` writes the JavaScript and the declarations (`rolldown-plugin-dts`, from `tsconfig.build.json`).
+- The bundle carries the `'use client';` banner (`tsdown.config.ts` `banner`). `react` and `motion` stay external because they are its peer and runtime dependencies (tsdown's default).
+- `tsdown` writes the JavaScript and the declarations (`dts: true`, from `tsconfig.build.json`).
 
 ## Side Effects
 

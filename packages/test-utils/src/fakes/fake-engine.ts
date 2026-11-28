@@ -127,8 +127,14 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     logs,
     event: {
       subscribe: async function* (_input, call) {
-        yield {id: crypto.randomUUID(), type: 'server.connected', data: {}}
-        yield* events.read(call.signal)
+        const live = events.read(call.signal)
+        const first = live.next()
+        try {
+          yield {id: crypto.randomUUID(), type: 'server.connected', data: {}}
+          for (let next = await first; next.done !== true; next = await live.next()) yield next.value
+        } finally {
+          void live.return(undefined)
+        }
       },
     },
   }

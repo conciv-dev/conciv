@@ -1,8 +1,9 @@
+import {sentryGlobalFunctionMiddleware, sentryGlobalRequestMiddleware} from '@sentry/tanstackstart-react'
 import {createMiddleware, createCsrfMiddleware, createStart} from '@tanstack/react-start'
 import {isMarkdownPreferred} from 'fumadocs-core/negotiation'
 import {redirect} from '@tanstack/react-router'
 import {docsRoute} from '@/lib/shared'
-import {slugsToMarkdownPath} from './lib/source'
+import {slugsToMarkdownPath} from './lib/docs-paths'
 
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === 'serverFn',
@@ -26,6 +27,7 @@ const llmMiddleware = createMiddleware().server(({next, request}) => {
 
 export const startInstance = createStart(() => {
   return {
-    requestMiddleware: [csrfMiddleware, llmMiddleware],
+    requestMiddleware: [sentryGlobalRequestMiddleware, csrfMiddleware, llmMiddleware],
+    functionMiddleware: [sentryGlobalFunctionMiddleware],
   }
 })

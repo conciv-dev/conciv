@@ -1,0 +1,10 @@
+{
+  "title": "Recipes",
+  "pages": [
+    "index",
+    "drive-the-widget-from-a-script",
+    "keep-conciv-out-of-production",
+    "debug-a-plugin-that-does-not-load",
+    "share-a-plugin-across-projects"
+  ]
+}

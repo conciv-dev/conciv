@@ -1,0 +1,170 @@
+---
+title: Getting started
+description: Paste one prompt into your agent and you are set up. Then ask about the page you are on.
+icon: Rocket
+---
+
+conciv puts your coding agent inside the app you are running, where it reads the page you are on and edits the source
+that renders it.
+
+New here? [What is conciv](/docs) shows how it works.
+
+## Quick start
+
+<AgentPrompt prompt="setup" />
+
+Then open the conciv panel in your app and ask about the page you are on:
+
+<CopyPrompt text="What is on this page, and which file renders it?" />
+
+## Use conciv
+
+<Cards>
+  <Card
+    title="Features"
+    href="/docs/usage"
+    description="Everything you do with the widget in your running app, one task per page."
+  />
+  <Card
+    title="Add plugins"
+    href="/docs/usage/add-plugins"
+    description="Give the agent new tools, such as a test runner."
+  />
+  <Card
+    title="Engine and widget"
+    href="/docs/engine-and-widget"
+    description="What runs where when conciv is on, and where it keeps its state."
+  />
+  <Card
+    title="Sessions"
+    href="/docs/sessions"
+    description="One conversation with the agent: its messages, its queue and its transcript."
+  />
+</Cards>
+
+## Build your own
+
+<Cards>
+  <Card
+    title="Build your first plugin"
+    href="/docs/plugins/first-plugin"
+    description="From an empty folder to a tool the agent calls and a card in the chat."
+  />
+  <Card title="Plugins" href="/docs/plugins" description="What a plugin adds, and the guides for every part of one." />
+  <Card
+    title="Plugin API reference"
+    href="/docs/plugins/reference"
+    description="Every field of Plugin.define, ctx, a tool and the browser registries."
+  />
+</Cards>
+
+## Work with agents
+
+<Cards>
+  <Card
+    title="Connect your agents"
+    href="/docs/agents"
+    description="Let the agent in your terminal drive your open tabs."
+  />
+  <Card title="Harnesses" href="/docs/harnesses" description="Pick the agent CLI that answers in the chat." />
+  <Card title="Skills" href="/docs/skills" description="Give the agent a written guide for one kind of work." />
+</Cards>
+
+## Manual setup
+
+The prompt runs these steps for you. To do them by hand:
+
+### Installation
+
+<InstallSteps />
+
+With pnpm, yarn or bun, run it with `pnpm dlx`, `yarn dlx` or `bunx` instead of `npx`.
+
+init asks what to set up and shows the plan. It writes nothing until you say yes. What init changes:
+
+- It adds `@conciv/it` to your dev dependencies.
+- It wires conciv into your bundler config.
+- It adds a conciv section to `AGENTS.md`, so your agent knows the conciv commands. With Claude Code, `CLAUDE.md`
+  gets it too.
+- It installs the conciv plugin for Claude Code, when Claude Code is on your machine.
+- It connects Claude Code, Codex, Gemini CLI and opencode, when it finds them, so the agent in your terminal can
+  drive your open tabs.
+- It adds the `@conciv/skills` docs pack, only if you check that box.
+
+<Callout type="warn" title="Next.js with a src folder">
+  init writes the two instrumentation files to the project root. Next.js reads them from the folder that holds your
+  routes. If your routes live in `src/`, move both files there.
+</Callout>
+
+Each bundler has its own page with the manual setup and its edge cases: [Vite](/docs/bundlers/vite),
+[Next.js](/docs/bundlers/nextjs), [webpack](/docs/bundlers/webpack), [Rspack](/docs/bundlers/rspack) and
+[TanStack Start](/docs/bundlers/tanstack-start).
+
+<Accordions>
+<Accordion id="stops" title="If init stops before it writes anything">
+
+init checks your project first, and stops with one of these messages:
+
+- `no package.json here: run init from your app directory`
+- `uncommitted changes: commit first or pass --force`
+- `Non-interactive terminal: re-run with --yes or --dry-run`
+
+Pressing Ctrl-C while init runs puts your config back as it was. Every flag is in the
+[CLI reference](/docs/reference/cli).
+
+</Accordion>
+</Accordions>
+
+### Start your dev server
+
+Start your dev server the way you always do. conciv starts with it. It adds a conciv button to the corner of every
+page.
+
+```bash title="Terminal"
+npm run dev
+```
+
+A few things to notice:
+
+- conciv runs in dev builds only. A production build leaves it out.
+- The chat runs an agent CLI on your machine, `claude` by default. It must be on the `PATH` of the shell that starts
+  your dev server, and logged in. See [Connect your agents](/docs/agents) for the others.
+
+### Log in
+
+The engine can read your project and run commands, so it answers only browsers you let in. Click the conciv button.
+Your dev server prints a box with a 6-digit code:
+
+```text title="Dev server terminal"
+╭──────────────────────────────────────────────────────╮
+│ conciv: a browser asks to connect to this engine     │
+│ From:    Chrome 142 | macOS at http://localhost:5173 │
+│ Code:    482913                                      │
+│ Link:    http://localhost:5173/#conciv_otp=482913    │
+│ Expires: 10:42:07                                    │
+╰──────────────────────────────────────────────────────╯
+```
+
+Type the code in the panel, or open the link. You log in once per browser. Learn more in
+[Logging in](/docs/usage/logging-in).
+
+### Ask about the page
+
+Open the panel and ask about the page you have open. The agent reads the rendered page first, then finds the file
+that renders it.
+
+```text title="Prompt"
+What is on this page, and which file renders it?
+```
+
+<Playground
+  page="vite-react"
+  script="getting-started/ask-about-page"
+  caption="The agent reads the open page and names the file that renders it."
+/>
+
+A few things to notice:
+
+- The crosshair beside the composer pins an element to your message, with its source file when conciv finds it.
+- When the agent edits your source, your dev server reloads the page.
+- A risky action shows a card first: Allow once, Allow always or Deny.

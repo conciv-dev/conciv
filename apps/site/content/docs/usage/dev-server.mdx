@@ -1,55 +1,118 @@
 ---
 title: Dev server
-description: The agent reads the dev server's config, module graph and served code through the engine's server tools.
+description: Ask the agent how your dev server sees your code, and have it restart the server.
 ---
 
-The engine's built-in server tools let the agent ask the dev server about itself: its resolved config, where it listens,
-how an import resolves, a file's place in the module graph, and the code it serves. It can also open a file in your
-editor. They are part of the engine itself (the `server` RPC), so there is nothing to install.
+The dev server tools let the agent ask your running Vite dev server about your code, instead of guessing from config
+files. They are built in, with nothing to install.
 
-The agent calls these as code-mode tools (`server_config`, `server_urls`, `server_resolve`, `server_graph`,
-`server_transform`, `server_restart`, and `open`). You call the same methods from a terminal with
-[`conciv plugin call server`](/docs/plugins/terminal).
+## Ask about a build problem
 
-## Methods
+Ask about your dev server when a build question comes up:
 
-<TypeTable
-  type={{
-    config: {type: 'no input', description: 'The resolved `root`, `base`, `mode`, `aliases` and `plugins`.'},
-    urls: {type: 'no input', description: 'Where the dev server listens: `local` and `network` URLs.'},
-    resolve: {
-      type: '{spec, importer?}',
-      description: 'Where an import specifier resolves, as `{id}`. `id` is `null` when it does not resolve.',
-    },
-    graph: {type: '{file}', description: 'Each module of the file with its `url`, `importers` and `importedModules`.'},
-    transform: {type: '{url}', description: 'The transformed code the dev server serves for a URL, as `{code}`.'},
-    open: {
-      type: '{file, line?, column?}',
-      description:
-        'Opens the file in your editor, at the line and column when given. `column` is used only with a `line`.',
-    },
-  }}
-/>
-
-```bash
-conciv plugin call server config
-conciv plugin call server urls
-conciv plugin call server resolve --data '{"spec":"@/components/Header","importer":"src/routes/index.tsx"}'
-conciv plugin call server graph --data '{"file":"src/routes/index.tsx"}'
-conciv plugin call server transform --data '{"url":"/src/main.ts"}'
-conciv plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
+```text title="Prompt"
+Why does @/components/Header resolve to the wrong file from src/routes/index.tsx?
 ```
 
-## Restart
+The agent asks the server how the import resolves from that file. It answers from what the server says.
 
-Restarting the dev server is the `server_restart` tool only: it has no RPC method, because it asks you first. The
-agent calls it with `force: true` for a full restart.
+<Callout type="info" title="Vite only">
+  The tools need a Vite dev server. TanStack Start and Astro count, since they run on Vite. On Next.js, webpack and
+  Rspack they answer that no dev server is attached.
+</Callout>
 
-## Errors
+## Ask how the server is set up
 
-| `type`                | Cause                                                                |
-| --------------------- | -------------------------------------------------------------------- |
-| `BUNDLER_UNAVAILABLE` | No dev server is attached to conciv.                                 |
-| `BUNDLER_FAILED`      | The dev server failed the request. `data.message` holds its message. |
+The agent reads the resolved config: the root, the base path, the mode, the aliases and the plugins. It also knows
+where the server listens, on this machine and on your network:
 
-`config` and `urls` fail only with `BUNDLER_UNAVAILABLE`. `open` never fails this way: it needs no dev server.
+```text title="Prompt"
+What URL do I open on my phone to see this app?
+```
+
+## Ask what a file pulls in
+
+The agent reads a file's place in the module graph: what it imports, and what imports it.
+
+```text title="Prompt"
+Which modules import src/lib/store.ts? I want to know what a change there touches.
+```
+
+## See the code the server serves
+
+The agent reads the code the dev server sends to the browser for a URL, after every plugin ran:
+
+```text title="Prompt"
+Show me what /src/main.ts looks like after the transform. Is the env variable inlined?
+```
+
+## Read build errors
+
+With the TanStack plugin added, the agent also reads the dev server's build errors. Learn more in
+[TanStack](/docs/usage/tanstack).
+
+<Playground
+  page="vite-react"
+  script="dev-server/build-errors"
+  caption="Ask the agent why the page broke, and it reads the dev server's build errors."
+/>
+
+## Open a file or restart the server
+
+```text title="Prompt"
+Open src/routes/index.tsx at line 12 in my editor. Then restart the dev server and check the page loads.
+```
+
+A restart asks you first, with a [Permission card](/docs/usage/approvals). Allow it, and the server restarts and
+bundles its dependencies again.
+
+## Ask from your terminal
+
+The same questions work from a terminal, with the question's name after `server`:
+
+```bash title="Terminal"
+npx @conciv/cli plugin call server urls
+```
+
+It prints the answer as JSON:
+
+```json title="Output"
+{"ok": true, "data": {"local": ["http://localhost:5173/"], "network": ["http://192.168.1.20:5173/"]}}
+```
+
+The other questions take their input as JSON after `--data`:
+
+```bash title="Terminal"
+npx @conciv/cli plugin call server config
+npx @conciv/cli plugin call server resolve --data '{"spec":"@/lib/auth","importer":"src/routes/login.tsx"}'
+npx @conciv/cli plugin call server graph --data '{"file":"src/lib/store.ts"}'
+npx @conciv/cli plugin call server transform --data '{"url":"/src/main.ts"}'
+npx @conciv/cli plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
+```
+
+- `resolve` takes the import, and optionally the file it is imported from. Its `id` is `null` when nothing matches.
+- `graph` takes a file. `transform` takes the URL the browser asks for.
+- `open` takes a file, and optionally a line and a column.
+
+A restart is not on this list. It always goes through the agent, so you get the card first.
+
+<Accordions type="single">
+  <Accordion title="The answer says no dev server is attached to conciv">
+    The engine has no Vite dev server to ask. It runs on another bundler, or on its own. Opening a file in your editor
+    still works.
+  </Accordion>
+  <Accordion title="The dev server fails the request">
+    The dev server itself refused the question, for example a transform that throws. From the terminal, the error's
+    `data.message` holds the dev server's own message.
+  </Accordion>
+  <Accordion title="The cards say external_server_resolve">
+    That is the tool's name in code mode, where the agent calls tools from a short program. Learn more in [Tools and
+    code mode](/docs/tools-and-code-mode).
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Page control](/docs/usage/page-control):** the page the server serves.
+- **[CLI](/docs/reference/cli):** every command, `plugin call` included.
+- **[Plugins](/docs/plugins):** add your own questions with a plugin.

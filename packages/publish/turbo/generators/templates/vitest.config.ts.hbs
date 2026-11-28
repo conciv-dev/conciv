@@ -1,0 +1,8 @@
+import {defineConfig} from 'vitest/config'
+import {concivTest} from '@internal/vitest-config/conciv-test'
+
+{{#if browserTests}}
+export default defineConfig({plugins: [concivTest({browser: true})]})
+{{else}}
+export default defineConfig({plugins: [concivTest()]})
+{{/if}}

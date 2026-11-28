@@ -1,13 +1,15 @@
 import react from '@vitejs/plugin-react'
+import rsc from '@vitejs/plugin-rsc'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
+import {sentryTanstackStart} from '@sentry/tanstackstart-react/vite'
 import {cloudflare} from '@cloudflare/vite-plugin'
 import {defineConfig, type Plugin} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {sourceAnnotations} from './src/lib/source-annotations'
-import {brandAssetsAlias} from './brand-assets-alias'
+import {sourceAnnotations} from './src/lib/source-annotations.ts'
+import {brandAssetsAlias} from './brand-assets-alias.ts'
 
 const ONNX_RUNTIME_WASM_PREFIX = 'assets/ort-'
 
@@ -33,27 +35,33 @@ export default defineConfig(({mode}) => ({
   plugins: [
     sourceAnnotations(import.meta.dirname),
     dropOnnxRuntimeWasmFromServerBundle(),
-    mode !== 'test' && cloudflare({viteEnvironment: {name: 'ssr'}}),
+    mode !== 'test' && cloudflare({viteEnvironment: {name: 'ssr', childEnvironments: ['rsc']}}),
     mdx(),
     tailwindcss(),
     tanstackStart({
+      rsc: {enabled: true},
       prerender: {
         enabled: true,
         filter: ({path}) => !path.startsWith('/assets/'),
       },
     }),
+    rsc(),
     react(),
-    conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
+    conciv({widget: false}),
     concivTest(),
+    sentryTanstackStart({org: 'conciv', project: 'site', authToken: process.env.SENTRY_AUTH_TOKEN, telemetry: false}),
   ],
+  test: {
+    coverage: {exclude: ['dist/**']},
+  },
+  optimizeDeps: {
+    include: ['fumadocs-ui > react-remove-scroll > tslib'],
+  },
   ssr: {
     noExternal: ['gsap', '@gsap/react'],
   },
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      tslib: 'tslib/tslib.es6.js',
-      ...brandAssetsAlias,
-    },
+    alias: [{find: /^tslib$/, replacement: 'tslib/tslib.es6.js'}, brandAssetsAlias],
   },
 }))

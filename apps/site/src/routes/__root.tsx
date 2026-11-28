@@ -8,6 +8,8 @@ import {APPLE_TOUCH_ICON_URL, FAVICON_SVG_URL, OG_DEFAULT_URL, TWITTER_CARD_URL}
 import {canonicalHeadTags, DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE} from '@/lib/site-urls'
 import {seo} from '@/lib/seo'
 import {buildRootJsonLd} from '@/lib/structured-data'
+import {getStarBadge} from '@/lib/star-count.functions'
+import '@/lib/try-session.functions'
 
 const OG_IMAGE = `${SITE}${OG_DEFAULT_URL}`
 const TWITTER_IMAGE = `${SITE}${TWITTER_CARD_URL}`
@@ -16,8 +18,11 @@ export const Route = createRootRoute({
   validateSearch: rootSearchSchema,
   search: {middlewares: [retainSearchParams(['widget', 'try'])]},
   beforeLoad: ({matches}) => ({
-    widgetHomeDefault: matches.some((match) => match.routeId === '/'),
+    playgroundFrame: matches.some((match) => match.routeId === '/playground/$page/$'),
+    docsPage: matches.some((match) => match.routeId === '/docs/$'),
   }),
+  loader: async () => ({starBadge: (await getStarBadge()).src}),
+  staleTime: Infinity,
   head: ({matches}) => {
     const canonical = canonicalHeadTags(matches)
 
@@ -53,6 +58,14 @@ export const Route = createRootRoute({
   component: RootComponent,
 })
 
+const EDITABLE_TAGS: readonly string[] = ['INPUT', 'TEXTAREA', 'SELECT']
+
+function isThemeHotKey(event: KeyboardEvent): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 'd') return false
+  const target = event.composedPath()[0]
+  return !(target instanceof HTMLElement && (target.isContentEditable || EDITABLE_TAGS.includes(target.tagName)))
+}
+
 function RootComponent() {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -60,7 +73,7 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body className="flex flex-col min-h-screen">
-        <RootProvider>
+        <RootProvider theme={{hotKey: isThemeHotKey}}>
           <Outlet />
         </RootProvider>
         <LiveWidgetMount />

@@ -1,58 +1,52 @@
 ---
 title: Examples
-description: Runnable apps wired with conciv.
-icon: FolderCode
+description: Run one of the example apps from the conciv repo, to try conciv before you add it to your own.
+icon: FolderGit2
 ---
 
-The repo ships two runnable hosts. Clone it, install, then run one.
+The conciv repo has two example apps with conciv already set up. Run one to try every feature, the plugins included,
+on a real app.
 
-```bash
-pnpm install
+## Available examples
+
+| Example        | What it shows                                                                                                                | Source                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| TanStack Start | Vite, with the test runner, TanStack, recorder and whiteboard plugins, a project plugin, and `Alt+k` for the quick terminal. | [View source](https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start) |
+| Next.js        | `withConciv`, with the test runner, TanStack and whiteboard plugins.                                                         | [View source](https://github.com/conciv-dev/conciv/tree/main/apps/examples/nextjs-app)     |
+
+## Local development
+
+Clone the repo and install:
+
+```bash title="Terminal"
+git clone https://github.com/conciv-dev/conciv.git
+cd conciv
+pnpm install # <- the repo pins its pnpm version, and needs Node 26 or newer
 ```
 
-<Cards>
-  <Card
-    title="TanStack Start"
-    href="https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start"
-    icon={<img src="/icons/tanstack.svg" alt="" className="size-4" />}
-    description="The Vite integration, with four plugins and a project plugin."
-  />
-  <Card
-    title="Next.js"
-    href="https://github.com/conciv-dev/conciv/tree/main/apps/examples/nextjs-app"
-    icon={<img src="/icons/nextjs.svg" alt="" className="size-4" />}
-    description="The withConciv integration, with three plugins."
-  />
-</Cards>
+Then start one example:
 
-### TanStack Start
-
-```bash
-pnpm --filter tanstack-start-example dev
+```bash title="Terminal"
+pnpm turbo run dev --filter=tanstack-start-example # <- or --filter=nextjs-app
 ```
 
-Its `vite.config.ts` loads the test-runner, TanStack, recorder and whiteboard plugins by their workspace folders (your own app lists
-them by package name, see [Plugins](/docs/plugins#add-a-plugin-in-the-conciv-options)), and sets the
-quick terminal hotkey to `Alt+k`. Its `conciv/plugins/deploy` folder is a project plugin, loaded with no config entry
-(see [Plugins](/docs/plugins)).
+The first run builds the conciv packages the example uses, then starts its dev server. It prints the address to open.
+Click the conciv button. Type the code the dev server prints in its terminal. Then ask the agent about the page:
 
-### Next.js
-
-```bash
-pnpm --filter nextjs-app dev
+```text title="Prompt"
+What is on this page, and which file renders it?
 ```
 
-Its `next.config.ts` adds the test-runner, TanStack and whiteboard plugins (the whiteboard is private and not on
-npm). In your own app you list the published ones by package name:
+A few things to notice:
 
-```ts title="next.config.ts"
-export default withConciv(nextConfig, {
-  plugins: ['@conciv/plugin-test-runner', '@conciv/plugin-tanstack'],
-})
-```
+- The TanStack Start example's `conciv/plugins/deploy` folder is a project plugin. conciv loads it with no config
+  entry.
+- The examples load their plugins from the repo by folder path. Your own app lists published plugins by package name,
+  as in [Add plugins](/docs/usage/add-plugins).
+- The chat runs a real agent CLI, so it must be installed and logged in.
 
-The example app itself points at its workspace copies with `./node_modules/...` paths, so it runs the plugins built
-in this repo instead of the published ones. A plugin of your own is listed the same way, as a `./` path to its folder.
+## Next steps
 
-Open the printed URL and click the conciv button. The first time, log in with the code the dev server prints (see
-[Logging in](/docs/usage/logging-in)).
+- **Add conciv to your own app**: [Getting started](/docs/getting-started).
+- **Try it without an app**: the [Playground](/docs/playground) plays each feature in your browser.
+- **Learn the features**: [Use conciv](/docs/usage), feature by feature.

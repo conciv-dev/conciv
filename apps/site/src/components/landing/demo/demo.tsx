@@ -15,7 +15,7 @@ import {
 import {Badge} from '@/components/ui/badge'
 import {Button} from '@/components/ui/button'
 import {Card} from '@/components/ui/card'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 import {Transcript} from './transcript'
 import {Composer} from './composer'
 import {AppPreview} from './app-preview'
@@ -217,12 +217,14 @@ export function Demo() {
             >
               <SelectValue>{MODELS.find((option) => option.id === model.selected)?.label}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="p-1 font-mono text-[11px]">
-              {MODELS.map((option) => (
-                <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[11px]">
-                  {option.label} <span className="text-muted-foreground">({option.size})</span>
-                </SelectItem>
-              ))}
+            <SelectContent className="font-mono text-[11px]">
+              <SelectGroup>
+                {MODELS.map((option) => (
+                  <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[11px]">
+                    {option.label} <span className="text-muted-foreground">({option.size})</span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
           {model.status === 'loading' && (

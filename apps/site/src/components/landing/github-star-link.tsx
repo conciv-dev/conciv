@@ -1,7 +1,10 @@
 import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
-import {formatStarCount} from '@/lib/star-count'
-import {useStarCount} from '@/lib/star-count-store'
+import {getRouteApi} from '@tanstack/react-router'
+import {CompositeComponent} from '@tanstack/react-start/rsc'
+import GithubIcon from '@/components/ui/github-icon'
+import StarIcon from '@/components/ui/star-icon'
+import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
 
 function GithubMark({className}: {className?: string}) {
   return (
@@ -11,9 +14,44 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
-export function GitHubStarLink({className}: {className?: string}) {
-  const stars = useStarCount()
+const rootRoute = getRouteApi('__root__')
 
+function useStarBadge() {
+  return rootRoute.useLoaderData().starBadge
+}
+
+function CompactGitHubLink({className}: {className?: string}) {
+  const starBadge = useStarBadge()
+  const {iconRef: githubRef, triggerProps: githubTrigger} = useAnimatedIcon()
+  const {iconRef: starRef, triggerProps: starTrigger} = useAnimatedIcon()
+  const both = (key: keyof typeof githubTrigger) => () => {
+    githubTrigger[key]()
+    starTrigger[key]()
+  }
+  return (
+    <a
+      href={repoUrl}
+      aria-label="conciv on GitHub"
+      onPointerEnter={both('onPointerEnter')}
+      onPointerLeave={both('onPointerLeave')}
+      onFocus={both('onFocus')}
+      onBlur={both('onBlur')}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
+        className,
+      )}
+    >
+      <GithubIcon ref={githubRef} className="size-4" />
+      <CompositeComponent src={starBadge}>
+        <StarIcon ref={starRef} className="size-3" />
+      </CompositeComponent>
+    </a>
+  )
+}
+
+export function GitHubStarLink({className, compact = false}: {className?: string; compact?: boolean}) {
+  const starBadge = useStarBadge()
+  if (compact) return <CompactGitHubLink className={className} />
   return (
     <a
       href={repoUrl}
@@ -23,12 +61,7 @@ export function GitHubStarLink({className}: {className?: string}) {
       <span className="inline-flex items-center gap-1.5">
         <GithubMark className="size-4" />
         GitHub
-        {stars !== null ? (
-          <span className="inline-flex min-w-[2.5ch] justify-end tabular-nums">
-            <span aria-hidden="true">{formatStarCount(stars)}</span>
-            <span className="sr-only">{stars} stars</span>
-          </span>
-        ) : null}
+        <CompositeComponent src={starBadge} />
       </span>
     </a>
   )

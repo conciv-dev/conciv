@@ -30,7 +30,7 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Invariants
 
-- The build prepends `'use client';` to the bundle (`vite.config.ts`).
+- The build prepends `'use client';` to the bundle (`tsdown.config.ts` `banner`).
 
 ## Side Effects
 

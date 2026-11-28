@@ -1,0 +1,179 @@
+---
+title: CLI
+description: Run the conciv commands the agent drives your app with, from your own terminal.
+---
+
+The conciv CLI sets a project up and drives your running dev server. The agent uses the same commands. Run one from
+your project folder:
+
+```bash title="Terminal"
+npx @conciv/cli tools page snapshot
+```
+
+Every command accepts `--help` for its flags, for example `npx @conciv/cli auth link --help`. The full list of
+commands and flags is at the [end of the page](#all-commands).
+
+<Callout type="info" title="Bare conciv is for the agent">
+  The agents conciv starts have `conciv` on their `PATH`, from `.conciv/bin`. Your own shell does not, so you type `npx
+  @conciv/cli` instead.
+</Callout>
+
+These commands print one JSON document, `{"ok":true,"data":...}` or `{"ok":false,"error":...}`:
+
+- `tools`
+- `plugin`
+- `auth`
+- `mcp connect`, `mcp disconnect` and `mcp list`
+
+Pipe it to `jq` in a script.
+
+## init
+
+Sets a project up: installs `@conciv/it`, wires your bundler config, and connects your agents.
+
+```bash title="Terminal"
+npx @conciv/cli@latest init
+```
+
+- `--yes` accepts every detected default, with no prompts.
+- `--dry-run` prints the plan and touches nothing.
+- `--force` runs even with uncommitted git changes.
+- `--json` prints one JSON result and never prompts. Pair it with `--yes`:
+
+```bash title="Terminal"
+npx @conciv/cli@latest init --yes --json
+```
+
+Learn more in [Getting started](/docs/getting-started).
+
+## tools
+
+Reads and drives the live page through your running dev server. The commands under `tools` come from the engine's own
+tool list. A plugin's tools show up as soon as the engine loads it.
+
+```bash title="Terminal"
+npx @conciv/cli tools page click --name SubmitButton
+```
+
+`page` is the tool group. `click` is the tool. A tool that targets an element takes one of:
+
+- `--selector`: a CSS selector
+- `--ref`: a ref from the last snapshot
+- `--name`: a React component name
+
+`--tab` with a session id acts on that one tab, on whichever dev server holds it.
+
+`tools --help` lists every tool the running engine serves.
+
+`tools tabs` lists the open conciv tabs of every running dev server on this machine:
+
+```bash title="Terminal"
+npx @conciv/cli tools tabs
+```
+
+Learn more in [Page control](/docs/usage/page-control).
+
+## plugin call
+
+Calls a method a plugin registered on the running engine, and prints its output.
+
+```bash title="Terminal"
+npx @conciv/cli plugin call server open --data '{"file":"src/routes/index.tsx","line":12}'
+```
+
+`server` is the plugin's RPC id. `open` is the method. `--data`, or `-d`, sends the method's input as JSON. Learn
+more in the [Dev server documentation](/docs/usage/dev-server).
+
+## auth link
+
+Prints a one-time login link for a page served by the conciv dev server.
+
+```bash title="Terminal"
+npx @conciv/cli auth link http://localhost:5173/
+```
+
+Open the link in the browser you want to log in. Learn more in [Logging in](/docs/usage/logging-in).
+
+## auth revoke
+
+With no id, lists the browsers that logged in to this project's engine. It logs nobody out:
+
+```bash title="Terminal"
+npx @conciv/cli auth revoke
+```
+
+With an id from that list, logs that one browser out. `--all` logs every browser out:
+
+```bash title="Terminal"
+npx @conciv/cli auth revoke 3f2a9c1d
+```
+
+## mcp connect
+
+Adds conciv to an agent CLI, so that agent can find and drive your open conciv tabs.
+
+```bash title="Terminal"
+npx @conciv/cli mcp connect claude
+```
+
+The agent is one of `claude`, `codex`, `gemini-cli` or `opencode`. Learn more in [Agents](/docs/agents).
+
+## mcp disconnect
+
+Removes conciv from an agent CLI.
+
+```bash title="Terminal"
+npx @conciv/cli mcp disconnect codex
+```
+
+## mcp list
+
+Lists the agents connected to conciv.
+
+```bash title="Terminal"
+npx @conciv/cli mcp list
+```
+
+## mcp serve
+
+Serves conciv to an outside agent over MCP on stdio, not JSON. `mcp connect` writes this command into the agent's config.
+You rarely run it yourself.
+
+```bash title="Terminal"
+npx @conciv/cli mcp serve --agent claude
+```
+
+## --version
+
+`--version`, or `-v`, prints the CLI's version as plain text.
+
+```bash title="Terminal"
+npx @conciv/cli --version
+```
+
+## All commands
+
+conciv generates this list from the CLI's own command tree. A flag listed under a command applies to the commands below it
+too.
+
+<CliCommands />
+
+<Accordions>
+  <Accordion title="How tools finds your dev server">
+    It tries these in order:
+
+    1. `CONCIV_PORT`.
+    2. `.conciv/server.json` in this folder or a parent.
+    3. The most recently started engine on this machine.
+    4. Port 5173.
+
+    With no engine running, `tools` prints the "No conciv dev server" error. So does its `--help`.
+
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Page control](/docs/usage/page-control):** what the agent does with `tools page`.
+- **[Agents](/docs/agents):** connect Claude Code, Codex and the rest.
+- **[Troubleshooting](/docs/reference/troubleshooting):** every message the CLI prints, with its fix.

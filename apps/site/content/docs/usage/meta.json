@@ -1,15 +1,17 @@
 {
-  "title": "Usage",
-  "icon": "MousePointerClick",
+  "title": "Use conciv",
   "pages": [
-    "index",
-    "logging-in",
     "chat",
-    "quick-terminal",
+    "logging-in",
     "page-control",
+    "quick-terminal",
+    "terminal",
     "dev-server",
     "live-tests",
-    "whiteboard",
-    "approvals"
+    "live-recorder",
+    "tanstack",
+    "approvals",
+    "add-plugins",
+    "whiteboard"
   ]
 }

@@ -22,5 +22,5 @@
     "tsBuildInfoFile": "${configDir}/.tsbuildinfo",
     "rootDir": "${configDir}"
   },
-  "include": ["${configDir}/src/**/*", "${configDir}/test/**/*", "${configDir}/*.ts"]
+  "include": ["${configDir}/src/**/*", "${configDir}/test/**/*", "${configDir}/scripts/**/*", "${configDir}/*.ts"]
 }

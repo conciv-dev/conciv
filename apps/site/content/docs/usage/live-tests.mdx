@@ -1,33 +1,142 @@
 ---
 title: Live tests
-description: Run your tests from the chat and read the result in the thread.
+description: Ask the agent to run your tests, and read the result in the chat.
 ---
 
-Ask the agent to run your tests. It calls `test_runner_run`, and a test card in the thread shows the finished result:
-how many passed and failed, grouped by file, and each failure with its message.
+Live tests come from the test runner plugin, `@conciv/plugin-test-runner`. It runs your project's tests when you ask.
 
-<ImageZoom
-  src="/screenshots/test-card.png"
-  alt="A test card in the thread with the finished run: passed and failed counts and the failing test"
-  width={1920}
-  height={1080}
+## Add the test runner
+
+Add the plugin to the `plugins` option of your conciv config:
+
+```ts twoslash title="vite.config.ts" tab="Vite" tab-group="bundler"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-test-runner'], // [!code ++]
+    }),
+  ],
+})
+```
+
+```ts twoslash title="next.config.ts" tab="Next.js" tab-group="bundler"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {
+  plugins: ['@conciv/plugin-test-runner'], // [!code ++]
+})
+```
+
+```js title="webpack.config.js" tab="webpack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/webpack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-test-runner'], // [!code ++]
+    }),
+  ],
+}
+```
+
+```js title="rspack.config.js" tab="Rspack" tab-group="bundler"
+const conciv = require('@conciv/it/plugin/rspack')
+
+module.exports = {
+  mode: 'development',
+  plugins: [
+    conciv.default({
+      plugins: ['@conciv/plugin-test-runner'], // [!code ++]
+    }),
+  ],
+}
+```
+
+Restart your dev server. The engine installs the plugin from npm into its own cache, so it does not go in your
+`package.json`. Your test framework does. The plugin runs the one installed in your project.
+
+Then ask in plain words:
+
+```text title="Prompt"
+Run the tests and fix whatever fails.
+```
+
+<Playground
+  page="vite-react"
+  script="live-tests/run"
+  caption="Ask for a test run and watch it stream into the Tests tab."
 />
 
-The **Tests** tab in the panel shows the run live. With the default `vitest` runner, rows stream in as each test passes
-or fails. With the `playwright` runner, the rows appear together when the run ends.
+## Run part of the suite
 
-The agent has three tools:
+Name a file or an area, and only the test files whose path matches run:
 
-- `test_runner_run` runs every test, or with a `pattern` only the test files whose path matches it, and waits for the
-  result. Name a file or an area in your request and the agent can pass it as the pattern.
-- `test_runner_status` reads the last finished result without starting a run.
-- `external_test_runner_list`, in code mode, lists the test files without running them.
+```text title="Prompt"
+Run the tests for the cart.
+```
 
-When the runner cannot start (the framework is not installed, or its config fails to load), the call fails with a
-message that says why.
+## Read the result
 
-<Callout>
-  Live tests come from the test-runner plugin, `@conciv/plugin-test-runner`. conciv does not ship it: install it and add
-  it to `plugins`. Vitest is the default runner, and Playwright is the other one. See [Test
-  runners](/docs/test-runners).
+A test card in the thread shows the finished run. It counts the passed and failed tests, groups them by file, and
+shows each failure with its message.
+
+Open the **Tests** tab in the panel to watch a run live. With Vitest, each test shows as it finishes. With Playwright,
+the rows appear together when the run ends.
+
+## Ask about the last run
+
+The agent can read the last result without a new run. It can also list your test files without running them:
+
+```text title="Prompt"
+Which tests failed in the last run? Which test files cover the checkout?
+```
+
+## Pick a runner
+
+The `runner` option names your test framework. Write the entry as a pair, the package name and then its options:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]], // [!code ++]
+    }),
+  ],
+})
+```
+
+- **`vitest`** is the default. It drives your project's own `vitest/node`, and each result streams in as it finishes.
+- **`playwright`** runs `playwright test` with its JSON reporter. The results arrive when the whole run ends.
+
+<Callout type="warn" title="jest and node-test are not built yet">
+  The option accepts `jest` and `node-test`, but neither runner exists yet. Pick one and the plugin fails when it
+  starts.
 </Callout>
+
+<Accordions type="single">
+  <Accordion title="The run fails before any test runs">
+    The message says why: the framework is not installed in your project, or its config fails to load. Install it, or
+    fix the config, and ask again.
+  </Accordion>
+</Accordions>
+
+## Options
+
+conciv generates this table from the schema the plugin checks its options with.
+
+<TestRunnerOptions />
+
+## Next steps
+
+- **[Add plugins](/docs/usage/add-plugins):** the other plugins you can add.
+- **[Approvals](/docs/usage/approvals):** what the agent asks before it acts.

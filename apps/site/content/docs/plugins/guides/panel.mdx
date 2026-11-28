@@ -1,0 +1,477 @@
+---
+title: Add a panel
+description: Add a tab to the session's pane, next to the chat, and draw your plugin's own screen in it.
+---
+
+A panel adds a tab next to the chat, for something your plugin shows all the time: a list, a log, a live run. You
+write the browser part in Solid, React, Preact or plain DOM. Pick a tab: the site keeps your pick on every page.
+
+In React and Preact the panel lives in your app. Give it to `<ConcivWidget>` as in
+[Build your first plugin](/docs/plugins/first-plugin#build-or-wire-the-browser-part). The widget's `ctx.ui` parts,
+such as `Icon`, are Solid components. The other tabs draw plain elements instead.
+
+<AgentPrompt prompt="panel" />
+
+## Add a tab
+
+Add the panel in your plugin's browser part:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// ---cut---
+import {Panel, Plugin, type PanelTab} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    const shelf: PanelTab = {
+      id: 'shelf',
+      title: 'Shelf', // <- the tab's name, wherever the widget needs text
+      pinned: true, // <- always in the strip
+      label: () => (
+        <>
+          <ctx.ui.Icon name="box" size="small" />
+          Shelf
+        </>
+      ), // <- what the strip draws; without it, the title
+    }
+
+    ctx.add(Panel, {
+      id: 'shelf',
+      region: 'pane', // <- required, and the only region today
+      list: () => [shelf],
+      render: (props) => <p>Plants in {props.session.directory}</p>,
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="React">
+
+```tsx twoslash title="src/conciv/plant-shelf.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {Panel, type PanelProps, type PanelTab, type Plugin} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+
+const shelf: PanelTab = {
+  id: 'shelf',
+  title: 'Shelf', // <- the tab's name, wherever the widget needs text
+  pinned: true, // <- always in the strip
+}
+
+function ShelfPanel(props: PanelProps) {
+  return <p>Plants in {props.session.directory}</p>
+}
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  ctx.add(Panel, {
+    id: 'shelf',
+    region: 'pane', // <- required, and the only region today
+    list: () => [shelf],
+    render: reactRender(ShelfPanel),
+  })
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+```tsx twoslash title="src/conciv/plant-shelf.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {Panel, type PanelProps, type PanelTab, type Plugin} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+
+const shelf: PanelTab = {
+  id: 'shelf',
+  title: 'Shelf', // <- the tab's name, wherever the widget needs text
+  pinned: true, // <- always in the strip
+}
+
+function ShelfPanel(props: PanelProps) {
+  return <p>Plants in {props.session.directory}</p>
+}
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  ctx.add(Panel, {
+    id: 'shelf',
+    region: 'pane', // <- required, and the only region today
+    list: () => [shelf],
+    render: preactRender(ShelfPanel),
+  })
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/plant-shelf/plugin-experimental.ts"
+import {mountRender, Panel, Plugin, type PanelProps, type PanelTab} from '@conciv/frontend-plugin-api'
+
+const shelf: PanelTab = {
+  id: 'shelf',
+  title: 'Shelf', // <- the tab's name, wherever the widget needs text
+  pinned: true, // <- always in the strip
+}
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Panel, {
+      id: 'shelf',
+      region: 'pane', // <- required, and the only region today
+      list: () => [shelf],
+      render: mountRender<PanelProps>((element, props) => {
+        const line = element.appendChild(document.createElement('p'))
+        const stop = props.subscribe(() => {
+          line.textContent = `Plants in ${props.current().session.directory}` // <- runs now, and on every change
+        })
+        return () => {
+          stop()
+          line.remove()
+        }
+      }),
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+<Playground page="vite-react" script="plugins/panel-tab" caption="A plugin's tab next to the chat" />
+
+A few things to notice:
+
+- `title` is the tab's name. The strip draws `label` when you give one, and the title when you do not.
+- `list` returns the tabs to show. It runs again when what it reads changes. Return a pinned tab every time.
+- `render` draws a tab's content once. Your component updates itself from then on.
+- `props.session` is the session on screen. Read it where you use it. It changes without a remount.
+
+Build or wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part),
+then reload.
+
+## Show a tab only some of the time
+
+Return the tab from `list` only when it applies:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// ---cut---
+import {Panel, Plugin, type PanelTab} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    const report: PanelTab = {id: 'report', title: 'Report'}
+
+    ctx.add(Panel, {
+      id: 'report',
+      region: 'pane',
+      list: (input) => (input.open.includes('report') ? [report] : []), // <- open: your tabs the user has open
+      render: () => <p>The last report</p>,
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="React">
+
+```tsx twoslash title="src/conciv/plant-shelf.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// ---cut---
+import {Panel, type PanelTab, type Plugin} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+
+const report: PanelTab = {id: 'report', title: 'Report'}
+
+function Report() {
+  return <p>The last report</p>
+}
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  ctx.add(Panel, {
+    id: 'report',
+    region: 'pane',
+    list: (input) => (input.open.includes('report') ? [report] : []), // <- open: your tabs the user has open
+    render: reactRender(Report),
+  })
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+```tsx twoslash title="src/conciv/plant-shelf.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// ---cut---
+import {Panel, type PanelTab, type Plugin} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+
+const report: PanelTab = {id: 'report', title: 'Report'}
+
+function Report() {
+  return <p>The last report</p>
+}
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  ctx.add(Panel, {
+    id: 'report',
+    region: 'pane',
+    list: (input) => (input.open.includes('report') ? [report] : []), // <- open: your tabs the user has open
+    render: preactRender(Report),
+  })
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/plant-shelf/plugin-experimental.ts"
+import {mountRender, Panel, Plugin, type PanelProps, type PanelTab} from '@conciv/frontend-plugin-api'
+
+const report: PanelTab = {id: 'report', title: 'Report'}
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Panel, {
+      id: 'report',
+      region: 'pane',
+      list: (input) => (input.open.includes('report') ? [report] : []), // <- open: your tabs the user has open
+      render: mountRender<PanelProps>((element) => {
+        const line = element.appendChild(document.createElement('p'))
+        line.textContent = 'The last report'
+        return () => line.remove()
+      }),
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+A tab that is not pinned shows only while the user has it open. When they close it, it leaves `input.open`. Build or
+wire it as in [Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part), then
+reload.
+
+## Load data into the tab
+
+Read from your engine part inside `render`. In Solid, use the widget's query hooks from `@conciv/client`, so the
+data shares the widget's cache. The tutorial did not install it. The widget provides it at run time, and the install
+gives your editor its types:
+
+```package-install
+npm install -D @conciv/client
+```
+
+Those hooks are Solid hooks. The other tabs call the method themselves:
+
+<Tabs groupId="ui-framework" persist items={['Solid', 'React', 'Preact', 'Plain DOM']}>
+<Tab value="Solid">
+
+```tsx twoslash title="conciv/plugins/plant-shelf/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {},
+})
+// @filename: plugin-experimental.tsx
+// ---cut---
+import {useQuery} from '@conciv/client'
+import {Panel, Plugin, type PanelTab} from '@conciv/frontend-plugin-api'
+import {Shelf} from './rpc'
+
+export default Plugin.define({
+  setup(ctx) {
+    const shelf: PanelTab = {id: 'shelf', title: 'Shelf', pinned: true}
+
+    ctx.add(Panel, {
+      id: 'shelf',
+      region: 'pane',
+      list: () => [shelf],
+      render: () => {
+        const ferns = useQuery(() => ({
+          queryKey: ['plant-shelf', 'fern'], // <- start with your plugin's id, so keys never clash
+          queryFn: () => ctx.client.rpc(Shelf).count({plant: 'fern'}),
+        }))
+        return <p>{ferns.data ? `${ferns.data.count} ferns` : 'Counting'}</p>
+      },
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="React">
+
+```tsx twoslash title="src/conciv/plant-shelf.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: react
+// @filename: conciv/plugins/plant-shelf/rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {},
+})
+// @filename: src/conciv/plant-shelf.tsx
+// ---cut---
+import {Suspense, use, useState} from 'react'
+import {Panel, type PanelTab, type Plugin} from '@conciv/frontend-plugin-api'
+import {reactRender} from '@conciv/react'
+import {Shelf} from '../../conciv/plugins/plant-shelf/rpc'
+
+const shelf: PanelTab = {id: 'shelf', title: 'Shelf', pinned: true}
+
+function FernCount(props: {readonly stock: Promise<{readonly count: number} | undefined>}) {
+  const stock = use(props.stock) // <- suspends until the call ends
+  return <p>{stock ? `${stock.count} ferns` : 'The shelf did not answer'}</p>
+}
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  function ShelfPanel() {
+    const [stock] = useState(() =>
+      ctx.client
+        .rpc(Shelf)
+        .count({plant: 'fern'})
+        .catch(() => undefined),
+    ) // <- one call each time the tab opens
+    return (
+      <Suspense fallback={<p>Counting</p>}>
+        <FernCount stock={stock} />
+      </Suspense>
+    )
+  }
+
+  ctx.add(Panel, {id: 'shelf', region: 'pane', list: () => [shelf], render: reactRender(ShelfPanel)})
+}
+```
+
+</Tab>
+<Tab value="Preact">
+
+```tsx twoslash title="src/conciv/plant-shelf.tsx"
+// @jsx: react-jsx
+// @jsxImportSource: preact
+// @filename: conciv/plugins/plant-shelf/rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {},
+})
+// @filename: src/conciv/plant-shelf.tsx
+// ---cut---
+import {Suspense, use} from 'preact/compat'
+import {useState} from 'preact/hooks'
+import {Panel, type PanelTab, type Plugin} from '@conciv/frontend-plugin-api'
+import {preactRender} from '@conciv/preact'
+import {Shelf} from '../../conciv/plugins/plant-shelf/rpc'
+
+const shelf: PanelTab = {id: 'shelf', title: 'Shelf', pinned: true}
+
+function FernCount(props: {readonly stock: Promise<{readonly count: number} | undefined>}) {
+  const stock = use(props.stock) // <- suspends until the call ends
+  return <p>{stock ? `${stock.count} ferns` : 'The shelf did not answer'}</p>
+}
+
+export const plantShelf: Plugin.Setup = (ctx) => {
+  function ShelfPanel() {
+    const [stock] = useState(() =>
+      ctx.client
+        .rpc(Shelf)
+        .count({plant: 'fern'})
+        .catch(() => undefined),
+    ) // <- one call each time the tab opens
+    return (
+      <Suspense fallback={<p>Counting</p>}>
+        <FernCount stock={stock} />
+      </Suspense>
+    )
+  }
+
+  ctx.add(Panel, {id: 'shelf', region: 'pane', list: () => [shelf], render: preactRender(ShelfPanel)})
+}
+```
+
+</Tab>
+<Tab value="Plain DOM">
+
+```ts twoslash title="conciv/plugins/plant-shelf/plugin-experimental.ts"
+// @filename: rpc.ts
+import * as Rpc from '@conciv/protocol/schema/rpc'
+import {z} from 'zod'
+const Plant = z.object({plant: z.string()})
+const Stock = z.object({plant: z.string(), count: z.number()})
+export const Shelf = Rpc.define({
+  id: 'plant-shelf',
+  methods: {count: {input: Plant, output: Stock}},
+  events: {},
+})
+// @filename: plugin-experimental.ts
+// ---cut---
+import {mountRender, Panel, Plugin, type PanelTab} from '@conciv/frontend-plugin-api'
+import {Shelf} from './rpc'
+
+const shelf: PanelTab = {id: 'shelf', title: 'Shelf', pinned: true}
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(Panel, {
+      id: 'shelf',
+      region: 'pane',
+      list: () => [shelf],
+      render: mountRender((element) => {
+        const line = element.appendChild(document.createElement('p'))
+        line.textContent = 'Counting'
+        ctx.client
+          .rpc(Shelf)
+          .count({plant: 'fern'})
+          .then(
+            (stock) => (line.textContent = `${stock.count} ferns`),
+            () => (line.textContent = 'The shelf did not answer'),
+          ) // <- one call each time the tab opens
+        return () => line.remove()
+      }),
+    })
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+`ctx.client.rpc(Shelf)` calls your engine part through its contract. See
+[Share an RPC method](/docs/plugins/guides/rpc). Build or wire it as in
+[Build or wire the browser part](/docs/plugins/first-plugin#build-or-wire-the-browser-part), then reload.
+
+## Next steps
+
+- **[Add a slot or composer pill](/docs/plugins/guides/slot-pill)**: smaller places for your plugin in the widget.
+- **[Share an RPC method](/docs/plugins/guides/rpc)**: the methods your panel reads.

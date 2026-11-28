@@ -106,6 +106,9 @@ export interface BaseContext {
    * ```ts
    * const result = await ctx.client.rpc(Acme).search({ query })
    * ```
+   *
+   * @remarks `ConcivClient`
+   * @fumadocsType `ConcivClient`
    */
   readonly client: ConcivClient
   /**

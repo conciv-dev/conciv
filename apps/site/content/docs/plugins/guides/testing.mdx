@@ -1,0 +1,147 @@
+---
+title: Test your plugin
+description: Start a real conciv engine with your plugin in a test, script the agent's replies, and drive the widget in a browser test.
+---
+
+This guide installs the test utilities, which the tutorial did not:
+
+```package-install
+npm install -D vitest @conciv/backend-test-utils @internal/vitest-config
+```
+
+Test your plugin the way the user uses it. A real engine loads your plugin, a scripted model plays the agent, and
+your test checks what comes back. Nothing is mocked. This guide tests `project_version` from
+[Build your first plugin](/docs/plugins/first-plugin) and `release_ship` from
+[Ask for permission](/docs/plugins/guides/permission). Both are direct tools, with `codemode: false`.
+
+<AgentPrompt prompt="testing" />
+
+## Call your tool in a test
+
+Add the conciv test setup to a vitest config at your project root:
+
+```ts twoslash title="vitest.config.ts"
+import {defineConfig} from 'vitest/config'
+import {concivTest} from '@internal/vitest-config/conciv-test'
+
+export default defineConfig({
+  plugins: [concivTest()], // <- each run gets its own conciv home, removed after
+})
+```
+
+Then call your tool on a real engine:
+
+```ts twoslash title="test/it/project-version.it.test.ts"
+import {expect} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+
+test('the agent reads the project version', async ({createEngine}) => {
+  const engine = await createEngine({}, {directory: '.'}) // <- '.' is the folder you run vitest from
+
+  expect(await engine.session.tool('project_version').call({})).toMatchObject({version: expect.any(String)})
+})
+```
+
+Run it from your project root with `npx vitest run`.
+
+A few things to notice:
+
+- vitest collects tests from `test/unit`, `test/it` and `test/e2e`. Engine tests go in `test/it`.
+- `test` is vitest's `test` with a `createEngine` fixture. It starts the real engine on a free port.
+- The first argument of `createEngine` is your conciv config. Here it is empty, because `conciv/plugins` loads on
+  its own, as in your app.
+- `directory: '.'` resolves against vitest's working folder. Run vitest from your project root, or pass that folder.
+- The fixture stops every engine the test started when the test ends, pass or fail.
+
+## Script the agent
+
+`TestLLM` plays the agent. Queue its replies, then send a message as the user:
+
+```ts twoslash title="test/it/release.it.test.ts"
+import {expect} from 'vitest'
+import {test, TestLLM} from '@conciv/backend-test-utils'
+
+test('shipping a branch asks the user first', async ({createEngine}) => {
+  const engine = await createEngine({}, {directory: '.'})
+  await engine.reply(TestLLM.toolCall('c1', 'release_ship', {branch: 'main'})) // <- the model calls the tool
+  const asked = await engine.event('permission.asked') // <- listen before it happens
+
+  const shipping = engine.session.send('Ship main')
+
+  await expect(asked.arrived).resolves.toMatchObject({data: {action: 'release_ship', resources: ['main']}})
+  await engine.session.stop()
+  await shipping
+})
+```
+
+The turn runs your real tool, so the permission ask is real. `engine.session.stop` stops the turn, as the user's
+Stop button does. `TestLLM.text` makes a plain text reply, to end a turn after a tool call.
+
+## Drive the widget in a browser test
+
+A browser test renders the real widget against the real engine, in Chromium. Install what it imports, and the
+browser:
+
+```package-install
+npm install -D @internal/frontend-test-utils @solidjs/testing-library @testing-library/user-event
+```
+
+```bash title="terminal"
+npx playwright install chromium
+```
+
+Turn on browser tests in the config with `concivTest({browser: true})`. Then check that the user sees the card:
+
+```tsx twoslash title="test/e2e/project-version.e2e.test.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// @filename: conciv/plugins/project-version/plugin-experimental.tsx
+import {Plugin, ToolRegistry} from '@conciv/frontend-plugin-api'
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ToolRegistry, {name: 'project_version', render: (props) => <p>{props.output}</p>})
+  },
+})
+// @filename: test/e2e/project-version.e2e.test.tsx
+import '@testing-library/jest-dom/vitest'
+// ---cut---
+import {expect} from 'vitest'
+import {screen} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
+import {test, TestLLM} from '@conciv/backend-test-utils'
+import {renderTestApp} from '@internal/frontend-test-utils/app'
+import versionCard from '../../conciv/plugins/project-version/plugin-experimental'
+
+test('the user sees the version card', async ({createEngine}) => {
+  const user = userEvent.setup()
+  const engine = await createEngine({}, {directory: '.'})
+  await engine.reply(TestLLM.toolCall('c1', 'project_version', {}), TestLLM.text('Here is the version'))
+  await renderTestApp({engine, plugins: [{id: 'project-version', plugin: versionCard}]}) // <- the whole widget
+
+  await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'What version is this?')
+  await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+  expect(await screen.findByText(/^\S+ \d+\.\d+\.\d+/)).toBeVisible() // <- your card: name and version
+})
+```
+
+The test finds the composer by its label and types into it, as a user does. `findByText` waits until the card
+shows.
+
+<Accordions>
+<Accordion title="More a test can script">
+
+- `TestLLM.failAfter(error)`: the model fails part way through its reply.
+- `TestLLM.hang()`: a reply that never ends, so the turn runs until it is stopped.
+- `engine.gate()`: holds the next reply until the test lets it go.
+- `engine.requests()`: every request the model got, with its system prompt, tools and messages.
+- `engine.rpc.call(id, method, input)`: calls one of your RPC methods. `engine.rpc.failure(...)` resolves to the
+  error of one that must fail.
+
+</Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Add a tool](/docs/plugins/guides/tool)**: the tools these tests call.
+- **[Plugin API reference](/docs/plugins/reference)**: every `ctx` domain.

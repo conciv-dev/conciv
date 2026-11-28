@@ -144,18 +144,16 @@ Call it from a terminal in the project: `conciv plugin call deploy run --data '{
 plugin conciv ships uses it. `Plugin.define({id, effect})` runs `effect(ctx)` in a scope that closes
 when the plugin stops, reloads or is turned off: every tool, skill and RPC handler it registered goes
 with it, and so does a fiber started with `Effect.forkScoped`. The test runner, from
-`packages/plugins/test-runner/src/test-runner.ts:62-81`:
+`packages/plugins/test-runner/src/test-runner.ts:58-77`:
 
 ```ts
 export default Plugin.define<RunnerServices>({
   id: 'test-runner',
   effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
-    const config = testRunnerConfig.safeParse(ctx.options)
+    const config = TestRunnerConfigSchema.safeParse(ctx.options)
     if (!config.success) return yield* Effect.die(config.error)
     const adapter = getRunner(config.data.runner) ?? vitest
-    const manager = yield* adapter
-      .create(ctx.location.directory)
-      .pipe(Effect.catchIf((error) => error.code === testRunnerErrors.RUNNER_UNAVAILABLE.code, Effect.die))
+    const manager = yield* adapter.create(ctx.location.directory).pipe(Effect.orDie)
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
@@ -240,7 +238,7 @@ a tool. See [rpc-and-testing](references/rpc-and-testing.md).
 `Plugin.define({setup})` is the default export. It declares no id: the widget gives it the engine
 part's id as `ctx.id`. `setup` runs synchronously. Everything added with `ctx.add(Registry, item)` is
 removed when the plugin reloads or stops, and `ctx.signal` aborts then
-(`apps/site/content/docs/plugins/browser.mdx`).
+(`apps/site/content/docs/plugins/first-plugin.mdx`).
 
 `ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the contract. The client is
 new after the engine restarts, so read `ctx.client` where you call it. From
@@ -281,9 +279,10 @@ like the widget.
 
 The widget's sheet holds the classes of the widget, its kits and the built-in plugins
 (`packages/app/uno.config.ts`), nothing else. Any other plugin ships its own: in this repo its
-`uno.config.ts` is `pluginSheetConfig(import.meta.url)` (`packages/uno-preset/src/uno-preset.ts:49-61`) and its
-browser part adds `virtual:uno.css?inline` with `ctx.add(Style, css)`
-(`packages/plugins/whiteboard/src/plugin-experimental.tsx:19,56`). A popover it opens keeps the fence through
+`uno.config.ts` is `pluginSheetConfig(import.meta.url)` (`packages/uno-preset/src/uno-preset.ts`), its
+`scripts/build-css.ts` (the `build:css` script, which `build` runs first) writes the sheet to `src/.generated/css.ts`
+with `buildPluginSheet(import.meta.url)` (`@internal/uno-preset/build-shadow-css`), and its browser part imports `./.generated/css.js`
+and adds it with `ctx.add(Style, css)` (`packages/plugins/whiteboard/src/plugin-experimental.tsx`). A popover it opens keeps the fence through
 `LayerAreaContext` (`packages/ui-kit-system/src/layer-portal.tsx`).
 
 A mounted session's `browserTab` (`packages/frontend-plugin-api/src/host-apis.ts:213`) is the browser tab this
@@ -339,14 +338,14 @@ What a plugin outside this repo cannot use: `@internal/frontend-test-utils` (`re
 `renderTestApp`, `createExtensionTester`) and `@internal/vitest-config` (`concivTest()`) are private
 and not published. So it has no widget render helpers, and no browser-mode `createEngine`: the browser
 commands are exported from `@conciv/backend-test-utils/vitest`, but registering them is `concivTest()`'s
-job (`apps/site/content/docs/plugins/testing.mdx`). Test the engine part in node with `createEngine`.
+job (`apps/site/content/docs/plugins/guides/testing.mdx`). Test the engine part in node with `createEngine`.
 
 ## Publishing
 
 Export `.` and `./server` (the engine part), `./rpc` and `./plugin-experimental` (the `.cjs`), as the
 test runner does (`packages/plugins/test-runner/package.json`). The test runner builds with
-`vite build`: one `vite.config.ts` with a server environment (the engine part) and `experimental()` for the
-client environment. `@conciv/backend-plugin-api` and
+`tsdown && vite build`: `tsdown.config.ts` builds the engine part and the bundle's types, then `vite.config.ts`
+builds the `./plugin-experimental` bundle with `experimental()`. `@conciv/backend-plugin-api` and
 `@conciv/frontend-plugin-api` are peer dependencies (and dev dependencies); `effect`, `zod` and
 `@conciv/protocol` are dependencies.
 
@@ -395,6 +394,6 @@ client environment. `@conciv/backend-plugin-api` and
 - `packages/plugins/test-runner/src/follow.ts`
 - `packages/plugins/test-runner/test/it/tools.it.test.ts`
 - `apps/site/content/docs/plugins/index.mdx`
-- `apps/site/content/docs/plugins/engine.mdx`
-- `apps/site/content/docs/plugins/browser.mdx`
-- `apps/site/content/docs/plugins/testing.mdx`
+- `apps/site/content/docs/plugins/guides/tool.mdx`
+- `apps/site/content/docs/plugins/first-plugin.mdx`
+- `apps/site/content/docs/plugins/guides/testing.mdx`
