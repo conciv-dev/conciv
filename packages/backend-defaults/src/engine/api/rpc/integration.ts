@@ -27,14 +27,20 @@ export const requireConnectable = Effect.fnUntraced(function* (integrationId: In
 
 const isCode = (error: EvlogError, factory: {readonly code: string}) => error.code === factory.code
 
-const authenticationFailed = (error: EvlogError) =>
-  engineErrors.INTEGRATION_AUTHORIZATION({message: error.message.trim() || 'Authentication failed', cause: error})
+const authenticationFailed = (error: EvlogError) => {
+  if (isCode(error, engineErrors.HOME_UNREACHABLE)) return error
+  const cause = error.cause
+  return engineErrors.INTEGRATION_AUTHORIZATION({
+    message: cause instanceof Error && cause.message.trim() ? cause.message : 'Authentication failed',
+    cause: error,
+  })
+}
 
 const authorize = <A, R>(effect: Effect.Effect<A, EvlogError, R>) => effect.pipe(Effect.mapError(authenticationFailed))
 
-const attemptMissing = (kind: string) => (error: EvlogError) =>
+const attemptMissing = (kind: string, attemptId: string) => (error: EvlogError) =>
   isCode(error, integrationErrors.ATTEMPT_NOT_FOUND)
-    ? engineErrors.INTEGRATION_ATTEMPT_NOT_FOUND({message: `${kind} attempt not found`, cause: error})
+    ? engineErrors.INTEGRATION_ATTEMPT_NOT_FOUND({message: `${kind} attempt not found: ${attemptId}`, cause: error})
     : error
 
 const located = <A, E, R>(data: Effect.Effect<A, E, R>) =>
@@ -132,7 +138,7 @@ export function integrationRouter(): ContractedRouter<typeof contract.integratio
         yield* requireIntegration(Integration.Id.make(input.integrationId))
         return yield* located(
           Integration.Service.use((service) => service.oauth.status(ids(input))).pipe(
-            Effect.mapError(attemptMissing('OAuth')),
+            Effect.mapError(attemptMissing('OAuth', input.attemptId)),
           ),
         )
       }),
@@ -140,7 +146,8 @@ export function integrationRouter(): ContractedRouter<typeof contract.integratio
         yield* requireIntegration(Integration.Id.make(input.integrationId))
         yield* Integration.Service.use((service) => service.oauth.complete({...ids(input), code: input.code})).pipe(
           Effect.mapError((error) => {
-            if (isCode(error, integrationErrors.ATTEMPT_NOT_FOUND)) return attemptMissing('OAuth')(error)
+            if (isCode(error, integrationErrors.ATTEMPT_NOT_FOUND))
+              return attemptMissing('OAuth', input.attemptId)(error)
             if (isCode(error, integrationErrors.CODE_REQUIRED))
               return engineErrors.INTEGRATION_CODE_REQUIRED({cause: error})
             return authenticationFailed(error)
@@ -178,7 +185,7 @@ export function integrationRouter(): ContractedRouter<typeof contract.integratio
         yield* requireIntegration(Integration.Id.make(input.integrationId))
         return yield* located(
           Integration.Service.use((service) => service.command.status(ids(input))).pipe(
-            Effect.mapError(attemptMissing('Command')),
+            Effect.mapError(attemptMissing('Command', input.attemptId)),
           ),
         )
       }),

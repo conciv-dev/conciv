@@ -151,7 +151,7 @@ export const layer = Layer.effect(
           const entry = yield* requireEntry(input.id)
           if (entry.state.status !== 'pending') return yield* Effect.fail(formErrors.ALREADY_SETTLED({id: input.id}))
           const invalid = validateAnswer(entry.form.fields, input.answer)
-          if (invalid) return yield* Effect.fail(formErrors.INVALID_ANSWER({reason: invalid}))
+          if (invalid) return yield* Effect.fail(formErrors.INVALID_ANSWER({reason: invalid, internal: {id: input.id}}))
           const next: TerminalState = {status: 'answered', answer: input.answer}
           yield* bus.publish(Form.Event.Replied, {
             id: input.id,
