@@ -29,7 +29,7 @@ fixed port. See `apps/examples/tanstack-start` (toggle the nitro stack with
 ## Invariants
 
 - `./plugin/webpack`, `./plugin/rspack` and the Next.js entries also carry a `default` condition, so a CommonJS config can `require()` them (`require('@conciv/it/plugin/webpack').default()`); `./plugin/nextjs` has an `edge-light` condition to `nextjs-edge.js`.
-- The build bundles nothing of conciv: every `@conciv/*` import stays external (`vite.config.ts`), so the plugin is the one `@conciv/unplugin` the host installs.
+- The build bundles nothing of conciv: every `@conciv/*` import stays external, because `@conciv/app` and `@conciv/unplugin` are its `dependencies` (tsdown's default), so the plugin is the one `@conciv/unplugin` the host installs.
 - Source: [src](./src/README.md).
 
 ## Side Effects

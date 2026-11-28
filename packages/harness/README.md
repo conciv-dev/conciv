@@ -10,8 +10,8 @@ Coding-agent harness adapters behind the `HarnessAdapter` contract (`src/_shared
 
 ## Invariants
 
-- ESM only: `"type": "module"`, exports carry only `import` and `types` conditions; `vite build` emits the JavaScript and the declarations (`vite.config.ts`).
-- The build bundles `@tanstack/ai-(acp|claude-code|codex|opencode)` through `noExternal`, so consumers do not resolve those adapters themselves.
+- ESM only: `"type": "module"`, exports carry only `import` and `types` conditions; `tsdown` emits the JavaScript, and a second, unbundled tsdown build emits the declarations (`tsdown.config.ts`).
+- The build bundles `@tanstack/ai-(acp|claude-code|codex|opencode)` through `deps.alwaysBundle`, so consumers do not resolve those adapters themselves.
 - Adapters never spawn or decode a CLI on their own: turns go through `chat()` with a published `@tanstack/ai-*` text adapter.
 
 ## Side Effects

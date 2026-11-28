@@ -2,7 +2,7 @@
 
 ## Overview
 
-The one set of vitest defaults every package uses, through `concivTest()` in its `vite.config.ts`, and the test layout reader.
+The one set of vitest defaults every package uses, through `concivTest()` in its `vitest.config.ts` (or in its `vite.config.ts` when the package has a Vite app config), and the test layout reader.
 
 ## Invariants
 

@@ -16,7 +16,7 @@ import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
 import type {ChatCover} from './comments-model.js'
 import {follow, runInOwnerScope} from './solid-runtime.js'
-import pluginCss from 'virtual:uno.css?inline'
+import pluginCss from './.generated/css.js'
 
 const COMMENT_BIND_DEADLINE_MS = 5_000
 const ComposeOptions = z.object({

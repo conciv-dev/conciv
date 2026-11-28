@@ -13,13 +13,14 @@ npm install -D @conciv/it
 
 ## Overview
 
-Package root: Vite library build plus tsc declarations; unit tests in node (`test/unit`).
+Package root: tsdown library build with declarations; unit tests in node (`test/unit`).
 
 ## Interface
 
 - `exports['.']` (`package.json`): ./dist/ui-kit-chat-tools.js; publishes only dist
-- `scripts` (`package.json`): build (`vite build`), typecheck, test (`vitest run`), publint, attw
-- `vite.config.ts`: `libConfig` from `@internal/vite-config` with entry src/ui-kit-chat-tools.tsx, plus `concivTest()`
+- `scripts` (`package.json`): build (`tsdown`), typecheck, test (`vitest run`), publint, attw
+- `tsdown.config.ts`: entry src/ui-kit-chat-tools.tsx, with `unplugin-solid/rolldown`
+- `vitest.config.ts`: `vite-plugin-solid` plus `concivTest()`
 - `uno.config.ts`: `presetConciv()` over this package and ../ui-kit-chat/src and ../ui-kit-system/src
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - the barrel and its primitives and styled cards
@@ -27,7 +28,7 @@ Package root: Vite library build plus tsc declarations; unit tests in node (`tes
 ## Invariants
 
 - `exports` (`package.json`): only the root entry is public
-- `external` (`vite.config.ts`): @conciv/\*, solid-js, zod, @pierre/diffs, shiki and lucide-solid are not bundled
+- Its dependencies (@conciv/\*, zod, es-toolkit, lucide-solid) and the solid-js peer are not bundled (tsdown's default)
 
 ## Side Effects
 

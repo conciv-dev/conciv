@@ -87,18 +87,31 @@ Rules that hold the layout:
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint` / `pnpm lint:fix`
   (oxlint). Format: `pnpm format` (check) / `pnpm format:fix` (oxfmt). Both: `turbo run quality` /
   `turbo run quality:fix`.
-- Every package that builds runs `vite build` with one `vite.config.ts` calling `libConfig` from
-  `@internal/vite-config` (Vite environments: `client`, or a server environment for node code; declarations from
-  `rolldown-plugin-dts`). The package passes its entries, its own plugins and its extra externals; the helper owns the
-  rest. An environment with several entries is built one file per module, so no `.d.ts` chunk sits outside `exports`;
-  a package that bundles dependencies on purpose sets `bundle: true` and gets one bundled JS build plus one
-  declaration build per entry. No tsdown, no `tsc` in a build script.
+- Libraries build with tsdown, as devframe (`_ref/devframe-main`) builds its packages: each has one small
+  `tsdown.config.ts` (entry, platform, tsconfig, `dts`, `sourcemap`, `fixedExtension: false`; `unbundle: true` for a
+  library with several entries, so no hashed `.d.ts` chunk sits outside `exports`; Solid libraries add
+  `unplugin-solid/rolldown`). Types come from tsdown's `dts` (rolldown-plugin-dts, tsgo on TS 7); no `tsc` in a build
+  script. Externals are tsdown's defaults (`dependencies` and `peerDependencies` stay external); an exception goes
+  through tsdown's `deps` (`alwaysBundle`, `neverBundle`, `onlyImport`), never a hand-written list. A library that
+  bundles dependencies on purpose builds its JS bundled and its declarations in a second `dts: {dtsOnly: true}` config.
+  A plugin's UnoCSS sheet is generated before tsdown, as devframe's `build:css`: `scripts/build-css.ts` calls
+  `buildShadowCss` (`@internal/uno-preset/build-shadow-css`) with `pluginSheetConfig` over its `src`, which
+  writes `src/.generated/css.ts` (`export default "<css>"`, gitignored); `build` runs `build:css` first, the browser
+  part imports `./.generated/css.js`, and the turbo `build:css` task (outputs `src/.generated/**`, also a `build`
+  output) runs before `typecheck`. The script runs on Node 22.18+ type stripping, so it stays erasable-only TS. The three kits that use Vite's inline imports (`?worker&inline`, `.css?inline`, the
+  `.woff2?inline` fonts) build their JS with Vite in their own `vite.config.ts` (ui-kit-chat, solid-diffs,
+  ui-kit-terminal; `tsdown` writes only their declarations, then `vite build`), so their dist holds the worker, CSS and
+  fonts itself: Next.js and other non-Vite hosts bundle these kits too.
+- Vite builds only app bundles, each from its own config next to the app code, run after `tsdown` in the `build`
+  script: `@conciv/app` (`vite.config.ts`: the `mount` bundle and the widget bundle; `tsdown` writes `mount.d.ts`),
+  `@internal/frontend-defaults` (the standalone shell), and the `./plugin-experimental` bundle `experimental()` builds
+  in recorder, tanstack, test-runner and whiteboard.
 - Lint and format are turbo ROOT tasks (`//#lint`, `//#format`, `//#quality` in `turbo.json`), as Turborepo's
   Oxc guide: one oxlint and one oxfmt over the whole repo, no per-package `lint` script. `//#lint` depends on
   nothing: the `unocss/order` rule reads the one root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`),
   which loads the preset from its source, and the order the preset gives is the same in every package. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
-- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with `vite build` through `libConfig` (`@internal/vite-config`) and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with tsdown (`tsdown.config.ts`) and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
@@ -288,8 +301,8 @@ maintainer's yes.
   (`catalogApiMock`): a `./test-utils` subpath, e.g. `@conciv/plugin-page/test-utils` (`pageTestPlugin`, the page
   built-in as the test app renders it) and `@conciv/plugin-test-runner/test-utils` (`createTestRunState`). Other
   plugins' tests import them; nothing re-creates them.
-- `@internal/vitest-config`: `concivTest({environment?, browser?})` in each package's one `vite.config.ts` (no
-  `vitest*.config` file) adds the `unit` and `it` projects, and with `browser: true` the `browser` and `perf` ones.
+- `@internal/vitest-config`: `concivTest({environment?, browser?})` in the package's `vitest.config.ts`, or in its
+  `vite.config.ts` when the package has a Vite app config (then no `vitest.config.ts`), adds the `unit` and `it` projects, and with `browser: true` the `browser` and `perf` ones.
   `conciv()` (`@conciv/unplugin`) adds nothing under vitest. `test/unit` runs in node unless the package passes
   `environment: 'happy-dom'`; one file may override it with a first-line `// @vitest-environment happy-dom`. vitest
   collects tests only from `test/{unit,it,e2e}/**`.

@@ -81,5 +81,5 @@ Repo tooling (private):
 - publish: [publish/README.md](./publish/README.md) - The `conciv-publish` release CLI: guards, changesets, npm sync, Swift mirror.
 - oxlint-plugin: [oxlint-plugin/README.md](./oxlint-plugin/README.md) - The repo's custom oxlint rules.
 - uno-preset: [uno-preset/README.md](./uno-preset/README.md) - The shared UnoCSS preset.
-- tsconfig, vite-config: [tsconfig/README.md](./tsconfig/README.md) - Shared TypeScript presets; `vite-config` holds the shared Solid library build.
+- tsconfig: [tsconfig/README.md](./tsconfig/README.md) - Shared TypeScript presets.
 - bundle-size: [bundle-size/README.md](./bundle-size/README.md) - CI gzip size check against a main-branch baseline.

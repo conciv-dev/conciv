@@ -11,7 +11,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "outputs": ["dist/**", "src/.generated/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!test/**",
@@ -43,8 +43,12 @@
       "dependsOn": ["^build"],
       "outputs": ["storybook-static/**"]
     },
-    "typecheck": {
+    "build:css": {
       "dependsOn": ["^build"],
+      "outputs": ["src/.generated/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "build:css"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
     "test": {
