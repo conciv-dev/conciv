@@ -58,7 +58,7 @@ npx @conciv/cli mcp connect opencode
 It adds `conciv-hub` to that agent's own MCP config. On success it prints:
 
 ```json title="Output"
-{"ok": true, "data": {"connected": "claude"}}
+{"ok":true,"data":{"connected":"claude"}}
 ```
 
 </Step>
@@ -213,7 +213,7 @@ By default an outside agent can use any open tab with no card. To make it ask fi
     The engine is not running. `tools` prints:
 
     ```json title="Output"
-    {"ok": false, "error": {"kind": "user", "message": "No conciv dev server on 127.0.0.1:64476.", "hint": "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's)."}}
+    {"ok":false,"error":{"kind":"user","message":"No conciv dev server on 127.0.0.1:64476.","hint":"Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's)."}}
     ```
 
     Start your dev server again, and run the command from your project folder.
@@ -223,13 +223,13 @@ By default an outside agent can use any open tab with no card. To make it ask fi
     `tools tabs` prints an empty list when no tab has the panel open:
 
     ```json title="Output"
-    {"ok": true, "data": {"tabs": [], "unreachable": []}}
+    {"ok":true,"data":{"tabs":[],"unreachable":[]}}
     ```
 
     Page tools exist only while a tab is open, so a page call fails too:
 
     ```json title="Output"
-    {"ok": false, "error": {"kind": "user", "message": "No tool named \"page_route\" is currently available. Please use a tool from the available tool list.", "hint": "read the engine's logs for the tool's error", "code": "HANDLER_ERROR"}}
+    {"ok":false,"error":{"kind":"user","message":"No tool named \"page_route\" is currently available. Please use a tool from the available tool list.","hint":"read the engine's logs for the tool's error","code":"HANDLER_ERROR"}}
     ```
 
     Open your app and open the conciv panel once.
@@ -239,7 +239,7 @@ By default an outside agent can use any open tab with no card. To make it ask fi
     A `--tab` id from a closed tab, or from an old listing, prints:
 
     ```json title="Output"
-    {"ok": false, "error": {"kind": "user", "message": "tab ses_nope is not open in any of the 1 running conciv dev servers.", "hint": "conciv tools tabs lists the open tabs; open the page again if it was closed."}}
+    {"ok":false,"error":{"kind":"user","message":"tab ses_nope is not open in any of the 1 running conciv dev servers.","hint":"conciv tools tabs lists the open tabs; open the page again if it was closed."}}
     ```
 
     Run `tools tabs` again and use an id from it.
@@ -255,7 +255,7 @@ By default an outside agent can use any open tab with no card. To make it ask fi
     `mcp connect` runs the agent's own CLI. With no such CLI on your `PATH`, it prints:
 
     ```json title="Output"
-    {"ok": false, "error": {"kind": "user", "message": "spawn gemini ENOENT"}}
+    {"ok":false,"error":{"kind":"user","message":"spawn gemini ENOENT"}}
     ```
 
     Install the agent CLI, then run `mcp connect` again.
