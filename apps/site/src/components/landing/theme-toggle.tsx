@@ -1,6 +1,6 @@
 import {useTheme} from 'next-themes'
 import {Button} from '@/components/ui/button'
-import BrightnessDownIcon from '@/components/ui/brightness-down-icon'
+import SunIcon from '@/components/ui/sun-icon'
 import MoonIcon from '@/components/ui/moon-icon'
 import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
 import {cn} from '@/lib/utils'
@@ -25,7 +25,7 @@ export function ThemeToggle({className}: {className?: string}) {
       onBlur={both('onBlur')}
       className={cn('h-auto p-2 text-muted-foreground hover:text-foreground', className)}
     >
-      <BrightnessDownIcon ref={sunRef} className="size-4 dark:hidden" />
+      <SunIcon ref={sunRef} className="size-4 dark:hidden" />
       <MoonIcon ref={moonRef} className="hidden size-4 dark:block" />
     </Button>
   )
