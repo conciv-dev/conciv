@@ -4,13 +4,13 @@ Internal release tooling for the aidx monorepo. Not published.
 
 Exposes the `conciv-publish` CLI (citty), invoked by the root release scripts:
 
-| Root script                  | Command                   | What it does                                                         |
-| ---------------------------- | ------------------------- | -------------------------------------------------------------------- |
-| `pnpm release:version`       | `conciv-publish version`  | `changeset version` + lockfile resync                                |
-| `pnpm release:check`         | `conciv-publish check`    | `turbo run build publint attw`                                       |
-| `pnpm release`               | `conciv-publish release`  | public-set and version guards, build + validate, `changeset publish` |
-| `pnpm release:snapshot beta` | `conciv-publish snapshot` | prerelease under a dist-tag (e.g. `beta`), not latest                |
-| `pnpm release:sync`          | `conciv-publish sync`     | first publish, trusted publishing and git tags for `PUBLIC_PACKAGES` |
+| Root script                  | Command                   | What it does                                                                 |
+| ---------------------------- | ------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm release:version`       | `conciv-publish version`  | `changeset version` + lockfile resync                                        |
+| `pnpm release:check`         | `conciv-publish check`    | `turbo run build publint attw`                                               |
+| `pnpm release`               | `conciv-publish release`  | public-set and version guards, build + validate, `changeset publish`         |
+| `pnpm release:snapshot beta` | `conciv-publish snapshot` | prerelease under a dist-tag (e.g. `beta`), not latest                        |
+| `pnpm release:sync`          | `conciv-publish sync`     | first publish, trusted publishing and git tags for every non-private package |
 
 Subcommands without a root script: `check-changesets` (`--require-coverage`, `--base`), `check-catalog`,
 `check-typecheck-coverage`, and
@@ -31,7 +31,7 @@ Each package owns its own publish metadata (`keywords`, `repository`, `homepage`
 
 ## Invariants
 
-- The package stays `private: true`: `assertPublicSet` (`src/guards.ts`) fails if a non-private `@conciv/*` package is missing from `PUBLIC_PACKAGES`, and `@conciv/publish` is not in that list.
+- The package stays `private: true`: every workspace package that is not private is published (`readPublishedNames`, `src/guards.ts`), so this one must never drop the flag.
 - Release guards and plan rules are listed in [src/README.md](./src/README.md#invariants).
 
 ## Side Effects

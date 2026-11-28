@@ -12,14 +12,11 @@ export const publishErrors = defineErrorCatalog('publish', {
   INVALID_PACKAGE_NAME: {
     message: ({name}: {name: string}) =>
       `invalid package name ${JSON.stringify(name)}: must match /^@conciv\\/[a-z][a-z0-9-]*$/`,
+    fix: 'A package that is not private is published: name it @conciv/<kebab-name>, or set "private": true.',
   },
   STILL_UNVERSIONED: {
     message: ({names}: {names: string}) => `still 0.0.0: ${names}`,
     fix: 'Run "conciv-publish version" before publishing.',
-  },
-  NOT_PUBLIC: {
-    message: ({name}: {name: string}) => `${name} is not in PUBLIC_PACKAGES`,
-    fix: 'Add it to PUBLIC_PACKAGES in packages/publish/src/guards.ts first.',
   },
   PACKAGE_NOT_FOUND: {
     message: ({name}: {name: string}) => `${name} not found in the workspace`,
@@ -57,11 +54,6 @@ export const publishErrors = defineErrorCatalog('publish', {
           (name) => `${name} must stay private: ${scope}* packages are inlined by conciv's own builds, never published`,
         )
         .join('\n'),
-  },
-  PUBLIC_SET_DRIFT: {
-    message: ({unexpected, missing}: {unexpected: string[]; missing: string[]}) =>
-      `public package set drift - unexpected: [${unexpected.join(', ')}], missing: [${missing.join(', ')}]`,
-    fix: 'Make PUBLIC_PACKAGES in packages/publish/src/guards.ts list exactly the published @conciv packages.',
   },
   PUBLIC_DEPENDS_ON_PRIVATE: {
     message: ({violations}: {violations: string[]}) => violations.join('\n'),

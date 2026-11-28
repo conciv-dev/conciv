@@ -162,7 +162,7 @@ Every package, app and source directory carries a `README.md` with its purpose, 
 
 - Everything is ESM, Node >= 26, one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
 - Code shared between the browser and Node lives in a contract package (`protocol`, `types`, `grab`, and the plugin APIs); the browser never imports a server entry.
-- The public package set is `PUBLIC_PACKAGES` in `packages/publish`; `@internal/*` packages are never published and are inlined where they are used.
+- The public package set is every workspace package that is not `private` (`readPublishedNames` in `packages/publish`); `@internal/*` packages are never published and are inlined where they are used.
 - The engine binds loopback only; cross-origin access is gated by the engine's Host and Origin checks in `packages/backend-defaults/src/engine`.
 
 ### Global Side Effects

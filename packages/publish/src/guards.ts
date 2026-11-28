@@ -85,50 +85,13 @@ function assertValidPackageName(name: string): void {
   }
 }
 
-export const PUBLIC_PACKAGES = [
-  '@conciv/it',
-  '@conciv/unplugin',
-  '@conciv/cli',
-  '@conciv/try',
-  '@conciv/backend',
-  '@conciv/serve',
-  '@conciv/harness',
-  '@conciv/types',
-  '@conciv/backend-defaults',
-  '@conciv/protocol',
-  '@conciv/home',
-  '@conciv/storage-history',
-  '@conciv/client',
-  '@conciv/grab',
-  '@conciv/backend-plugin-api',
-  '@conciv/frontend-plugin-api',
-  '@conciv/backend-app-api',
-  '@conciv/plugin-design',
-  '@conciv/plugin-ios',
-  '@conciv/plugin-page',
-  '@conciv/plugin-recorder',
-  '@conciv/plugin-tanstack',
-  '@conciv/plugin-test-runner',
-  '@conciv/plugin-try-it',
-  '@conciv/plugin-whiteboard',
-  '@conciv/simulation',
-  '@conciv/backend-test-utils',
-  '@conciv/solid-diffs',
-  '@conciv/solid-streamdown',
-  '@conciv/ui-kit-system',
-  '@conciv/ui-kit-chat',
-  '@conciv/ui-kit-chat-tools',
-  '@conciv/ui-kit-tap',
-  '@conciv/ui-kit-terminal',
-  '@conciv/mascot',
-  '@conciv/mascot-react',
-  '@conciv/app',
-  '@conciv/react',
-  '@conciv/preact',
-  '@conciv/solid',
-  '@conciv/skills',
-  '@conciv/errors',
-]
+export async function readPublishedNames(cwd: string): Promise<string[]> {
+  const packages = await readWorkspacePackages(cwd)
+  return packages
+    .filter((pkg) => !pkg.manifest.private)
+    .map((pkg) => pkg.manifest.name)
+    .filter((name): name is string => typeof name === 'string')
+}
 
 export async function assertVersioned(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
@@ -141,9 +104,6 @@ export async function assertVersioned(cwd: string): Promise<void> {
 
 export async function assertBootstrappable(cwd: string, name: string): Promise<void> {
   assertValidPackageName(name)
-  if (!PUBLIC_PACKAGES.includes(name)) {
-    throw publishErrors.NOT_PUBLIC({name})
-  }
   const packages = await readWorkspacePackages(cwd)
   const found = packages.find((pkg) => pkg.manifest.name === name)
   if (!found) {
@@ -280,21 +240,12 @@ export async function assertPublishedChangesCovered(cwd: string, base: string): 
 const PRIVATE_SCOPE = '@internal/'
 
 export async function assertPublicSet(cwd: string): Promise<void> {
-  const packages = await readWorkspacePackages(cwd)
-  const published = packages
-    .filter((pkg) => !pkg.manifest.private)
-    .map((pkg) => pkg.manifest.name)
-    .filter((name): name is string => typeof name === 'string')
+  const published = await readPublishedNames(cwd)
   const leaked = published.filter((name) => name.startsWith(PRIVATE_SCOPE))
   if (leaked.length > 0) {
     throw publishErrors.PRIVATE_SCOPE_PUBLISHED({names: leaked, scope: PRIVATE_SCOPE})
   }
-  const found = published.filter((name) => name.startsWith('@conciv/'))
-  const unexpected = found.filter((name) => !PUBLIC_PACKAGES.includes(name))
-  const missing = PUBLIC_PACKAGES.filter((name) => !found.includes(name))
-  if (unexpected.length > 0 || missing.length > 0) {
-    throw publishErrors.PUBLIC_SET_DRIFT({unexpected, missing})
-  }
+  published.forEach(assertValidPackageName)
 }
 
 function declaredDependencyNames(manifest: WorkspacePackage['manifest']): string[] {
