@@ -67,7 +67,7 @@ describe('turbo gen package', () => {
         const packages = path.join(copy, 'packages')
         const read = (file: string) => fs.readFileString(path.join(copy, file))
         const generate = (...answers: string[]) =>
-          output(copy, path.join(copy, 'node_modules/.bin/turbo'), ['gen', 'package', '--args', ...answers])
+          output(copy, path.join(copy, 'node_modules/.bin/gen'), ['run', 'package', '--args', ...answers])
 
         const [
           [publishedOutput, pluginOutput],
