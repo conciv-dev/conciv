@@ -8,7 +8,6 @@ import {Duration, Effect} from 'effect'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {
-  PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
   assertNoDependencyLoop,
@@ -20,6 +19,7 @@ import {
   assertValidTag,
   assertVersioned,
   assertWorkspaceRoot,
+  readPublishedNames,
 } from './guards.ts'
 import {assertTestsWithinBudget} from './test-budget.ts'
 import {assertTypecheckCoversTrackedFiles} from './typecheck-coverage.ts'
@@ -57,6 +57,10 @@ const MIRROR_TEMPLATE_SUBDIR = 'mirror'
 const BRIDGE_MANIFEST = 'packages/plugins/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
+
+function validateTasks(names: readonly string[]) {
+  return ['build', 'publint', 'attw', ...names.map((name) => `--filter=${name}`)]
+}
 
 async function atRoot(childStdout: 'inherit' | 2 = 'inherit') {
   const cwd = process.cwd()
@@ -204,10 +208,10 @@ const checkNodeFloorCommand = defineCommand({
 })
 
 const check = defineCommand({
-  meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
+  meta: {name: 'check', description: 'Validate every published package: build + publint + attw'},
   async run() {
     const {cwd, turbo} = await atRoot()
-    await turbo('build', 'publint', 'attw')
+    await turbo(...validateTasks(await readPublishedNames(cwd)))
     await assertPublicTypesPublic(cwd)
   },
 })
@@ -219,7 +223,7 @@ const release = defineCommand({
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
-    await turbo('build', 'publint', 'attw')
+    await turbo(...validateTasks(await readPublishedNames(cwd)))
     await assertPublicTypesPublic(cwd)
     await changeset('publish')
   },
@@ -234,7 +238,7 @@ const snapshot = defineCommand({
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
-    await turbo('build', 'publint', 'attw')
+    await turbo(...validateTasks(await readPublishedNames(cwd)))
     await assertPublicTypesPublic(cwd)
     await changeset('publish', '--tag', args.tag)
   },
@@ -415,14 +419,14 @@ const assertNpmFloor = Effect.fn('sync.assertNpmFloor')(function* (cwd: string) 
   }
 })
 
-const gatherSyncStates = Effect.fn('sync.gatherStates')(function* (view: SyncView, run: Run) {
-  const total = PUBLIC_PACKAGES.length
+const gatherSyncStates = Effect.fn('sync.gatherStates')(function* (view: SyncView, run: Run, names: string[]) {
+  const total = names.length
   let read = 0
   let present = 0
   let checked = 0
   const progress = () => view.status(`reading npm ${read}/${total}, checking trust ${checked}/${present}`)
   const states = yield* Effect.forEach(
-    PUBLIC_PACKAGES,
+    names,
     (name) =>
       Effect.promise(() => registryRecord(name)).pipe(
         Effect.tap(({exists}) =>
@@ -488,7 +492,7 @@ const printSyncPlan = Effect.fn('sync.printPlan')(function* (
 async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): Promise<void> {
   await Promise.all(names.map((name) => assertBootstrappable(cwd, name)))
   if (names.length === 0) return
-  await turbo('build', 'publint', 'attw', ...names.map((name) => `--filter=${name}`))
+  await turbo(...validateTasks(names))
   await assertPublicTypesPublic(cwd, names)
 }
 
@@ -537,13 +541,14 @@ const syncProgram = Effect.fn('sync')(function* (dryRun: boolean, json: boolean)
   const view = json ? jsonView() : terminalView()
   const {cwd, run, turbo} = yield* Effect.promise(() => atRoot(json ? 2 : 'inherit'))
   yield* assertNpmFloor(cwd)
+  const published = yield* Effect.promise(() => readPublishedNames(cwd))
   const [, , states] = yield* Effect.all(
     [
       Effect.promise(() => assertPublicDepsPublic(cwd)),
       Effect.promise(() => execa('npm', ['whoami'], {cwd, stdin: 'inherit', stderr: 'inherit'})).pipe(
         Effect.flatMap(({stdout}) => view.line(`npm user: ${stdout.trim()}`)),
       ),
-      gatherSyncStates(view, run),
+      gatherSyncStates(view, run, published),
     ],
     {concurrency: 'unbounded'},
   )
@@ -560,7 +565,7 @@ const sync = defineCommand({
   meta: {
     name: 'sync',
     description:
-      'Reconcile npm with PUBLIC_PACKAGES: first-publish new packages, wire trusted publishing, push missing tags. Idempotent.',
+      'Reconcile npm with the workspace packages that are not private: first-publish new packages, wire trusted publishing, push missing tags. Idempotent.',
   },
   args: {
     'dry-run': {

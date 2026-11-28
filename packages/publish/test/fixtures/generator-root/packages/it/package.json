@@ -1,0 +1,7 @@
+{
+  "name": "@conciv/it",
+  "version": "0.0.23",
+  "engines": {
+    "node": ">=26"
+  }
+}

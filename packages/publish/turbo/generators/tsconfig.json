@@ -2,6 +2,7 @@
   "extends": "@internal/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "rootDir": "../.."
   }
 }

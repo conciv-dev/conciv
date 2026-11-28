@@ -49,8 +49,9 @@ The rest:
 - Test utilities, as Backstage's `backend-test-utils` and `frontend-test-utils` (see Testing): `@conciv/backend-test-utils`,
   `@internal/frontend-test-utils`, `@internal/engine-kit` (the engine kit both backend-defaults' own tests and
   backend-test-utils use), `@internal/vitest-config`.
-- `@internal/*` is private (never published, inlined where it is used); `@conciv/*` is published. A new published
-  package goes into `PUBLIC_PACKAGES` (`packages/publish/src/guards.ts`).
+- `@internal/*` is private (never published, inlined where it is used); `@conciv/*` is published. The published set is
+  every workspace package that is not `private`, read from the manifests (`readPublishedNames`,
+  `packages/publish/src/guards.ts`); there is no list to update.
 
 Rules that hold the layout:
 
@@ -390,8 +391,8 @@ maintainer's yes.
   needs a changeset or the `no-changeset` label — CI `check-changesets --require-coverage` blocks
   otherwise. Verify locally before handoff:
   `pnpm conciv-publish check-changesets --require-coverage --base origin/main`.
-- Adding a new PUBLISHED package (`private` unset/false)? Add its name to `PUBLIC_PACKAGES` in
-  `packages/publish/src/guards.ts` or `assertPublicSet` aborts the release on drift; give it
+- Adding a new PUBLISHED package (`private` unset/false)? Name it `@conciv/<kebab-name>` (`assertPublicSet`
+  refuses any other name on a package that is not private, and any `@internal/*` one); give it
   `homepage: https://conciv.dev` + a `repository` block with its `directory` (matches every public manifest).
 - Before opening a release PR: `pnpm typecheck && pnpm build && pnpm test`, run
   `pnpm exec fallow audit --changed-since main --format json` and fix anything INTRODUCED (see the fallow
