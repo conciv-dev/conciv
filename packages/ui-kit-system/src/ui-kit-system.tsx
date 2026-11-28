@@ -59,6 +59,7 @@ export {Popover, usePopover, type PopoverApi, type PopoverMachine} from './popov
 export {Listbox} from './listbox.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
+export {Callout, type CalloutTone} from './callout.js'
 export {RelativeTime} from './relative-time.js'
 export {ByteSize} from './byte-size.js'
 export {Tabs, TabsPrimitive} from './tabs.js'
