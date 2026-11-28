@@ -11,5 +11,3 @@ const FIGMA_KEY_ASKS: readonly (readonly [cause: string, line: string])[] = [
 
 export const readFigmaKeyAsk = (error: string): string | undefined =>
   FIGMA_KEY_ASKS.find(([cause]) => error.includes(cause))?.[1]
-
-export const asksForFigmaKey = (error: string) => readFigmaKeyAsk(error) !== undefined

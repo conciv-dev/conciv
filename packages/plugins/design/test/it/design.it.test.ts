@@ -8,7 +8,7 @@ import {Effect, Layer} from 'effect'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import {makeRpcClient} from '@conciv/client'
 import {startDesign} from '../../src/engine/start.js'
-import {asksForFigmaKey} from '../../src/key/figma-key-text.js'
+import {readFigmaKeyAsk} from '../../src/key/figma-key-text.js'
 import {figmaFills, figmaFrame, figmaNetwork} from '../utils/figma-network.js'
 
 describe('the design plugin is configured', () => {
@@ -72,7 +72,7 @@ describe('the agent reads a Figma frame with design_get', () => {
     })
     const missing = await keyless.session.tool('design_get').failure({figma: hero})
     expect(missing).toMatchObject({message: expect.stringContaining('the Figma key is missing')})
-    expect(asksForFigmaKey(missing.message)).toBe(true)
+    expect(readFigmaKeyAsk(missing.message)).toBe('Figma needs a key to read this frame.')
     const fixtures = join(import.meta.dirname, '..', 'fixtures')
     const narrow = 'https://www.figma.com/design/ATTACHED/Site?node-id=100-1480'
     copyFileSync(join(fixtures, 'figma-hero-390-nodes.json'), join(keyless.root, 'hero-390.json'))
@@ -111,7 +111,7 @@ describe('the agent reads a Figma frame with design_get', () => {
     await rpc.integration.connect.key({integrationId: 'figma', key: 'figd_saved-by-the-user'})
     const refused = await get.failure({figma: 'https://www.figma.com/design/HERO/Site?node-id=100-1480'})
     expect(refused).toMatchObject({message: expect.stringContaining('Figma refused the token: Invalid token')})
-    expect(asksForFigmaKey(refused.message)).toBe(true)
+    expect(readFigmaKeyAsk(refused.message)).toBe('Figma refused the saved key.')
     copyFileSync(join(fixtures, 'figma-hero-390-render.png'), join(engine.root, 'hero-390.png'))
     const hero390 = JSON.parse(readFileSync(join(fixtures, 'figma-hero-390-nodes.json'), 'utf8'))
     expect(await get.call({figma: narrow, document: hero390, image: 'hero-390.png'})).toEqual(attached)

@@ -2,7 +2,9 @@ import {describe, expect} from 'vitest'
 import {screen, waitForElementToBeRemoved, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {test, TestLLM} from '@conciv/backend-test-utils'
+import {createExtensionTester} from '@internal/frontend-test-utils'
 import {renderTestApp} from '@internal/frontend-test-utils/app'
+import design from '../../src/plugin-experimental.js'
 
 describe('the user gives the design plugin a Figma key', () => {
   const HERO = 'https://www.figma.com/design/HERO/Site?node-id=100-1170'
@@ -52,6 +54,27 @@ describe('the user gives the design plugin a Figma key', () => {
     const removed = waitForElementToBeRemoved(saved)
     await user.click(screen.getByRole('button', {name: 'Remove Figma'}))
     await removed
+  })
+
+  test('the design_get card Figma refused says the saved key was refused and asks for a new one', async () => {
+    const user = userEvent.setup()
+    await createExtensionTester({plugins: [{id: '@conciv/plugin-design', plugin: design}]}).renderToolCards({
+      tool: 'design_get',
+      input: {figma: HERO},
+      metadata: {},
+      status: 'error',
+      error: 'Figma refused the token: Invalid token',
+    })
+
+    const card = await screen.findByRole('region', {name: 'Read the design'})
+    expect(within(card).getByRole('alert')).toHaveTextContent('Figma refused the saved key.')
+    expect(card).not.toHaveTextContent('Invalid token')
+    expect(within(card).getByText(PRIVATE)).toBeVisible()
+    expect(within(card).getByText(PRIVATE_DESCRIPTION)).toBeVisible()
+    const field = within(card).getByLabelText('Figma API key')
+    await user.click(field)
+    expect(field).toHaveFocus()
+    expect(within(card).getByRole('button', {name: 'Open settings'})).toBeVisible()
   })
 
   test('the settings say the engine reads FIGMA_API_KEY, and a key saved there is listed before it', async ({
