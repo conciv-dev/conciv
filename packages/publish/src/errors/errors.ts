@@ -167,7 +167,7 @@ export const publishErrors = defineErrorCatalog('publish', {
   },
   NODE_FLOOR_MISSING: {
     message: 'no published package declares engines.node',
-    fix: 'Set engines.node to the oldest Node the published node packages support, e.g. ">=22.16.0".',
+    fix: 'Set engines.node to the oldest Node the published node packages support, e.g. ">=22.19.0".',
   },
   NODE_FLOOR_MIXED: {
     message: ({floors}: {floors: string}) => `published packages declare different engines.node: ${floors}`,

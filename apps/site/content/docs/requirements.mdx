@@ -11,7 +11,7 @@ for the panel, and an agent CLI to answer in the chat.
 
 | Needs     | Supported                                                           |
 | --------- | ------------------------------------------------------------------- |
-| Node.js   | 26 or newer                                                         |
+| Node.js   | 22.19 or newer                                                      |
 | Bundler   | Vite 6, 7 or 8; Next.js 15.3 or 16; webpack 5; Rspack               |
 | Browser   | A current desktop browser; tested in Chromium and Firefox           |
 | Agent CLI | Claude Code, Codex, Gemini CLI or opencode, installed and logged in |
@@ -19,10 +19,10 @@ for the panel, and an agent CLI to answer in the chat.
 
 ## Node.js
 
-conciv needs Node.js 26 or newer. Its per-user registry is built on `node:sqlite`. Several published packages
-declare that floor in their `engines` field.
+conciv needs Node.js 22.19 or newer. Its per-user registry is built on `node:sqlite`. Every published package
+declares that floor in its `engines` field.
 
-Your app itself can target any runtime. Only the dev server process that runs conciv needs Node 26.
+Your app itself can target any runtime. Only the dev server process that runs conciv needs Node 22.19.
 
 ## Bundlers
 
