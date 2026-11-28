@@ -35,7 +35,7 @@ export async function runCli(app: typeof main, argv: string[]): Promise<number> 
     startCliLog(flaggedLogLevel(argv))
     const tab = SessionId.safeParse(readFlag(argv, TAB_FLAG)).data ?? null
     const result = await settle(parse(app, {argv}), {tab})
-    if (!result.ok) return writeFailure(routeFailure(result))
+    if (!result.ok) throw await routeFailure(result)
     if (result.method === 'help') {
       console.log(printHelp(result))
       return 0

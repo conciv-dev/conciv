@@ -8,9 +8,9 @@ import {initContributions} from '@conciv/harness/init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import {cliErrors} from '@conciv/errors'
 
-const HubAgentSchema = z
-  .enum(INIT_HARNESS_IDS)
-  .refine((id) => initContributions[id].hub !== undefined, {message: 'this agent has no conciv hub connection'})
+const HUB_AGENT_IDS = INIT_HARNESS_IDS.filter((id) => initContributions[id].hub !== undefined)
+
+const HubAgentSchema = z.enum(HUB_AGENT_IDS)
 
 const AgentModelSchema = z.object({agent: HubAgentSchema})
 
