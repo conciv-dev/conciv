@@ -1,14 +1,14 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {fetchStarCount} from '@/lib/star-count.server'
+import {readStarCount} from '@/lib/star-count.server'
 
-const SUCCESS_CACHE_CONTROL = 'public, max-age=1800, s-maxage=3600, stale-while-revalidate=86400'
+const SUCCESS_CACHE_CONTROL = 'public, max-age=1800, stale-while-revalidate=86400'
 const FAILURE_CACHE_CONTROL = 'public, max-age=60'
 
 export const Route = createFileRoute('/api/stars')({
   server: {
     handlers: {
       GET: async () => {
-        const stars = await fetchStarCount()
+        const stars = await readStarCount()
         return Response.json(
           {stars},
           {

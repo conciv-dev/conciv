@@ -11,7 +11,7 @@ Docs page route rendered from fumadocs MDX, and a markdown variant for each page
 
 ## Invariants
 
-- `$.tsx`, `{$}[.]md.ts`: an unknown page throws `notFound()`
+- `$.tsx`: an unknown page throws `notFound()`; `{$}[.]md.ts`: an unknown page answers 404 text
 
 ## Side Effects
 

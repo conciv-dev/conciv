@@ -1,10 +1,14 @@
+import {useRef, type ReactNode} from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {AnimatePresence, m, useReducedMotion, useSpring, useTransform} from 'motion/react'
+import {z} from 'zod'
 import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
-import {getRouteApi} from '@tanstack/react-router'
-import {CompositeComponent} from '@tanstack/react-start/rsc'
+import {formatStarCount} from '@/lib/star-count'
 import GithubIcon from '@/components/ui/github-icon'
 import StarIcon from '@/components/ui/star-icon'
-import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
+import type {AnimatedIconHandle} from '@/components/ui/types'
+import {LandingMotion} from './lazy-motion'
 
 function GithubMark({className}: {className?: string}) {
   return (
@@ -14,43 +18,79 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
-const rootRoute = getRouteApi('__root__')
+const starsResponseSchema = z.object({stars: z.number().int().nonnegative().nullable()})
 
-function useStarBadge() {
-  return rootRoute.useLoaderData().starBadge
+async function fetchStars(): Promise<number | null> {
+  const response = await fetch('/api/stars')
+  if (!response.ok) throw new Error(`/api/stars answered ${response.status}`)
+  return starsResponseSchema.parse(await response.json()).stars
+}
+
+function CountUp({to}: {to: number}) {
+  const reduced = useReducedMotion()
+  const count = useSpring(reduced ? to : 0, {bounce: 0, visualDuration: 1.2})
+  const text = useTransform(count, (value) => formatStarCount(Math.round(value)))
+  return <m.span ref={() => count.set(to)}>{text}</m.span>
+}
+
+function StarCount({children, className}: {children?: ReactNode; className?: string}) {
+  const reduced = useReducedMotion()
+  const {data: stars, isPending} = useQuery({queryKey: ['github-stars'], queryFn: fetchStars, staleTime: 600_000})
+  const known = typeof stars === 'number'
+  return (
+    <LandingMotion>
+      <AnimatePresence initial={false}>
+        {(isPending || known) && (
+          <m.span
+            className={cn('inline-flex items-center gap-1 overflow-hidden whitespace-nowrap', className)}
+            exit={{width: 0, opacity: 0, paddingLeft: 0}}
+            transition={reduced ? {duration: 0} : {duration: 0.25, ease: 'easeOut'}}
+          >
+            {children}
+            <span className="tabular-nums">
+              <span aria-hidden="true">{known ? <CountUp key={stars} to={stars} /> : '0'}</span>
+              {known && <span className="sr-only">{stars} stars</span>}
+            </span>
+          </m.span>
+        )}
+      </AnimatePresence>
+    </LandingMotion>
+  )
 }
 
 function CompactGitHubLink({className}: {className?: string}) {
-  const starBadge = useStarBadge()
-  const {iconRef: githubRef, triggerProps: githubTrigger} = useAnimatedIcon()
-  const {iconRef: starRef, triggerProps: starTrigger} = useAnimatedIcon()
-  const both = (key: keyof typeof githubTrigger) => () => {
-    githubTrigger[key]()
-    starTrigger[key]()
+  const githubRef = useRef<AnimatedIconHandle>(null)
+  const starRef = useRef<AnimatedIconHandle>(null)
+  const start = () => {
+    githubRef.current?.startAnimation()
+    starRef.current?.startAnimation()
+  }
+  const stop = () => {
+    githubRef.current?.stopAnimation()
+    starRef.current?.stopAnimation()
   }
   return (
     <a
       href={repoUrl}
       aria-label="conciv on GitHub"
-      onPointerEnter={both('onPointerEnter')}
-      onPointerLeave={both('onPointerLeave')}
-      onFocus={both('onFocus')}
-      onBlur={both('onBlur')}
+      onPointerEnter={start}
+      onPointerLeave={stop}
+      onFocus={start}
+      onBlur={stop}
       className={cn(
-        'inline-flex items-center gap-1 rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
+        'inline-flex items-center rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground hover:text-foreground',
         className,
       )}
     >
       <GithubIcon ref={githubRef} className="size-4" />
-      <CompositeComponent src={starBadge}>
+      <StarCount className="pl-1">
         <StarIcon ref={starRef} className="size-3" />
-      </CompositeComponent>
+      </StarCount>
     </a>
   )
 }
 
 export function GitHubStarLink({className, compact = false}: {className?: string; compact?: boolean}) {
-  const starBadge = useStarBadge()
   if (compact) return <CompactGitHubLink className={className} />
   return (
     <a
@@ -58,10 +98,12 @@ export function GitHubStarLink({className, compact = false}: {className?: string
       aria-label="conciv on GitHub"
       className={cn('text-sm font-medium text-muted-foreground transition-colors hover:text-foreground', className)}
     >
-      <span className="inline-flex items-center gap-1.5">
-        <GithubMark className="size-4" />
-        GitHub
-        <CompositeComponent src={starBadge} />
+      <span className="inline-flex items-center">
+        <span className="inline-flex items-center gap-1.5">
+          <GithubMark className="size-4" />
+          GitHub
+        </span>
+        <StarCount className="pl-1.5" />
       </span>
     </a>
   )
