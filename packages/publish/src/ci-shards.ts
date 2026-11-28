@@ -39,7 +39,7 @@ import {
 const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output', '--untested']
 
 type TaskConfig = {
-  turboTasks: string[]
+  turboRuns: string[][]
   reportRoots: string[]
   render: Partial<RenderOptions>
   affectedTasks: string[]
@@ -47,9 +47,11 @@ type TaskConfig = {
   pack: (packages: WorkspacePackage[], timings: Record<string, number>) => (ShardPlan | E2eShardPlan)[]
 }
 
+const E2E_APPS_CONCURRENCY = '50%'
+
 const TASKS: Record<string, TaskConfig> = {
   test: {
-    turboTasks: ['typecheck', 'test', '--continue=dependencies-successful'],
+    turboRuns: [['typecheck', 'test', '--continue=dependencies-successful']],
     reportRoots: ['packages', 'apps'],
     render: {},
     affectedTasks: ['typecheck', 'test'],
@@ -57,7 +59,10 @@ const TASKS: Record<string, TaskConfig> = {
     pack: (packages, timings) => planShards(packages, timings),
   },
   e2e: {
-    turboTasks: ['typecheck', 'test:e2e', '--continue'],
+    turboRuns: [
+      ['typecheck', '--continue'],
+      ['test:e2e', '--continue', `--concurrency=${E2E_APPS_CONCURRENCY}`],
+    ],
     reportRoots: ['e2e', 'apps/site'],
     render: {title: 'E2e consumer apps', details: true},
     affectedTasks: ['typecheck', 'test:e2e'],
@@ -179,7 +184,7 @@ function turbo(tasks: string[], filters: string[], passed: string[] = []): void 
 function run(args: string[]): void {
   const entries = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
   if (entries.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
-  const tasks = taskConfig(args).turboTasks
+  const runs = taskConfig(args).turboRuns
   const parts = entries.map(readPackagePart)
   const whole = parts.flatMap(({name, part}) => (part === null ? [`--filter=${name}`] : []))
   const failures: unknown[] = []
@@ -190,10 +195,10 @@ function run(args: string[]): void {
       failures.push(error)
     }
   }
-  if (whole.length > 0) attempt(() => turbo(tasks, whole))
+  if (whole.length > 0) for (const tasks of runs) attempt(() => turbo(tasks, whole))
   for (const {name, part} of parts) {
     if (part === null) continue
-    const checks = tasks.filter((task) => task !== 'test' && !task.startsWith('--'))
+    const checks = runs.flat().filter((task) => task !== 'test' && !task.startsWith('--'))
     if (part.index === 1 && checks.length > 0) attempt(() => turbo(checks, [`--filter=${name}`]))
     attempt(() => turbo(['test'], [`--filter=${name}`], [`--shard=${part.index}/${part.count}`]))
   }
