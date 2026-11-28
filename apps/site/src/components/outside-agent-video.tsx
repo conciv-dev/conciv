@@ -15,7 +15,12 @@ import {
 export function OutsideAgentVideo() {
   return (
     <VideoPlayer className="my-6">
-      <VideoPlayerMedia aria-label="An outside agent in a terminal drives the open browser tab">
+      <VideoPlayerMedia
+        aria-label="An outside agent in a terminal drives the open browser tab"
+        muted
+        loop
+        preload="auto"
+      >
         <source src="/videos/outside-agent.webm" type="video/webm" />
         <source src="/videos/outside-agent.mp4" type="video/mp4" />
       </VideoPlayerMedia>
