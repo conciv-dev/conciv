@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto'
 import {mkdirSync, symlinkSync} from 'node:fs'
 import {join} from 'node:path'
 import {tempDir} from '@internal/vitest-config/temp-dir'
+import {makeRpcClient} from '@conciv/client'
 import {describe, expect} from 'vitest'
 import {test} from '../utils/engine-test.js'
 
@@ -64,6 +65,8 @@ describe('a user connects a plugin integration', () => {
         value: {type: 'key', key: '<redacted>'},
       },
     ])
+    const fetched = makeRpcClient(engine.address.apiBase, {token: engine.address.token})
+    expect(await fetched.credential.list()).toEqual(afterKey)
     expect(await secret()).toMatchObject({
       kind: 'credential',
       fingerprint: fingerprint(TYPED_KEY),
@@ -77,7 +80,7 @@ describe('a user connects a plugin integration', () => {
     seen.push(shared)
     expect(shared).toEqual(afterKey)
 
-    const spare = await rpc.credential.create({
+    const spare = await fetched.credential.create({
       integrationId: 'figma',
       label: 'Spare',
       value: {type: 'key', key: SPARE_KEY},

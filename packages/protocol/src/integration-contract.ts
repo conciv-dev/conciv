@@ -40,7 +40,7 @@ const Ok = z.object({ok: z.literal(true)})
 const stored = oc.errors(engineContractErrors('HOME_UNREACHABLE'))
 
 export const credentialContract = {
-  list: stored.output(EffectSchema.toStandardSchemaV1(EffectSchema.Array(Credential.Entry))),
+  list: stored.output(EffectSchema.toStandardSchemaV1(EffectSchema.Array(Credential.RedactedEntry))),
   create: stored
     .errors(engineContractErrors('CONFLICT', 'INTEGRATION_POLICY'))
     .input(
@@ -52,7 +52,7 @@ export const credentialContract = {
         activate: z.boolean().optional(),
       }),
     )
-    .output(EffectSchema.toStandardSchemaV1(Credential.Entry)),
+    .output(EffectSchema.toStandardSchemaV1(Credential.RedactedEntry)),
   update: stored.input(CredentialIdInput.extend({label: Label})).output(Ok),
   activate: stored.input(CredentialIdInput).output(Ok),
   remove: stored.input(CredentialIdInput).output(Ok),

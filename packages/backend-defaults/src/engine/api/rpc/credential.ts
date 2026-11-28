@@ -3,19 +3,28 @@ import {Effect, Redacted} from 'effect'
 import type {contract, CredentialValueInput} from '@conciv/protocol'
 import {engineErrors} from '@conciv/errors'
 import {Credential, Integration} from '@conciv/backend-app-api'
+import type * as CredentialSchema from '@conciv/protocol/schema/credential'
 import {os, type EngineRpcContext} from './mount.js'
 import {requireConnectable} from './integration.js'
 
 const ok = {ok: true as const}
 
-function entries(credentials: Credential.Info[]) {
+const placeholder = '<redacted>' as const
+
+function redacted(value: Credential.Value): CredentialSchema.RedactedValue {
+  if (value.type === 'key') return {...value, key: placeholder}
+  if (value.type === 'oauth') return {...value, access: placeholder, refresh: placeholder}
+  return value
+}
+
+function entries(credentials: Credential.Info[]): CredentialSchema.RedactedEntry[] {
   const selected = new Map(credentials.map((item) => [item.integrationId, item.id]))
   return credentials.map((item) => ({
     id: item.id,
     integrationId: item.integrationId,
     label: item.label,
     active: selected.get(item.integrationId) === item.id,
-    value: item.value,
+    value: redacted(item.value),
   }))
 }
 
@@ -51,7 +60,7 @@ export function credentialRouter(): ContractedRouter<typeof contract.credential,
         activate: input.activate,
       })
       const entry = entries(yield* credential.list(created.integrationId)).find((item) => item.id === created.id)
-      return entry ?? {...created, active: false}
+      return entry ?? {...created, active: false, value: redacted(created.value)}
     }),
     update: os.credential.update.effect(function* ({input}) {
       yield* Credential.Service.use((credential) =>

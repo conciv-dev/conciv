@@ -65,6 +65,22 @@ export const Entry = Schema.Struct({
   value: Value,
 }).annotate({identifier: 'Credential.Entry'})
 
+const Placeholder = Schema.Literal('<redacted>')
+
+export const RedactedValue = Schema.Union([
+  Schema.Struct({...OAuth.fields, refresh: Placeholder, access: Placeholder}),
+  Schema.Struct({...Key.fields, key: Placeholder}),
+  External,
+])
+  .pipe(Schema.toTaggedUnion('type'))
+  .annotate({identifier: 'Credential.RedactedValue'})
+export type RedactedValue = Schema.Schema.Type<typeof RedactedValue>
+
+export interface RedactedEntry extends Schema.Schema.Type<typeof RedactedEntry> {}
+export const RedactedEntry = Schema.Struct({...Entry.fields, value: RedactedValue}).annotate({
+  identifier: 'Credential.RedactedEntry',
+})
+
 export interface CreateInput extends Schema.Schema.Type<typeof CreateInput> {}
 export const CreateInput = Schema.Struct({
   id: optional(Id),
