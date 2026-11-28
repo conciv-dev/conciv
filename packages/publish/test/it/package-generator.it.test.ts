@@ -2,25 +2,17 @@ import * as NodeServices from '@effect/platform-node/NodeServices'
 import {describe, expect, it} from '@effect/vitest'
 import {Effect, FileSystem, Path} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
+import nodePlop from 'node-plop'
 import {tempDir} from '@internal/vitest-config/temp-dir'
 
 describe('turbo gen package', () => {
-  const GENERATORS = 'packages/publish/turbo/generators'
-  const LINKED_DEPENDENCIES = ['node_modules', 'packages/publish/node_modules']
+  const REPO = new URL('../../../../', import.meta.url).pathname
+  const PLOPFILE = new URL('../../turbo/generators/config.ts', import.meta.url).pathname
+  const FIXTURE = new URL('../fixtures/generator-root', import.meta.url).pathname
+  const LINKED = ['node_modules', '.oxfmtrc.json']
   const TEST_FOLDERS = ['e2e', 'fixtures', 'it', 'unit', 'utils'].map((folder) => `test/${folder}/.gitkeep`)
   const SOURCE_FILES = ['README.md', 'package.json', 'tsconfig.json', 'vitest.config.ts', ...TEST_FOLDERS]
   const BUILT_FILES = [...SOURCE_FILES, 'tsconfig.build.json', 'tsdown.config.ts']
-
-  const output = Effect.fn('output')(function* (cwd: string, command: string, args: string[]) {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    return yield* spawner.string(ChildProcess.make(command, args, {cwd, extendEnv: true}), {includeStderr: true})
-  })
-
-  const succeed = Effect.fn('succeed')(function* (cwd: string, command: string, args: string[]) {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const exitCode = yield* spawner.exitCode(ChildProcess.make(command, args, {cwd, extendEnv: true}))
-    if (exitCode !== 0) return yield* Effect.fail(new Error(`${command} ${args.join(' ')} exited with ${exitCode}`))
-  })
 
   const listFiles = Effect.fn('listFiles')(function* (folder: string) {
     const fs = yield* FileSystem.FileSystem
@@ -32,29 +24,31 @@ describe('turbo gen package', () => {
     return files.toSorted()
   })
 
+  const listEntries = Effect.fn('listEntries')(function* (folder: string) {
+    const fs = yield* FileSystem.FileSystem
+    return (yield* fs.readDirectory(folder)).toSorted()
+  })
+
   const readJson = Effect.fn('readJson')(function* (file: string) {
     const fs = yield* FileSystem.FileSystem
-    const text = yield* fs.readFileString(file)
-    const parsed: unknown = JSON.parse(text)
+    const parsed: unknown = JSON.parse(yield* fs.readFileString(file))
     return parsed
   })
 
-  const throwawayWorktree = Effect.fn('throwawayWorktree')(function* () {
+  const generatorRoot = Effect.fn('generatorRoot')(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const repo = (yield* output(import.meta.dirname, 'git', ['rev-parse', '--show-toplevel'])).trim()
-    const copy = yield* Effect.acquireRelease(
-      Effect.sync(() => path.join(tempDir('package-generator-'), 'repo')).pipe(
-        Effect.tap((folder) => succeed(repo, 'git', ['worktree', 'add', '--quiet', '--detach', folder, 'HEAD'])),
-      ),
-      (folder) => succeed(repo, 'git', ['worktree', 'remove', '--force', folder]).pipe(Effect.orDie),
+    const root = path.join(tempDir('package-generator-'), 'repo')
+    yield* fs.copy(FIXTURE, root)
+    for (const linked of LINKED) yield* fs.symlink(path.join(REPO, linked), path.join(root, linked))
+    return root
+  })
+
+  const checkFormat = Effect.fn('checkFormat')(function* (root: string, paths: string[]) {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    return yield* spawner.exitCode(
+      ChildProcess.make(`${root}/node_modules/.bin/oxfmt`, ['--check', ...paths], {cwd: root, extendEnv: true}),
     )
-    yield* fs.remove(path.join(copy, GENERATORS), {recursive: true})
-    yield* fs.copy(path.join(repo, GENERATORS), path.join(copy, GENERATORS))
-    for (const dependencies of LINKED_DEPENDENCIES) {
-      yield* fs.symlink(path.join(repo, dependencies), path.join(copy, dependencies))
-    }
-    return copy
   })
 
   it.live(
@@ -63,78 +57,61 @@ describe('turbo gen package', () => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem
         const path = yield* Path.Path
-        const copy = yield* throwawayWorktree()
-        const packages = path.join(copy, 'packages')
-        const read = (file: string) => fs.readFileString(path.join(copy, file))
-        const generate = (...answers: string[]) =>
-          output(copy, path.join(copy, 'node_modules/.bin/gen'), ['run', 'package', '--args', ...answers])
+        const root = yield* generatorRoot()
+        const packages = path.join(root, 'packages')
+        const read = (file: string) => fs.readFileString(path.join(root, file))
+        const plop = yield* Effect.promise(() => nodePlop(PLOPFILE))
+        const generator = plop.getGenerator('package')
+        const generate = (kind: string, name: string, description: string, runtime: string) =>
+          Effect.promise(() =>
+            generator.runActions({kind, name, description, runtime, install: 'skip', turbo: {paths: {root}}}),
+          )
+        const firstFailure = (kind: string, name: string, runtime: string) =>
+          generate(kind, name, 'x', runtime).pipe(Effect.map(({failures}) => failures.at(0)?.error))
 
-        const [
-          [publishedOutput, pluginOutput],
-          browserOutput,
-          bothOutput,
-          takenEntryOutput,
-          unknownKindOutput,
-          badNameOutput,
-          declaredNameOutput,
-          existingFolderOutput,
-        ] = yield* Effect.all(
-          [
-            Effect.all([
-              generate(
-                'published',
-                'gen-check-node',
-                'A published node package the generator test made.',
-                'node',
-                'skip',
-              ),
-              generate('plugin', 'gen-check', 'A plugin the generator test made.', 'both', 'skip'),
-            ]),
-            generate(
-              'internal',
-              'gen-check-web',
-              'An internal browser package the generator test made.',
-              'browser',
-              'skip',
-            ),
-            generate('internal', 'gen-check-both', 'An internal package the generator test made.', 'both', 'skip'),
-            generate('plugin', 'plugin-experimental', 'x', 'both', 'skip'),
-            generate('private', 'gen-check-bad', 'x', 'node', 'skip'),
-            generate('published', 'Bad', 'x', 'node', 'skip'),
-            generate('published', 'plugin-page', 'x', 'node', 'skip'),
-            generate('internal', 'plugins', 'x', 'node', 'skip'),
-          ],
-          {concurrency: 'unbounded'},
+        const prompts = Array.isArray(generator.prompts) ? generator.prompts : []
+        const validate = (name: string, input: string) =>
+          prompts.find((prompt) => prompt.name === name)?.validate?.(input)
+        expect(validate('name', 'gen-check')).toBe(true)
+        expect(validate('name', 'Bad')).toContain('use kebab-case')
+        expect(validate('description', 'One line.')).toBe(true)
+        expect(validate('description', 'two\nlines')).toBe('write one line that says what the package is for')
+
+        const results = [
+          yield* generate('published', 'gen-check-node', 'A published node package the generator test made.', 'node'),
+          yield* generate('plugin', 'gen-check', 'A plugin the generator test made.', 'both'),
+          yield* generate(
+            'internal',
+            'gen-check-web',
+            'An internal browser package the generator test made.',
+            'browser',
+          ),
+          yield* generate('internal', 'gen-check-both', 'An internal package the generator test made.', 'both'),
+        ]
+        expect(results.map(({failures}) => failures)).toEqual([[], [], [], []])
+
+        expect(yield* firstFailure('plugin', 'plugin-experimental', 'both')).toContain(
+          'a plugin with both parts cannot be named plugin-experimental',
         )
+        expect(yield* firstFailure('private', 'gen-check-bad', 'node')).toContain('private')
+        expect(yield* firstFailure('published', 'Bad', 'node')).toContain('Bad')
+        expect(yield* firstFailure('published', 'plugin-page', 'node')).toContain(
+          '@conciv/plugin-page is already declared by packages/plugins/page',
+        )
+        expect(yield* firstFailure('internal', 'plugins', 'node')).toContain('packages/plugins already exists')
 
-        expect([publishedOutput, browserOutput, bothOutput, pluginOutput]).toEqual([
-          expect.stringContaining('Success'),
-          expect.stringContaining('Success'),
-          expect.stringContaining('Success'),
-          expect.stringContaining('Success'),
+        expect(yield* listEntries(packages)).toEqual([
+          'gen-check-both',
+          'gen-check-node',
+          'gen-check-web',
+          'it',
+          'plugins',
         ])
-        expect(badNameOutput).toContain('use kebab-case')
-        expect(takenEntryOutput).toContain('a plugin with both parts cannot be named plugin-experimental')
-        expect(unknownKindOutput).toContain('did not recognize')
-        expect(declaredNameOutput).toContain('@conciv/plugin-page is already declared by packages/plugins/page')
-        expect(existingFolderOutput).toContain('packages/plugins already exists')
-        const changed = yield* output(copy, 'git', [
-          'status',
-          '--porcelain',
-          '--',
-          '.',
-          ...LINKED_DEPENDENCIES.map((dependencies) => `:!${dependencies}`),
-          `:!${GENERATORS}`,
-        ])
-        expect(changed.split('\n').filter(Boolean).toSorted()).toEqual([
-          ' M .fallowrc.json',
-          ' M packages/publish/src/guards.ts',
-          '?? .changeset/add-gen-check-node-package.md',
-          '?? .changeset/add-gen-check-package.md',
-          '?? packages/gen-check-both/',
-          '?? packages/gen-check-node/',
-          '?? packages/gen-check-web/',
-          '?? packages/plugins/gen-check/',
+        expect(yield* listEntries(path.join(packages, 'plugins'))).toEqual(['gen-check', 'page'])
+        expect(yield* listEntries(path.join(root, '.changeset'))).toEqual([
+          '.gitkeep',
+          'add-gen-check-node-package.md',
+          'add-gen-check-package.md',
         ])
 
         expect(yield* listFiles(path.join(packages, 'gen-check-node'))).toEqual(
@@ -172,7 +149,7 @@ describe('turbo gen package', () => {
           },
           scripts: {'build:css': 'node scripts/build-css.ts', build: 'pnpm run build:css && tsdown && vite build'},
           peerDependencies: {'@conciv/backend-plugin-api': 'workspace:^', '@conciv/frontend-plugin-api': 'workspace:^'},
-          engines: {node: expect.any(String)},
+          engines: {node: '>=26'},
         })
         expect(yield* read('packages/plugins/gen-check/vite.config.ts')).toContain('experimental()')
         expect(yield* read('packages/plugins/gen-check/src/plugin-experimental.tsx')).toContain("'./.generated/css.js'")
@@ -180,6 +157,7 @@ describe('turbo gen package', () => {
         const publishedManifest = yield* readJson(path.join(packages, 'gen-check-node/package.json'))
         expect(publishedManifest).toMatchObject({
           name: '@conciv/gen-check-node',
+          version: '0.0.23',
           publishConfig: {access: 'public'},
           exports: {'.': {types: './dist/gen-check-node.d.ts', import: './dist/gen-check-node.js'}},
           scripts: {build: expect.any(String), publint: 'publint', attw: expect.any(String)},
@@ -220,24 +198,21 @@ describe('turbo gen package', () => {
         expect(yield* read('packages/gen-check-both/vitest.config.ts')).toContain('browser: true')
         expect(yield* read('packages/gen-check-node/vitest.config.ts')).not.toContain('browser: true')
 
-        const guards = yield* read('packages/publish/src/guards.ts')
         const fallow = yield* read('.fallowrc.json')
-        expect(guards).toContain("'@conciv/gen-check-node',")
         expect(fallow).toContain('"@conciv/gen-check-node"')
-        expect(guards).toContain("'@conciv/plugin-gen-check',")
         expect(fallow).toContain('"@conciv/plugin-gen-check"')
-        expect(`${guards}${fallow}`).not.toMatch(/gen-check-(web|both)/)
+        expect(fallow).not.toMatch(/gen-check-(web|both)/)
         expect(yield* read('.changeset/add-gen-check-node-package.md')).toContain("'@conciv/gen-check-node': patch")
 
-        yield* succeed(copy, path.join(copy, 'node_modules/.bin/oxfmt'), [
-          '--check',
-          'packages/gen-check-node',
-          'packages/gen-check-web',
-          'packages/gen-check-both',
-          'packages/plugins/gen-check',
-          'packages/publish/src/guards.ts',
-          '.fallowrc.json',
-        ])
+        expect(
+          yield* checkFormat(root, [
+            'packages/gen-check-node',
+            'packages/gen-check-web',
+            'packages/gen-check-both',
+            'packages/plugins/gen-check',
+            '.fallowrc.json',
+          ]),
+        ).toBe(0)
       }).pipe(Effect.provide(NodeServices.layer)),
   )
 })
