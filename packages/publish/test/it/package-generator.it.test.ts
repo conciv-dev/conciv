@@ -69,15 +69,8 @@ describe('turbo gen package', () => {
         const generate = (...answers: string[]) =>
           output(copy, path.join(copy, 'node_modules/.bin/turbo'), ['gen', 'package', '--args', ...answers])
 
-        const publishedOutput = yield* generate(
-          'published',
-          'gen-check-node',
-          'A published node package the generator test made.',
-          'node',
-          'skip',
-        )
-        const pluginOutput = yield* generate('plugin', 'gen-check', 'A plugin the generator test made.', 'both', 'skip')
         const [
+          [publishedOutput, pluginOutput],
           browserOutput,
           bothOutput,
           takenEntryOutput,
@@ -87,6 +80,16 @@ describe('turbo gen package', () => {
           existingFolderOutput,
         ] = yield* Effect.all(
           [
+            Effect.all([
+              generate(
+                'published',
+                'gen-check-node',
+                'A published node package the generator test made.',
+                'node',
+                'skip',
+              ),
+              generate('plugin', 'gen-check', 'A plugin the generator test made.', 'both', 'skip'),
+            ]),
             generate(
               'internal',
               'gen-check-web',
