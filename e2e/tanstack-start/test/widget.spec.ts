@@ -10,11 +10,10 @@ test.describe('signing in to the widget', () => {
   }) => {
     const hydrationHold = '/api/hydration-hold'
     const failures = collectFailures(page)
-    await loginWidget(page)
     const holding = page.waitForRequest((sent) => new URL(sent.url()).pathname === hydrationHold)
-    await page.goto('/?hold=true', {waitUntil: 'domcontentloaded'})
-    await holding
     try {
+      await loginWidget(page, '/?hold=true')
+      await holding
       const launcher = page.getByRole('button', {name: 'Open conciv chat'})
       await expect(launcher).toBeVisible()
       await launcher.click()

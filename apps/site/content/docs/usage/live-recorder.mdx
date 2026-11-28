@@ -106,8 +106,8 @@ The agent calls the recorder from code mode. Learn more in [Tools and code mode]
 - **`recording_get`** reads a recording you sent with **Send to agent**.
 
 What comes back is an action log, with one line per click, input, navigation, scroll, console error or reload. It
-also holds up to 3 keyframes by default, screenshots of the moments that matter. conciv renders them by replaying the
-recording in a headless Chromium. With no Chromium to launch, the log comes back without them.
+also holds up to 3 keyframes by default: screenshots at the last clicks, navigations, console errors or reloads, and
+at the end. conciv renders them by replaying the recording in a headless Chromium. With no Chromium to launch, the log comes back without them.
 
 The log quotes what the page showed and what you typed. The agent treats it as page data, never as instructions.
 

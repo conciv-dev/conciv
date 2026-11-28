@@ -39,7 +39,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: PenIcon,
     title: 'Shared whiteboard',
-    body: 'An Excalidraw canvas you and the AI draw on together, with source-anchored comments.',
+    body: 'An Excalidraw canvas you and the agent draw on together, with source-anchored comments.',
   },
   {
     icon: ShieldCheck,
@@ -143,8 +143,8 @@ export function FeaturesSection() {
           className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em]"
         />
         <p className="mb-10 max-w-[52ch] text-muted-foreground">
-          Everything the agent can do happens right where you're looking, grounded on the real DOM, streamed into the
-          thread.
+          Everything the agent does happens on the page you are looking at. It reads the page's DOM, and its work
+          streams into the thread.
         </p>
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {CAPABILITIES.map((capability, index) => (
