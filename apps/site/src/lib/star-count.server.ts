@@ -8,6 +8,7 @@ export async function fetchStarCount(): Promise<number | null> {
         accept: 'application/vnd.github+json',
         'user-agent': 'conciv-site',
       },
+      cf: {cacheTtl: 600, cacheEverything: true},
     })
     if (!response.ok) return null
     const payload: unknown = await response.json()

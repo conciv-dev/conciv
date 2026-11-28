@@ -1,3 +1,5 @@
+'use client'
+
 import {createContext, use, type ComponentProps, type ReactNode} from 'react'
 import {
   CodeBlock,

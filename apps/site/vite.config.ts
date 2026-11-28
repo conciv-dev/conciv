@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import rsc from '@vitejs/plugin-rsc'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
 import {cloudflare} from '@cloudflare/vite-plugin'
 import {defineConfig, type Plugin} from 'vite'
@@ -33,15 +34,17 @@ export default defineConfig(({mode}) => ({
   plugins: [
     sourceAnnotations(import.meta.dirname),
     dropOnnxRuntimeWasmFromServerBundle(),
-    mode !== 'test' && cloudflare({viteEnvironment: {name: 'ssr'}}),
+    mode !== 'test' && cloudflare({viteEnvironment: {name: 'ssr', childEnvironments: ['rsc']}}),
     mdx(),
     tailwindcss(),
     tanstackStart({
+      rsc: {enabled: true},
       prerender: {
         enabled: true,
         filter: ({path}) => !path.startsWith('/assets/'),
       },
     }),
+    rsc(),
     react(),
     conciv({widget: false}),
     concivTest(),

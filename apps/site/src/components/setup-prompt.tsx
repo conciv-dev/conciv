@@ -1,3 +1,5 @@
+'use client'
+
 import {Check, ChevronDown, Copy, SquareTerminal} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'

@@ -1,3 +1,5 @@
+'use client'
+
 import {useCallback, useRef, useState, type CSSProperties} from 'react'
 import {Play} from 'lucide-react'
 import {useSound} from '@/lib/sounds'

@@ -1,3 +1,5 @@
+'use client'
+
 import {ArrowUpRight, ChevronDown, Menu} from 'lucide-react'
 import {usePathname} from 'fumadocs-core/framework'
 import Link from 'fumadocs-core/link'

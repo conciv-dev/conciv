@@ -1,7 +1,7 @@
 import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
-import {formatStarCount} from '@/lib/star-count'
 import {getRouteApi} from '@tanstack/react-router'
+import {CompositeComponent} from '@tanstack/react-start/rsc'
 import GithubIcon from '@/components/ui/github-icon'
 import StarIcon from '@/components/ui/star-icon'
 import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
@@ -16,21 +16,12 @@ function GithubMark({className}: {className?: string}) {
 
 const rootRoute = getRouteApi('__root__')
 
-function useStarCount(): number | null {
-  return rootRoute.useLoaderData().stars
-}
-
-function StarCount({stars, className}: {stars: number; className?: string}) {
-  return (
-    <span className={cn('inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
-      <span aria-hidden="true">{formatStarCount(stars)}</span>
-      <span className="sr-only">{stars} stars</span>
-    </span>
-  )
+function useStarBadge() {
+  return rootRoute.useLoaderData().starBadge
 }
 
 function CompactGitHubLink({className}: {className?: string}) {
-  const stars = useStarCount()
+  const starBadge = useStarBadge()
   const {iconRef: githubRef, triggerProps: githubTrigger} = useAnimatedIcon()
   const {iconRef: starRef, triggerProps: starTrigger} = useAnimatedIcon()
   const both = (key: keyof typeof githubTrigger) => () => {
@@ -51,18 +42,15 @@ function CompactGitHubLink({className}: {className?: string}) {
       )}
     >
       <GithubIcon ref={githubRef} className="size-4" />
-      {stars !== null ? (
-        <span className="inline-flex items-center gap-1">
-          <StarIcon ref={starRef} className="size-3" />
-          <StarCount stars={stars} className="min-w-0 justify-start" />
-        </span>
-      ) : null}
+      <CompositeComponent src={starBadge}>
+        <StarIcon ref={starRef} className="size-3" />
+      </CompositeComponent>
     </a>
   )
 }
 
 export function GitHubStarLink({className, compact = false}: {className?: string; compact?: boolean}) {
-  const stars = useStarCount()
+  const starBadge = useStarBadge()
   if (compact) return <CompactGitHubLink className={className} />
   return (
     <a
@@ -73,7 +61,7 @@ export function GitHubStarLink({className, compact = false}: {className?: string
       <span className="inline-flex items-center gap-1.5">
         <GithubMark className="size-4" />
         GitHub
-        {stars !== null ? <StarCount stars={stars} /> : null}
+        <CompositeComponent src={starBadge} />
       </span>
     </a>
   )

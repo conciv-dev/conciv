@@ -1,3 +1,5 @@
+'use client'
+
 import {useId, type ReactNode} from 'react'
 import {cn} from '@/lib/utils'
 import {useSound} from '@/lib/sounds'

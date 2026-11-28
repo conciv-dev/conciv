@@ -146,6 +146,7 @@ catalog:
   '@unocss/reset': '^66.13.0'
   '@vitejs/devtools': '^0.8.0'
   '@vitejs/plugin-react': '^6.1.2'
+  '@vitejs/plugin-rsc': 0.5.39
   '@vitest/browser-playwright': 5.1.0
   '@vitest/coverage-v8': '^5.1.0'
   '@zag-js/highlight-word': '^1.47.0'

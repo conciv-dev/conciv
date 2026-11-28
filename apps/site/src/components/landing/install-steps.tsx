@@ -1,3 +1,5 @@
+'use client'
+
 import type {ReactNode} from 'react'
 import AnimatedContent from '@/components/AnimatedContent'
 import {FRAMEWORK_SNIPPETS} from 'site-snippets'
