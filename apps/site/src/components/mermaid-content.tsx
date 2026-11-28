@@ -82,6 +82,11 @@ function readConfig() {
   }
 }
 
+function parseSvg(svg: string): Node[] {
+  const parsed = new DOMParser().parseFromString(svg, 'text/html').body
+  return Array.from(parsed.childNodes, (node) => document.importNode(node, true))
+}
+
 export function MermaidContent({chart}: {chart: string}) {
   const id = useId()
   const theme = useSyncExternalStore(watchTheme, readTheme)
@@ -106,9 +111,10 @@ export function MermaidContent({chart}: {chart: string}) {
     <div
       className="not-prose my-6 overflow-x-auto [&>svg]:mx-auto [&>svg]:block xl:docs-breakout"
       ref={(container) => {
-        if (container) bindFunctions?.(container)
+        if (!container) return
+        container.replaceChildren(...parseSvg(svg))
+        bindFunctions?.(container)
       }}
-      dangerouslySetInnerHTML={{__html: svg}}
     />
   )
 }

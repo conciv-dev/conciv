@@ -11,7 +11,7 @@ Header, footer and theme toggle for the TanStack Start example.
 ## Side Effects
 
 - `ThemeToggle.tsx:toggleMode`: writes `localStorage['theme']` and dispatches the `theme-mode-change` window event
-- `ThemeToggle.tsx:applyThemeMode`: sets `light`/`dark` class, `data-theme` and `style.colorScheme` on `document.documentElement`
+- `ThemeToggle.tsx:applyThemeMode`: sets `light`/`dark` class, `data-theme` and `style.colorScheme` on `document.documentElement` after hydration (the server renders `<html>` bare, so nothing differs while React hydrates; `auto` needs no script, the stylesheet's `prefers-color-scheme` query covers it)
 - `ThemeToggle.tsx:ThemeToggle`: listens to `prefers-color-scheme` media changes while in `auto` mode
 
 ## Verification
