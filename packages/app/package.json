@@ -71,6 +71,7 @@
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",
+    "@tanstack/router-plugin": "catalog:",
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
     "publint": "catalog:",

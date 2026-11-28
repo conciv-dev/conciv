@@ -2,7 +2,7 @@ import {Navigate, createFileRoute} from '@tanstack/solid-router'
 import {Show} from 'solid-js'
 import {useConnected} from '../app/context.js'
 
-export const Route = createFileRoute('/')({component: Closed})
+export const Route = createFileRoute('/')({codeSplitGroupings: [], component: Closed})
 
 function Closed() {
   const search = Route.useSearch()

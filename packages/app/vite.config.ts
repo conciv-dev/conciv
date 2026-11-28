@@ -1,4 +1,6 @@
+import {fileURLToPath} from 'node:url'
 import {defineConfig, type Plugin} from 'vite'
+import {tanstackRouter} from '@tanstack/router-plugin/vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
@@ -20,8 +22,22 @@ function classicScriptLoaders(): Plugin {
   }
 }
 
+const shellSource = import.meta.resolve('@internal/frontend-defaults')
+
 export default defineConfig({
-  plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest({browser: true})],
+  plugins: [
+    tanstackRouter({
+      target: 'solid',
+      autoCodeSplitting: true,
+      routesDirectory: fileURLToPath(new URL('./routes', shellSource)),
+      generatedRouteTree: fileURLToPath(new URL('./routeTree.gen.ts', shellSource)),
+      routeFileIgnorePattern: String.raw`\.test\.tsx?$`,
+    }),
+    UnoCSS(),
+    solid(),
+    classicScriptLoaders(),
+    concivTest({browser: true}),
+  ],
   define: {'define.amd': 'false'},
   server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}},
   builder: {},

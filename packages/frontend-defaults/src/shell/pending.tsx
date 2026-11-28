@@ -1,4 +1,5 @@
-import {type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
+import {useRouteContext} from '@tanstack/solid-router'
 import {Loader} from '@conciv/ui-kit-system'
 
 const SKEL = 'skel-bg [background-size:200%_100%] anim-skel'
@@ -6,12 +7,15 @@ const SKEL = 'skel-bg [background-size:200%_100%] anim-skel'
 const PENDING_PANE_LABEL = 'Loading conciv'
 
 export function PendingPane(): JSX.Element {
+  const connected = useRouteContext({strict: false, select: (context) => context.connected})
   return (
     <Loader.Root class="h-full w-full text-chat-text" translations={{value: () => PENDING_PANE_LABEL}}>
       <Loader.Indicator />
       <Loader.Text>
         <Loader.Label>{`${PENDING_PANE_LABEL}…`}</Loader.Label>
-        <Loader.Description>Reconnecting to your workspace.</Loader.Description>
+        <Show when={connected()?.() !== true}>
+          <Loader.Description>Reconnecting to your workspace.</Loader.Description>
+        </Show>
       </Loader.Text>
     </Loader.Root>
   )

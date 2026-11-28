@@ -1,3 +1,4 @@
+import {basename} from 'node:path'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 import manifest from './package.json' with {type: 'json'}
@@ -20,6 +21,14 @@ export default defineConfig({
       formats: ['es'],
     },
     emptyOutDir: false,
-    rolldownOptions: {external},
+    rolldownOptions: {
+      external,
+      output: {
+        preserveModules: true,
+        preserveModulesRoot: 'src',
+        entryFileNames: (chunk) =>
+          chunk.name.includes('node_modules/') ? `assets/${basename(chunk.name)}.js` : '[name].js',
+      },
+    },
   },
 })

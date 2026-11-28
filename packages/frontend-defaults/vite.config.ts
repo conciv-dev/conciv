@@ -6,7 +6,7 @@ import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig({
   plugins: [
-    tanstackRouter({target: 'solid', autoCodeSplitting: false}),
+    tanstackRouter({target: 'solid', autoCodeSplitting: true}),
     UnoCSS(),
     solidPlugin(),
     concivTest({environment: 'happy-dom', browser: true}),
