@@ -12,7 +12,7 @@ The per-user conciv home registry, internal to `@conciv/it`: `home.db` on `node:
 
 ## Invariants
 
-- `package.json:engines.node` is `>=26.0.0`.
+- `package.json:engines.node` is `>=22.19.0`.
 - `turbo.json` makes `build` and `typecheck` depend on `gen-migrations`, so `src/registry/home-migrations.gen.ts` (from `drizzle/`) is regenerated before compiling.
 - The home schema only ever adds tables or nullable columns; a breaking change gets a new table name. Nothing in the home db is ever deleted: rows that stop being true get `deletedAt`.
 

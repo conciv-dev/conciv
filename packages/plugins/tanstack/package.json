@@ -96,6 +96,6 @@
     "@tanstack/react-router": ">=1.170.0"
   },
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.19.0"
   }
 }
