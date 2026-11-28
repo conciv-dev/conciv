@@ -72,6 +72,7 @@ export const Bash: Story = {
   play: async ({canvasElement}) => {
     const page = within(canvasElement.ownerDocument.body)
     const output = within(canvasElement).getByRole('group', {name: 'Output'})
+    await expect(within(canvasElement).queryByText(/…$/)).toBeNull()
     const [rowTarget] = within(canvasElement).getAllByText(LONG_COMMAND)
     if (rowTarget === undefined) throw new Error('the trace row shows no command')
     await userEvent.hover(rowTarget)

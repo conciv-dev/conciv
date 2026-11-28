@@ -46,16 +46,26 @@ export const Complete: Story = {
   },
 }
 
+const LONG_COMMAND =
+  'sqlite3 -readonly "$HOME/Library/Application Support/conciv/home.db" "select id, integration_id, label, active from credentials order by id"'
+
 export const Error: Story = {
   render: () =>
     frame(
       <BashCard
-        part={part({command: 'pnpm build'})}
+        part={part({command: LONG_COMMAND})}
         result={result({stdout: '', stderr: 'error TS2345: type mismatch', exitCode: 1})}
         ctx={INERT_TOOL_CTX}
         addResult={INERT_ADD_RESULT}
       />,
     ),
+  play: async ({canvasElement}) => {
+    const page = within(canvasElement.ownerDocument.body)
+    const [subtitle] = within(canvasElement).getAllByText(LONG_COMMAND)
+    if (subtitle === undefined) throw new globalThis.Error('the bash card shows no command')
+    await userEvent.hover(subtitle)
+    await expect(await page.findByRole('tooltip')).toHaveTextContent(LONG_COMMAND)
+  },
 }
 
 export const Running: Story = {
