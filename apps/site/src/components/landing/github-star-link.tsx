@@ -3,6 +3,7 @@ import {repoUrl} from '@/lib/shared'
 import {formatStarCount} from '@/lib/star-count'
 import {useStarCount} from '@/lib/star-count-store'
 import GithubIcon from '@/components/ui/github-icon'
+import StarIcon from '@/components/ui/star-icon'
 import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
 
 function GithubMark({className}: {className?: string}) {
@@ -24,20 +25,31 @@ function StarCount({stars, className}: {stars: number; className?: string}) {
 
 function CompactGitHubLink({className}: {className?: string}) {
   const stars = useStarCount()
-  const {iconRef, triggerProps} = useAnimatedIcon()
+  const {iconRef: githubRef, triggerProps: githubTrigger} = useAnimatedIcon()
+  const {iconRef: starRef, triggerProps: starTrigger} = useAnimatedIcon()
+  const both = (key: keyof typeof githubTrigger) => () => {
+    githubTrigger[key]()
+    starTrigger[key]()
+  }
   return (
     <a
       href={repoUrl}
       aria-label="conciv on GitHub"
-      {...triggerProps}
+      onPointerEnter={both('onPointerEnter')}
+      onPointerLeave={both('onPointerLeave')}
+      onFocus={both('onFocus')}
+      onBlur={both('onBlur')}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md p-2 text-sm leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
+        'inline-flex items-center gap-1.5 rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
         className,
       )}
     >
-      <GithubIcon ref={iconRef} className="size-4" />
+      <GithubIcon ref={githubRef} className="size-4" />
       {stars !== null ? (
-        <StarCount stars={stars} className="rounded-md bg-muted px-1.5 text-xs leading-4 text-foreground" />
+        <span className="inline-flex items-center gap-0.5">
+          <StarIcon ref={starRef} className="size-3" />
+          <StarCount stars={stars} className="min-w-0 justify-start" />
+        </span>
       ) : null}
     </a>
   )
