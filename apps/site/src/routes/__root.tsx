@@ -8,6 +8,7 @@ import {APPLE_TOUCH_ICON_URL, FAVICON_SVG_URL, OG_DEFAULT_URL, TWITTER_CARD_URL}
 import {canonicalHeadTags, DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE} from '@/lib/site-urls'
 import {seo} from '@/lib/seo'
 import {buildRootJsonLd} from '@/lib/structured-data'
+import {getStarCount} from '@/lib/star-count.functions'
 
 const OG_IMAGE = `${SITE}${OG_DEFAULT_URL}`
 const TWITTER_IMAGE = `${SITE}${TWITTER_CARD_URL}`
@@ -19,6 +20,8 @@ export const Route = createRootRoute({
     playgroundFrame: matches.some((match) => match.routeId === '/playground/$page/$'),
     docsPage: matches.some((match) => match.routeId === '/docs/$'),
   }),
+  loader: async () => ({stars: await getStarCount()}),
+  staleTime: Infinity,
   head: ({matches}) => {
     const canonical = canonicalHeadTags(matches)
 
