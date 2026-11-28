@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react'
+import {useRef, type ReactNode} from 'react'
 import {useQuery} from '@tanstack/react-query'
 import {AnimatePresence, m, useReducedMotion, useSpring, useTransform} from 'motion/react'
 import {z} from 'zod'
@@ -7,7 +7,7 @@ import {repoUrl} from '@/lib/shared'
 import {formatStarCount} from '@/lib/star-count'
 import GithubIcon from '@/components/ui/github-icon'
 import StarIcon from '@/components/ui/star-icon'
-import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
+import type {AnimatedIconHandle} from '@/components/ui/types'
 import {LandingMotion} from './lazy-motion'
 
 function GithubMark({className}: {className?: string}) {
@@ -59,22 +59,26 @@ function StarCount({children, className}: {children?: ReactNode; className?: str
 }
 
 function CompactGitHubLink({className}: {className?: string}) {
-  const {iconRef: githubRef, triggerProps: githubTrigger} = useAnimatedIcon()
-  const {iconRef: starRef, triggerProps: starTrigger} = useAnimatedIcon()
-  const both = (key: keyof typeof githubTrigger) => () => {
-    githubTrigger[key]()
-    starTrigger[key]()
+  const githubRef = useRef<AnimatedIconHandle>(null)
+  const starRef = useRef<AnimatedIconHandle>(null)
+  const start = () => {
+    githubRef.current?.startAnimation()
+    starRef.current?.startAnimation()
+  }
+  const stop = () => {
+    githubRef.current?.stopAnimation()
+    starRef.current?.stopAnimation()
   }
   return (
     <a
       href={repoUrl}
       aria-label="conciv on GitHub"
-      onPointerEnter={both('onPointerEnter')}
-      onPointerLeave={both('onPointerLeave')}
-      onFocus={both('onFocus')}
-      onBlur={both('onBlur')}
+      onPointerEnter={start}
+      onPointerLeave={stop}
+      onFocus={start}
+      onBlur={stop}
       className={cn(
-        'inline-flex items-center rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
+        'inline-flex items-center rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground hover:text-foreground',
         className,
       )}
     >
