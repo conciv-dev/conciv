@@ -170,6 +170,46 @@ export const engineErrorEntries = {
     why: 'a bundler bridge was defined without an id',
     fix: 'give the bundler bridge an id',
   },
+  CONFLICT: {
+    status: 409,
+    message: 'the resource already exists',
+    why: 'a resource with that id is already stored',
+  },
+  INTEGRATION_NOT_FOUND: {
+    status: 404,
+    message: 'integration not found',
+    why: 'no plugin declares an integration with that id',
+    fix: 'list the integrations and use an id from that list',
+  },
+  INTEGRATION_METHOD_NOT_FOUND: {
+    status: 404,
+    message: 'integration method not found',
+    why: 'the integration declares no method with that id',
+  },
+  INTEGRATION_ATTEMPT_NOT_FOUND: {
+    status: 404,
+    message: 'integration attempt not found',
+    why: 'the attempt finished, expired or was cancelled',
+  },
+  INTEGRATION_POLICY: {
+    status: 400,
+    message: 'connecting this integration is not allowed',
+    why: 'an integration.connect policy denies it',
+  },
+  INTEGRATION_AUTHORIZATION: {
+    status: 400,
+    message: 'Authentication failed',
+    why: 'the integration refused the sign-in or could not finish it',
+  },
+  INTEGRATION_CODE_REQUIRED: {
+    status: 400,
+    message: 'Authorization code is required',
+  },
+  WELL_KNOWN_DISCOVERY: {
+    status: 400,
+    message: 'well-known discovery failed',
+    why: 'the origin does not serve a usable well-known manifest',
+  },
 } as const satisfies ErrorCatalogMap
 
 export const engineErrors = defineErrorCatalog('engine', engineErrorEntries)

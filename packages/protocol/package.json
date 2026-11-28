@@ -143,6 +143,26 @@
     "./simulation": {
       "types": "./dist/simulation.d.ts",
       "import": "./dist/simulation.js"
+    },
+    "./schema/integration-id": {
+      "types": "./dist/schema/integration-id.d.ts",
+      "import": "./dist/schema/integration-id.js"
+    },
+    "./schema/credential": {
+      "types": "./dist/schema/credential.d.ts",
+      "import": "./dist/schema/credential.js"
+    },
+    "./schema/connection": {
+      "types": "./dist/schema/connection.d.ts",
+      "import": "./dist/schema/connection.js"
+    },
+    "./schema/form": {
+      "types": "./dist/schema/form.d.ts",
+      "import": "./dist/schema/form.js"
+    },
+    "./schema/integration": {
+      "types": "./dist/schema/integration.d.ts",
+      "import": "./dist/schema/integration.js"
     }
   },
   "publishConfig": {
