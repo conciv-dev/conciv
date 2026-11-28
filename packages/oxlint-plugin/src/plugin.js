@@ -4,6 +4,7 @@ import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
 import noForcedClick from './no-forced-click.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
+import noInnerHtml from './no-inner-html.js'
 import {isDomTestFile} from '@internal/vitest-config/test-layout'
 import noLocatorPoll from './no-locator-poll.js'
 import maxTestTimeout from './max-test-timeout.js'
@@ -12,6 +13,7 @@ import noModuleState from './no-module-state.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noQueryExistenceAssert from './no-query-existence-assert.js'
 import noSignalRef from './no-signal-ref.js'
+import noSuppressHydrationWarning from './no-suppress-hydration-warning.js'
 import noTeardownHooks from './no-teardown-hooks.js'
 import playwrightTestInE2e from './playwright-test-in-e2e.js'
 import pluginViewReadsThroughQuery from './plugin-view-reads-through-query.js'
@@ -258,6 +260,7 @@ export default {
     'no-forced-click': noForcedClick,
     'no-hand-made-temp-dir': noHandMadeTempDir,
     'no-inline-timeouts': noInlineTimeouts,
+    'no-inner-html': noInnerHtml,
     'no-locator-poll': noLocatorPoll,
     'no-mocks': noMocks,
     'no-module-state': noModuleState,
@@ -265,6 +268,7 @@ export default {
     'no-predicate-waits': noPredicateWaits,
     'no-query-existence-assert': noQueryExistenceAssert,
     'no-signal-ref': noSignalRef,
+    'no-suppress-hydration-warning': noSuppressHydrationWarning,
     'no-teardown-hooks': noTeardownHooks,
     'no-timers-in-tests': noTimersInTests,
     'plugin-view-reads-through-query': pluginViewReadsThroughQuery,
