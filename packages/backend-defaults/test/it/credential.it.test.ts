@@ -33,8 +33,8 @@ describe('an expiring sign-in refreshes while other callers wait', () => {
     Effect.gen(function* () {
       const root = tempDir('conciv-credential-')
       const roots = {cache: join(root, 'cache'), config: root, state: join(root, 'state'), log: join(root, 'log')}
-      const home = yield* Effect.promise(() => openHomeDatabase(join(root, 'home')))
-      return credentialLayer(home).pipe(
+      const home = yield* openHomeDatabase(join(root, 'home'))
+      return credentialLayer({ok: true, ...home}).pipe(
         Layer.provide(EffectFlock.layer),
         Layer.provide(Global.layerWith(roots)),
         Layer.provide(FSUtil.layer),

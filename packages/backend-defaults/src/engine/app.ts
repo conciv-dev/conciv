@@ -586,14 +586,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     await Promise.all(listings.map(endListing))
   }
   const staleness = async (): Promise<EngineStaleness> => opts.staleness?.() ?? engineStaleness()
-  const home = await openHomeDatabase(appEnv.home)
-  if (!home.ok)
-    earlyRuntime.runFork(
-      Effect.logError('conciv: the home could not be opened; stored credentials are unavailable', {
-        home: appEnv.home,
-        error: home.error,
-      }),
-    )
+  const home = await Effect.runPromiseWith(observability.context)(
+    openHomeDatabase(appEnv.home).pipe(
+      Effect.map((opened): HomeDatabase => ({ok: true, ...opened})),
+      Effect.catch((error) =>
+        Effect.logError('conciv: the home could not be opened; stored credentials are unavailable', {
+          home: appEnv.home,
+          error,
+        }).pipe(Effect.as<HomeDatabase>({ok: false, error})),
+      ),
+    ),
+  )
   const closeHome = () => closeHomeDatabase(home)
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
