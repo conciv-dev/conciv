@@ -8,6 +8,7 @@ import type {Servers} from '@conciv/client'
 import type {AgentDomain} from './agent.js'
 import type {BundlerDomain} from './bundler.js'
 import type {EventDomain} from './event.js'
+import type {CredentialDomain, IntegrationDomain} from './integration.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
 import type {RpcDomain} from './rpc.js'
@@ -20,6 +21,7 @@ import type {SessionId} from '@conciv/types/chat-types'
 import type {BrowserTabList} from '@conciv/protocol/schema/browser-tab'
 
 export type {BundlerCode, BundlerDomain, BundlerEditor, BundlerHooks, SourceMap} from './bundler.js'
+export type {IntegrationMethodRegistration} from './integration.js'
 
 export interface Context {
   readonly app: App
@@ -27,10 +29,12 @@ export interface Context {
   readonly options: PluginOptions
   readonly agent: AgentDomain
   readonly bundler: BundlerDomain
+  readonly credential: CredentialDomain
   readonly event: EventDomain
   readonly experimental: {
     readonly generate: undefined
   }
+  readonly integration: IntegrationDomain
   readonly model: ModelDomain
   readonly permission: PermissionDomain
   readonly plugin: {

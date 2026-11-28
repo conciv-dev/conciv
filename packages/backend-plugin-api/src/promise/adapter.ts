@@ -27,6 +27,7 @@ import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
 import type {ToolFailures, ToolHooks} from '../effect/tool.js'
 import {AssertInput} from '../permission.js'
+import {adaptIntegration, LocationQuery} from './integration-adapter.js'
 
 type HostRegistration = {readonly dispose: Effect.Effect<void>}
 type Registration = {readonly dispose: () => Promise<void>}
@@ -40,14 +41,6 @@ interface MethodSchemas {
 }
 
 const JsonInput = Schema.fromJsonString(Schema.Unknown)
-
-const LocationQuery = Schema.Struct({
-  location: Schema.optional(
-    Schema.Struct({
-      directory: Schema.optional(Schema.String),
-    }),
-  ),
-}).annotate({identifier: 'LocationQuery'})
 
 const ModelListQuery = Schema.Struct({
   ...LocationQuery.fields,
@@ -366,6 +359,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
                 options,
               ),
           },
+          ...adaptIntegration({host, run, register, adaptMethod}),
           experimental: {
             generate: undefined,
           },

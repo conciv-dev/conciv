@@ -29,6 +29,8 @@ import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './session
 import {relayEvents} from './relay-events.js'
 import {tabsRouter} from './tabs.js'
 import {jobsRouter} from './jobs.js'
+import {credentialRouter} from './credential.js'
+import {integrationRouter} from './integration.js'
 import {logsRouter} from './logs.js'
 import {readProject} from '../../lib/project.js'
 import {
@@ -376,6 +378,8 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
     sessions: sessionsRouter(deps),
     tabs: tabsRouter(),
     jobs: jobsRouter(),
+    credential: credentialRouter(),
+    integration: integrationRouter(),
     logs: logsRouter(),
     chat: chatRouter(deps, sessionOs),
     settings: {

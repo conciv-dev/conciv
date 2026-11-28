@@ -44,6 +44,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/backend-app-api": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
