@@ -356,10 +356,18 @@ function Code() {
             >
               {anchor.hover && (
                 <>
-                  <code
-                    className="block overflow-x-auto whitespace-pre"
-                    dangerouslySetInnerHTML={{__html: anchor.hover.html}}
-                  />
+                  <code className="block overflow-x-auto whitespace-pre">
+                    {anchor.hover.lines.map((line, row) => (
+                      <span key={row} className="line">
+                        {row > 0 && '\n'}
+                        {line.map((token, column) => (
+                          <span key={column} style={token.style}>
+                            {token.content}
+                          </span>
+                        ))}
+                      </span>
+                    ))}
+                  </code>
                   {anchor.hover.docs && (
                     <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">
                       {anchor.hover.docs}

@@ -5,16 +5,24 @@ export type Scenario = {
   apply: Record<string, string | number>
 }
 
+export type GrabbedElement = {tag: 'button' | 'h3' | 'p'; className?: string; text: string}
+
 export type Pickable = {
   id: string
+  element: GrabbedElement
   html: string
   where: string
   scenarios: [Scenario, ...Scenario[]]
 }
 
+function grabbed(element: GrabbedElement): Pick<Pickable, 'element' | 'html'> {
+  const attributes = element.className === undefined ? '' : ` class="${element.className}"`
+  return {element, html: `<${element.tag}${attributes}>${element.text}</${element.tag}>`}
+}
+
 const cta: Pickable = {
   id: 'cta',
-  html: '<button class="cta">Get started</button>',
+  ...grabbed({tag: 'button', className: 'cta', text: 'Get started'}),
   where: 'HomePage at routes/index.tsx:19:7',
   scenarios: [
     {
@@ -42,7 +50,7 @@ const cta: Pickable = {
 export const PICKABLES: Record<string, Pickable> = {
   heading: {
     id: 'heading',
-    html: '<h3>Welcome back</h3>',
+    ...grabbed({tag: 'h3', text: 'Welcome back'}),
     where: 'HomePage at routes/index.tsx:12:5',
     scenarios: [
       {
@@ -61,7 +69,7 @@ export const PICKABLES: Record<string, Pickable> = {
   },
   sub: {
     id: 'sub',
-    html: '<p class="sub">Sign in to continue</p>',
+    ...grabbed({tag: 'p', className: 'sub', text: 'Sign in to continue'}),
     where: 'HomePage at routes/index.tsx:13:5',
     scenarios: [
       {

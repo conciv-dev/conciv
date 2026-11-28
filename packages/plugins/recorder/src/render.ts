@@ -128,7 +128,7 @@ type ReplayWindow = {
 function seekReplay(arg: {events: unknown[]; offset: number}): void {
   const mount = document.querySelector('#replay')
   if (!mount) return
-  mount.innerHTML = ''
+  mount.replaceChildren()
   const replayWindow: ReplayWindow = Object(window)
   const replayer = new replayWindow.rrweb.Replayer(arg.events, {root: mount})
   replayer.pause(arg.offset)

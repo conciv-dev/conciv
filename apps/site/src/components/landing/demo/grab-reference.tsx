@@ -3,6 +3,7 @@ import {Button} from '@/components/ui/button'
 import type {Pickable} from './demo-data'
 
 export function GrabReference({pickable, onUngrab}: {pickable: Pickable; onUngrab: () => void}) {
+  const Tag = pickable.element.tag
   return (
     <div className="relative mb-2.5 flex flex-col items-start gap-2.5 rounded-lg border border-l-[3px] border-l-primary bg-secondary p-3.5 font-mono text-[11px]">
       <Button
@@ -18,8 +19,9 @@ export function GrabReference({pickable, onUngrab}: {pickable: Pickable; onUngra
       <span
         className="od-grab-render inline-flex rounded-lg p-1"
         style={{background: 'color-mix(in oklch, var(--od-accent) 6%, transparent)'}}
-        dangerouslySetInnerHTML={{__html: pickable.html}}
-      />
+      >
+        <Tag className={pickable.element.className}>{pickable.element.text}</Tag>
+      </span>
       <span className="flex items-center gap-1.5 text-muted-foreground">
         <span className="text-primary">↳</span> in {pickable.where}
       </span>

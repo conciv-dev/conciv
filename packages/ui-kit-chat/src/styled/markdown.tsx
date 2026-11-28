@@ -185,6 +185,11 @@ function diagramStyle(element: HTMLElement): DiagramStyle {
   return {darkMode: computed.colorScheme.trim() === 'dark', fontFamily: computed.fontFamily, themeVariables}
 }
 
+function parseDiagram(svg: string): Node[] {
+  const parsed = new DOMParser().parseFromString(svg, 'text/html').body
+  return Array.from(parsed.childNodes, (node) => document.importNode(node, true))
+}
+
 async function renderDiagram(id: string, source: string, style: DiagramStyle): Promise<string> {
   const {default: mermaid} = await import('mermaid')
   mermaid.initialize({
@@ -240,7 +245,7 @@ function MermaidDiagram(props: {code: string}): JSX.Element {
         <div
           class="chat-diagram"
           ref={(element) => {
-            element.innerHTML = markup()
+            element.replaceChildren(...parseDiagram(markup()))
           }}
         />
       )}

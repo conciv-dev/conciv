@@ -10,7 +10,6 @@ File routes for the TanStack Start example: root document, home, about and a Tan
 
 ## Side Effects
 
-- `__root.tsx:THEME_INIT_SCRIPT`: inline script reads `localStorage['theme']` and sets the theme class on `<html>` before hydration
 - `form.tsx:FormDemo`: `onSubmit` stores the submitted value in component state only; no network call
 
 ## Verification
