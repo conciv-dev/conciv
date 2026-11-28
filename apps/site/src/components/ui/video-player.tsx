@@ -1,3 +1,5 @@
+'use client'
+
 import * as React from 'react'
 import {
   Container,
@@ -30,7 +32,7 @@ function VideoPlayer({className, children, ...props}: React.ComponentProps<typeo
       <Container
         data-slot="video-player"
         className={cn(
-          'group/video-player relative isolate aspect-video w-full overflow-hidden rounded-xl border bg-muted text-foreground',
+          'group/video-player not-prose relative isolate aspect-video w-full overflow-hidden rounded-xl border bg-muted text-foreground',
           className,
         )}
         {...props}
