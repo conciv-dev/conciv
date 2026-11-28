@@ -26,6 +26,7 @@ import {isPlainObject} from 'es-toolkit'
 import {
   Avatar,
   Button,
+  Callout,
   ClipboardCopyButton,
   Collapsible,
   createListCollection,
@@ -392,6 +393,15 @@ const publicUi: Ui = {
       compact={props.compact}
       class={props.class}
     />
+  ),
+  Callout: (props) => (
+    <Callout.Root tone={props.tone} class={props.class}>
+      <Callout.Icon>{props.icon}</Callout.Icon>
+      <Callout.Title>{props.title}</Callout.Title>
+      <Show when={props.children}>
+        <Callout.Description>{props.children}</Callout.Description>
+      </Show>
+    </Callout.Root>
   ),
   Keybind: (props) => (
     <Show when={props.keys.length > 0}>

@@ -986,6 +986,14 @@ export interface UiChipProps {
   readonly class?: string
 }
 
+export interface UiCalloutProps {
+  readonly title: string
+  readonly tone?: 'info' | 'success' | 'warn' | 'danger'
+  readonly icon?: JSX.Element
+  readonly children?: JSX.Element
+  readonly class?: string
+}
+
 export interface UiKeybindProps {
   readonly keys: readonly string[]
   readonly class?: string
@@ -1271,6 +1279,20 @@ export interface Ui {
    * ```
    */
   Chip(props: UiChipProps): JSX.Element
+  /**
+   * An inline note in a tone, with the tone's icon, a title and an optional description. A danger callout is announced
+   * as an alert and a warn one as a status; info and success are plain notes.
+   *
+   * @param props - The title, its tone, an icon in place of the tone's own, and the description as children.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.Callout tone="warn" title="Figma is not connected">
+   *   Add a personal access token so the agent can read your designs.
+   * </ctx.ui.Callout>
+   * ```
+   */
+  Callout(props: UiCalloutProps): JSX.Element
   /**
    * Keys shown as chips, as menus and tooltips show shortcuts.
    *
