@@ -62,6 +62,7 @@ export const Entry = Schema.Struct({
   integrationId: IntegrationId,
   label: Schema.String,
   active: Schema.Boolean,
+  value: Value,
 }).annotate({identifier: 'Credential.Entry'})
 
 export interface CreateInput extends Schema.Schema.Type<typeof CreateInput> {}
