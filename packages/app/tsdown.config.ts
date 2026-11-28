@@ -5,8 +5,7 @@ export default defineConfig({
   entry: ['src/mount.ts'],
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
-  dts: {emitDtsOnly: true},
-  fixedExtension: false,
+  dts: {dtsOnly: true},
   deps: {neverBundle: [/\?inline$/]},
   plugins: [solid()],
 })

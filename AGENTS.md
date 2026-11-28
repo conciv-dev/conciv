@@ -88,7 +88,8 @@ Rules that hold the layout:
   (oxlint). Format: `pnpm format` (check) / `pnpm format:fix` (oxfmt). Both: `turbo run quality` /
   `turbo run quality:fix`.
 - Libraries build with tsdown, as devframe (`_ref/devframe-main`) builds its packages: each has one small
-  `tsdown.config.ts` (entry, platform, tsconfig, `dts`, `sourcemap`, `fixedExtension: false`; `unbundle: true` for a
+  `tsdown.config.ts` (entry, platform, tsconfig, `dts`; `fixedExtension: false` on a node build, so its files keep the
+  `.js` names `exports` points at; no source or declaration maps, as devframe; `unbundle: true` for a
   library with several entries, so no hashed `.d.ts` chunk sits outside `exports`; Solid libraries add
   `unplugin-solid/rolldown`). Types come from tsdown's `dts` (rolldown-plugin-dts, tsgo on TS 7); no `tsc` in a build
   script. Externals are tsdown's defaults (`dependencies` and `peerDependencies` stay external); an exception goes

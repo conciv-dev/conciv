@@ -4,7 +4,6 @@ const shared = {
   platform: 'node',
   tsconfig: 'tsconfig.build.json',
   dts: true,
-  sourcemap: true,
   fixedExtension: false,
 } as const
 

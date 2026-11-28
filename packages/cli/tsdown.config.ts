@@ -5,7 +5,6 @@ export default defineConfig({
   platform: 'node',
   tsconfig: 'tsconfig.json',
   dts: false,
-  sourcemap: true,
   fixedExtension: false,
   deps: {onlyImport: ['@ast-grep/napi']},
 })

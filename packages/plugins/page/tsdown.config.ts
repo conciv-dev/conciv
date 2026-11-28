@@ -4,7 +4,7 @@ import solid from 'unplugin-solid/rolldown'
 
 const sourceDir = fileURLToPath(new URL('src/', import.meta.url))
 const clientEntry = ['src/client.ts', 'src/renderer.tsx', 'src/builtins.ts', 'src/test-utils.ts']
-const browser = {platform: 'browser', tsconfig: 'tsconfig.build.json', clean: false, fixedExtension: false} as const
+const browser = {platform: 'browser', tsconfig: 'tsconfig.build.json', clean: false} as const
 
 const rpcFromPackage = {
   name: 'page-rpc-from-package',
@@ -18,7 +18,6 @@ export default defineConfig([
     platform: 'node',
     tsconfig: 'tsconfig.build.json',
     dts: true,
-    sourcemap: true,
     unbundle: true,
     fixedExtension: false,
   },
@@ -26,13 +25,12 @@ export default defineConfig([
     ...browser,
     entry: clientEntry,
     dts: false,
-    sourcemap: true,
     plugins: [rpcFromPackage, solid()],
   },
   ...clientEntry.map((file) => ({
     ...browser,
     entry: [file],
-    dts: {emitDtsOnly: true},
+    dts: {dtsOnly: true},
     plugins: [rpcFromPackage, solid()],
   })),
 ])

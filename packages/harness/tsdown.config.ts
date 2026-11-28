@@ -29,7 +29,6 @@ export default defineConfig([
     platform: 'node',
     tsconfig: 'tsconfig.build.json',
     dts: false,
-    sourcemap: true,
     fixedExtension: false,
     deps: {
       alwaysBundle: ['@tanstack/ai-acp', '@tanstack/ai-claude-code', '@tanstack/ai-codex', '@tanstack/ai-opencode'],
@@ -39,7 +38,7 @@ export default defineConfig([
     entry,
     platform: 'node',
     tsconfig: 'tsconfig.build.json',
-    dts: {emitDtsOnly: true},
+    dts: {dtsOnly: true},
     unbundle: true,
     clean: false,
     fixedExtension: false,

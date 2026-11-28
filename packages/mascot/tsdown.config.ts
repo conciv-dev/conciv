@@ -28,9 +28,7 @@ export default defineConfig([
     platform: 'browser',
     tsconfig: 'tsconfig.build.json',
     dts: true,
-    sourcemap: true,
     unbundle: true,
-    fixedExtension: false,
     plugins: [solid()],
   },
   {
@@ -38,7 +36,6 @@ export default defineConfig([
     platform: 'browser',
     tsconfig: 'tsconfig.build.json',
     outDir: 'dist/solid',
-    sourcemap: false,
     clean: false,
     unbundle: true,
     inputOptions: {transform: {jsx: 'preserve'}},

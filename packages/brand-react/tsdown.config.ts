@@ -5,7 +5,5 @@ export default defineConfig({
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
   dts: true,
-  sourcemap: true,
-  fixedExtension: false,
   banner: "'use client';",
 })

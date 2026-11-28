@@ -20,7 +20,6 @@ export default defineConfig({
       formats: ['es'],
     },
     emptyOutDir: false,
-    sourcemap: true,
     rolldownOptions: {
       external,
       output: {

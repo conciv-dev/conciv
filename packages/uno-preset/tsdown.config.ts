@@ -5,7 +5,6 @@ export default defineConfig({
   platform: 'node',
   target: 'node22',
   tsconfig: 'tsconfig.json',
-  sourcemap: true,
   dts: false,
   unbundle: true,
   fixedExtension: false,
