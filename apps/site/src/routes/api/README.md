@@ -16,7 +16,7 @@ JSON server routes: docs search and the GitHub star count.
 
 ## Side Effects
 
-- `star-count.server.ts:fetchStarCount`: `fetch` to `https://api.github.com/repos/<user>/<repo>` with `user-agent: conciv-site`
+- `star-count.server.ts:fetchStarCount`: `fetch` to `https://api.github.com/repos/<user>/<repo>` with `user-agent: conciv-site`, kept 10 minutes in the Workers cache (`caches.open`), so a build that prerenders every page asks GitHub once
 
 ## Verification
 
