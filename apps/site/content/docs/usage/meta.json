@@ -4,6 +4,7 @@
     "chat",
     "logging-in",
     "page-control",
+    "outside-agent",
     "quick-terminal",
     "terminal",
     "dev-server",

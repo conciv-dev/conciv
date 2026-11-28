@@ -1,0 +1,268 @@
+---
+title: Outside agent
+description: Let the agent in your own terminal read and drive the browser tab you have open.
+---
+
+An outside agent is an agent CLI you run in your own terminal: Claude Code, Codex, Gemini CLI or opencode. Connect it
+to conciv and it can read and drive the tab you have open, through conciv's `conciv-hub` MCP server. You keep typing
+in your terminal. The page changes in your browser.
+
+## Set it up
+
+<Steps>
+<Step>
+
+### Run your app and open it
+
+Start your dev server and open your app in the browser:
+
+```bash title="Terminal"
+pnpm dev
+```
+
+Log the browser in with the code your dev server prints. Learn how in [Logging in](/docs/usage/logging-in).
+
+</Step>
+<Step>
+
+### Open the conciv panel once
+
+Click the conciv button and let the panel open. Your tab joins a chat session the moment the panel opens. Before
+that, no agent can see it.
+
+</Step>
+<Step>
+
+### Connect your agent
+
+Run this once, in any folder:
+
+```bash title="Terminal" tab="Claude Code" tab-group="agent"
+npx @conciv/cli mcp connect claude
+```
+
+```bash title="Terminal" tab="Codex" tab-group="agent"
+npx @conciv/cli mcp connect codex
+```
+
+```bash title="Terminal" tab="Gemini CLI" tab-group="agent"
+npx @conciv/cli mcp connect gemini-cli
+```
+
+```bash title="Terminal" tab="opencode" tab-group="agent"
+npx @conciv/cli mcp connect opencode
+```
+
+It adds `conciv-hub` to that agent's own MCP config. On success it prints:
+
+```json title="Output"
+{"ok": true, "data": {"connected": "claude"}}
+```
+
+</Step>
+<Step>
+
+### Check that the agent can see your tab
+
+Run this from your project folder:
+
+```bash title="Terminal"
+npx @conciv/cli tools tabs
+```
+
+Your tab is listed, with the page it shows. This output leaves out the project's folder, branch and last-active time:
+
+```json title="Output"
+{
+  "ok": true,
+  "data": {
+    "tabs": [
+      {
+        "tab": "ses_dde3add2effeorQX7E0tVdPN4s",
+        "project": "tanstack-start-example",
+        "href": "http://localhost:3462/",
+        "pageTitle": "TanStack Start Starter",
+        "state": "visible",
+        "sessionTitle": "New session",
+        "running": false,
+        "harness": "claude",
+        "browserTabs": [
+          {
+            "id": "tab_a1f66e90-cd99-46b1-a5af-a1b2fe44d54f",
+            "href": "http://localhost:3462/",
+            "pageTitle": "TanStack Start Starter",
+            "state": "visible"
+          }
+        ]
+      }
+    ],
+    "unreachable": []
+  }
+}
+```
+
+The agent sees the same list through its `list_tabs` tool.
+
+</Step>
+</Steps>
+
+## Ask for a first change
+
+Start your agent in your project folder and ask for something on the page:
+
+```text title="Prompt"
+In my open browser tab, change the main heading to say: Hello from the terminal.
+```
+
+The agent calls `list_tabs` to find your tab, then runs page tools on it through `execute_typescript`. It edits the
+source file with its own file tools, and the page updates on the hot reload. It answers in your terminal:
+
+```text title="Claude Code"
+I changed the main heading on your About page
+(src/routes/about.tsx:41) from "A small starter with room to grow."
+to "Hello from the terminal", and checked the open tab at
+localhost:3462/about, which now shows the new text.
+```
+
+In the tab, the heading changes. Each page call the agent made shows in the panel's chat as a card marked
+**from claude**, so you can see what it read and did.
+
+## Pick the tab
+
+A call with no tab named goes to the tab you focused last. Two ids pick another one:
+
+- `--tab` takes a `tab` id from `tools tabs`. That is a chat session, on whichever dev server holds it.
+- `--tab-id` takes a browser tab id inside that session. Every browser tab with the panel open joins the session.
+
+List the browser tabs of a session, and the one you focused last:
+
+```bash title="Terminal"
+npx @conciv/cli tools page tabs_list
+```
+
+```json title="Output"
+{
+  "ok": true,
+  "data": {
+    "tabs": [
+      {
+        "id": "tab_c75a6695-69ee-4969-9d82-3af3463c4346",
+        "url": "http://localhost:3462/about",
+        "title": "TanStack Start Starter",
+        "focused": true,
+        "visible": true
+      },
+      {
+        "id": "tab_a1f66e90-cd99-46b1-a5af-a1b2fe44d54f",
+        "url": "http://localhost:3462/",
+        "title": "TanStack Start Starter",
+        "focused": false,
+        "visible": true
+      }
+    ],
+    "focusedTabId": "tab_c75a6695-69ee-4969-9d82-3af3463c4346"
+  }
+}
+```
+
+Then point a call at the tab you want:
+
+```bash title="Terminal"
+npx @conciv/cli tools page route --tab-id tab_a1f66e90-cd99-46b1-a5af-a1b2fe44d54f
+```
+
+```json title="Output"
+{
+  "ok": true,
+  "data": {
+    "pathname": "/",
+    "search": "",
+    "href": "http://localhost:3462/",
+    "title": "TanStack Start Starter",
+    "state": "visible"
+  }
+}
+```
+
+Your agent passes the same ids. Name the page in your prompt, for example "on the About tab", and it picks the tab
+from `list_tabs`.
+
+## Outside agent or panel chat
+
+The outside agent and the chat in the panel drive the same page with the same tools. They differ in where you talk and
+who runs the agent.
+
+|                    | Outside agent                                          | Panel chat                                  |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------- |
+| Where you type     | Your terminal                                          | The panel in the tab                        |
+| Who runs the agent | You, with your agent's own config                      | conciv, with the harness you pick           |
+| Its replies        | In your terminal. The panel shows only its page calls. | In the panel                                |
+| Edits files with   | Its own tools and permission rules                     | The harness, with conciv's permission cards |
+| Page tools         | Only while a tab with the panel open exists            | Always, on its own tab                      |
+| Permission cards   | It never answers one. You do, in the tab.              | You answer them in the panel                |
+
+By default an outside agent can use any open tab with no card. To make it ask first, see
+[Approvals](/docs/usage/approvals#let-outside-agents-in).
+
+## Troubleshooting
+
+<Accordions type="single">
+  <Accordion title="No conciv dev server">
+    The engine is not running. `tools` prints:
+
+    ```json title="Output"
+    {"ok": false, "error": {"kind": "user", "message": "No conciv dev server on 127.0.0.1:64476.", "hint": "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's)."}}
+    ```
+
+    Start your dev server again, and run the command from your project folder.
+
+  </Accordion>
+  <Accordion title="No tab, or a page tool is missing">
+    `tools tabs` prints an empty list when no tab has the panel open:
+
+    ```json title="Output"
+    {"ok": true, "data": {"tabs": [], "unreachable": []}}
+    ```
+
+    Page tools exist only while a tab is open, so a page call fails too:
+
+    ```json title="Output"
+    {"ok": false, "error": {"kind": "user", "message": "No tool named \"page_route\" is currently available. Please use a tool from the available tool list.", "hint": "read the engine's logs for the tool's error", "code": "HANDLER_ERROR"}}
+    ```
+
+    Open your app and open the conciv panel once.
+
+  </Accordion>
+  <Accordion title="A tab id that is not open">
+    A `--tab` id from a closed tab, or from an old listing, prints:
+
+    ```json title="Output"
+    {"ok": false, "error": {"kind": "user", "message": "tab ses_nope is not open in any of the 1 running conciv dev servers.", "hint": "conciv tools tabs lists the open tabs; open the page again if it was closed."}}
+    ```
+
+    Run `tools tabs` again and use an id from it.
+
+  </Accordion>
+  <Accordion title="Claude Code cannot reach the engine">
+    The Claude Code plugin that init installs reads the engine's address from `.conciv/mcp-endpoint.json`. The engine
+    writes that file on every start and leaves it when it stops, so a stopped engine leaves an address that answers
+    nothing. Start your dev server again. The plugin reads the file on every call, so you do not need to restart
+    Claude Code.
+  </Accordion>
+  <Accordion title="The agent CLI is not installed">
+    `mcp connect` runs the agent's own CLI. With no such CLI on your `PATH`, it prints:
+
+    ```json title="Output"
+    {"ok": false, "error": {"kind": "user", "message": "spawn gemini ENOENT"}}
+    ```
+
+    Install the agent CLI, then run `mcp connect` again.
+
+  </Accordion>
+</Accordions>
+
+## Next steps
+
+- **[Agents](/docs/agents):** what each agent CLI gets when it connects.
+- **[Page control](/docs/usage/page-control):** everything the page tools can read and do.
+- **[CLI](/docs/reference/cli):** every `tools` and `mcp` command.
