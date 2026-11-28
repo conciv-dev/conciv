@@ -22,7 +22,8 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 
 - `try-session.functions.ts`: sets the `conciv-try-token` and `conciv-try-dismissed` cookies
 - `mount-live-widget.ts:mountLiveWidget`: mounts the widget, subscribes to the router's `onResolved`, listens to `PANEL_TOGGLED_EVENT` on `window`, calls `dismissTry` and navigates to drop `?try`
-- `star-count.functions.tsx`: `getStarBadge`, the server function the root route's loader calls at render (prerender) time; `star-count.server.ts:readStarCount` holds the cached GitHub read it and `/api/stars` share
+- `star-count.server.ts:readStarCount`: `fetch` to `https://api.github.com/repos/<user>/<repo>` with `user-agent: conciv-site`, through an ocache cached function made per call (`maxAge` 600 s, stale-while-revalidate up to a day, background refresh through `waitUntil` from `cloudflare:workers`) whose storage is the Workers Cache API (`caches.open('ocache')`, per data center); any failure returns `null`, and a `null` is never cached (`validate`)
+- `star-count-rewriter.ts:withStarCount`: rewrites the `data-star-count` spans of an HTML response with `HTMLRewriter`; a `null` count leaves them empty
 - `og-fonts.server.ts:loadOgFonts`: `env.ASSETS.fetch` from `cloudflare:workers`
 - `use-media-query.ts`, `use-reduced-motion.ts`: `matchMedia` change listeners
 

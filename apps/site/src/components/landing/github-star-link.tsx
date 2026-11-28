@@ -1,7 +1,6 @@
+import type {ReactNode} from 'react'
 import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
-import {getRouteApi} from '@tanstack/react-router'
-import {CompositeComponent} from '@tanstack/react-start/rsc'
 import GithubIcon from '@/components/ui/github-icon'
 import StarIcon from '@/components/ui/star-icon'
 import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
@@ -14,14 +13,19 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
-const rootRoute = getRouteApi('__root__')
-
-function useStarBadge() {
-  return rootRoute.useLoaderData().starBadge
+function StarCount({children}: {children?: ReactNode}) {
+  return (
+    <span className="inline-flex items-center gap-1 has-[[data-star-count=number]:empty]:hidden">
+      {children}
+      <span className="tabular-nums">
+        <span aria-hidden="true" data-star-count="number" suppressHydrationWarning />
+        <span className="sr-only" data-star-count="label" suppressHydrationWarning />
+      </span>
+    </span>
+  )
 }
 
 function CompactGitHubLink({className}: {className?: string}) {
-  const starBadge = useStarBadge()
   const {iconRef: githubRef, triggerProps: githubTrigger} = useAnimatedIcon()
   const {iconRef: starRef, triggerProps: starTrigger} = useAnimatedIcon()
   const both = (key: keyof typeof githubTrigger) => () => {
@@ -42,15 +46,14 @@ function CompactGitHubLink({className}: {className?: string}) {
       )}
     >
       <GithubIcon ref={githubRef} className="size-4" />
-      <CompositeComponent src={starBadge}>
+      <StarCount>
         <StarIcon ref={starRef} className="size-3" />
-      </CompositeComponent>
+      </StarCount>
     </a>
   )
 }
 
 export function GitHubStarLink({className, compact = false}: {className?: string; compact?: boolean}) {
-  const starBadge = useStarBadge()
   if (compact) return <CompactGitHubLink className={className} />
   return (
     <a
@@ -61,7 +64,7 @@ export function GitHubStarLink({className, compact = false}: {className?: string
       <span className="inline-flex items-center gap-1.5">
         <GithubMark className="size-4" />
         GitHub
-        <CompositeComponent src={starBadge} />
+        <StarCount />
       </span>
     </a>
   )
