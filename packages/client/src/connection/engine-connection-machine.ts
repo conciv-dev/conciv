@@ -203,6 +203,11 @@ function retryDue(state: ConnectionState, attempt: number): ConnectionTransition
   return {state: {...state, socket: 'connecting'}, effects: [{type: 'open-socket', attempt}]}
 }
 
+function checkStoredToken(state: ConnectionState): ConnectionTransition {
+  if (state.trust === 'trusted') return unchanged(state)
+  return {state, effects: [{type: 'check-stored-token'}]}
+}
+
 function dispose(state: ConnectionState): ConnectionTransition {
   return {state: {...state, socket: 'disposed'}, effects: [{type: 'close-socket'}, {type: 'close-peer'}]}
 }
@@ -225,8 +230,7 @@ export function transitionConnection(state: ConnectionState, event: ConnectionEv
       'trust-refused': (refused) => refuse(state, refused.token),
       unauthorized: (unauthorized) => distrust(state, unauthorized.token),
       'trust-unanswered': () => (state.trust === 'checking' ? withTrust(state, 'unreachable') : unchanged(state)),
-      'token-stored': () =>
-        state.trust === 'trusted' ? unchanged(state) : {state, effects: [{type: 'check-stored-token'}]},
+      'token-stored': () => checkStoredToken(state),
       disposed: () => dispose(state),
     }),
   )
