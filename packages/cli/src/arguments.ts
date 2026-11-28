@@ -102,7 +102,7 @@ function issueText(issue: Issue, params: Param[]): string {
   const key = PathKeySchema.safeParse(head)
   if (!key.success) return issue.message
   const param = params.find((candidate) => candidate.name === key.data)
-  return `${param?.label ?? key.data}: ${issue.message}`
+  return `${param === undefined || param.argument ? key.data : param.label}: ${issue.message}`
 }
 
 function collectParams(definition: AnyRoute): Param[] {
