@@ -1,4 +1,15 @@
 import {z} from 'zod'
+import * as effect from 'effect'
+import * as zod from 'zod'
+import * as solid from 'solid-js'
+import * as solidWeb from 'solid-js/web'
+import * as solidStore from 'solid-js/store'
+import * as pluginApi from '@conciv/frontend-plugin-api'
+import * as pluginApiPage from '@conciv/frontend-plugin-api/page'
+import * as pluginApiGrab from '@conciv/frontend-plugin-api/grab'
+import * as protocolRpc from '@conciv/protocol/schema/rpc'
+import * as errors from '@conciv/errors'
+import * as client from '@conciv/client'
 import type {Plugin} from '@conciv/frontend-plugin-api'
 import type {PluginModule, Entry} from '@conciv/frontend-plugin-api/host'
 import type {PluginChunk} from './installed'
@@ -6,18 +17,18 @@ import type {BridgePluginExperimental} from './startup'
 import {widgetPluginErrors} from '@conciv/errors'
 
 const modules = {
-  effect: () => import('effect'),
-  '@conciv/frontend-plugin-api': () => import('@conciv/frontend-plugin-api'),
-  '@conciv/protocol/schema/rpc': () => import('@conciv/protocol/schema/rpc'),
-  zod: () => import('zod'),
-  '@conciv/errors': () => import('@conciv/errors'),
-  'solid-js': () => import('solid-js'),
-  'solid-js/web': () => import('solid-js/web'),
-  'solid-js/store': () => import('solid-js/store'),
-  '@conciv/client': () => import('@conciv/client'),
-  '@conciv/frontend-plugin-api/page': () => import('@conciv/frontend-plugin-api/page'),
-  '@conciv/frontend-plugin-api/grab': () => import('@conciv/frontend-plugin-api/grab'),
-} satisfies Record<PluginModule, () => Promise<object>>
+  effect,
+  '@conciv/frontend-plugin-api': pluginApi,
+  '@conciv/protocol/schema/rpc': protocolRpc,
+  zod,
+  '@conciv/errors': errors,
+  'solid-js': solid,
+  'solid-js/web': solidWeb,
+  'solid-js/store': solidStore,
+  '@conciv/client': client,
+  '@conciv/frontend-plugin-api/page': pluginApiPage,
+  '@conciv/frontend-plugin-api/grab': pluginApiGrab,
+} satisfies Record<PluginModule, object>
 
 const chunkFile = /^\.\/([\w.-]+\.cjs)$/
 
@@ -26,9 +37,7 @@ export async function pluginDefinition(
   experimental: Pick<BridgePluginExperimental, 'code' | 'chunks' | 'file'>,
   fetchChunks: (file: string) => Promise<readonly PluginChunk[]>,
 ): Promise<Entry> {
-  const loaded = new Map<string, object>(
-    await Promise.all(Object.entries(modules).map(async ([name, load]) => [name, await load()] as const)),
-  )
+  const loaded = new Map<string, object>(Object.entries(modules))
   const evaluated = new Map<string, object>()
 
   const evaluate = (chunks: readonly PluginChunk[]) =>
