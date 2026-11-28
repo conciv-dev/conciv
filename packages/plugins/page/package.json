@@ -130,6 +130,7 @@
     "node": ">=22.16.0"
   },
   "conciv": {
-    "builtin": true
+    "builtin": true,
+    "testBudget": 32
   }
 }

@@ -4,7 +4,13 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
 import ChevronsDownUp from 'lucide-solid/icons/chevrons-down-up'
 import ChevronsUpDown from 'lucide-solid/icons/chevrons-up-down'
-import {Button, ClipboardCopyButton, TooltipIconButton, type ClipboardCopyLabels} from '@conciv/ui-kit-system'
+import {
+  Button,
+  ClipboardCopyButton,
+  TooltipIconButton,
+  TruncatedText,
+  type ClipboardCopyLabels,
+} from '@conciv/ui-kit-system'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import {codeContentOptions, FILE_HEADER_CSS} from '../primitives/tool-presentation.js'
 import {countLabel} from '../primitives/tool-row.js'
@@ -47,8 +53,8 @@ const EXPAND_ICON = 'size-3.5'
 const HEADER_ROW =
   'box-border flex items-center gap-2 min-w-0 h-8 ps-3 pe-1 bg-chat-fill border-b border-chat-line-soft'
 const HEADER_TEXT: Record<CodeBlockTone, string> = {
-  normal: 'flex-1 min-w-0 truncate text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-text-2',
-  error: 'flex-1 min-w-0 truncate text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-danger',
+  normal: 'flex-1 min-w-0 text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-text-2',
+  error: 'flex-1 min-w-0 text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-danger',
 }
 const TITLE_ROW = 'flex flex-1 min-w-0 items-center gap-1.5 text-chat-text-3'
 const CODE_CONTENT = `block w-full min-w-0 ${PAINTLESS_HIGHLIGHT} [font-family:var(--chat-mono)]`
@@ -207,12 +213,12 @@ export function CodeBlockHeader(props: {children: JSX.Element}): JSX.Element {
   )
 }
 
-export function CodeBlockTitle(props: {icon?: JSX.Element; children: JSX.Element}): JSX.Element {
+export function CodeBlockTitle(props: {icon?: JSX.Element; children: string}): JSX.Element {
   const block = useCodeBlock()
   return (
     <span class={TITLE_ROW}>
       {props.icon}
-      <span class={HEADER_TEXT[block.tone()]}>{props.children}</span>
+      <TruncatedText class={HEADER_TEXT[block.tone()]} text={props.children} />
     </span>
   )
 }

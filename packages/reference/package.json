@@ -72,5 +72,8 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "conciv": {
+    "testBudget": 1
   }
 }

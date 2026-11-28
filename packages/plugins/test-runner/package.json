@@ -103,5 +103,8 @@
   },
   "engines": {
     "node": ">=22.16.0"
+  },
+  "conciv": {
+    "testBudget": 9
   }
 }

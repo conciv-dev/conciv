@@ -32,28 +32,27 @@ describe('cases', () => {
   test.use({})
 })
 `
-  const scaffoldWorkspace = async (budget: Record<string, number>) => {
+  const scaffoldWorkspace = async (testBudget: number) => {
     const root = tempDir('test-budget-')
     const source = join(root, 'packages', 'a', 'src')
     await mkdir(join(source, 'fixtures'), {recursive: true})
     await Promise.all([
       writeFile(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n'),
       writeFile(join(root, 'package.json'), JSON.stringify({name: 'root', private: true})),
-      writeFile(join(root, 'packages', 'a', 'package.json'), JSON.stringify({name: '@conciv/a'})),
+      writeFile(join(root, 'packages', 'a', 'package.json'), JSON.stringify({name: '@conciv/a', conciv: {testBudget}})),
       writeFile(join(source, 'a.test.ts'), spec),
       writeFile(join(source, 'fixtures', 'demo.test.ts'), "test('a fixture', () => {})\n"),
-      writeFile(join(root, 'test-budget.json'), JSON.stringify(budget)),
     ])
     await execa('git', ['init', '--quiet'], {cwd: root})
     await execa('git', ['add', '--all'], {cwd: root})
     return root
   }
 
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 13}))).rejects.toThrow(
-    '@conciv/a: 14 tests, budget 13\n\nThe budget is a review gate, not a counter to bump.',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace(13))).rejects.toThrow(
+    '@conciv/a: 14 tests, budget 13 (packages/a/package.json)\n\nThe budget is a review gate, not a counter to bump.',
   )
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 14}))).resolves.toEqual([])
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 15}))).resolves.toEqual([
-    '@conciv/a: 14 tests, budget 15: lower it to 14 in test-budget.json',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace(14))).resolves.toEqual([])
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace(15))).resolves.toEqual([
+    '@conciv/a: 14 tests, budget 15: lower "conciv.testBudget" to 14 in packages/a/package.json',
   ])
 })

@@ -17,7 +17,7 @@ const manifestSchema = z.object({
   devDependencies: z.record(z.string(), z.string()).optional(),
   optionalDependencies: z.record(z.string(), z.string()).optional(),
   peerDependencies: z.record(z.string(), z.string()).optional(),
-  conciv: z.object({builtin: z.boolean().optional()}).optional(),
+  conciv: z.object({builtin: z.boolean().optional(), testBudget: z.number().int().nonnegative().optional()}).optional(),
   engines: z.object({node: z.string().optional()}).optional(),
 })
 

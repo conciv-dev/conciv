@@ -333,10 +333,11 @@ maintainer's yes.
 - Budgets (`conciv/test-file-budget`): a package lacking one of the five folders fails; a test file outside
   `test/unit`, `test/it` and `test/e2e` fails; a name whose kind is not its folder fails; never more test files than
   source files; a test file is at most 1,000 lines.
-- Test budget (`test-budget.json`, `conciv-publish check-test-budget`): it counts test cases. It is a review gate, not a
-  counter to bump. Before you raise a number: (1) list every new test case over budget, by file and name; (2) for each,
-  name the existing test you checked and why it does not cover this; (3) fold it into an existing journey when one
-  fits; (4) only a survivor gets a raised number, and the PR body carries the account for the maintainer.
+- Test budget (`"conciv": {"testBudget": N}` in each package's own `package.json`, absent is 0; `conciv-publish
+  check-test-budget`): it counts test cases. It is a review gate, not a counter to bump. Before you raise a number: (1)
+  list every new test case over budget, by file and name; (2) for each, name the existing test you checked and why it
+  does not cover this; (3) fold it into an existing journey when one fits; (4) only a survivor gets a raised number, and
+  the PR body carries the account for the maintainer.
 
 ### Running
 

@@ -48,5 +48,8 @@
       "esbuild",
       "lightningcss"
     ]
+  },
+  "conciv": {
+    "testBudget": 1
   }
 }

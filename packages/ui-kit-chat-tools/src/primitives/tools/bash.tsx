@@ -13,10 +13,6 @@ function argString(part: ToolCallPart, key: string): string {
   }
 }
 
-function truncate(value: string, max = 80): string {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value
-}
-
 type BashContextValue = {
   command: Accessor<string>
   summary: Accessor<string>
@@ -41,7 +37,7 @@ function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; ch
   const running = () => status() === 'running'
   const output = createMemo<BashOutput>(() => (running() ? {} : parseBashOutput(props.result)))
   const command = () => argString(props.part, 'command')
-  const summary = () => argString(props.part, 'description') || truncate(command())
+  const summary = () => argString(props.part, 'description') || command()
   const outcome = () => props.result?.outcome
   const stoppedReason = () => props.result?.error ?? ''
   const isError = () => !running() && ((output().exitCode ?? 0) !== 0 || status() === 'error')

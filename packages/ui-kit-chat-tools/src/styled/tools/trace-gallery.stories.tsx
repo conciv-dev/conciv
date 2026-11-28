@@ -1,5 +1,6 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
+import {expect, userEvent, waitFor, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import type {ToolViewCtx} from '@conciv/types/tool-view-types'
 import {INERT_TOOL_CTX, Trace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
@@ -60,14 +61,27 @@ const PATCH = [
   '*** End Patch',
 ].join('\n')
 
+const LONG_COMMAND =
+  'sqlite3 -readonly "$HOME/Library/Application Support/conciv/home.db" "select id, integration_id, label, active from credentials order by id"'
+
 export const Bash: Story = {
   render: () =>
     gallery('1 bash', [
-      row(
-        call('Bash', {command: 'pnpm turbo run test --filter=@conciv/ui-kit-chat'}),
-        result(JSON.stringify({stdout: '58 passed\n0 failed', exitCode: 0})),
-      ),
+      row(call('Bash', {command: LONG_COMMAND}), result(JSON.stringify({stdout: '58 passed\n0 failed', exitCode: 0}))),
     ]),
+  play: async ({canvasElement}) => {
+    const page = within(canvasElement.ownerDocument.body)
+    const output = within(canvasElement).getByRole('group', {name: 'Output'})
+    await expect(within(canvasElement).queryByText(/…$/)).toBeNull()
+    const [rowTarget] = within(canvasElement).getAllByText(LONG_COMMAND)
+    if (rowTarget === undefined) throw new Error('the trace row shows no command')
+    await userEvent.hover(rowTarget)
+    await expect(await page.findByRole('tooltip')).toHaveTextContent(LONG_COMMAND)
+    await userEvent.unhover(rowTarget)
+    await waitFor(() => expect(page.queryByRole('tooltip')).toBeNull())
+    await userEvent.hover(within(output).getByText(LONG_COMMAND))
+    await expect(await page.findByRole('tooltip')).toHaveTextContent(LONG_COMMAND)
+  },
 }
 
 const BUILD_LOG = [

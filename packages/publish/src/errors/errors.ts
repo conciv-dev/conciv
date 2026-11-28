@@ -152,10 +152,6 @@ export const publishErrors = defineErrorCatalog('publish', {
   TEST_FILE_UNPARSABLE: {
     message: ({filename, reason}: {filename: string; reason: string}) => `${filename}: cannot parse - ${reason}`,
   },
-  INVALID_BUDGET: {
-    message: ({path, reason}: {path: string; reason: string}) =>
-      `${path}: expected {"<package name>": <test count>}\n${reason}`,
-  },
   OVER_BUDGET: {
     message: ({lines}: {lines: string[]}) => lines.join('\n'),
   },

@@ -2,11 +2,9 @@ import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {execa} from 'execa'
 import {parseSync, Visitor, type CallExpression, type Expression, type Super} from 'oxc-parser'
-import {z} from 'zod'
-import {findOwner, readWorkspacePackages} from './workspace.ts'
+import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 import {publishErrors} from './errors/errors.ts'
 
-const BUDGET_FILE = 'test-budget.json'
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const FIXTURE_SEGMENT = /(^|\/)fixtures\//
 const TEST_FUNCTIONS = ['test', 'it']
@@ -29,8 +27,6 @@ const CASE_MODIFIERS = [
   'scopedLive',
   'prop',
 ]
-
-const budgetSchema = z.record(z.string(), z.number().int().nonnegative())
 
 type TestChain = {name: string; members: string[]}
 
@@ -96,51 +92,48 @@ async function trackedTestFiles(cwd: string): Promise<string[]> {
   return stdout.split('\0').filter((path) => TEST_FILE.test(path) && !FIXTURE_SEGMENT.test(path))
 }
 
-async function countTestCasesByPackage(cwd: string): Promise<Map<string, number>> {
+type PackageBudget = {name: string; manifest: string; cases: number; budget: number}
+
+async function readPackageBudgets(cwd: string): Promise<PackageBudget[]> {
   const [packages, files] = await Promise.all([readWorkspacePackages(cwd), trackedTestFiles(cwd)])
-  const counts = new Map<string, number>()
+  const counts = new Map<WorkspacePackage, number>()
   for (const path of files) {
     const owner = findOwner(packages, path)
     if (!owner) continue
-    const name = owner.manifest.name ?? owner.relativeDir
     const cases = countTestCases(path, await readFile(join(cwd, path), 'utf8'))
-    counts.set(name, (counts.get(name) ?? 0) + cases)
+    counts.set(owner, (counts.get(owner) ?? 0) + cases)
   }
-  return new Map([...counts].filter(([, cases]) => cases > 0).toSorted(([a], [b]) => a.localeCompare(b)))
-}
-
-async function readBudget(cwd: string): Promise<Record<string, number>> {
-  const path = join(cwd, BUDGET_FILE)
-  const result = budgetSchema.safeParse(JSON.parse(await readFile(path, 'utf8')))
-  if (!result.success) throw publishErrors.INVALID_BUDGET({path, reason: result.error.message})
-  return result.data
+  return packages
+    .map((pkg) => ({
+      name: pkg.manifest.name ?? pkg.relativeDir,
+      manifest: join(pkg.relativeDir, 'package.json'),
+      cases: counts.get(pkg) ?? 0,
+      budget: pkg.manifest.conciv?.testBudget ?? 0,
+    }))
+    .toSorted((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function assertTestsWithinBudget(cwd: string): Promise<string[]> {
-  const [counts, budget] = await Promise.all([countTestCasesByPackage(cwd), readBudget(cwd)])
-  const names = [...new Set([...counts.keys(), ...Object.keys(budget)])].toSorted()
-  const over = names.flatMap((name) => {
-    const cases = counts.get(name) ?? 0
-    const allowed = budget[name] ?? 0
-    return cases > allowed ? [`${name}: ${cases} tests, budget ${allowed}`] : []
-  })
+  const budgets = await readPackageBudgets(cwd)
+  const over = budgets.filter(({cases, budget}) => cases > budget)
   if (over.length > 0) {
     throw publishErrors.OVER_BUDGET({
       lines: [
-        `a package has more tests than ${BUDGET_FILE} allows:`,
-        ...over,
+        'a package has more tests than its package.json "conciv.testBudget" allows:',
+        ...over.map(({name, manifest, cases, budget}) => `${name}: ${cases} tests, budget ${budget} (${manifest})`),
         '',
         'The budget is a review gate, not a counter to bump. Before you raise any number:',
         '1. List every new test case in the package over its budget: file and test name.',
         '2. For each one, name the existing test or suite you checked and say why it does not already cover this.',
         '3. Fold it into an existing journey test when one fits: one journey, not one test per behaviour.',
-        `4. Only a test that survives this gets a raised number in ${BUDGET_FILE}, and the PR body carries this account, test by test, for the maintainer to approve.`,
+        '4. Only a test that survives this gets a raised "conciv.testBudget" in its package.json, and the PR body carries this account, test by test, for the maintainer to approve.',
       ],
     })
   }
-  return names.flatMap((name) => {
-    const cases = counts.get(name) ?? 0
-    const allowed = budget[name] ?? 0
-    return cases < allowed ? [`${name}: ${cases} tests, budget ${allowed}: lower it to ${cases} in ${BUDGET_FILE}`] : []
-  })
+  return budgets
+    .filter(({cases, budget}) => cases < budget)
+    .map(
+      ({name, manifest, cases, budget}) =>
+        `${name}: ${cases} tests, budget ${budget}: lower "conciv.testBudget" to ${cases} in ${manifest}`,
+    )
 }

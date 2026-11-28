@@ -84,5 +84,8 @@
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
+  },
+  "conciv": {
+    "testBudget": 123
   }
 }

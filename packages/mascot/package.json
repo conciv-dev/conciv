@@ -135,5 +135,8 @@
     "solid-js": {
       "optional": true
     }
+  },
+  "conciv": {
+    "testBudget": 9
   }
 }
