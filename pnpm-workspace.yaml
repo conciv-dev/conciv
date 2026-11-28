@@ -26,6 +26,7 @@ catalog:
   '@types/npmcli__arborist': 6.3.3
   '@types/pacote': 11.1.8
   '@types/which': 3.0.4
+  '@videojs/react': 10.7.0
   '@ff-labs/fff-node': 0.10.5
   npm-package-arg: 13.0.2
   pacote: 21.5.1
