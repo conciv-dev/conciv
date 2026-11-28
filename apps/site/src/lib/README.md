@@ -11,7 +11,7 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 - `try-session.functions.ts:getTrySession`: the token cookie must parse as a UUID, otherwise a new `crypto.randomUUID()` is issued
 - `try-session.functions.ts:writeTryCookie`: cookies are `httpOnly`, `secure`, `sameSite: 'lax'`, 24 h
 - `try-state.ts:shouldAutoOpen`: auto-opens only when not dismissed, no `?try`, no widget present and `widgetOpen`
-- `try-state.ts:shouldDismissOnClose`: dismiss only after the panel was opened and closed while not connected
+- `try-state.ts:readPanelToggle`: only a panel that was open and is now closed counts as a close (it clears `?try`, and dismisses the try session when not connected). The widget also reports `open: false` while it stays closed (the mascot moving, the engine login box open on the closed route); those change nothing
 - `mount-live-widget.ts:mountLiveWidget` and `mount-docs-demo.ts:mountDocsDemo` return a teardown; `live-widget.tsx` runs it from its ref cleanup, so moving between the docs and the rest of the site swaps one widget for the other
 - `mount-live-widget.ts`: `?try=1` appearing opens the panel and disappearing (Back) closes it; closing the panel removes `?try` with a replace navigation
 - `og-limits.ts`: OG title is clamped to 70 chars, description to 140
