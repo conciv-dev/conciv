@@ -129,20 +129,33 @@ function storageEffect<A>(io: () => A, fallback: A): Effect.Effect<A> {
   )
 }
 
+function tokenStorageKey(key: string): string {
+  return `${TOKEN_STORAGE_PREFIX}${key}`
+}
+
 function readStoredToken(key: string): Effect.Effect<string | undefined> {
-  return storageEffect(() => tokenStorage()?.getItem(`${TOKEN_STORAGE_PREFIX}${key}`) ?? undefined, undefined)
+  return storageEffect(() => tokenStorage()?.getItem(tokenStorageKey(key)) ?? undefined, undefined)
 }
 
 function storeToken(key: string, token: string): Effect.Effect<void> {
-  return storageEffect(() => tokenStorage()?.setItem(`${TOKEN_STORAGE_PREFIX}${key}`, token), undefined)
+  return storageEffect(() => tokenStorage()?.setItem(tokenStorageKey(key), token), undefined)
+}
+
+function watchStoredToken(key: string, onStored: () => void): Effect.Effect<void, never, Scope.Scope> {
+  if (typeof window === 'undefined') return Effect.void
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key === tokenStorageKey(key) && event.newValue !== null) onStored()
+  }
+  return Effect.acquireRelease(
+    Effect.sync(() => window.addEventListener('storage', onStorage)),
+    () => Effect.sync(() => window.removeEventListener('storage', onStorage)),
+  )
 }
 
 function forgetToken(key: string, token: string): Effect.Effect<void> {
   return readStoredToken(key).pipe(
     Effect.flatMap((stored) =>
-      stored === token
-        ? storageEffect(() => tokenStorage()?.removeItem(`${TOKEN_STORAGE_PREFIX}${key}`), undefined)
-        : Effect.void,
+      stored === token ? storageEffect(() => tokenStorage()?.removeItem(tokenStorageKey(key)), undefined) : Effect.void,
     ),
   )
 }
@@ -642,6 +655,8 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     requestAuthCode: (options = {}) =>
       run(answered(auth.requestCode({reissue: options.reissue ?? false})).pipe(Effect.asVoid)),
   }
+
+  yield* watchStoredToken(key, () => runDetached(Effect.forkIn(requestTrust(true), lifetime)))
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 

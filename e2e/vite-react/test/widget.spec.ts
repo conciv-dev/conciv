@@ -17,12 +17,18 @@ test.describe('signing in to the widget on a vite react page', () => {
     await expectWidgetBoots(page, failures)
   })
 
-  test('the code the dev server prints in its log signs the browser in', async ({page}) => {
+  test('the code the dev server prints in its log signs the browser in, and a tab of it that is already open too', async ({
+    page,
+  }) => {
+    const openTab = await page.context().newPage()
+    await openTab.goto('/', {waitUntil: 'domcontentloaded', timeout: 60_000})
+    await expect(openTab.getByRole('button', {name: 'Unauthorized. Authorize conciv'})).toBeVisible()
     const code = await openLoginFromLockedLauncher(page)
 
     await page.getByRole('textbox', {name: 'Digit 1 of 6'}).pressSequentially(code)
 
     await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).not.toBeVisible()
+    await expect(openTab.getByRole('button', {name: /conciv chat$/})).toBeVisible()
   })
 })
 
