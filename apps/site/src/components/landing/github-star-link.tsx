@@ -1,11 +1,10 @@
 import type {ReactNode} from 'react'
 import {useQuery} from '@tanstack/react-query'
-import {m, useSpring, useTransform} from 'motion/react'
+import {AnimatePresence, m, useReducedMotion, useSpring, useTransform} from 'motion/react'
 import {z} from 'zod'
 import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
 import {formatStarCount} from '@/lib/star-count'
-import {useReducedMotion} from '@/lib/use-reduced-motion'
 import GithubIcon from '@/components/ui/github-icon'
 import StarIcon from '@/components/ui/star-icon'
 import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
@@ -34,25 +33,28 @@ function CountUp({to}: {to: number}) {
   return <m.span ref={() => count.set(to)}>{text}</m.span>
 }
 
-function StarCount({children}: {children?: ReactNode}) {
+function StarCount({children, className}: {children?: ReactNode; className?: string}) {
+  const reduced = useReducedMotion()
   const {data: stars, isPending} = useQuery({queryKey: ['github-stars'], queryFn: fetchStars, staleTime: 600_000})
   const known = typeof stars === 'number'
   return (
-    <span className={cn('inline-flex items-center gap-1', !isPending && !known && 'invisible')}>
-      {children}
-      <span className="tabular-nums">
-        <span aria-hidden="true">
-          {known ? (
-            <LandingMotion>
-              <CountUp key={stars} to={stars} />
-            </LandingMotion>
-          ) : (
-            '0'
-          )}
-        </span>
-        {known && <span className="sr-only">{stars} stars</span>}
-      </span>
-    </span>
+    <LandingMotion>
+      <AnimatePresence initial={false}>
+        {(isPending || known) && (
+          <m.span
+            className={cn('inline-flex items-center gap-1 overflow-hidden whitespace-nowrap', className)}
+            exit={{width: 0, opacity: 0, paddingLeft: 0}}
+            transition={reduced ? {duration: 0} : {duration: 0.25, ease: 'easeOut'}}
+          >
+            {children}
+            <span className="tabular-nums">
+              <span aria-hidden="true">{known ? <CountUp key={stars} to={stars} /> : '0'}</span>
+              {known && <span className="sr-only">{stars} stars</span>}
+            </span>
+          </m.span>
+        )}
+      </AnimatePresence>
+    </LandingMotion>
   )
 }
 
@@ -72,12 +74,12 @@ function CompactGitHubLink({className}: {className?: string}) {
       onFocus={both('onFocus')}
       onBlur={both('onBlur')}
       className={cn(
-        'inline-flex items-center gap-1 rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
+        'inline-flex items-center rounded-md p-2 text-xs leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
         className,
       )}
     >
       <GithubIcon ref={githubRef} className="size-4" />
-      <StarCount>
+      <StarCount className="pl-1">
         <StarIcon ref={starRef} className="size-3" />
       </StarCount>
     </a>
@@ -92,10 +94,12 @@ export function GitHubStarLink({className, compact = false}: {className?: string
       aria-label="conciv on GitHub"
       className={cn('text-sm font-medium text-muted-foreground transition-colors hover:text-foreground', className)}
     >
-      <span className="inline-flex items-center gap-1.5">
-        <GithubMark className="size-4" />
-        GitHub
-        <StarCount />
+      <span className="inline-flex items-center">
+        <span className="inline-flex items-center gap-1.5">
+          <GithubMark className="size-4" />
+          GitHub
+        </span>
+        <StarCount className="pl-1.5" />
       </span>
     </a>
   )

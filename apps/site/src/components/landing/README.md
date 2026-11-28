@@ -21,7 +21,7 @@ Landing page sections: nav, hero with the demo, framework install tabs with pre-
 - `try-live-button.tsx`: `window` listener for `CONNECTION_CHANGED_EVENT`
 - `theme-toggle.tsx`: `setTheme` from `next-themes`
 - `framework-tabs.tsx`: `requestAnimationFrame` layout refreshes
-- `github-star-link.tsx`: renders `0` on the server and the first client render, asks `/api/stars` with TanStack Query (`['github-stars']`, 10 min stale time), then springs the number from 0 to the count (at once under reduced motion); a failure or a `null` count makes the star group invisible, keeping its space; the sr-only "{n} stars" label appears only once the count is known
+- `github-star-link.tsx`: renders `0` on the server and the first client render, asks `/api/stars` with TanStack Query (`['github-stars']`, 10 min stale time), then springs the number from 0 to the count (at once under reduced motion); a failure or a `null` count removes the star icon and number (motion `AnimatePresence` exit to width 0, instant under reduced motion), leaving the GitHub mark alone like the other header buttons; the sr-only "{n} stars" label appears only once the count is known
 
 ## Verification
 

@@ -1,12 +1,18 @@
-import {waitUntil} from 'cloudflare:workers'
+import {env, waitUntil} from 'cloudflare:workers'
 import {createBlobStorage, defineCachedFunction} from 'ocache'
 import {gitConfig} from '@/lib/shared'
 import {parseStarCount} from '@/lib/star-count'
 
+function githubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {accept: 'application/vnd.github+json', 'user-agent': 'conciv-site'}
+  if (env.GITHUB_TOKEN) headers.authorization = `Bearer ${env.GITHUB_TOKEN}`
+  return headers
+}
+
 async function fetchStarCount(): Promise<number | null> {
   try {
     const response = await fetch(`https://api.github.com/repos/${gitConfig.user}/${gitConfig.repo}`, {
-      headers: {accept: 'application/vnd.github+json', 'user-agent': 'conciv-site'},
+      headers: githubHeaders(),
     })
     if (!response.ok) return null
     const payload: unknown = await response.json()
