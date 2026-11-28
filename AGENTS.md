@@ -88,14 +88,16 @@ Rules that hold the layout:
   (oxlint). Format: `pnpm format` (check) / `pnpm format:fix` (oxfmt). Both: `turbo run quality` /
   `turbo run quality:fix`.
 - Libraries build with tsdown, as devframe (`_ref/devframe-main`) builds its packages: each has one small
-  `tsdown.config.ts` (entry, platform, tsconfig, `dts`, `sourcemap`, `fixedExtension: false`; `unbundle: true` for a
+  `tsdown.config.ts` (entry, platform, tsconfig, `dts`; `fixedExtension: false` on a node build, so its files keep the
+  `.js` names `exports` points at; no source or declaration maps, as devframe; `unbundle: true` for a
   library with several entries, so no hashed `.d.ts` chunk sits outside `exports`; Solid libraries add
   `unplugin-solid/rolldown`). Types come from tsdown's `dts` (rolldown-plugin-dts, tsgo on TS 7); no `tsc` in a build
   script. Externals are tsdown's defaults (`dependencies` and `peerDependencies` stay external); an exception goes
   through tsdown's `deps` (`alwaysBundle`, `neverBundle`, `onlyImport`), never a hand-written list. A library that
   bundles dependencies on purpose builds its JS bundled and its declarations in a second `dts: {dtsOnly: true}` config.
-  A plugin's UnoCSS sheet is generated before tsdown, as devframe's `build:css`: `scripts/build-css.ts` calls
-  `buildShadowCss` (`@internal/uno-preset/build-shadow-css`) with `pluginSheetConfig` over its `src`, which
+  A plugin's UnoCSS sheet is generated before tsdown, as devframe's `build:css`: `scripts/build-css.ts` is one line,
+  `console.log(await buildPluginSheet(import.meta.url))` (`@internal/uno-preset/build-shadow-css`), which runs
+  `pluginSheetConfig` over the plugin's `src` and
   writes `src/.generated/css.ts` (`export default "<css>"`, gitignored); `build` runs `build:css` first, the browser
   part imports `./.generated/css.js`, and the turbo `build:css` task (outputs `src/.generated/**`, also a `build`
   output) runs before `typecheck`. The script runs on Node 22.18+ type stripping, so it stays erasable-only TS. The three kits that use Vite's inline imports (`?worker&inline`, `.css?inline`, the
@@ -111,7 +113,7 @@ Rules that hold the layout:
   nothing: the `unocss/order` rule reads the one root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`),
   which loads the preset from its source, and the order the preset gives is the same in every package. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
-- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with tsdown (`tsdown.config.ts`) and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>` with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|internal|plugin> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). `published` makes `@conciv/<name>`, built with tsdown (`tsdown.config.ts`) and registered for release; `internal` makes `@internal/<name>`, private and source-only (exports point at `src`, no build script). Both live in `packages/<name>`. `plugin` makes `@conciv/plugin-<name>` in `packages/plugins/<name>`, registered for release like a published one: the runtime picks its parts (`node` the engine part `src/<name>.ts`, `browser` the browser part `src/plugin-experimental.tsx` built by `experimental()` in `vite.config.ts` with its `uno.config.ts` and `scripts/build-css.ts` sheet, `both` both), in the #1217 plugin shape. Each kind comes with the five test folders, and get a `test` script with their first test. The generator lives in `packages/publish/turbo/generators/`; its test is `packages/publish/test/it/package-generator.it.test.ts`.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).

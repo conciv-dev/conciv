@@ -5,6 +5,11 @@ export const generatorErrors = defineErrorCatalog('publish.generator', {
     message: ({reason}: {reason: string}) => reason,
     fix: 'Pick another name, or remove the old package first.',
   },
+  ENTRY_NAME_TAKEN: {
+    message: ({name}: {name: string}) =>
+      `a plugin with both parts cannot be named ${name}: its engine entry src/${name}.ts and the browser entry src/plugin-experimental.tsx would write the same dist/plugin-experimental declarations`,
+    fix: 'Pick another name.',
+  },
   LIST_NOT_FOUND: {
     message: ({path, marker}: {path: string; marker: string}) => `${path}: no list starts with ${marker}`,
   },

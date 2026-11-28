@@ -1,0 +1,42 @@
+import {defineConfig} from 'tsdown'
+{{#if browserPart}}
+import solid from 'unplugin-solid/rolldown'
+{{/if}}
+
+{{#if engine}}
+{{#if browserPart}}
+export default defineConfig([
+  {
+    entry: ['src/{{name}}.ts'],
+    platform: 'node',
+    tsconfig: 'tsconfig.build.json',
+    dts: true,
+    fixedExtension: false,
+  },
+  {
+    entry: ['src/plugin-experimental.tsx'],
+    platform: 'browser',
+    tsconfig: 'tsconfig.build.json',
+    dts: {dtsOnly: true},
+    clean: false,
+    plugins: [solid()],
+  },
+])
+{{else}}
+export default defineConfig({
+  entry: ['src/{{name}}.ts'],
+  platform: 'node',
+  tsconfig: 'tsconfig.build.json',
+  dts: true,
+  fixedExtension: false,
+})
+{{/if}}
+{{else}}
+export default defineConfig({
+  entry: ['src/plugin-experimental.tsx'],
+  platform: 'browser',
+  tsconfig: 'tsconfig.build.json',
+  dts: {dtsOnly: true},
+  plugins: [solid()],
+})
+{{/if}}

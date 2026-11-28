@@ -12,7 +12,7 @@ const FALLOW_CONFIG = '.fallowrc.json'
 const REPOSITORY_URL = 'git+https://github.com/conciv-dev/conciv.git'
 const TEST_FOLDERS = ['unit', 'it', 'e2e', 'fixtures', 'utils']
 
-const Kind = Schema.Literals(['published', 'internal'])
+const Kind = Schema.Literals(['published', 'internal', 'plugin'])
 const Runtime = Schema.Literals(['node', 'browser', 'both'])
 const Install = Schema.Literals(['install', 'skip'])
 
@@ -25,7 +25,9 @@ const Answers = Schema.Struct({
   turbo: Schema.Struct({paths: Schema.Struct({root: Schema.String})}),
 })
 
-const SharedVersion = Schema.fromJsonString(Schema.Struct({version: Schema.String}))
+const SharedVersion = Schema.fromJsonString(
+  Schema.Struct({version: Schema.String, engines: Schema.Struct({node: Schema.String})}),
+)
 
 const WorkspacePackages = Schema.fromJsonString(
   Schema.Struct({
@@ -51,11 +53,21 @@ function packageName(spec: Spec): string {
       return `@internal/${spec.name}`
     case 'published':
       return `@conciv/${spec.name}`
+    case 'plugin':
+      return `@conciv/plugin-${spec.name}`
   }
 }
 
 function directory(spec: Spec): string {
-  return `packages/${spec.name}`
+  return spec.kind === 'plugin' ? `packages/plugins/${spec.name}` : `packages/${spec.name}`
+}
+
+function hasEngine(spec: Spec): boolean {
+  return spec.runtime !== 'browser'
+}
+
+function hasBrowserPart(spec: Spec): boolean {
+  return spec.runtime !== 'node'
 }
 
 function changesetPath(spec: Spec): string {
@@ -73,6 +85,9 @@ function nodeTypes(spec: Spec): Record<string, string> {
 }
 
 function tsconfig(spec: Spec): object {
+  if (spec.kind === 'plugin' && hasBrowserPart(spec)) {
+    return {extends: '@internal/tsconfig/tsconfig.solid.json', compilerOptions: {types: ['node']}}
+  }
   switch (spec.runtime) {
     case 'node':
       return {extends: '@internal/tsconfig/tsconfig.base.json', compilerOptions: {types: ['node']}}
@@ -112,7 +127,7 @@ function sourceOnlyManifest(spec: Spec, version: string): object {
   }
 }
 
-function publishedManifest(spec: Spec, version: string): object {
+function publishedManifest(spec: Spec, version: string, node: string): object {
   return {
     name: packageName(spec),
     version,
@@ -133,19 +148,103 @@ function publishedManifest(spec: Spec, version: string): object {
       attw: 'attw --pack . --profile esm-only',
     },
     devDependencies: devDependencies(spec, {tsdown: 'catalog:'}),
+    ...(spec.runtime === 'browser' ? {} : {engines: {node}}),
   }
 }
 
-function manifest(spec: Spec, version: string): object {
+function pluginExports(spec: Spec): object {
+  const engine = {types: `./dist/${spec.name}.d.ts`, import: `./dist/${spec.name}.js`}
+  return {
+    ...(hasEngine(spec) ? {'.': engine, './server': engine} : {}),
+    ...(hasBrowserPart(spec)
+      ? {
+          './plugin-experimental': {
+            types: './dist/plugin-experimental.d.cts',
+            default: './dist/plugin-experimental.cjs',
+          },
+        }
+      : {}),
+    './package.json': './package.json',
+  }
+}
+
+function pluginBuild(spec: Spec): Record<string, string> {
+  return hasBrowserPart(spec)
+    ? {'build:css': 'node scripts/build-css.ts', build: 'pnpm run build:css && tsdown && vite build'}
+    : {build: 'tsdown'}
+}
+
+function pluginPeers(spec: Spec): Record<string, string> {
+  return {
+    ...(hasEngine(spec) ? {'@conciv/backend-plugin-api': 'workspace:^'} : {}),
+    ...(hasBrowserPart(spec) ? {'@conciv/frontend-plugin-api': 'workspace:^'} : {}),
+  }
+}
+
+function pluginManifest(spec: Spec, version: string, node: string): object {
+  const browser: Record<string, string> = hasBrowserPart(spec)
+    ? {
+        '@internal/uno-preset': 'workspace:*',
+        'solid-js': 'catalog:',
+        unocss: 'catalog:',
+        'unplugin-solid': 'catalog:',
+      }
+    : {}
+  return {
+    name: packageName(spec),
+    version,
+    description: spec.description,
+    keywords: ['conciv', 'conciv-plugin', 'plugin'],
+    homepage: 'https://conciv.dev',
+    bugs: 'https://github.com/conciv-dev/conciv/issues',
+    license: 'MIT',
+    repository: {type: 'git', url: REPOSITORY_URL, directory: directory(spec)},
+    files: ['dist'],
+    type: 'module',
+    exports: pluginExports(spec),
+    publishConfig: {access: 'public'},
+    scripts: {
+      ...pluginBuild(spec),
+      typecheck: 'tsc -p tsconfig.json --noEmit',
+      publint: 'publint',
+      attw: 'attw --pack . --profile esm-only',
+    },
+    ...(hasEngine(spec) ? {dependencies: {effect: 'catalog:'}} : {}),
+    devDependencies: devDependencies(spec, {...pluginPeers(spec), ...browser, tsdown: 'catalog:'}),
+    peerDependencies: pluginPeers(spec),
+    engines: {node},
+  }
+}
+
+function manifest(spec: Spec, version: string, node: string): object {
   switch (spec.kind) {
     case 'internal':
       return sourceOnlyManifest(spec, version)
     case 'published':
-      return publishedManifest(spec, version)
+      return publishedManifest(spec, version, node)
+    case 'plugin':
+      return pluginManifest(spec, version, node)
   }
 }
 
+function pluginFiles(spec: Spec): Array<[string, string]> {
+  return [
+    ...(hasEngine(spec) ? [[`src/${spec.name}.ts`, 'plugin-engine.ts'] as [string, string]] : []),
+    ...(hasBrowserPart(spec)
+      ? [
+          ['src/plugin-experimental.tsx', 'plugin-browser.tsx'] as [string, string],
+          ['scripts/build-css.ts', 'build-css.ts'] as [string, string],
+          ['uno.config.ts', 'uno.config.ts'] as [string, string],
+          ['vite.config.ts', 'plugin-vite.config.ts'] as [string, string],
+        ]
+      : [['vitest.config.ts', 'vitest.config.ts'] as [string, string]]),
+    ['tsdown.config.ts', 'plugin-tsdown.config.ts'],
+    ['README.md', 'README.md'],
+  ]
+}
+
 function templatedFiles(spec: Spec): Array<[string, string]> {
+  if (spec.kind === 'plugin') return pluginFiles(spec)
   const shared: Array<[string, string]> = [
     [`src/${spec.name}.ts`, 'entry.ts'],
     ['vitest.config.ts', 'vitest.config.ts'],
@@ -159,15 +258,16 @@ function templatedFiles(spec: Spec): Array<[string, string]> {
   }
 }
 
-function jsonFiles(spec: Spec, version: string): Array<[string, object]> {
+function jsonFiles(spec: Spec, version: string, node: string): Array<[string, object]> {
   const shared: Array<[string, object]> = [
-    ['package.json', manifest(spec, version)],
+    ['package.json', manifest(spec, version, node)],
     ['tsconfig.json', tsconfig(spec)],
   ]
   switch (spec.kind) {
     case 'internal':
       return shared
     case 'published':
+    case 'plugin':
       return [
         ...shared,
         ['tsconfig.build.json', {extends: ['./tsconfig.json', '@internal/tsconfig/tsconfig.build.json']}],
@@ -182,8 +282,11 @@ function templateData(spec: Spec): object {
     directory: directory(spec),
     sourceOnly: spec.kind === 'internal',
     browserTests: spec.runtime !== 'node',
+    plugin: spec.kind === 'plugin',
+    engine: hasEngine(spec),
+    browserPart: hasBrowserPart(spec),
     platform: {node: 'node', browser: 'browser', both: 'neutral'}[spec.runtime],
-    nodeTarget: spec.runtime === 'node',
+    nodePlatform: spec.runtime === 'node',
   }
 }
 
@@ -206,7 +309,12 @@ const renderTemplate = Effect.fn('renderTemplate')(function* (context: Generator
   return context.render(source, templateData(spec))
 })
 
+const BROWSER_ENTRY = 'plugin-experimental'
+
 const assertNewPackage = Effect.fn('assertNewPackage')(function* (context: GeneratorContext, spec: Spec) {
+  if (spec.kind === 'plugin' && hasEngine(spec) && hasBrowserPart(spec) && spec.name === BROWSER_ENTRY) {
+    return yield* Effect.fail(generatorErrors.ENTRY_NAME_TAKEN({name: spec.name}))
+  }
   const fs = yield* FileSystem.FileSystem
   const paths = yield* Path.Path
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
@@ -233,13 +341,13 @@ const writePackage = Effect.fn('writePackage')(function* (context: GeneratorCont
   const paths = yield* Path.Path
   const folder = paths.join(context.root, directory(spec))
   yield* assertNewPackage(context, spec)
-  const {version} = yield* Schema.decodeUnknownEffect(SharedVersion)(
+  const {version, engines} = yield* Schema.decodeUnknownEffect(SharedVersion)(
     yield* fs.readFileString(paths.join(context.root, VERSION_SOURCE)),
   )
   for (const [file, template] of templatedFiles(spec)) {
     yield* writeFile(paths.join(folder, file), yield* renderTemplate(context, template, spec))
   }
-  for (const [file, value] of jsonFiles(spec, version)) {
+  for (const [file, value] of jsonFiles(spec, version, engines.node)) {
     yield* writeFile(paths.join(folder, file), `${JSON.stringify(value, null, 2)}\n`)
   }
   for (const testFolder of TEST_FOLDERS) {
@@ -269,6 +377,7 @@ const registerPublished = Effect.fn('registerPublished')(function* (context: Gen
 const registerShared = Effect.fn('registerShared')(function* (context: GeneratorContext, spec: Spec) {
   switch (spec.kind) {
     case 'published':
+    case 'plugin':
       return yield* registerPublished(context, spec)
     case 'internal':
       return `${packageName(spec)}: internal, so no shared file changes`
@@ -278,6 +387,7 @@ const registerShared = Effect.fn('registerShared')(function* (context: Generator
 function writtenPaths(spec: Spec): string[] {
   switch (spec.kind) {
     case 'published':
+    case 'plugin':
       return [directory(spec), GUARDS, FALLOW_CONFIG, changesetPath(spec)]
     case 'internal':
       return [directory(spec)]
@@ -336,7 +446,8 @@ export default function generator(plop: PlopTypes.NodePlopAPI): void {
       {
         type: 'list',
         name: 'kind',
-        message: 'published (@conciv/*, built, on npm) or internal (@internal/*, private, source only)',
+        message:
+          'published (@conciv/*, built, on npm), internal (@internal/*, private, source only) or plugin (@conciv/plugin-*, packages/plugins)',
         choices: [...Kind.literals],
       },
       {
@@ -346,7 +457,12 @@ export default function generator(plop: PlopTypes.NodePlopAPI): void {
         validate: validateName,
       },
       {type: 'input', name: 'description', message: 'One-line description', validate: validateDescription},
-      {type: 'list', name: 'runtime', message: 'Where its code runs', choices: [...Runtime.literals]},
+      {
+        type: 'list',
+        name: 'runtime',
+        message: 'Where its code runs (a plugin: node = engine part, browser = browser part, both = both)',
+        choices: [...Runtime.literals],
+      },
       {
         type: 'list',
         name: 'install',

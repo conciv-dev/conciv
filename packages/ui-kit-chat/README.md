@@ -21,8 +21,8 @@ npm install -D @conciv/it
 
 ## Invariants
 
-- `vite.config.ts` `build.lib.entry` (and `tsdown.config.ts` `entry`, declarations only) define the five public entries (`ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`), built one file per module. Its dependencies and the `solid-js` peer stay external (read from `package.json`; an import with a `?` query is bundled).
-- The highlight worker (`highlight-worker.ts?worker&inline`) and the `.woff2?inline` fonts are inlined by Vite's own `?worker&inline` and `?inline` (`vite.config.ts`, the library build, one file per module; `tsdown` writes only the declarations). Modules from `node_modules` are written under `dist/_virtual`.
+- `vite.config.ts` `build.lib.entry` (and `tsdown.config.ts` `entry`, declarations only) define the five public entries (`ui-kit-chat`, `tools`, `draft-storage`, `theme/fonts`, `theme/code-theme`); the JavaScript is bundled (shared chunks beside them), the declarations one file per module. Its dependencies and the `solid-js` peer stay external (read from `package.json`; an import with a `?` query is bundled).
+- The highlight worker (`highlight-worker.ts?worker&inline`) and the `.woff2?inline` fonts are inlined by Vite's own `?worker&inline` and `?inline` (`vite.config.ts`, the library build; `tsdown` writes only the declarations).
 - `uno.config.ts` scans `src` and `../ui-kit-system/src` (without tests, specs and stories) with `presetConciv`, so utility classes used in either package are generated here.
 - `CollapsibleCard` stays internal: `src/tools.tsx` does not export it and the `conciv/tool-card-shell` lint rule blocks imports of it from outside this package.
 

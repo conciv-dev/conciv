@@ -30,7 +30,6 @@ export default defineConfig({
       build: {
         lib: {entry: {mount: 'src/mount.ts'}, formats: ['es']},
         emptyOutDir: false,
-        sourcemap: true,
         rolldownOptions: {
           external: [
             /^solid-js(\/|$)(?!.*\?inline)/,

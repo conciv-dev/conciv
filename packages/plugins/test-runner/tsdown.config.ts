@@ -16,7 +16,6 @@ export default defineConfig([
     platform: 'node',
     tsconfig: 'tsconfig.build.json',
     dts: true,
-    sourcemap: true,
     unbundle: true,
     fixedExtension: false,
   },
@@ -24,9 +23,8 @@ export default defineConfig([
     entry: ['src/plugin-experimental.tsx'],
     platform: 'browser',
     tsconfig: 'tsconfig.build.json',
-    dts: {emitDtsOnly: true},
+    dts: {dtsOnly: true},
     clean: false,
-    fixedExtension: false,
     plugins: [solid()],
   },
 ])

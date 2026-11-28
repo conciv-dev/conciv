@@ -11,7 +11,6 @@ export default defineConfig({
   build: {
     lib: {entry: ['src/solid-diffs.tsx'], formats: ['es']},
     emptyOutDir: false,
-    sourcemap: true,
-    rolldownOptions: {external, output: {}},
+    rolldownOptions: {external},
   },
 })
