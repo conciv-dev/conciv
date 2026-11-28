@@ -83,6 +83,7 @@ const logFailedAttempt = (attemptId: AttemptId, integrationId: Id, cause: Cause.
 
 export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
   const {scope} = deps
+  const engineContext = yield* Effect.context<never>()
   const attempts = SynchronizedRef.makeUnsafe(new Map<AttemptId, AttemptEntry>())
   const commandAttempts = SynchronizedRef.makeUnsafe(new Map<AttemptId, CommandAttemptEntry>())
 
@@ -267,6 +268,7 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
       yield* authorization.callback.pipe(
         Effect.exit,
         Effect.flatMap((exit) => settle(id, exit)),
+        Effect.updateContext<never, never>(() => engineContext),
         Effect.forkIn(attemptScope, {startImmediately: true}),
       )
     }
@@ -334,6 +336,7 @@ export const makeAttempts = Effect.fnUntraced(function* (deps: AttemptDeps) {
       Scope.provide(attemptScope),
       Effect.exit,
       Effect.flatMap((exit) => settleCommand(attemptId, exit)),
+      Effect.updateContext<never, never>(() => engineContext),
       Effect.forkIn(attemptScope, {startImmediately: true}),
     )
 
