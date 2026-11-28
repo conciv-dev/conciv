@@ -1,7 +1,7 @@
 import type {BaseLayoutProps} from 'fumadocs-ui/layouts/shared'
 import {ConcivLockup} from '@internal/brand-react'
 
-export const themeSwitchClass = [
+const themeSwitchClass = [
   'not-dark:[&>svg:first-child]:bg-fd-accent',
   'not-dark:[&>svg:first-child]:text-fd-accent-foreground',
   'dark:[&>svg:last-child]:bg-fd-accent',

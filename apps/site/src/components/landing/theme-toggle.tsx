@@ -1,19 +1,32 @@
-import {Moon, Sun} from 'lucide-react'
 import {useTheme} from 'next-themes'
 import {Button} from '@/components/ui/button'
+import BrightnessDownIcon from '@/components/ui/brightness-down-icon'
+import MoonIcon from '@/components/ui/moon-icon'
+import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
+import {cn} from '@/lib/utils'
 
-export function ThemeToggle() {
+export function ThemeToggle({className}: {className?: string}) {
   const {resolvedTheme, setTheme} = useTheme()
+  const {iconRef: sunRef, triggerProps: sunTrigger} = useAnimatedIcon()
+  const {iconRef: moonRef, triggerProps: moonTrigger} = useAnimatedIcon()
+  const both = (key: keyof typeof sunTrigger) => () => {
+    sunTrigger[key]()
+    moonTrigger[key]()
+  }
   return (
     <Button
       type="button"
       variant="ghost"
       aria-label="Toggle theme"
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className="h-auto p-2 text-muted-foreground"
+      onPointerEnter={both('onPointerEnter')}
+      onPointerLeave={both('onPointerLeave')}
+      onFocus={both('onFocus')}
+      onBlur={both('onBlur')}
+      className={cn('h-auto p-2 text-muted-foreground hover:text-foreground', className)}
     >
-      <Sun className="size-4 dark:hidden" />
-      <Moon className="hidden size-4 dark:block" />
+      <BrightnessDownIcon ref={sunRef} className="size-4 dark:hidden" />
+      <MoonIcon ref={moonRef} className="hidden size-4 dark:block" />
     </Button>
   )
 }

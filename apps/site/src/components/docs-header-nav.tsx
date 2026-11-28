@@ -22,9 +22,11 @@ import {
 } from 'fumadocs-ui/layouts/shared'
 import {repoUrl} from '@/lib/shared'
 import {QuickstartDialog} from './quickstart-dialog'
-import {ThemeSwitch} from 'fumadocs-ui/layouts/shared/slots/theme-switch'
+import {useSearchContext} from 'fumadocs-ui/contexts/search'
+import {ThemeToggle} from './landing/theme-toggle'
+import MagnifierIcon from './ui/magnifier-icon'
+import {useAnimatedIcon} from './ui/use-animated-icon'
 import {GitHubStarLink} from './landing/github-star-link'
-import {themeSwitchClass} from '@/lib/layout.shared'
 
 type SectionLink = MainItemType & {sections?: readonly string[]}
 
@@ -90,8 +92,61 @@ function DocsHeader(props: ComponentProps<'header'>) {
   return <Header {...props} className={cn(props.className, open && 'max-md:z-50')} />
 }
 
+type SearchTriggerProps = {hideIfDisabled?: boolean; className?: string}
+
+function FullSearchTrigger({hideIfDisabled, className}: SearchTriggerProps) {
+  const {enabled, hotKey, setOpenSearch} = useSearchContext()
+  const {iconRef, triggerProps} = useAnimatedIcon()
+  if (hideIfDisabled === true && !enabled) return null
+  return (
+    <button
+      type="button"
+      data-search-full=""
+      {...triggerProps}
+      onClick={() => setOpenSearch(true)}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-lg border bg-fd-secondary/50 p-1.5 ps-2 text-sm text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground',
+        className,
+      )}
+    >
+      <MagnifierIcon ref={iconRef} className="size-4" />
+      Search
+      <div className="ms-auto inline-flex gap-0.5">
+        {hotKey.map((key, index) => (
+          <kbd key={index} className="rounded-md border bg-fd-background px-1.5">
+            {key.display}
+          </kbd>
+        ))}
+      </div>
+    </button>
+  )
+}
+
+function SmallSearchTrigger({hideIfDisabled, className}: SearchTriggerProps) {
+  const {enabled, setOpenSearch} = useSearchContext()
+  const {iconRef, triggerProps} = useAnimatedIcon()
+  if (hideIfDisabled === true && !enabled) return null
+  return (
+    <button
+      type="button"
+      aria-label="Open Search"
+      data-search=""
+      {...triggerProps}
+      onClick={() => setOpenSearch(true)}
+      className={cn(
+        'inline-flex items-center justify-center rounded-md text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground',
+        className,
+        'p-2',
+      )}
+    >
+      <MagnifierIcon ref={iconRef} className="size-4" />
+    </button>
+  )
+}
+
 export const docsSlots: NonNullable<DocsLayoutProps['slots']> = {
   header: DocsHeader,
+  searchTrigger: {full: FullSearchTrigger, sm: SmallSearchTrigger},
   sidebar: {
     provider: SidebarProvider,
     root: Sidebar,
@@ -200,8 +255,8 @@ export function DocsHeaderNav() {
 export function DocsHeaderActions() {
   return (
     <div className="flex items-center gap-2">
-      <GitHubStarLink compact className="px-2 py-1.5 leading-5 text-fd-muted-foreground hover:text-fd-foreground" />
-      <ThemeSwitch className={themeSwitchClass} />
+      <GitHubStarLink compact className="text-fd-muted-foreground hover:text-fd-foreground" />
+      <ThemeToggle className="text-fd-muted-foreground hover:text-fd-foreground" />
       <QuickstartDialog className="max-md:hidden" />
     </div>
   )

@@ -2,6 +2,8 @@ import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
 import {formatStarCount} from '@/lib/star-count'
 import {useStarCount} from '@/lib/star-count-store'
+import GithubIcon from '@/components/ui/github-icon'
+import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
 
 function GithubMark({className}: {className?: string}) {
   return (
@@ -11,9 +13,39 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
+function StarCount({stars, className}: {stars: number; className?: string}) {
+  return (
+    <span className={cn('inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
+      <span aria-hidden="true">{formatStarCount(stars)}</span>
+      <span className="sr-only">{stars} stars</span>
+    </span>
+  )
+}
+
+function CompactGitHubLink({className}: {className?: string}) {
+  const stars = useStarCount()
+  const {iconRef, triggerProps} = useAnimatedIcon()
+  return (
+    <a
+      href={repoUrl}
+      aria-label="conciv on GitHub"
+      {...triggerProps}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-md p-2 text-sm leading-4 font-medium text-muted-foreground transition-colors hover:text-foreground',
+        className,
+      )}
+    >
+      <GithubIcon ref={iconRef} className="size-4" />
+      {stars !== null ? (
+        <StarCount stars={stars} className="rounded-md bg-muted px-1.5 text-xs leading-4 text-foreground" />
+      ) : null}
+    </a>
+  )
+}
+
 export function GitHubStarLink({className, compact = false}: {className?: string; compact?: boolean}) {
   const stars = useStarCount()
-
+  if (compact) return <CompactGitHubLink className={className} />
   return (
     <a
       href={repoUrl}
@@ -22,18 +54,8 @@ export function GitHubStarLink({className, compact = false}: {className?: string
     >
       <span className="inline-flex items-center gap-1.5">
         <GithubMark className="size-4" />
-        {compact ? null : 'GitHub'}
-        {stars !== null ? (
-          <span
-            className={cn(
-              'inline-flex min-w-[2.5ch] justify-end tabular-nums',
-              compact && 'rounded-md bg-muted px-1.5 font-mono text-xs leading-5 text-foreground',
-            )}
-          >
-            <span aria-hidden="true">{formatStarCount(stars)}</span>
-            <span className="sr-only">{stars} stars</span>
-          </span>
-        ) : null}
+        GitHub
+        {stars !== null ? <StarCount stars={stars} /> : null}
       </span>
     </a>
   )

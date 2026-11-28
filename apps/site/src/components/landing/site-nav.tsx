@@ -33,7 +33,7 @@ export function SiteNav() {
         Docs
       </Link>
       <div className="ms-auto flex items-center gap-2 sm:gap-3">
-        <GitHubStarLink compact className="px-2 py-1.5 leading-5 max-sm:hidden" />
+        <GitHubStarLink compact className="max-sm:hidden" />
         <ThemeToggle />
         <QuickstartDialog />
       </div>
