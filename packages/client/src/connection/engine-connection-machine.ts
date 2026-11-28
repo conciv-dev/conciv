@@ -54,6 +54,7 @@ export type ConnectionEvent =
   | {readonly type: 'trust-refused'; readonly token: string}
   | {readonly type: 'trust-unanswered'}
   | {readonly type: 'unauthorized'; readonly token: string | undefined}
+  | {readonly type: 'token-stored'}
   | {readonly type: 'disposed'}
 
 export type ConnectionEffect =
@@ -65,6 +66,7 @@ export type ConnectionEffect =
   | {readonly type: 'schedule-uptime'; readonly attempt: number}
   | {readonly type: 'publish'; readonly signal: ConnectionSignal}
   | {readonly type: 'ask-trust'}
+  | {readonly type: 'check-stored-token'}
   | {readonly type: 'store-token'; readonly token: string}
   | {readonly type: 'forget-token'; readonly token: string}
 
@@ -201,6 +203,11 @@ function retryDue(state: ConnectionState, attempt: number): ConnectionTransition
   return {state: {...state, socket: 'connecting'}, effects: [{type: 'open-socket', attempt}]}
 }
 
+function checkStoredToken(state: ConnectionState): ConnectionTransition {
+  if (state.trust === 'trusted') return unchanged(state)
+  return {state, effects: [{type: 'check-stored-token'}]}
+}
+
 function dispose(state: ConnectionState): ConnectionTransition {
   return {state: {...state, socket: 'disposed'}, effects: [{type: 'close-socket'}, {type: 'close-peer'}]}
 }
@@ -223,6 +230,7 @@ export function transitionConnection(state: ConnectionState, event: ConnectionEv
       'trust-refused': (refused) => refuse(state, refused.token),
       unauthorized: (unauthorized) => distrust(state, unauthorized.token),
       'trust-unanswered': () => (state.trust === 'checking' ? withTrust(state, 'unreachable') : unchanged(state)),
+      'token-stored': () => checkStoredToken(state),
       disposed: () => dispose(state),
     }),
   )

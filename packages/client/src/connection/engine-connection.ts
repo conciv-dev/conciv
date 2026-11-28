@@ -129,20 +129,28 @@ function storageEffect<A>(io: () => A, fallback: A): Effect.Effect<A> {
   )
 }
 
+function tokenStorageKey(key: string): string {
+  return `${TOKEN_STORAGE_PREFIX}${key}`
+}
+
 function readStoredToken(key: string): Effect.Effect<string | undefined> {
-  return storageEffect(() => tokenStorage()?.getItem(`${TOKEN_STORAGE_PREFIX}${key}`) ?? undefined, undefined)
+  return storageEffect(() => tokenStorage()?.getItem(tokenStorageKey(key)) ?? undefined, undefined)
 }
 
 function storeToken(key: string, token: string): Effect.Effect<void> {
-  return storageEffect(() => tokenStorage()?.setItem(`${TOKEN_STORAGE_PREFIX}${key}`, token), undefined)
+  return storageEffect(() => tokenStorage()?.setItem(tokenStorageKey(key), token), undefined)
+}
+
+function storedTokens(key: string): Stream.Stream<StorageEvent> {
+  return Stream.fromEventListener<StorageEvent>(window, 'storage').pipe(
+    Stream.filter((event) => event.key === tokenStorageKey(key) && event.newValue !== null),
+  )
 }
 
 function forgetToken(key: string, token: string): Effect.Effect<void> {
   return readStoredToken(key).pipe(
     Effect.flatMap((stored) =>
-      stored === token
-        ? storageEffect(() => tokenStorage()?.removeItem(`${TOKEN_STORAGE_PREFIX}${key}`), undefined)
-        : Effect.void,
+      stored === token ? storageEffect(() => tokenStorage()?.removeItem(tokenStorageKey(key)), undefined) : Effect.void,
     ),
   )
 }
@@ -416,6 +424,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
           }).pipe(Effect.asVoid),
         publish: (published) => PubSub.publish(signals, published.signal).pipe(Effect.asVoid),
         'ask-trust': () => Effect.forkIn(requestTrust(false), lifetime).pipe(Effect.asVoid),
+        'check-stored-token': () => Effect.forkIn(requestTrust(true), lifetime).pipe(Effect.asVoid),
         'store-token': (stored) => storeToken(key, stored.token),
         'forget-token': (forgotten) => forgetToken(key, forgotten.token),
       }),
@@ -642,6 +651,12 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     requestAuthCode: (options = {}) =>
       run(answered(auth.requestCode({reissue: options.reissue ?? false})).pipe(Effect.asVoid)),
   }
+
+  if (typeof window !== 'undefined')
+    yield* storedTokens(key).pipe(
+      Stream.runForEach(() => dispatch({type: 'token-stored'})),
+      Effect.forkIn(lifetime),
+    )
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
