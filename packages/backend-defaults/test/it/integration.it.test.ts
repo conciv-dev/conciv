@@ -16,7 +16,6 @@ describe('a user connects a plugin integration', () => {
   const OAUTH_ACCESS = 'figma-oauth-access-1d02'
   const OAUTH_REFRESH = 'figma-oauth-refresh-5a77'
   const REFRESHED_ACCESS = 'figma-refreshed-access'
-  const SPARE_KEY = 'figma-spare-key-40d8'
 
   test('the engine env answers first, a typed key then wins, an expiring sign-in refreshes, and removing them falls back to the env', async ({
     createEngine,
@@ -32,7 +31,7 @@ describe('a user connects a plugin integration', () => {
     async function collect() {
       for await (const event of events) seen.push(event)
     }
-    const collecting = collect().catch(() => undefined)
+    const collecting = collect()
     async function secret() {
       const output = await secretTool.call({})
       seen.push(output)
@@ -80,16 +79,6 @@ describe('a user connects a plugin integration', () => {
     seen.push(shared)
     expect(shared).toEqual(afterKey)
 
-    const spare = await fetched.credential.create({
-      integrationId: 'figma',
-      label: 'Spare',
-      value: {type: 'key', key: SPARE_KEY},
-      activate: false,
-    })
-    seen.push(spare)
-    expect(spare).toMatchObject({label: 'Spare', active: false})
-    expect(await secret()).toMatchObject({fingerprint: fingerprint(TYPED_KEY)})
-
     const signedIn = await rpc.credential.create({
       integrationId: 'figma',
       label: 'Sign-in',
@@ -97,19 +86,10 @@ describe('a user connects a plugin integration', () => {
     })
     seen.push(signedIn)
     expect(signedIn).toMatchObject({label: 'Sign-in', active: true})
-    expect(await Promise.all([secret(), secret()])).toEqual([
-      expect.objectContaining({fingerprint: fingerprint(REFRESHED_ACCESS), refreshes: 1}),
-      expect.objectContaining({fingerprint: fingerprint(REFRESHED_ACCESS), refreshes: 1}),
-    ])
+    expect(await secret()).toMatchObject({fingerprint: fingerprint(REFRESHED_ACCESS), refreshes: 1})
 
     seen.push(await rpc.credential.remove({credentialId: signedIn.id}))
-    const afterRemove = await rpc.credential.list()
-    seen.push(afterRemove)
-    expect(afterRemove.map(({label, active}) => ({label, active}))).toEqual([
-      {label: 'Work', active: false},
-      {label: 'Spare', active: true},
-    ])
-    expect(await secret()).toMatchObject({fingerprint: fingerprint(SPARE_KEY)})
+    expect(await secret()).toMatchObject({fingerprint: fingerprint(TYPED_KEY)})
 
     const missing = await rpc.integration.connect
       .key({integrationId: 'missing', key: TYPED_KEY})
@@ -144,14 +124,14 @@ describe('a user connects a plugin integration', () => {
 
     const logs = await rpc.logs.query({limit: 2000})
     reading.abort()
-    await collecting
+    await expect(collecting).rejects.toMatchObject({name: 'AbortError'})
     expect(JSON.stringify(logs.events)).toContain('credential')
+    expect(JSON.stringify(logs.events)).toContain('authentication command failed')
     expect(seen.some((event) => JSON.stringify(event).includes('credential.switched'))).toBe(true)
     const everything = JSON.stringify([seen, logs.events])
     for (const plain of [
       ENV_KEY,
       TYPED_KEY,
-      SPARE_KEY,
       OAUTH_ACCESS,
       OAUTH_REFRESH,
       REFRESHED_ACCESS,

@@ -6,7 +6,5 @@ export default defineConfig({
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
   dts: true,
-  sourcemap: true,
-  fixedExtension: false,
   plugins: [solid()],
 })

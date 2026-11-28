@@ -4,7 +4,6 @@ export default defineConfig({
   entry: ['src/ui-kit-terminal.tsx'],
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
-  dts: {emitDtsOnly: true},
-  fixedExtension: false,
+  dts: {dtsOnly: true},
   deps: {neverBundle: [/\?/]},
 })

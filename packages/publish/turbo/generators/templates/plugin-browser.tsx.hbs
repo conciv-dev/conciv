@@ -1,0 +1,10 @@
+import {Plugin, Style} from '@conciv/frontend-plugin-api'
+import pluginCss from './.generated/css.js'
+
+const definition: Plugin.Definition = Plugin.define({
+  setup(ctx) {
+    ctx.add(Style, pluginCss)
+  },
+})
+
+export default definition

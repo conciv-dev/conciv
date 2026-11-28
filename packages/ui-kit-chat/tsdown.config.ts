@@ -10,8 +10,7 @@ export default defineConfig({
   ],
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
-  dts: {emitDtsOnly: true},
+  dts: {dtsOnly: true},
   unbundle: true,
-  fixedExtension: false,
   deps: {neverBundle: [/\?/]},
 })

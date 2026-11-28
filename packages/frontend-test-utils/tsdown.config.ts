@@ -5,7 +5,6 @@ export default defineConfig({
   entry: ['src/render-test-app.tsx'],
   platform: 'browser',
   tsconfig: 'tsconfig.build.json',
-  fixedExtension: false,
-  dts: {emitDtsOnly: true},
+  dts: {dtsOnly: true},
   plugins: [solid()],
 })

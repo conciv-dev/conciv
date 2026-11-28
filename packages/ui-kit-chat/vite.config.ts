@@ -10,24 +10,16 @@ export default defineConfig({
   plugins: [solid()],
   build: {
     lib: {
-      entry: [
-        'src/ui-kit-chat.tsx',
-        'src/tools.tsx',
-        'src/draft-storage.ts',
-        'src/theme/fonts.ts',
-        'src/theme/code-theme.ts',
-      ],
+      entry: {
+        'ui-kit-chat': 'src/ui-kit-chat.tsx',
+        tools: 'src/tools.tsx',
+        'draft-storage': 'src/draft-storage.ts',
+        'theme/fonts': 'src/theme/fonts.ts',
+        'theme/code-theme': 'src/theme/code-theme.ts',
+      },
       formats: ['es'],
     },
     emptyOutDir: false,
-    sourcemap: true,
-    rolldownOptions: {
-      external,
-      output: {
-        preserveModules: true,
-        preserveModulesRoot: 'src',
-        entryFileNames: ({name}) => `${name.replace(/^.*node_modules\//, '_virtual/').replace(/_inline$/, '')}.js`,
-      },
-    },
+    rolldownOptions: {external},
   },
 })
