@@ -139,7 +139,9 @@ catalog:
   '@tiptap/extension-text': '^3.32.1'
   '@tiptap/pm': '^3.32.1'
   '@turbo/gen': 2.11.10
+  '@types/culori': ^4.0.1
   '@types/node': '^26.6.6'
+  '@types/pngjs': ^6.0.5
   '@types/react': '^19.3.0'
   '@types/react-dom': '^19.3.0'
   '@types/semver': '^7.7.1'
@@ -159,6 +161,8 @@ catalog:
   button-sounds: 1.0.0
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
+  color-blend: '^4.0.0'
+  culori: ^4.0.2
   defu: 6.1.7
   detect-libc: 1.0.3
   diff: ^9.0.0
@@ -192,6 +196,7 @@ catalog:
   picomatch: 4.0.7
   piscina: '^5.3.2'
   playwright: '^1.64.1'
+  pngjs: ^7.0.0
   playwright-core: '^1.64.1'
   postcss: '^8.5.32'
   postcss-selector-parser: '^7.1.7'

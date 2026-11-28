@@ -2,7 +2,7 @@ import {Effect} from 'effect'
 import {z} from 'zod'
 import type {DesignNode} from '../model/design.js'
 import type {FigmaLink} from './figma-link.js'
-import {figmaGet} from './figma-rest.js'
+import {figmaGet, type FigmaKey} from './figma-rest.js'
 
 const VariablesSchema = z.looseObject({
   meta: z.looseObject({variables: z.record(z.string(), z.looseObject({name: z.string()}))}),
@@ -12,11 +12,10 @@ const TokensSchema = z.record(z.string(), z.string())
 export const namedTokens = Effect.fn('design.namedTokens')(function* (input: {
   root: DesignNode
   link: FigmaLink
-  token: string | undefined
+  key: FigmaKey
 }) {
-  const {root, link, token} = input
-  if (token === undefined) return {root, line: 'tokens: variable ids kept, the figma.token option is not set'}
-  return yield* figmaGet({path: `/files/${link.fileKey}/variables/local`, token, link}).pipe(
+  const {root, link, key} = input
+  return yield* figmaGet({path: `/files/${link.fileKey}/variables/local`, key, link}).pipe(
     Effect.match({
       onFailure: (error) => ({
         root,

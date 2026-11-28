@@ -12,7 +12,10 @@ import {colorHex, figmaFacts} from './figma-facts.js'
 import {linkComponents} from './figma-components.js'
 import {namedTokens} from './figma-tokens.js'
 import {figmaRef, type FigmaLink} from './figma-link.js'
-import {figmaGet} from './figma-rest.js'
+import {figmaDownload, figmaGet, type FigmaKey} from './figma-rest.js'
+import {figmaAssets, type AssetFolders} from './figma-assets.js'
+import {sampledPaint} from './figma-paint.js'
+import {createRaster, readPng, type Raster} from '../raster/raster.js'
 import {pick, type Pairs} from '../model/pairs.js'
 
 type FigmaDocument = z.infer<typeof figmaSchemas.document>
@@ -46,41 +49,47 @@ const SIZINGS: Pairs<NonNullable<NodeLayout['size']>> = [
   ['FIXED', 'fixed'],
 ]
 
-export const loadFigma = Effect.fn('design.loadFigma')(function* (input: {
-  link: FigmaLink
-  token: string | undefined
-  document: unknown
-}) {
-  const {link, token} = input
-  const document = yield* readDocument(input)
+export const loadFigma = Effect.fn('design.loadFigma')(function* (
+  input: AssetFolders & {link: FigmaLink; key: FigmaKey},
+) {
+  const {link, key} = input
+  const ids = encodeURIComponent(link.nodeId)
+  const [document, render] = yield* Effect.all(
+    [
+      figmaGet({path: `/files/${link.fileKey}/nodes?ids=${ids}`, key, link}).pipe(Effect.flatMap(parsedDocument)),
+      frameRender({link, key}),
+    ],
+    {concurrency: 'unbounded'},
+  )
   const frame = yield* pickFrame({document, nodeId: link.nodeId})
-  const built = linkComponents({root: designRoot(frame.node), entry: frame.entry})
-  const named = yield* namedTokens({root: built, link, token})
+  const raster = createRaster(render)
+  const built = linkComponents({root: designRoot({frame: frame.node, raster}), entry: frame.entry})
+  const named = yield* namedTokens({root: built, link, key})
   const version = document.version ?? document.lastModified ?? ''
-  const design: Design = {
+  const plain: Design = {
     id: sha256(`${link.fileKey}|${link.nodeId}|${version}`).slice(0, ID_LENGTH),
     source: {kind: 'figma', ref: figmaRef(link)},
     viewport: frame.viewport,
     scale: SCALE,
-    root: hashed(named.root),
+    root: named.root,
   }
-  return {design, warnings: [...frame.warnings, ...unmapped(frame.node), named.line]}
+  const assets = yield* figmaAssets({...input, design: plain, raster})
+  const design: Design = {...assets.design, root: hashed(assets.design.root)}
+  return {design, warnings: [...frame.warnings, ...unmapped(frame.node), named.line, assets.line]}
 })
 
-const readDocument = Effect.fn('design.readFigmaDocument')(function* (input: {
-  link: FigmaLink
-  token: string | undefined
-  document: unknown
-}) {
-  const {link, token} = input
-  if (input.document !== undefined) return yield* parsedDocument(input.document)
-  if (token === undefined) return yield* Effect.fail(designErrors.FIGMA_SOURCE())
+const frameRender = Effect.fn('design.frameRender')(function* (input: {link: FigmaLink; key: FigmaKey}) {
+  const {link, key} = input
   const body = yield* figmaGet({
-    path: `/files/${link.fileKey}/nodes?ids=${encodeURIComponent(link.nodeId)}`,
-    token,
+    path: `/images/${link.fileKey}?ids=${encodeURIComponent(link.nodeId)}&format=png&scale=${SCALE}`,
+    key,
     link,
   })
-  return yield* parsedDocument(body)
+  const url = figmaSchemas.images.safeParse(body).data?.images[link.nodeId]
+  if (url === undefined || url === null)
+    return yield* Effect.fail(designErrors.FIGMA_REQUEST({detail: `Figma rendered no image for ${link.nodeId}`}))
+  const bytes = yield* figmaDownload({url, link})
+  return yield* readPng({bytes, what: `the Figma render of ${link.nodeId}`})
 })
 
 function parsedDocument(body: unknown) {
@@ -108,11 +117,12 @@ function pickFrame(input: {document: FigmaDocument; nodeId: string}) {
   return Effect.succeed(frame)
 }
 
-function designRoot(frame: FigmaNode): DesignNode {
+function designRoot(input: {frame: FigmaNode; raster: Raster}): DesignNode {
+  const {frame, raster} = input
   const bounds = frame.absoluteBoundingBox ?? {x: 0, y: 0, width: 0, height: 0}
   const origin = {x: bounds.x, y: bounds.y, scale: SCALE}
   const root = boxNode({node: frame, box: boxIn({bounds, origin}), origin, children: childNodes({node: frame, origin})})
-  return reflowTagged(structured(inferLayout(assignRoles(root))))
+  return reflowTagged(structured(inferLayout(assignRoles(sampledPaint({root, raster})))))
 }
 
 function hashed(node: DesignNode): DesignNode {

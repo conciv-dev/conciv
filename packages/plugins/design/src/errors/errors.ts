@@ -1,4 +1,5 @@
 import {defineErrorCatalog} from 'evlog'
+import {FIGMA_KEY_MISSING} from '../key/figma-key-text.js'
 
 export const designErrors = defineErrorCatalog('design', {
   INVALID_OPTIONS: {
@@ -13,10 +14,10 @@ export const designErrors = defineErrorCatalog('design', {
     status: 400,
     message: 'the Figma link must point at a frame: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>',
   },
-  FIGMA_SOURCE: {
-    status: 400,
-    message: 'no way to read the Figma frame',
-    fix: 'Set the figma.token option of the design plugin to a Figma personal access token, or fetch the frame with your Figma MCP and pass its REST nodes document as document.',
+  FIGMA_KEY_MISSING: {
+    status: 401,
+    message: FIGMA_KEY_MISSING,
+    fix: 'Ask the user to save a Figma personal access token in the design settings, or to set FIGMA_API_KEY in the engine environment, then call design_get again.',
   },
   FIGMA_REQUEST: {
     status: 502,
@@ -25,16 +26,23 @@ export const designErrors = defineErrorCatalog('design', {
   FIGMA_TOKEN: {
     status: 401,
     message: ({detail}: {detail: string}) => `Figma refused the token: ${detail}`,
-    fix: 'Set the figma.token option of the design plugin to a fresh Figma personal access token, then restart the engine.',
+    fix: 'Ask the user to save a fresh Figma personal access token in the design settings, then call design_get again.',
   },
   FIGMA_DOCUMENT: {
     status: 400,
     message: ({detail}: {detail: string}) => `the Figma document has an unexpected shape: ${detail}`,
   },
+  FILL_FORMAT: {
+    message: ({node, format}: {node: string; format: string}) =>
+      `the image fill of ${node} is ${format}, which the design plugin cannot decode`,
+  },
   NO_TARGET: {
     status: 400,
     message: 'no design is registered',
     fix: 'Call design_get with the Figma link.',
+  },
+  UNWRITABLE: {
+    message: ({file, detail}: {file: string; detail: string}) => `${file} could not be written: ${detail}`,
   },
   UNREADABLE: {
     message: ({file, detail}: {file: string; detail: string}) => `${file} could not be read: ${detail}`,

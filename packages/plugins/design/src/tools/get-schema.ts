@@ -3,20 +3,10 @@ import {BoxSchema, ReflowTagSchema} from '../model/design.js'
 
 const LinksSchema = z.union([z.url(), z.array(z.url()).min(1)])
 
-export const GetInputSchema = z
-  .object({
-    figma: LinksSchema.optional().describe('the Figma frame link, with its node-id; a list, one link per width'),
-    document: z
-      .unknown()
-      .optional()
-      .describe(
-        'the frame REST nodes document (GET /v1/files/:key/nodes?ids=:id) when the design plugin has no figma.token; a list, one per link',
-      ),
-    route: z.string().optional().describe('the path of the page the design is for, such as /pricing'),
-  })
-  .refine((input) => input.document === undefined || input.figma !== undefined, {
-    message: 'document goes with figma',
-  })
+export const GetInputSchema = z.object({
+  figma: LinksSchema.optional().describe('the Figma frame link, with its node-id; a list, one link per width'),
+  route: z.string().optional().describe('the path of the page the design is for, such as /pricing'),
+})
 
 const TaggedNodeSchema = z
   .object({

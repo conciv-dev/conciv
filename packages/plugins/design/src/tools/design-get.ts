@@ -1,4 +1,4 @@
-import {Effect, Ref} from 'effect'
+import {Effect, FileSystem, Path, Ref} from 'effect'
 import {HttpClient} from 'effect/http'
 import type {EvlogError} from 'evlog'
 import {uniqBy} from 'es-toolkit'
@@ -7,6 +7,8 @@ import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {Design} from '../model/design.js'
 import {designErrors} from '../errors/errors.js'
 import {loadFigma} from '../sources/figma.js'
+import type {AssetFolders} from '../sources/figma-assets.js'
+import {readFigmaKey} from '../sources/figma-key.js'
 import {figmaRef, parseFigmaLink} from '../sources/figma-link.js'
 import {GetInputSchema, GetReplySchema, type GetInput} from './get-schema.js'
 import {renderDocument, variantRule} from './document.js'
@@ -27,11 +29,11 @@ const DESCRIPTION =
 const EMPTY: SessionTargets = {targets: [], current: []}
 
 export const registerDesignGet = Effect.fn('design.registerDesignGet')(function* (input: {
-  ctx: Pick<Context, 'tool'>
-  token: string | undefined
-  http: HttpClient.HttpClient
+  ctx: Pick<Context, 'tool' | 'integration'>
+  folders: AssetFolders
 }) {
-  const {ctx, token, http} = input
+  const {ctx, folders} = input
+  const services = yield* Effect.context<HttpClient.HttpClient | FileSystem.FileSystem | Path.Path>()
   const sessions = yield* Ref.make<Readonly<Record<string, SessionTargets>>>({})
 
   const resolve = Effect.fn('design.resolveTargets')(function* (query: GetInput, known: SessionTargets) {
@@ -41,14 +43,14 @@ export const registerDesignGet = Effect.fn('design.registerDesignGet')(function*
       if (current.length === 0) return yield* Effect.fail(designErrors.NO_TARGET())
       return current
     }
-    return yield* Effect.forEach(links, (link, index) =>
+    return yield* Effect.forEach(links, (link) =>
       Effect.gen(function* () {
         const parsed = parseFigmaLink(link)
         if (parsed === null) return yield* Effect.fail(designErrors.FIGMA_LINK())
         const found = known.targets.find((target) => target.ref === figmaRef(parsed))
         if (found !== undefined) return found
-        const document = documentAt(query.document, index)
-        const loaded = yield* loadFigma({link: parsed, token, document})
+        const key = yield* readFigmaKey(ctx)
+        const loaded = yield* loadFigma({...folders, link: parsed, key})
         const target: Target = {
           id: loaded.design.id,
           ref: loaded.design.source.ref,
@@ -63,7 +65,7 @@ export const registerDesignGet = Effect.fn('design.registerDesignGet')(function*
 
   const get = Effect.fn('design.get')(function* (query: GetInput, sessionId: string) {
     const known = (yield* Ref.get(sessions))[sessionId] ?? EMPTY
-    const resolved = yield* resolve(query, known).pipe(Effect.provideService(HttpClient.HttpClient, http))
+    const resolved = yield* resolve(query, known).pipe(Effect.provideContext(services))
     const routed = resolved.map((target) => (query.route === undefined ? target : {...target, route: query.route}))
     yield* Ref.update(sessions, (all) => {
       const before = all[sessionId] ?? EMPTY
@@ -102,9 +104,4 @@ function toolFailure(failure: EvlogError): Tool.Error {
 function linkList(figma: GetInput['figma']): readonly string[] {
   if (figma === undefined) return []
   return typeof figma === 'string' ? [figma] : figma
-}
-
-function documentAt(document: unknown, index: number): unknown {
-  if (Array.isArray(document)) return document[index]
-  return index === 0 ? document : undefined
 }
