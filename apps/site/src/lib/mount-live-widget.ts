@@ -4,7 +4,7 @@ import {PANEL_TOGGLED_EVENT, type WidgetPanelToggledDetail} from '@conciv/types/
 import {panelCommands} from './panel-commands'
 import {rootSearchSchema} from './search-schemas'
 import {dismissTry, getTrySession} from './try-session.functions'
-import {shouldAutoOpen, shouldDismissOnClose} from './try-state'
+import {readPanelToggle, shouldAutoOpen} from './try-state'
 import {siteErrors} from '@conciv/errors'
 
 declare global {
@@ -56,12 +56,11 @@ function dismissWhenClosedUnconnected(router: RegisteredRouter, signal: AbortSig
     (event) => {
       const detail = event.detail
       if (!detail) return
-      if (detail.open) {
-        seen.open = true
-        return
-      }
+      const action = readPanelToggle({wasOpen: seen.open, open: detail.open, connected: detail.connected})
+      seen.open = detail.open
+      if (action === 'none') return
       clearTryParam(router)
-      if (shouldDismissOnClose({hasBeenOpen: seen.open, connected: detail.connected})) void dismissTry().catch(() => {})
+      if (action === 'dismiss') void dismissTry().catch(() => {})
     },
     {signal},
   )

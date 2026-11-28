@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {shouldAutoOpen, shouldDismissOnClose, tryButtonLabel} from '../../src/lib/try-state'
+import {readPanelToggle, shouldAutoOpen, tryButtonLabel} from '../../src/lib/try-state'
 
 describe('the try panel state', () => {
   test.each([
@@ -25,10 +25,12 @@ describe('the try panel state', () => {
   )
 
   test.each([
-    {hasBeenOpen: true, connected: false, dismisses: true},
-    {hasBeenOpen: true, connected: true, dismisses: false},
-    {hasBeenOpen: false, connected: false, dismisses: false},
-  ])('closing after open $hasBeenOpen while connected $connected dismisses: $dismisses', ({dismisses, ...state}) => {
-    expect(shouldDismissOnClose(state)).toBe(dismisses)
+    {wasOpen: true, open: false, connected: false, action: 'dismiss'},
+    {wasOpen: true, open: false, connected: true, action: 'close'},
+    {wasOpen: false, open: false, connected: false, action: 'none'},
+    {wasOpen: false, open: true, connected: false, action: 'none'},
+    {wasOpen: true, open: true, connected: true, action: 'none'},
+  ])('a report of open $open after open $wasOpen while connected $connected is: $action', ({action, ...state}) => {
+    expect(readPanelToggle(state)).toBe(action)
   })
 })
