@@ -3,6 +3,13 @@ import {execFileSync} from 'node:child_process'
 import {appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {basename, dirname, join} from 'node:path'
 import {
+  type AffectedSelection,
+  readDryRunPackages,
+  readTurboVersion,
+  renderPlanSummary,
+  selectAffected,
+} from './affected.ts'
+import {
   e2ePackages,
   type E2eShardPlan,
   parseTimings,
@@ -11,6 +18,7 @@ import {
   plannedPackages,
   readPackagePart,
   type ShardPlan,
+  type WorkspacePackage,
 } from './shards.ts'
 import {
   findFiles,
@@ -34,7 +42,9 @@ type TaskConfig = {
   turboTasks: string[]
   reportRoots: string[]
   render: Partial<RenderOptions>
-  plan: (rootDir: string, timings: Record<string, number>) => (ShardPlan | E2eShardPlan)[]
+  affectedTasks: string[]
+  candidates: (rootDir: string) => WorkspacePackage[]
+  pack: (packages: WorkspacePackage[], timings: Record<string, number>) => (ShardPlan | E2eShardPlan)[]
 }
 
 const TASKS: Record<string, TaskConfig> = {
@@ -42,13 +52,17 @@ const TASKS: Record<string, TaskConfig> = {
     turboTasks: ['typecheck', 'test', '--continue=dependencies-successful'],
     reportRoots: ['packages', 'apps'],
     render: {},
-    plan: (rootDir, timings) => planShards(plannedPackages(rootDir), timings),
+    affectedTasks: ['typecheck', 'test'],
+    candidates: plannedPackages,
+    pack: (packages, timings) => planShards(packages, timings),
   },
   e2e: {
     turboTasks: ['typecheck', 'test:e2e', '--continue'],
     reportRoots: ['e2e', 'apps/site'],
     render: {title: 'E2e consumer apps', details: true},
-    plan: (rootDir, timings) => planE2eShards(e2ePackages(rootDir), timings),
+    affectedTasks: ['typecheck', 'test:e2e'],
+    candidates: e2ePackages,
+    pack: planE2eShards,
   },
 }
 
@@ -56,6 +70,10 @@ function argValue(args: string[], flag: string): string | null {
   const index = args.indexOf(flag)
   if (index === -1 || index + 1 >= args.length) return null
   return args[index + 1] ?? null
+}
+
+function argValues(args: string[], flag: string): string[] {
+  return args.flatMap((arg, index) => (arg === flag && index + 1 < args.length ? [args[index + 1] ?? ''] : []))
 }
 
 function taskConfig(args: string[]): TaskConfig {
@@ -78,14 +96,65 @@ function readBoundedTimings(path: string | null): Record<string, number> {
   return parseTimings(raw)
 }
 
+function git(rootDir: string, args: string[]): string {
+  return execFileSync('git', args, {cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim()
+}
+
+function queryAffected(rootDir: string, tasks: string[], fromSha: string, toSha: string): string[] {
+  const turboVersion = readTurboVersion(readFileSync(join(rootDir, 'pnpm-lock.yaml'), 'utf8'))
+  const raw = execFileSync('pnpm', ['dlx', `turbo@${turboVersion}`, 'run', ...tasks, '--affected', '--dry=json'], {
+    cwd: rootDir,
+    encoding: 'utf8',
+    maxBuffer: 50_000_000,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {...process.env, TURBO_SCM_BASE: fromSha, TURBO_SCM_HEAD: toSha},
+  })
+  return readDryRunPackages(raw)
+}
+
+function selectPackages(rootDir: string, tasks: string[]): AffectedSelection {
+  return selectAffected(
+    {name: process.env.GITHUB_EVENT_NAME, baseSha: process.env.PR_BASE_SHA, headSha: process.env.PR_HEAD_SHA},
+    {
+      mergeBase: (baseSha, headSha) => git(rootDir, ['merge-base', baseSha, headSha]),
+      changedFiles: (fromSha, toSha) =>
+        git(rootDir, ['diff', '--name-only', fromSha, toSha])
+          .split('\n')
+          .filter((file) => file !== ''),
+      affectedPackages: (fromSha, toSha) => queryAffected(rootDir, tasks, fromSha, toSha),
+    },
+  )
+}
+
+const STORYBOOK_PACKAGE = 'conciv-storybook'
+
 function plan(args: string[]): void {
-  const baseline = readBoundedTimings(argValue(args, '--timings'))
-  const shards = taskConfig(args).plan(process.cwd(), baseline)
+  const rootDir = process.cwd()
+  const baseline = argValues(args, '--timings').reduce<Record<string, number>>(
+    (merged, path) => ({...merged, ...readBoundedTimings(path)}),
+    {},
+  )
+  const config = taskConfig(args)
+  const candidates = config.candidates(rootDir)
+  const selection = selectPackages(rootDir, config.affectedTasks)
+  const affected = selection.packages
+  const selected = affected === null ? candidates : candidates.filter(({name}) => affected.includes(name))
+  const shards = config.pack(selected, baseline)
   const include = shards.map((shard) => ({...shard, packages: shard.packages.join(' ')}))
   const matrix = JSON.stringify({include})
+  const storybook = affected === null || affected.includes(STORYBOOK_PACKAGE)
+  const summary = renderPlanSummary(
+    config.render.title ?? 'Package tests',
+    selection,
+    selected.map(({name}) => name),
+    candidates.length,
+  )
   const outputPath = process.env.GITHUB_OUTPUT
-  if (outputPath !== undefined) appendFileSync(outputPath, `matrix=${matrix}\n`)
-  process.stdout.write(`${matrix}\n`)
+  if (outputPath !== undefined)
+    appendFileSync(outputPath, `matrix=${matrix}\nhas-work=${shards.length > 0}\nstorybook=${storybook}\n`)
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY
+  if (summaryPath !== undefined) appendFileSync(summaryPath, summary)
+  process.stdout.write(`${summary}${matrix}\n`)
 }
 
 function turbo(tasks: string[], filters: string[], passed: string[] = []): void {

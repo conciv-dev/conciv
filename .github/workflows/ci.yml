@@ -47,6 +47,16 @@ jobs:
   # planner runs from source with no install. First run ever (no timings
   # artifact yet) packs everything into two default-weight shards — one slow
   # bootstrap run on main, then it self-heals.
+  # On pull_request the planner shards only the packages turbo's --affected
+  # reports since the merge base of the PR's base and head (turbo.json's
+  # affectedUsingTaskInputs: a test-only edit selects that package alone). A
+  # main push and the release call (workflow_call, where event_name is the
+  # caller's push) always run everything: they are the safety net. Every error
+  # (missing base ref, failed turbo query) and every change to the workflows,
+  # turbo.json, the lockfile, the root package.json, pnpm-workspace.yaml or the
+  # planner itself runs everything too; the job summary says which rail fired.
+  # The --dry=json query needs no workspace install, only pnpm to dlx the
+  # lockfile's turbo version, and full history for the merge base.
   plan:
     runs-on: ubuntu-latest
     permissions:
@@ -54,19 +64,27 @@ jobs:
       actions: read # download the ci-test-timings artifact from the latest main run
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      has-work: ${{ steps.plan.outputs.has-work }}
+      storybook: ${{ steps.plan.outputs.storybook }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
       # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
       # artifact under any name, and a repo-wide latest-by-name lookup would let a
-      # fork PR poison the baseline. Resolve from the latest completed run of this
-      # workflow on the same-repo PR branch (its own packages, so a rename or a new
-      # heavy suite is weighed from the second run on), else the latest main push,
-      # both filtered to runs from this repository, and bound the download
+      # fork PR poison the baseline. Resolve from the latest completed main push,
+      # and on a same-repo PR also from the latest completed run on its branch,
+      # laid over main's (its own packages, so a rename or a new heavy suite is
+      # weighed from the second run on; an affected-only PR run measures only some
+      # packages, so main's numbers fill the rest), both filtered to runs from this
+      # repository, and bound the download
       # (scheduling data only, a few KB). Completed, not successful: the summary job
       # publishes timings on a red run too (a cancelled run is skipped: its shards stopped early), and a success-only lookup froze the
       # baseline at the last green main for as long as main stayed red.
@@ -76,29 +94,36 @@ jobs:
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          url=""
-          find_timings() {
+          fetch_timings() {
+            url=""
             for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=$1&event=$2&status=completed&per_page=10" --jq ".workflow_runs[] | select(.conclusion != \"cancelled\" and .head_repository.full_name == \"${GITHUB_REPOSITORY}\") | .id"); do
               url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
-              if [ -n "$url" ] && [ "$url" != "null" ]; then return; fi
+              if [ -n "$url" ] && [ "$url" != "null" ]; then break; fi
+              url=""
             done
-            url=""
+            if [ -n "$url" ]; then
+              curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o "$3.zip" "$url" || true
+              unzip -p "$3.zip" ci-test-timings.json > "$3" || true
+            fi
+            # An empty baseline is worse than none: without -f curl writes the HTTP error
+            # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
+            [ -s "$3" ] || rm -f "$3"
           }
-          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ] && [ -n "$HEAD_BRANCH" ]; then find_timings "$HEAD_BRANCH" pull_request; fi
-          if [ -z "$url" ]; then find_timings main push; fi
-          if [ -n "$url" ] && [ "$url" != "null" ]; then
-            curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url" || true
-            unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
+          fetch_timings main push main-test-timings.json
+          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ] && [ -n "$HEAD_BRANCH" ]; then
+            fetch_timings "$HEAD_BRANCH" pull_request branch-test-timings.json
           fi
-          # An empty baseline is worse than none: without -f curl writes the HTTP error
-          # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
-          [ -s ci-test-timings.json ] || rm -f ci-test-timings.json
       - id: plan
-        run: node packages/publish/src/ci-shards.ts plan --timings ci-test-timings.json
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node packages/publish/src/ci-shards.ts plan --timings main-test-timings.json --timings branch-test-timings.json
 
   build:
     name: build + test (${{ matrix.shard }})
     needs: plan
+    # GitHub refuses an empty matrix: a PR that affects no package skips the shards.
+    if: needs.plan.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     # A hung suite must fail in minutes, not hold the runner for hours. Shard
     # jobs took at most 9 minutes over the last 60 completed runs (285 jobs).
@@ -232,11 +257,12 @@ jobs:
   # also derives the per-package durations and publishes the ci-test-timings
   # baseline the next planner run feeds on (push-only, like the bundle-size
   # baseline: PR-created artifacts never become the baseline). Runs from source
-  # with no install, like the plan job.
+  # with no install, like the plan job. Nothing ran when the planner found no
+  # work, so there is nothing to summarize.
   test-summary:
     name: test summary
-    needs: build
-    if: always()
+    needs: [plan, build]
+    if: always() && needs.plan.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -389,20 +415,36 @@ jobs:
 
   # The branch ruleset requires the exact context "build + test"; this gate keeps
   # that context alive over the planner + shard matrix + repo checks. always() so
-  # a failed or cancelled dependency fails the gate instead of skipping it.
+  # a failed or cancelled dependency fails the gate instead of skipping it. The
+  # shards are "skipped" only when the planner found nothing affected
+  # (has-work false); in any other case a skipped shard fails the gate.
   build-gate:
     name: build + test
     needs: [plan, build, repo-checks]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          test "${{ needs.plan.result }}" = "success"
-          test "${{ needs.build.result }}" = "success"
-          test "${{ needs.repo-checks.result }}" = "success"
+      - env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PLAN_HAS_WORK: ${{ needs.plan.outputs.has-work }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          REPO_CHECKS_RESULT: ${{ needs.repo-checks.result }}
+        run: |
+          test "$PLAN_RESULT" = "success"
+          if [ "$PLAN_HAS_WORK" = "false" ]; then
+            test "$BUILD_RESULT" = "skipped"
+          else
+            test "$BUILD_RESULT" = "success"
+          fi
+          test "$REPO_CHECKS_RESULT" = "success"
 
+  # On a PR only when the planner's turbo --affected query lists the storybook
+  # app (its stories or a package it depends on changed); on main and on every
+  # full-run rail, always.
   storybook:
     name: Storybook browser tests
+    needs: plan
+    if: needs.plan.outputs.storybook == 'true'
     runs-on: ubuntu-latest
     # Same Playwright image as the build job (see there).
     container:
@@ -444,7 +486,8 @@ jobs:
   # published by the last main push; because playwright json only reports per-case
   # durations (server boot is invisible to it) the planner also charges every app a
   # fixed overhead, otherwise a 15-app pool would look nearly free and collapse to
-  # the minimum two shards.
+  # the minimum two shards. On a PR it keeps only the apps turbo --affected
+  # reports, with the same full-run rails as the package planner (see there).
   plan-e2e:
     runs-on: ubuntu-latest
     permissions:
@@ -452,10 +495,15 @@ jobs:
       actions: read # download the e2e-test-timings artifact from the latest main run
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      has-work: ${{ steps.plan.outputs.has-work }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -480,11 +528,15 @@ jobs:
           # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
           [ -s e2e-test-timings.json ] || rm -f e2e-test-timings.json
       - id: plan
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node packages/publish/src/ci-shards.ts plan --task e2e --timings e2e-test-timings.json
 
   e2e:
     name: e2e consumer apps (${{ matrix.shard }})
     needs: plan-e2e
+    if: needs.plan-e2e.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     # Same Playwright image as the build job (see there).
     container:
@@ -604,11 +656,12 @@ jobs:
 
   # One merged e2e table for the whole shard matrix, and on main pushes the
   # e2e-test-timings baseline the next plan-e2e run feeds on (push-only, so a PR
-  # can never become the baseline). Runs from source with no install.
+  # can never become the baseline). Runs from source with no install. Skipped
+  # when the planner found no affected app.
   e2e-summary:
     name: e2e summary
-    needs: e2e
-    if: always()
+    needs: [plan-e2e, e2e]
+    if: always() && needs.plan-e2e.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -637,16 +690,24 @@ jobs:
   # The branch ruleset requires the exact context "e2e consumer apps"; this gate
   # keeps that context alive over the planner + shard matrix, like build-gate does
   # for "build + test". always() so a failed or cancelled dependency fails the gate
-  # instead of skipping it.
+  # instead of skipping it; "skipped" passes only when the planner found no work.
   e2e-gate:
     name: e2e consumer apps
     needs: [plan-e2e, e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          test "${{ needs.plan-e2e.result }}" = "success"
-          test "${{ needs.e2e.result }}" = "success"
+      - env:
+          PLAN_RESULT: ${{ needs.plan-e2e.result }}
+          PLAN_HAS_WORK: ${{ needs.plan-e2e.outputs.has-work }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          test "$PLAN_RESULT" = "success"
+          if [ "$PLAN_HAS_WORK" = "false" ]; then
+            test "$E2E_RESULT" = "skipped"
+          else
+            test "$E2E_RESULT" = "success"
+          fi
 
   zizmor:
     runs-on: ubuntu-latest
