@@ -1,4 +1,4 @@
-import DiffsHighlightWorker from '@pierre/diffs/worker/worker-portable.js?worker&inline'
+import {onCleanup} from 'solid-js'
 import {getOrCreateWorkerPoolSingleton, type WorkerPoolManager} from '@pierre/diffs/worker'
 import type {FileDiffOptions} from '@pierre/diffs'
 
@@ -9,28 +9,38 @@ export type DiffsRenderOptions = Pick<
   'theme' | 'useTokenTransformer' | 'tokenizeMaxLineLength' | 'lineDiffType' | 'maxLineDiffLength'
 >
 
-function poolSingleton(options: DiffsRenderOptions | undefined): WorkerPoolManager {
-  return getOrCreateWorkerPoolSingleton({
-    poolOptions: {
-      workerFactory: () => new DiffsHighlightWorker(),
-      poolSize: HIGHLIGHT_WORKER_COUNT,
-    },
-    highlighterOptions: {
-      theme: options?.theme,
-      useTokenTransformer: options?.useTokenTransformer,
-      tokenizeMaxLineLength: options?.tokenizeMaxLineLength,
-      lineDiffType: options?.lineDiffType,
-      maxLineDiffLength: options?.maxLineDiffLength,
-    },
+function highlightWorkerPool(options: DiffsRenderOptions | undefined): Promise<WorkerPoolManager | undefined> {
+  if (typeof Worker === 'undefined') return Promise.resolve(undefined)
+  return import('@pierre/diffs/worker/worker-portable.js?worker&inline').then(
+    ({default: DiffsHighlightWorker}) =>
+      getOrCreateWorkerPoolSingleton({
+        poolOptions: {
+          workerFactory: () => new DiffsHighlightWorker(),
+          poolSize: HIGHLIGHT_WORKER_COUNT,
+        },
+        highlighterOptions: {
+          theme: options?.theme,
+          useTokenTransformer: options?.useTokenTransformer,
+          tokenizeMaxLineLength: options?.tokenizeMaxLineLength,
+          lineDiffType: options?.lineDiffType,
+          maxLineDiffLength: options?.maxLineDiffLength,
+        },
+      }),
+    () => undefined,
+  )
+}
+
+export function withHighlightWorkerPool(
+  options: DiffsRenderOptions | undefined,
+  start: (pool: WorkerPoolManager | undefined) => void,
+): void {
+  let disposed = false
+  onCleanup(() => (disposed = true))
+  void highlightWorkerPool(options).then((pool) => {
+    if (!disposed) start(pool)
   })
 }
 
-export function highlightWorkerPool(options: DiffsRenderOptions | undefined): WorkerPoolManager | undefined {
-  if (typeof Worker === 'undefined') return undefined
-  return poolSingleton(options)
-}
-
 export function primeHighlightWorkerPool(options: DiffsRenderOptions | undefined): void {
-  if (typeof Worker === 'undefined') return
-  poolSingleton(options)
+  void highlightWorkerPool(options)
 }

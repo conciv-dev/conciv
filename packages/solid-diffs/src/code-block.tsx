@@ -1,8 +1,8 @@
-import {children, onCleanup, Show, type JSX} from 'solid-js'
+import {children, onCleanup, Show, untrack, type JSX} from 'solid-js'
 import {unwrap} from 'solid-js/store'
 import {File, type FileContents, type FileOptions} from '@pierre/diffs'
 import {syncRender} from './render-sync.js'
-import {highlightWorkerPool} from './worker-pool.js'
+import {withHighlightWorkerPool} from './worker-pool.js'
 
 export type SolidCodeBlockProps = {
   file: FileContents
@@ -25,12 +25,16 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   })
 
   const setRef = (node: HTMLElement) => {
-    instance = new File(props.options, highlightWorkerPool(props.options), requestRender)
-    void instance.hydrate({file: unwrap(props.file), fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
       instance = null
     })
+    withHighlightWorkerPool(props.options, (pool) =>
+      untrack(() => {
+        instance = new File(props.options, pool, requestRender)
+        void instance.hydrate({file: unwrap(props.file), fileContainer: node})
+      }),
+    )
   }
 
   return (

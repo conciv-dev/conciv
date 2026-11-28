@@ -19,6 +19,7 @@
     "dist"
   ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/frontend-plugin-api.d.ts",
