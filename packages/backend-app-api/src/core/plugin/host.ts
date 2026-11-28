@@ -22,7 +22,7 @@ import * as Integration from '../integration.js'
 import type {IntegrationMethodRegistration} from '@conciv/backend-plugin-api/effect/plugin'
 import * as InstructionEntry from '../session/instruction-entry.js'
 import * as Rpc from '../rpc.js'
-import {permissionErrors, pluginHostErrors} from '@conciv/errors'
+import {engineErrors, permissionErrors, pluginHostErrors} from '@conciv/errors'
 import type {DeepMutable} from '../schema.js'
 import * as Skill from '../skill.js'
 import * as Tool from '../tool.js'
@@ -141,7 +141,10 @@ export const make = Effect.fn('PluginHost.make')(function* (
       list: () => response(integration.list()),
       get: Effect.fn(function* (input) {
         const item = yield* integration.get(Integration.Id.make(input.integrationId))
-        if (!item) return yield* Effect.fail(new Error(`Integration not found: ${input.integrationId}`))
+        if (!item)
+          return yield* Effect.fail(
+            engineErrors.INTEGRATION_NOT_FOUND({message: `Integration not found: ${input.integrationId}`}),
+          )
         return yield* response(Effect.succeed(item))
       }),
       connect: {
