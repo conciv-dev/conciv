@@ -12,6 +12,11 @@ export const aiErrors = defineErrorCatalog('ai', {
   TOOL_FAILED: {
     message: 'The tool failed',
   },
+  TOOL_STOPPED: {
+    message: ({name}: {name: string}) =>
+      `The call to tool "${name}" was stopped before it finished: the program or the agent that made it stopped waiting for it.`,
+    why: 'The caller went away first, for example an outside agent whose request timed out while the call waited for approval.',
+  },
   NO_TAB: {
     status: 409,
     message: 'pass tab to execute_typescript; list_tabs lists the open tabs',

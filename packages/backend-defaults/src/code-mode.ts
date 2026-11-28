@@ -100,6 +100,7 @@ function toSessionError(error: unknown): SessionError {
 }
 
 function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
+  if (Cause.hasInterruptsOnly(cause)) return aiErrors.TOOL_STOPPED({name})
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect)) return Permission.isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)

@@ -1,5 +1,6 @@
 import {describe} from 'vitest'
 import {test} from '../utils/engine-test.js'
+import {TestLLM} from '../utils/engine.js'
 import {z} from 'zod'
 
 describe.concurrent('asks', () => {
@@ -21,8 +22,9 @@ describe.concurrent('asks', () => {
     )
   })
 
-  test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async ({
+  test("a tool's fallback ask makes the call wait for approval even when every action is allowed, and a program call stopped while it waits says it was stopped", async ({
     createEngine,
+    connect,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/guarded'], permission: 'allow'})
@@ -31,6 +33,25 @@ describe.concurrent('asks', () => {
     await engine.session.approve()
 
     expect(await call).toEqual({read: 'notes.txt'})
+
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_guarded_read({file: 'notes.txt'})",
+      }),
+    )
+    const asked = await engine.event('permission.asked')
+    const turn = engine.session.send('Read my notes')
+    await asked.arrived
+    await engine.session.stop()
+    await turn
+
+    const {messages} = await connect(engine).chat.hydrate({sessionId: engine.session.id})
+    expect(messages.flatMap((message) => message.parts)).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-result',
+        error: expect.stringContaining('The call to tool "guarded_read" was stopped before it finished'),
+      }),
+    )
   })
 
   test("a plugin lists, reads and answers the session's pending ask, another session can neither read nor answer it: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async ({
