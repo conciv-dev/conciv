@@ -3,7 +3,8 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": ["dist/**", ".wrangler/deploy/**"]
+      "outputs": ["dist/**", ".wrangler/deploy/**"],
+      "passThroughEnv": ["SENTRY_AUTH_TOKEN"]
     },
     "test:e2e": {
       "dependsOn": ["^build", "build"]

@@ -42,6 +42,7 @@ export default defineConfig(({mode}) => ({
       rsc: {enabled: true},
       prerender: {
         enabled: true,
+        autoSubfolderIndex: false,
         filter: ({path}) => !path.startsWith('/assets/'),
       },
     }),
