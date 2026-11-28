@@ -19,7 +19,6 @@
   },
   "assets": {
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/brand", "/docs", "/docs/*", "!/docs/*.md"],
   },
   "env": {
     "preview": {

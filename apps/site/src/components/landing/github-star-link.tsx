@@ -1,9 +1,15 @@
 import type {ReactNode} from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {m, useSpring, useTransform} from 'motion/react'
+import {z} from 'zod'
 import {cn} from '@/lib/utils'
 import {repoUrl} from '@/lib/shared'
+import {formatStarCount} from '@/lib/star-count'
+import {useReducedMotion} from '@/lib/use-reduced-motion'
 import GithubIcon from '@/components/ui/github-icon'
 import StarIcon from '@/components/ui/star-icon'
 import {useAnimatedIcon} from '@/components/ui/use-animated-icon'
+import {LandingMotion} from './lazy-motion'
 
 function GithubMark({className}: {className?: string}) {
   return (
@@ -13,13 +19,38 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
+const starsResponseSchema = z.object({stars: z.number().int().nonnegative().nullable()})
+
+async function fetchStars(): Promise<number | null> {
+  const response = await fetch('/api/stars')
+  if (!response.ok) throw new Error(`/api/stars answered ${response.status}`)
+  return starsResponseSchema.parse(await response.json()).stars
+}
+
+function CountUp({to}: {to: number}) {
+  const reduced = useReducedMotion()
+  const count = useSpring(reduced ? to : 0, {bounce: 0, visualDuration: 1.2})
+  const text = useTransform(count, (value) => formatStarCount(Math.round(value)))
+  return <m.span ref={() => count.set(to)}>{text}</m.span>
+}
+
 function StarCount({children}: {children?: ReactNode}) {
+  const {data: stars, isPending} = useQuery({queryKey: ['github-stars'], queryFn: fetchStars, staleTime: 600_000})
+  const known = typeof stars === 'number'
   return (
-    <span className="inline-flex items-center gap-1 has-[[data-star-count=number]:empty]:hidden">
+    <span className={cn('inline-flex items-center gap-1', !isPending && !known && 'invisible')}>
       {children}
       <span className="tabular-nums">
-        <span aria-hidden="true" data-star-count="number" suppressHydrationWarning />
-        <span className="sr-only" data-star-count="label" suppressHydrationWarning />
+        <span aria-hidden="true">
+          {known ? (
+            <LandingMotion>
+              <CountUp key={stars} to={stars} />
+            </LandingMotion>
+          ) : (
+            '0'
+          )}
+        </span>
+        {known && <span className="sr-only">{stars} stars</span>}
       </span>
     </span>
   )

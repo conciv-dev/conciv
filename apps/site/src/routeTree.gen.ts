@@ -16,6 +16,7 @@ import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as OgDotpngRouteImport } from './routes/og[.]png'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiStarsRouteImport } from './routes/api/stars'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as DocsChar123Char125DotmdRouteImport } from './routes/docs/{$}[.]md'
 import { Route as OgChar123Char125DotpngRouteImport } from './routes/og/{$}[.]png'
@@ -57,6 +58,11 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStarsRoute = ApiStarsRouteImport.update({
+  id: '/api/stars',
+  path: '/api/stars',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsSplatRoute = DocsSplatRouteImport.update({
   id: '/docs/$',
   path: '/docs/$',
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/og.png': typeof OgDotpngRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/stars': typeof ApiStarsRoute
   '/docs/$': typeof DocsSplatRoute
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
   '/og/{$}.png': typeof OgChar123Char125DotpngRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/og.png': typeof OgDotpngRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/stars': typeof ApiStarsRoute
   '/docs/$': typeof DocsSplatRoute
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
   '/og/{$}.png': typeof OgChar123Char125DotpngRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/og.png': typeof OgDotpngRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/stars': typeof ApiStarsRoute
   '/docs/$': typeof DocsSplatRoute
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
   '/og/{$}.png': typeof OgChar123Char125DotpngRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/og.png'
     | '/sitemap.xml'
     | '/api/search'
+    | '/api/stars'
     | '/docs/$'
     | '/docs/{$}.md'
     | '/og/{$}.png'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/og.png'
     | '/sitemap.xml'
     | '/api/search'
+    | '/api/stars'
     | '/docs/$'
     | '/docs/{$}.md'
     | '/og/{$}.png'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/og.png'
     | '/sitemap.xml'
     | '/api/search'
+    | '/api/stars'
     | '/docs/$'
     | '/docs/{$}.md'
     | '/og/{$}.png'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   OgDotpngRoute: typeof OgDotpngRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  ApiStarsRoute: typeof ApiStarsRoute
   DocsSplatRoute: typeof DocsSplatRoute
   DocsChar123Char125DotmdRoute: typeof DocsChar123Char125DotmdRoute
   OgChar123Char125DotpngRoute: typeof OgChar123Char125DotpngRoute
@@ -237,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stars': {
+      id: '/api/stars'
+      path: '/api/stars'
+      fullPath: '/api/stars'
+      preLoaderRoute: typeof ApiStarsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/$': {
       id: '/docs/$'
       path: '/docs/$'
@@ -283,6 +303,7 @@ const rootRouteChildren: RootRouteChildren = {
   OgDotpngRoute: OgDotpngRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiSearchRoute: ApiSearchRoute,
+  ApiStarsRoute: ApiStarsRoute,
   DocsSplatRoute: DocsSplatRoute,
   DocsChar123Char125DotmdRoute: DocsChar123Char125DotmdRoute,
   OgChar123Char125DotpngRoute: OgChar123Char125DotpngRoute,
