@@ -49,8 +49,11 @@ export default defineConfig(({mode}) => ({
     react(),
     conciv({widget: false}),
     concivTest(),
-    sentryTanstackStart({org: 'conciv', project: 'site', authToken: process.env.SENTRY_AUTH_TOKEN}),
+    sentryTanstackStart({org: 'conciv', project: 'site', authToken: process.env.SENTRY_AUTH_TOKEN, telemetry: false}),
   ],
+  test: {
+    coverage: {exclude: ['dist/**']},
+  },
   optimizeDeps: {
     include: ['fumadocs-ui > react-remove-scroll > tslib'],
   },
