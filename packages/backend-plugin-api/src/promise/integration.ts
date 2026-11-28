@@ -103,7 +103,7 @@ export interface IntegrationApi {
     readonly key: (
       input: {
         readonly integrationId: string
-        readonly key: Credential.Key['key']
+        readonly key: string
         readonly answer?: Form.Answer
         readonly label?: string
       },
