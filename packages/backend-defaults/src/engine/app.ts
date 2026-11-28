@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {closeHomeDatabase, openHomeDatabase, type HomeDatabase} from '../core/database/home.js'
 import {access, readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
@@ -461,6 +462,7 @@ export type MadeApp = {
   dispose: () => Promise<void>
   runtime: CoreRuntime
   pluginHost: PluginHost
+  home: HomeDatabase
   awaitActivation: () => Promise<void>
 } & EngineRouterBrand
 
@@ -584,13 +586,22 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     await Promise.all(listings.map(endListing))
   }
   const staleness = async (): Promise<EngineStaleness> => opts.staleness?.() ?? engineStaleness()
+  const home = await openHomeDatabase(appEnv.home)
+  if (!home.ok)
+    earlyRuntime.runFork(
+      Effect.logError('conciv: the home could not be opened; stored credentials are unavailable', {
+        home: appEnv.home,
+        error: home.error,
+      }),
+    )
+  const closeHome = () => closeHomeDatabase(home)
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =
     (steps: ShutdownStep[]) =>
     async (error: unknown): Promise<never> => {
       await runInOrder(
-        [endListings, ...steps, () => browsers.close(), closeDb, releaseObservability],
+        [endListings, ...steps, () => browsers.close(), closeDb, closeHome, releaseObservability],
         'conciv: disposing after a failed start failed',
       ).catch((failure: unknown) =>
         earlyRuntime.runFork(Effect.logError('[core] cleanup after a failed start failed', {failure})),
@@ -739,6 +750,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       db,
       cwd: opts.cwd,
       home: appEnv.home,
+      homeDatabase: home,
       configProvider,
       clock: opts.clock,
       observability: observability.context,
@@ -1023,6 +1035,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           disposeStep('closeBrowsers', () => browsers.close()),
           disposeStep('disposePluginHost', () => pluginHost.dispose()),
           disposeStep('closeDatabase', closeDb),
+          disposeStep('closeHome', closeHome),
           disposeStep('uninstrumentRpc', uninstrumentRpc),
         ],
         'conciv: disposing the engine failed',
@@ -1078,6 +1091,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       dispose,
       runtime,
       pluginHost,
+      home,
       awaitActivation: plugins.awaitActivation,
     },
     rpc,

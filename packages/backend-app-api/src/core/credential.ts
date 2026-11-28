@@ -3,6 +3,7 @@ import {Cause, Clock, Context, Duration, Effect, Fiber, Layer, Option, Redacted,
 import * as Credential from '@conciv/protocol/schema/credential'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import type * as Integration from '@conciv/protocol/schema/integration'
+import type {EvlogError} from 'evlog'
 import * as Database from './database/database.js'
 import * as Bus from './bus.js'
 import {EffectFlock} from '../util/effect-flock.js'
@@ -50,9 +51,9 @@ export const Info = Schema.Struct({
 }).annotate({identifier: 'Credential.Info'})
 
 export interface Interface {
-  readonly all: () => Effect.Effect<Info[]>
-  readonly list: (integrationId: Integration.Id) => Effect.Effect<Info[]>
-  readonly get: (id: Id) => Effect.Effect<Info | undefined>
+  readonly all: () => Effect.Effect<Info[], EvlogError>
+  readonly list: (integrationId: Integration.Id) => Effect.Effect<Info[], EvlogError>
+  readonly get: (id: Id) => Effect.Effect<Info | undefined, EvlogError>
   readonly refresh: (
     id: Id,
     input: {
@@ -66,13 +67,27 @@ export interface Interface {
     readonly value: Value
     readonly label?: string
     readonly activate?: boolean
-  }) => Effect.Effect<Info>
-  readonly activate: (id: Id) => Effect.Effect<void>
-  readonly update: (id: Id, updates: Partial<Pick<Info, 'label' | 'value'>>) => Effect.Effect<void>
-  readonly remove: (id: Id) => Effect.Effect<void>
+  }) => Effect.Effect<Info, EvlogError>
+  readonly activate: (id: Id) => Effect.Effect<void, EvlogError>
+  readonly update: (id: Id, updates: Partial<Pick<Info, 'label' | 'value'>>) => Effect.Effect<void, EvlogError>
+  readonly remove: (id: Id) => Effect.Effect<void, EvlogError>
 }
 
 export const Service = Context.Service<Interface>('@conciv/Credential')
+
+export function unavailable(error: EvlogError): Interface {
+  const refused = () => Effect.fail(error)
+  return Service.of({
+    all: refused,
+    list: refused,
+    get: refused,
+    refresh: refused,
+    create: refused,
+    activate: refused,
+    update: refused,
+    remove: refused,
+  })
+}
 
 type Row = typeof CredentialTable.$inferSelect
 

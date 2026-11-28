@@ -205,6 +205,12 @@ export const engineErrorEntries = {
     status: 400,
     message: 'Authorization code is required',
   },
+  HOME_UNREACHABLE: {
+    status: 503,
+    message: 'the conciv home could not be opened',
+    why: 'the per-user home folder is not a private folder this user owns, its disk is read-only, or its lock is held',
+    fix: 'check CONCIV_HOME and the permissions of the home folder, then restart the engine',
+  },
 } as const satisfies ErrorCatalogMap
 
 export const engineErrors = defineErrorCatalog('engine', engineErrorEntries)

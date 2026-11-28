@@ -14,7 +14,6 @@ import {
   Agent,
   Bus,
   ConfigPluginSource,
-  Credential,
   EffectFlock,
   Form,
   Integration,
@@ -211,6 +210,7 @@ export type PluginRuntimeInput = {
   db: ConcivDb
   cwd: string
   home: string
+  homeDatabase: DatabaseHome.HomeDatabase
   engineId: string
   ids: Identifier.Maker
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
@@ -278,7 +278,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         Skill.layer,
         Form.layer,
         Integration.layer.pipe(
-          Layer.provideMerge(Credential.layer.pipe(Layer.provide(DatabaseHome.homeLayer(input.home)))),
+          Layer.provideMerge(DatabaseHome.credentialLayer(input.homeDatabase)),
           Layer.provide(EffectFlock.layer),
         ),
       ),

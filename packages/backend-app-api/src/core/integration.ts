@@ -83,10 +83,10 @@ type AttemptInput = {readonly integrationId: Id; readonly attemptId: AttemptId}
 
 export interface Interface extends State.Transformable<Editor> {
   readonly revision: () => number
-  readonly get: (id: Id) => Effect.Effect<Info | undefined>
-  readonly list: () => Effect.Effect<Info[]>
+  readonly get: (id: Id) => Effect.Effect<Info | undefined, EvlogError>
+  readonly list: () => Effect.Effect<Info[], EvlogError>
   readonly connection: {
-    readonly active: (id: Id) => Effect.Effect<IntegrationConnection.Info | undefined>
+    readonly active: (id: Id) => Effect.Effect<IntegrationConnection.Info | undefined, EvlogError>
     readonly resolve: (
       connection: IntegrationConnection.Info,
     ) => Effect.Effect<Credential.Value | undefined, EvlogError>
@@ -102,12 +102,12 @@ export interface Interface extends State.Transformable<Editor> {
       readonly answer?: Form.Answer
       readonly label?: string
     }) => Effect.Effect<void, EvlogError>
-    readonly activate: (credentialId: Credential.Id) => Effect.Effect<void>
+    readonly activate: (credentialId: Credential.Id) => Effect.Effect<void, EvlogError>
     readonly update: (
       credentialId: Credential.Id,
       updates: Partial<Pick<Credential.Info, 'label'>>,
-    ) => Effect.Effect<void>
-    readonly remove: (credentialId: Credential.Id) => Effect.Effect<void>
+    ) => Effect.Effect<void, EvlogError>
+    readonly remove: (credentialId: Credential.Id) => Effect.Effect<void, EvlogError>
     readonly status: (input: {
       readonly integrationId: Id
       readonly connection: IntegrationConnection.Info

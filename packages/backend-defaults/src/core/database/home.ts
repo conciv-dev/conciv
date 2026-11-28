@@ -1,16 +1,39 @@
 import {join} from 'node:path'
-import {Effect, Layer} from 'effect'
-import {causeFrom, engineRuntimeErrors} from '@conciv/errors'
-import {prepareHome, withHomeDb} from '@conciv/home'
+import {Layer} from 'effect'
+import type {EvlogError} from 'evlog'
+import {causeFrom, engineErrors} from '@conciv/errors'
+import {closeHomeDb, openHomeDb, prepareHome, type HomeDb, type PreparedHome} from '@conciv/home'
+import {Credential} from '@conciv/backend-app-api'
 import {layer} from './layer.js'
 
-const migratedHome = Effect.fn('core.database.home')(function* (home: string) {
-  const unreachable = (cause: unknown) => engineRuntimeErrors.HOME_UNREACHABLE({home, ...causeFrom(cause)})
-  const prepared = yield* Effect.tryPromise({try: () => prepareHome(home), catch: unreachable})
-  yield* Effect.try({try: () => withHomeDb(prepared, () => undefined), catch: unreachable})
-  return join(prepared, 'home.db')
-})
+export type HomeDatabase =
+  | {readonly ok: true; readonly prepared: PreparedHome; readonly db: HomeDb}
+  | {readonly ok: false; readonly error: EvlogError}
 
-export function homeLayer(home: string) {
-  return Layer.unwrap(migratedHome(home).pipe(Effect.map((path) => layer({path})))).pipe(Layer.orDie)
+export async function openHomeDatabase(home: string): Promise<HomeDatabase> {
+  try {
+    const prepared = await prepareHome(home)
+    return {ok: true, prepared, db: openHomeDb(prepared)}
+  } catch (cause) {
+    return {
+      ok: false,
+      error: engineErrors.HOME_UNREACHABLE({
+        message: `the conciv home ${home} could not be opened`,
+        ...causeFrom(cause),
+      }),
+    }
+  }
+}
+
+export function closeHomeDatabase(home: HomeDatabase): void {
+  if (home.ok) closeHomeDb(home.db)
+}
+
+const storedCredentials = (file: string) => Credential.layer.pipe(Layer.provide(Layer.fresh(layer({path: file}))))
+
+export function credentialLayer(
+  home: HomeDatabase,
+): Layer.Layer<Credential.Interface, never, Layer.Services<ReturnType<typeof storedCredentials>>> {
+  if (!home.ok) return Layer.succeed(Credential.Service, Credential.unavailable(home.error))
+  return storedCredentials(join(home.prepared, 'home.db'))
 }

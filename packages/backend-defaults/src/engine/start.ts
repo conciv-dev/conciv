@@ -1,16 +1,9 @@
 import type {EvlogError} from 'evlog'
+import type {HomeDatabase} from '../core/database/home.js'
 import {randomUUID} from 'node:crypto'
 import {setTimeout} from 'node:timers/promises'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {
-  checkEngines,
-  prepareHome,
-  registerEngine,
-  retireEngine,
-  withHomeDb,
-  type EngineRow,
-  type PreparedHome,
-} from '@conciv/home'
+import {checkEngines, registerEngine, retireEngine, type EngineRow} from '@conciv/home'
 import {type ConfigProvider, Effect, type Layer, Stream} from 'effect'
 import {z} from 'zod'
 import {context, ROOT_CONTEXT} from '@opentelemetry/api'
@@ -269,26 +262,25 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-async function registeredHome(home: string, row: EngineRow, runtime: EngineRuntime): Promise<PreparedHome | null> {
+function registerForOutsideAgents(home: HomeDatabase, row: EngineRow, runtime: EngineRuntime): () => void {
+  if (!home.ok) {
+    runtime.runFork(
+      Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error: home.error}),
+    )
+    return () => {}
+  }
   try {
-    const prepared = await prepareHome(home)
-    withHomeDb(prepared, (db) => registerEngine(db, row))
-    return prepared
+    registerEngine(home.db, row)
   } catch (error) {
     runtime.runFork(Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error}))
-    return null
+    return () => {}
   }
-}
-
-async function registerForOutsideAgents(home: string, row: EngineRow, runtime: EngineRuntime): Promise<() => void> {
-  const registered = await registeredHome(home, row, runtime)
-  if (registered === null) return () => {}
-  checkEngines(home, {timeoutMs: 300}).catch((error: unknown) =>
+  checkEngines(home.prepared, {timeoutMs: 300}).catch((error: unknown) =>
     runtime.runFork(Effect.logError('conciv: checking registered engines failed', {error})),
   )
   return () => {
     try {
-      withHomeDb(registered, (db) => retireEngine(db, row.id, Date.now()))
+      retireEngine(home.db, row.id, Date.now())
     } catch (error) {
       runtime.runFork(Effect.logError('conciv: engine row not retired', {engineId: row.id, error}))
     }
@@ -473,8 +465,8 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     throw error
   }
   const retire = origin
-    ? await registerForOutsideAgents(
-        home,
+    ? registerForOutsideAgents(
+        made.home,
         {
           id: engineId,
           pid: process.pid,

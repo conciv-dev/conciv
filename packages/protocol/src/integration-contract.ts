@@ -40,9 +40,11 @@ const IntegrationIdInput = z.object({integrationId: Text})
 const AttemptInput = IntegrationIdInput.extend({attemptId: Text})
 const Ok = z.object({ok: z.literal(true)})
 
+const stored = oc.errors(engineContractErrors('HOME_UNREACHABLE'))
+
 export const credentialContract = {
-  list: oc.output(EffectSchema.toStandardSchemaV1(EffectSchema.Array(Credential.Entry))),
-  create: oc
+  list: stored.output(EffectSchema.toStandardSchemaV1(EffectSchema.Array(Credential.Entry))),
+  create: stored
     .errors(engineContractErrors('CONFLICT', 'INTEGRATION_POLICY'))
     .input(
       z.object({
@@ -54,39 +56,39 @@ export const credentialContract = {
       }),
     )
     .output(EffectSchema.toStandardSchemaV1(Credential.Entry)),
-  update: oc.input(CredentialIdInput.extend({label: Label})).output(Ok),
-  activate: oc.input(CredentialIdInput).output(Ok),
-  remove: oc.input(CredentialIdInput).output(Ok),
+  update: stored.input(CredentialIdInput.extend({label: Label})).output(Ok),
+  activate: stored.input(CredentialIdInput).output(Ok),
+  remove: stored.input(CredentialIdInput).output(Ok),
 }
 
 const ConnectFields = {methodId: Text, answer: FormAnswer.optional(), label: Label.optional()}
 
 export const integrationContract = {
-  list: oc.output(located(EffectSchema.Array(Integration.Info))),
-  get: oc
+  list: stored.output(located(EffectSchema.Array(Integration.Info))),
+  get: stored
     .errors(engineContractErrors('INTEGRATION_NOT_FOUND'))
     .input(IntegrationIdInput)
     .output(located(Integration.Info)),
   connect: {
-    key: oc
+    key: stored
       .errors(engineContractErrors('INTEGRATION_NOT_FOUND', 'INTEGRATION_POLICY', 'INTEGRATION_AUTHORIZATION'))
       .input(IntegrationIdInput.extend({key: Secret, answer: FormAnswer.optional(), label: Label.optional()}))
       .output(Ok),
-    external: oc
+    external: stored
       .errors(engineContractErrors('INTEGRATION_NOT_FOUND', 'INTEGRATION_POLICY', 'INTEGRATION_AUTHORIZATION'))
       .input(IntegrationIdInput.extend(ConnectFields))
       .output(Ok),
   },
   oauth: {
-    connect: oc
+    connect: stored
       .errors(engineContractErrors('INTEGRATION_POLICY', 'INTEGRATION_AUTHORIZATION'))
       .input(IntegrationIdInput.extend(ConnectFields))
       .output(located(Integration.Attempt)),
-    status: oc
+    status: stored
       .errors(engineContractErrors('INTEGRATION_NOT_FOUND', 'INTEGRATION_ATTEMPT_NOT_FOUND'))
       .input(AttemptInput)
       .output(located(Integration.AttemptStatus)),
-    complete: oc
+    complete: stored
       .errors(
         engineContractErrors(
           'INTEGRATION_NOT_FOUND',
@@ -97,10 +99,10 @@ export const integrationContract = {
       )
       .input(AttemptInput.extend({code: z.string().max(16_384).optional()}))
       .output(Ok),
-    cancel: oc.input(AttemptInput).output(Ok),
+    cancel: stored.input(AttemptInput).output(Ok),
   },
   command: {
-    connect: oc
+    connect: stored
       .errors(
         engineContractErrors(
           'INTEGRATION_NOT_FOUND',
@@ -111,10 +113,10 @@ export const integrationContract = {
       )
       .input(IntegrationIdInput.extend({methodId: Text, label: Label.optional()}))
       .output(located(Integration.CommandAttempt)),
-    status: oc
+    status: stored
       .errors(engineContractErrors('INTEGRATION_NOT_FOUND', 'INTEGRATION_ATTEMPT_NOT_FOUND'))
       .input(AttemptInput)
       .output(located(Integration.CommandAttemptStatus)),
-    cancel: oc.input(AttemptInput).output(Ok),
+    cancel: stored.input(AttemptInput).output(Ok),
   },
 }

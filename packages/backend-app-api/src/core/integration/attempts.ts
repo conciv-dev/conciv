@@ -57,7 +57,9 @@ export interface AttemptDeps {
   readonly scope: Scope.Scope
   readonly ids: Identifier.Maker
   readonly spawner: ChildProcessSpawner['Service']
-  readonly createCredential: (input: Parameters<Credential.Interface['create']>[0]) => Effect.Effect<Credential.Info>
+  readonly createCredential: (
+    input: Parameters<Credential.Interface['create']>[0],
+  ) => Effect.Effect<Credential.Info, EvlogError>
   readonly oauthMethod: (integrationId: Id, methodId: MethodId) => OAuthImplementation | undefined
   readonly commandMethod: (integrationId: Id, methodId: MethodId) => IntegrationSchema.CommandMethod | undefined
   readonly answerError: AnswerCheck

@@ -155,7 +155,7 @@ export interface IntegrationDomain extends IntegrationApi {
   readonly transform: Transform<IntegrationEditor>
   readonly reload: () => Effect.Effect<void>
   readonly connection: {
-    readonly active: (integrationId: string) => Effect.Effect<ConnectionInfo | undefined>
+    readonly active: (integrationId: string) => Effect.Effect<ConnectionInfo | undefined, unknown>
     readonly resolve: (connection: ConnectionInfo) => Effect.Effect<Credential.Value | undefined, unknown>
     readonly status: (input: {
       readonly integrationId: string
