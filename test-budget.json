@@ -20,7 +20,7 @@
   "@conciv/plugin-test-runner": 9,
   "@conciv/plugin-try-it": 4,
   "@conciv/plugin-whiteboard": 19,
-  "@internal/publish": 12,
+  "@internal/publish": 14,
   "@internal/reference": 1,
   "@conciv/solid-streamdown": 4,
   "@conciv/try": 1,
