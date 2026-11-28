@@ -21,8 +21,7 @@
     "**/vitest.config.ts",
     "**/*.stories.tsx",
     "**/*.fixtures.ts",
-    "**/*.fixtures.tsx",
-    "packages/publish/test/fixtures/generator-root/**"
+    "**/*.fixtures.tsx"
   ],
   "boundaries": {
     "zones": [

@@ -8,7 +8,6 @@ import {generatorErrors} from './errors.ts'
 const KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 const ONE_LINE = /^[^\n]*\S[^\n]*$/
 const VERSION_SOURCE = 'packages/it/package.json'
-const GUARDS = 'packages/publish/src/guards.ts'
 const FALLOW_CONFIG = '.fallowrc.json'
 const REPOSITORY_URL = 'git+https://github.com/conciv-dev/conciv.git'
 const TEST_FOLDERS = ['unit', 'it', 'e2e', 'fixtures', 'utils']
@@ -357,9 +356,8 @@ const registerPublished = Effect.fn('registerPublished')(function* (context: Gen
   const paths = yield* Path.Path
   const name = packageName(spec)
   yield* writeFile(paths.join(context.root, changesetPath(spec)), yield* renderTemplate(context, 'changeset.md', spec))
-  yield* appendToList(paths.join(context.root, GUARDS), 'export const PUBLIC_PACKAGES = [', `\n  '${name}',`)
   yield* appendToList(paths.join(context.root, FALLOW_CONFIG), '"publicPackages": [', `,\n    "${name}"`)
-  return `${name}: changeset, PUBLIC_PACKAGES and ${FALLOW_CONFIG} publicPackages`
+  return `${name}: changeset and ${FALLOW_CONFIG} publicPackages`
 })
 
 const registerShared = Effect.fn('registerShared')(function* (context: GeneratorContext, spec: Spec) {
@@ -376,7 +374,7 @@ function writtenPaths(spec: Spec): string[] {
   switch (spec.kind) {
     case 'published':
     case 'plugin':
-      return [directory(spec), GUARDS, FALLOW_CONFIG, changesetPath(spec)]
+      return [directory(spec), FALLOW_CONFIG, changesetPath(spec)]
     case 'internal':
       return [directory(spec)]
   }

@@ -106,7 +106,6 @@ describe('turbo gen package', () => {
           'gen-check-web',
           'it',
           'plugins',
-          'publish',
         ])
         expect(yield* listEntries(path.join(packages, 'plugins'))).toEqual(['gen-check', 'page'])
         expect(yield* listEntries(path.join(root, '.changeset'))).toEqual([
@@ -199,13 +198,10 @@ describe('turbo gen package', () => {
         expect(yield* read('packages/gen-check-both/vitest.config.ts')).toContain('browser: true')
         expect(yield* read('packages/gen-check-node/vitest.config.ts')).not.toContain('browser: true')
 
-        const guards = yield* read('packages/publish/src/guards.ts')
         const fallow = yield* read('.fallowrc.json')
-        expect(guards).toContain("'@conciv/gen-check-node',")
         expect(fallow).toContain('"@conciv/gen-check-node"')
-        expect(guards).toContain("'@conciv/plugin-gen-check',")
         expect(fallow).toContain('"@conciv/plugin-gen-check"')
-        expect(`${guards}${fallow}`).not.toMatch(/gen-check-(web|both)/)
+        expect(fallow).not.toMatch(/gen-check-(web|both)/)
         expect(yield* read('.changeset/add-gen-check-node-package.md')).toContain("'@conciv/gen-check-node': patch")
 
         expect(
@@ -214,7 +210,6 @@ describe('turbo gen package', () => {
             'packages/gen-check-web',
             'packages/gen-check-both',
             'packages/plugins/gen-check',
-            'packages/publish/src/guards.ts',
             '.fallowrc.json',
           ]),
         ).toBe(0)
