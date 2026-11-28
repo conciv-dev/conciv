@@ -15,11 +15,6 @@ export const integrationErrors = defineErrorCatalog('integration', {
     message: ({integrationId, attemptId}: {integrationId: string; attemptId: string}) =>
       `Attempt not found: ${integrationId}/${attemptId}`,
   },
-  WELL_KNOWN: {
-    status: 400,
-    message: ({reason}: {reason: string}) => reason,
-    why: 'The origin does not serve a usable well-known manifest.',
-  },
 })
 
 declare module 'evlog' {

@@ -30,7 +30,7 @@ import {relayEvents} from './relay-events.js'
 import {tabsRouter} from './tabs.js'
 import {jobsRouter} from './jobs.js'
 import {credentialRouter} from './credential.js'
-import {experimentalIntegrationRouter, integrationRouter} from './integration.js'
+import {integrationRouter} from './integration.js'
 import {logsRouter} from './logs.js'
 import {readProject} from '../../lib/project.js'
 import {
@@ -476,7 +476,6 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
       }),
     },
     experimental: {
-      integration: experimentalIntegrationRouter(),
       persistentPty: {
         create: os.experimental.persistentPty.create.effect(function* ({input, context}) {
           const created = yield* Effect.promise(() => deps.ptys.create(input, context.callerOrigin))

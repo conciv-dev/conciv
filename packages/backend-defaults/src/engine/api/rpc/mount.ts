@@ -33,7 +33,6 @@ import type {
   Credential,
   Form,
   Integration,
-  WellKnown,
   ConfigPolicy,
   Database,
   InstructionEntry,
@@ -85,7 +84,6 @@ export type EngineServices =
   | Credential.Interface
   | Integration.Interface
   | Form.Interface
-  | WellKnown.Interface
   | readonly ConfigPolicy.Info[]
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<EngineServices, never>

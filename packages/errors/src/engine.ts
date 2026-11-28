@@ -205,11 +205,6 @@ export const engineErrorEntries = {
     status: 400,
     message: 'Authorization code is required',
   },
-  WELL_KNOWN_DISCOVERY: {
-    status: 400,
-    message: 'well-known discovery failed',
-    why: 'the origin does not serve a usable well-known manifest',
-  },
 } as const satisfies ErrorCatalogMap
 
 export const engineErrors = defineErrorCatalog('engine', engineErrorEntries)

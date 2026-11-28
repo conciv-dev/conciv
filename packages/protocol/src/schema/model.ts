@@ -3,7 +3,6 @@ import {optional, statics} from './schema.js'
 import * as Provider from './provider.js'
 import {Compatibility} from './model-compatibility.js'
 import * as Money from './money.js'
-import {FreeformFormat} from './tool.js'
 
 export const Id = Schema.String.pipe(Schema.brand('Model.ID'))
 export type Id = typeof Id.Type
@@ -47,7 +46,6 @@ export const Overlays = {
 export interface Capabilities extends Schema.Schema.Type<typeof Capabilities> {}
 export const Capabilities = Schema.Struct({
   tools: Schema.Boolean,
-  freeform: Schema.Array(FreeformFormat).pipe(optional),
   input: Schema.Array(Schema.String),
   output: Schema.Array(Schema.String),
   temperature: Schema.Boolean.pipe(optional),

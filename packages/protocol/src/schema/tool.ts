@@ -6,17 +6,6 @@ import type * as SessionMessage from './session-message.js'
 
 export type Metadata = Readonly<Record<string, any>>
 
-export const Freeform = Schema.Union([
-  Schema.Struct({type: Schema.Literal('text')}),
-  Schema.Struct({type: Schema.Literal('regex'), pattern: Schema.String}),
-  Schema.Struct({type: Schema.Literal('lark'), grammar: Schema.String}),
-]).annotate({identifier: 'Tool.Freeform'})
-export type Freeform = typeof Freeform.Type
-
-export const FreeformFormat = Schema.Literals(Freeform.members.map((member) => member.fields.type.literal)).annotate({
-  identifier: 'Tool.FreeformFormat',
-})
-
 export const CallId = Schema.String.pipe(Schema.brand('Tool.CallID'))
 export type CallId = typeof CallId.Type
 
