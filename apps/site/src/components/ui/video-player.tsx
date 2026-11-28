@@ -14,6 +14,7 @@ import {
   StatusAnnouncer,
   Time,
   TimeSlider,
+  useContainerAttach,
 } from '@videojs/react'
 import {Video, videoFeatures} from '@videojs/react/video'
 import {MaximizeIcon, MinimizeIcon, PauseIcon, PlayIcon} from 'lucide-react'
@@ -26,28 +27,36 @@ const {Player} = createPlayer({features: videoFeatures})
 
 type PartProps<T extends React.ElementType> = Omit<React.ComponentProps<T>, 'className'> & {className?: string}
 
-function VideoPlayer({className, children, ...props}: React.ComponentProps<typeof Container>) {
+function VideoPlayerFrame({className, children, ...props}: React.ComponentProps<typeof Container>) {
+  const setContainer = useContainerAttach()
+  return (
+    <Container
+      data-slot="video-player"
+      className={cn(
+        'group/video-player not-prose relative isolate aspect-video w-full overflow-hidden rounded-xl border bg-muted text-foreground',
+        className,
+      )}
+      {...props}
+      ref={setContainer}
+    >
+      {children}
+      <Gesture type="tap" action="togglePaused" pointer="mouse" />
+      <Gesture type="doubletap" action="toggleFullscreen" />
+      <Hotkey keys="Space" action="togglePaused" />
+      <Hotkey keys="k" action="togglePaused" />
+      <Hotkey keys="m" action="toggleMuted" />
+      <Hotkey keys="f" action="toggleFullscreen" />
+      <Hotkey keys="ArrowLeft" action="seekStep" value={-5} />
+      <Hotkey keys="ArrowRight" action="seekStep" value={5} />
+      <StatusAnnouncer />
+    </Container>
+  )
+}
+
+function VideoPlayer(props: React.ComponentProps<typeof Container>) {
   return (
     <Player>
-      <Container
-        data-slot="video-player"
-        className={cn(
-          'group/video-player not-prose relative isolate aspect-video w-full overflow-hidden rounded-xl border bg-muted text-foreground',
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        <Gesture type="tap" action="togglePaused" pointer="mouse" />
-        <Gesture type="doubletap" action="toggleFullscreen" />
-        <Hotkey keys="Space" action="togglePaused" />
-        <Hotkey keys="k" action="togglePaused" />
-        <Hotkey keys="m" action="toggleMuted" />
-        <Hotkey keys="f" action="toggleFullscreen" />
-        <Hotkey keys="ArrowLeft" action="seekStep" value={-5} />
-        <Hotkey keys="ArrowRight" action="seekStep" value={5} />
-        <StatusAnnouncer />
-      </Container>
+      <VideoPlayerFrame {...props} />
     </Player>
   )
 }
