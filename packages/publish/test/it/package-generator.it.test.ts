@@ -93,8 +93,12 @@ describe('turbo gen package', () => {
         expect(yield* firstFailure('plugin', 'plugin-experimental', 'both')).toContain(
           'a plugin with both parts cannot be named plugin-experimental',
         )
-        expect(yield* firstFailure('private', 'gen-check-bad', 'node')).toContain('private')
-        expect(yield* firstFailure('published', 'Bad', 'node')).toContain('Bad')
+        expect(yield* firstFailure('private', 'gen-check-bad', 'node')).toBe(
+          'Expected "published" | "internal" | "plugin"\n  at ["kind"]',
+        )
+        expect(yield* firstFailure('published', 'Bad', 'node')).toBe(
+          'Expected a string matching the RegExp ^[a-z][a-z0-9]*(-[a-z0-9]+)*$\n  at ["name"]',
+        )
         expect(yield* firstFailure('published', 'plugin-page', 'node')).toContain(
           '@conciv/plugin-page is already declared by packages/plugins/page',
         )
