@@ -25,7 +25,10 @@ in options. They are stored per user as credentials of an integration a plugin d
 4. Compatibility for data conciv never had stays out, as it carries no feature: the legacy credential shape
    (`credential-legacy.ts`, which only maps old stored rows' `configuration` to `metadata`; rows decode with
    `Credential.Value`), the legacy credential import migration, and the `@deprecated` aliases (the integration api's
-   `wellknown` alias; `experimental.integration.wellknown.add` itself comes over).
+   `wellknown` alias).
+   WellKnown (remote config sources, `experimental.integration.wellknown.add`, its login plugin) and the config
+   documents it feeds are not part of credentials: nothing in the credential or integration code imports them and the
+   plugin domain omits `wellknown`. They stay out, for a config port of their own.
 
 5. Ruled 2026-11-28, the one behavioural change from the source: every secret in a credential value (a key, an oauth
    access and refresh token, an external credential's secret) is an Effect `Redacted<string>` everywhere in the engine

@@ -16,14 +16,10 @@ import * as SkillPlugin from './skill.js'
 import * as ServerTools from '../tool/plugin/server.js'
 import * as SkillTool from '../tool/plugin/skill.js'
 import * as Tool from '@conciv/backend-app-api/core/tool'
-import * as Bus from '@conciv/backend-app-api/core/bus'
-import * as WellKnown from '@conciv/backend-app-api/core/wellknown'
-import * as WellKnownPlugin from '../wellknown/plugin.js'
 
 const services = [
   ConfigAgentPlugin.ConfiguredPermissions,
   ConfigPluginSource.ConfiguredPlugins,
-  Bus.Service,
   BundlerSource,
   EditorSource,
   FSUtil.Service,
@@ -33,19 +29,13 @@ const services = [
   Skill.Service,
   Tool.Service,
   Watcher.Service,
-  WellKnown.Service,
 ] as const
 
 export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
 export type InternalPlugin = Plugin<Requirements | Services, Error>
 
-const pre = [
-  WellKnownPlugin.Plugin,
-  SkillPlugin.Plugin,
-  SkillTool.Plugin,
-  ServerTools.Plugin,
-] as const satisfies readonly InternalPlugin[]
+const pre = [SkillPlugin.Plugin, SkillTool.Plugin, ServerTools.Plugin] as const satisfies readonly InternalPlugin[]
 
 const post = [ConfigSkillPlugin.Plugin, ConfigAgentPlugin.Plugin] as const satisfies readonly InternalPlugin[]
 
