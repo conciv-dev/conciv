@@ -1,7 +1,7 @@
-import {children, onCleanup, Show, type JSX} from 'solid-js'
+import {children, onCleanup, Show, untrack, type JSX} from 'solid-js'
 import {FileDiff, type FileContents, type FileDiffOptions} from '@pierre/diffs'
 import {syncRender} from './render-sync.js'
-import {highlightWorkerPool} from './worker-pool.js'
+import {withHighlightWorkerPool} from './worker-pool.js'
 
 export type SolidFileDiffProps = {
   oldFile: FileContents
@@ -23,12 +23,16 @@ export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
   })
 
   const setRef = (node: HTMLElement) => {
-    instance = new FileDiff(props.options, highlightWorkerPool(props.options), requestRender)
-    void instance.hydrate({oldFile: props.oldFile, newFile: props.newFile, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
       instance = null
     })
+    withHighlightWorkerPool(props.options, (pool) =>
+      untrack(() => {
+        instance = new FileDiff(props.options, pool, requestRender)
+        void instance.hydrate({oldFile: props.oldFile, newFile: props.newFile, fileContainer: node})
+      }),
+    )
   }
 
   return (
