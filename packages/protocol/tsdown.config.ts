@@ -34,6 +34,8 @@ export default defineConfig({
     'src/schema/connection.ts',
     'src/schema/form.ts',
     'src/schema/integration.ts',
+    'src/schema/money.ts',
+    'src/schema/model-compatibility.ts',
     'src/execute-schemas.ts',
     'src/protocol.ts',
     'src/simulation.ts',

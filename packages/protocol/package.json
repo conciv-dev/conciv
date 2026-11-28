@@ -163,6 +163,14 @@
     "./schema/integration": {
       "types": "./dist/schema/integration.d.ts",
       "import": "./dist/schema/integration.js"
+    },
+    "./schema/money": {
+      "types": "./dist/schema/money.d.ts",
+      "import": "./dist/schema/money.js"
+    },
+    "./schema/model-compatibility": {
+      "types": "./dist/schema/model-compatibility.d.ts",
+      "import": "./dist/schema/model-compatibility.js"
     }
   },
   "publishConfig": {
