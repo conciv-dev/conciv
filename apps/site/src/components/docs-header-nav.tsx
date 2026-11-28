@@ -24,6 +24,7 @@ import {repoUrl} from '@/lib/shared'
 import {QuickstartDialog} from './quickstart-dialog'
 import {useSearchContext} from 'fumadocs-ui/contexts/search'
 import {ThemeToggle} from './landing/theme-toggle'
+import {SoundToggle} from './landing/sound-toggle'
 import MagnifierIcon from './ui/magnifier-icon'
 import {useAnimatedIcon} from './ui/use-animated-icon'
 import {GitHubStarLink} from './landing/github-star-link'
@@ -256,6 +257,7 @@ export function DocsHeaderActions() {
   return (
     <div className="flex items-center gap-2">
       <GitHubStarLink compact className="text-fd-muted-foreground hover:text-fd-foreground" />
+      <SoundToggle className="text-fd-muted-foreground hover:text-fd-foreground" />
       <ThemeToggle className="text-fd-muted-foreground hover:text-fd-foreground" />
       <QuickstartDialog className="max-md:hidden" />
     </div>

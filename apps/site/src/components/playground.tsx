@@ -1,5 +1,6 @@
 import {useCallback, useRef, useState, type CSSProperties} from 'react'
 import {Play} from 'lucide-react'
+import {useSound} from '@/lib/sounds'
 import {cn} from '@/lib/utils'
 import {
   isPlaygroundPage,
@@ -25,8 +26,15 @@ function readPlayground(page: string, script: string): {page: PlaygroundPage; sc
 }
 
 function PlayButton({onPlay, className}: {onPlay: () => void; className?: string}) {
+  const sound = useSound('iidx')
   return (
-    <Button type="button" size="lg" className={cn('h-11 gap-2 px-5 text-base', className)} onClick={onPlay}>
+    <Button
+      type="button"
+      size="lg"
+      className={cn('h-11 gap-2 px-5 text-base', className)}
+      onPointerDown={sound}
+      onClick={onPlay}
+    >
       <Play className="size-4.5 fill-current" aria-hidden="true" />
       Play
     </Button>

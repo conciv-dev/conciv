@@ -1,6 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import {ConcivLockup} from '@internal/brand-react'
 import {ThemeToggle} from './theme-toggle'
+import {SoundToggle} from './sound-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
 import {GitHubStarLink} from './github-star-link'
 import {QuickstartDialog} from '../quickstart-dialog'
@@ -34,6 +35,7 @@ export function SiteNav() {
       </Link>
       <div className="ms-auto flex items-center gap-2 sm:gap-3">
         <GitHubStarLink compact className="max-sm:hidden" />
+        <SoundToggle />
         <ThemeToggle />
         <QuickstartDialog />
       </div>

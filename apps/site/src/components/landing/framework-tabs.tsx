@@ -9,6 +9,7 @@ import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
 import {siteErrors} from '@conciv/errors'
+import {useSound} from '@/lib/sounds'
 
 type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
 
@@ -147,11 +148,13 @@ function FrameworkSelect() {
 
 function Trigger({snippet}: {snippet: FrameworkSnippet}) {
   const {active} = useFrameworkTabs()
+  const sound = useSound('kvm-switch')
 
   return (
     <TabsPrimitive.Trigger
       value={snippet.id}
       disabled={snippet.soon}
+      onPointerDown={active.id === snippet.id ? undefined : sound}
       className="group relative inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:text-foreground"
     >
       {active.id === snippet.id && (

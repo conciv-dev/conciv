@@ -153,6 +153,7 @@ catalog:
   ai-motion: 0.4.8
   # held at the version react-grab 0.2.0 uses, one copy; bippy 0.7's main entry imports react
   bippy: 0.6.1
+  button-sounds: 1.0.0
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
   defu: 6.1.7

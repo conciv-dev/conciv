@@ -2,6 +2,7 @@ import {Check, Copy} from 'lucide-react'
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/components/ui/tooltip'
 import {siteErrors} from '@conciv/errors'
+import {useSound} from '@/lib/sounds'
 
 type CopyButtonContextValue = {copied: boolean}
 
@@ -45,10 +46,12 @@ function Root({text, onCopy, children}: {text: string; onCopy?: () => void; chil
 
 function Trigger({label = 'Copy'}: {label?: string}) {
   const {copied} = useCopyButton()
+  const sound = useSound('hi75-soft')
   return (
     <TooltipTrigger asChild>
       <button
         type="button"
+        onPointerDown={sound}
         aria-label={label}
         data-copied={copied}
         className="group inline-grid size-7 place-items-center rounded-md border bg-background text-muted-foreground transition-[color,transform] duration-150 hover:text-foreground active:scale-[0.97]"

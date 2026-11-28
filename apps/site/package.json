@@ -38,6 +38,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "button-sounds": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "^2.1.1",
     "fumadocs-core": "^16.19.0",

@@ -2,6 +2,7 @@ import {Check, ChevronDown, Copy, SquareTerminal} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
+import {useSound} from '@/lib/sounds'
 import {writeAgentPrompt, type AgentPromptId} from '@/lib/agent-prompts'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 import {
@@ -69,8 +70,16 @@ function useCopied() {
 
 export function CopyPromptButton({text, variant = 'outline'}: {text: string; variant?: 'outline' | 'default'}) {
   const {copied, copy} = useCopied()
+  const sound = useSound('hi75-soft')
   return (
-    <Button type="button" variant={variant} size="sm" onClick={() => copy(text)} aria-live="polite">
+    <Button
+      type="button"
+      variant={variant}
+      size="sm"
+      onPointerDown={sound}
+      onClick={() => copy(text)}
+      aria-live="polite"
+    >
       {copied ? <Check /> : <Copy />}
       {copied ? 'Copied' : 'Copy Prompt'}
     </Button>
