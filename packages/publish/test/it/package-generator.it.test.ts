@@ -69,24 +69,24 @@ describe('turbo gen package', () => {
         const generate = (...answers: string[]) =>
           output(copy, path.join(copy, 'node_modules/.bin/turbo'), ['gen', 'package', '--args', ...answers])
 
+        const publishedOutput = yield* generate(
+          'published',
+          'gen-check-node',
+          'A published node package the generator test made.',
+          'node',
+          'skip',
+        )
+        const pluginOutput = yield* generate('plugin', 'gen-check', 'A plugin the generator test made.', 'both', 'skip')
         const [
-          publishedOutput,
           browserOutput,
           bothOutput,
-          pluginOutput,
+          takenEntryOutput,
           unknownKindOutput,
           badNameOutput,
           declaredNameOutput,
           existingFolderOutput,
         ] = yield* Effect.all(
           [
-            generate(
-              'published',
-              'gen-check-node',
-              'A published node package the generator test made.',
-              'node',
-              'skip',
-            ),
             generate(
               'internal',
               'gen-check-web',
@@ -95,7 +95,7 @@ describe('turbo gen package', () => {
               'skip',
             ),
             generate('internal', 'gen-check-both', 'An internal package the generator test made.', 'both', 'skip'),
-            generate('plugin', 'gen-check', 'A plugin the generator test made.', 'both', 'skip'),
+            generate('plugin', 'plugin-experimental', 'x', 'both', 'skip'),
             generate('private', 'gen-check-bad', 'x', 'node', 'skip'),
             generate('published', 'Bad', 'x', 'node', 'skip'),
             generate('published', 'plugin-page', 'x', 'node', 'skip'),
@@ -111,6 +111,7 @@ describe('turbo gen package', () => {
           expect.stringContaining('Success'),
         ])
         expect(badNameOutput).toContain('use kebab-case')
+        expect(takenEntryOutput).toContain('a plugin with both parts cannot be named plugin-experimental')
         expect(unknownKindOutput).toContain('did not recognize')
         expect(declaredNameOutput).toContain('@conciv/plugin-page is already declared by packages/plugins/page')
         expect(existingFolderOutput).toContain('packages/plugins already exists')

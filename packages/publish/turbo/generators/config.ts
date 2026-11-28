@@ -285,7 +285,6 @@ function templateData(spec: Spec): object {
     plugin: spec.kind === 'plugin',
     engine: hasEngine(spec),
     browserPart: hasBrowserPart(spec),
-    camelName: spec.name.replaceAll(/-([a-z0-9])/g, (_match, letter: string) => letter.toUpperCase()),
     platform: {node: 'node', browser: 'browser', both: 'neutral'}[spec.runtime],
     nodePlatform: spec.runtime === 'node',
   }
@@ -310,7 +309,12 @@ const renderTemplate = Effect.fn('renderTemplate')(function* (context: Generator
   return context.render(source, templateData(spec))
 })
 
+const BROWSER_ENTRY = 'plugin-experimental'
+
 const assertNewPackage = Effect.fn('assertNewPackage')(function* (context: GeneratorContext, spec: Spec) {
+  if (spec.kind === 'plugin' && hasEngine(spec) && hasBrowserPart(spec) && spec.name === BROWSER_ENTRY) {
+    return yield* Effect.fail(generatorErrors.ENTRY_NAME_TAKEN({name: spec.name}))
+  }
   const fs = yield* FileSystem.FileSystem
   const paths = yield* Path.Path
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
