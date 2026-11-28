@@ -236,21 +236,6 @@ function textNode(input: {node: FigmaNode; box: Box; origin: Origin}): TextNode 
   const {node, box, origin} = input
   const {scale} = origin
   const text = node.characters ?? ''
-  const size = node.style?.fontSize
-  const family = node.style?.fontFamily ?? null
-  const typography =
-    size === undefined
-      ? {}
-      : {
-          typography: {
-            size: size * scale,
-            lineHeight: (node.style?.lineHeightPx ?? size) * scale,
-            weight: node.style?.fontWeight ?? REGULAR_WEIGHT,
-            confidence: 1,
-            font: family ?? '',
-            family,
-          },
-        }
   return {
     id: node.id,
     box,
@@ -261,7 +246,25 @@ function textNode(input: {node: FigmaNode; box: Box; origin: Origin}): TextNode 
     lines: [{box, text, confidence: 1}],
     confidence: 1,
     children: [],
-    ...typography,
+    ...textTypography({node, scale}),
+  }
+}
+
+function textTypography(input: {node: FigmaNode; scale: number}): Pick<TextNode, 'typography'> {
+  const {node, scale} = input
+  const style = node.style ?? {}
+  const size = style.fontSize
+  const family = style.fontFamily ?? null
+  if (size === undefined) return {}
+  return {
+    typography: {
+      size: size * scale,
+      lineHeight: (style.lineHeightPx ?? size) * scale,
+      weight: style.fontWeight ?? REGULAR_WEIGHT,
+      confidence: 1,
+      font: family ?? '',
+      family,
+    },
   }
 }
 
@@ -270,8 +273,6 @@ function boxNode(input: {node: FigmaNode; box: Box; origin: Origin; children: De
   const {scale} = origin
   const paint = readPaint(node.fills ?? [])
   const stack = children.length > 0 && backgroundRef(node) !== null
-  const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
-  const color = stroke?.color
   return {
     id: node.id,
     box,
@@ -280,13 +281,23 @@ function boxNode(input: {node: FigmaNode; box: Box; origin: Origin; children: De
     kind: 'box',
     ...(paint === null ? {} : {paint}),
     ...autoLayout({node, scale}),
-    border: color === undefined ? null : {width: (node.strokeWeight ?? 1) * scale, color: colorHex(color)},
-    radius:
-      node.type === 'ELLIPSE'
-        ? Math.min(box.w, box.h) / 2
-        : (node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? 0) * scale,
+    border: solidBorder({node, scale}),
+    radius: cornerRadius({node, box, scale}),
     children,
   }
+}
+
+function solidBorder(input: {node: FigmaNode; scale: number}): BoxNode['border'] {
+  const {node, scale} = input
+  const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
+  const color = stroke?.color
+  return color === undefined ? null : {width: (node.strokeWeight ?? 1) * scale, color: colorHex(color)}
+}
+
+function cornerRadius(input: {node: FigmaNode; box: Box; scale: number}): number {
+  const {node, box, scale} = input
+  if (node.type === 'ELLIPSE') return Math.min(box.w, box.h) / 2
+  return (node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? 0) * scale
 }
 
 function autoLayout(input: {node: FigmaNode; scale: number}): {layout?: NodeLayout} {

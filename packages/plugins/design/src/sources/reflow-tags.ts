@@ -29,6 +29,11 @@ function readReflow(node: DesignNode): Reflow | null {
   if (ks.length < 2) return null
   if (scrolls({node, ks})) return {kind: 'scroll'}
   if (!isRow({node, ks})) return null
+  return rowReflow({node, ks})
+}
+
+function rowReflow(input: {node: DesignNode; ks: DesignNode[]}): Reflow | null {
+  const {node, ks} = input
   const narrowest = Math.min(...ks.map((k) => readBox(k).w))
   const sum = ks.reduce((total, k) => total + readBox(k).w, 0)
   const minChildWidth = Math.round(narrowest * MIN_SHARE)

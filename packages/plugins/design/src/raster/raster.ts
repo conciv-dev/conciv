@@ -67,19 +67,19 @@ function edgeMap(pixels: Pixels): Uint8Array {
       0.114 * (data[index * CHANNELS + 2] ?? 0),
   )
   const edges = new Uint8Array(width * height)
+  const brightness = (index: number): number => luminance[index] ?? 0
   range(1, height - 1).forEach((y) =>
     range(1, width - 1).forEach((x) => {
       const above = (y - 1) * width + x
       const here = y * width + x
       const below = (y + 1) * width + x
-      const topLeft = luminance[above - 1] ?? 0
-      const topRight = luminance[above + 1] ?? 0
-      const bottomLeft = luminance[below - 1] ?? 0
-      const bottomRight = luminance[below + 1] ?? 0
+      const topLeft = brightness(above - 1)
+      const topRight = brightness(above + 1)
+      const bottomLeft = brightness(below - 1)
+      const bottomRight = brightness(below + 1)
       const horizontal =
-        topRight + 2 * (luminance[here + 1] ?? 0) + bottomRight - topLeft - 2 * (luminance[here - 1] ?? 0) - bottomLeft
-      const vertical =
-        bottomLeft + 2 * (luminance[below] ?? 0) + bottomRight - topLeft - 2 * (luminance[above] ?? 0) - topRight
+        topRight + 2 * brightness(here + 1) + bottomRight - topLeft - 2 * brightness(here - 1) - bottomLeft
+      const vertical = bottomLeft + 2 * brightness(below) + bottomRight - topLeft - 2 * brightness(above) - topRight
       edges[here] = Math.hypot(horizontal, vertical) > EDGE_THRESHOLD ? 1 : 0
     }),
   )

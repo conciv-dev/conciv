@@ -55,8 +55,11 @@ function fillShape(input: {raster: Raster; box: Box; holes: Box[]}): FillShape {
   const horizontal = varies(columnMeans)
   if (!vertical && !horizontal) return SOLID
   if (vertical && horizontal) return PICTURE
-  const axis: Axis = vertical ? 'vertical' : 'horizontal'
-  const means = vertical ? rowMeans : columnMeans
+  return vertical ? axisShape({means: rowMeans, axis: 'vertical'}) : axisShape({means: columnMeans, axis: 'horizontal'})
+}
+
+function axisShape(input: {means: string[]; axis: Axis}): FillShape {
+  const {means, axis} = input
   const from = means[0]
   const to = means.at(-1)
   if (from === undefined || to === undefined || !smooth(means)) return PICTURE

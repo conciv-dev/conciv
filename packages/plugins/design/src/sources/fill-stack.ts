@@ -97,18 +97,25 @@ const drawnLayer = Effect.fn('design.drawnLayer')(function* (input: {
   const bytes = layer.ref === undefined ? undefined : input.images[layer.ref]
   if (layer.type !== 'image' || bytes === undefined) return null
   const decoded = yield* decodedFill({photon, bytes, node: id})
-  const filtered =
-    layer.filters === undefined
-      ? decoded
-      : modulated({
-          pixels: decoded,
-          saturation: 1 + (layer.filters.saturation ?? 0),
-          brightness: 1 + (layer.filters.exposure ?? 0),
-        })
-  if (layer.scale === 'TILE')
-    return tiled({photon, pixels: filtered, width: filtered.width * (layer.scalingFactor ?? 1) * ASSET_SCALE, size})
-  return fitted({photon, pixels: filtered, fit: pick(SCALES, layer.scale ?? 'FILL') ?? 'cover', size})
+  return placed({photon, pixels: filtered({pixels: decoded, layer}), layer, size})
 })
+
+function filtered(input: {pixels: Pixels; layer: Layer}): Pixels {
+  const {pixels, layer} = input
+  if (layer.filters === undefined) return pixels
+  return modulated({
+    pixels,
+    saturation: 1 + (layer.filters.saturation ?? 0),
+    brightness: 1 + (layer.filters.exposure ?? 0),
+  })
+}
+
+function placed(input: {photon: Photon; pixels: Pixels; layer: Layer; size: Size}): Pixels {
+  const {photon, pixels, layer, size} = input
+  if (layer.scale === 'TILE')
+    return tiled({photon, pixels, width: pixels.width * (layer.scalingFactor ?? 1) * ASSET_SCALE, size})
+  return fitted({photon, pixels, fit: pick(SCALES, layer.scale ?? 'FILL') ?? 'cover', size})
+}
 
 function transparent(size: Size): Pixels {
   return {...size, data: new Uint8Array(size.width * size.height * CHANNELS)}

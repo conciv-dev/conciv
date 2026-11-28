@@ -53,28 +53,35 @@ function paintFields(input: {node: FigmaNode; fills: Record<string, unknown>[]})
   const radius = node.rectangleCornerRadii ?? node.cornerRadius
   return {
     ...(fills.length === 0 ? {} : {fills}),
-    ...(strokes.length === 0
-      ? {}
-      : {
-          strokes,
-          strokeWeight: node.strokeWeight ?? 1,
-          ...(node.strokeAlign === undefined ? {} : {strokeAlign: node.strokeAlign}),
-          ...(node.individualStrokeWeights === undefined
-            ? {}
-            : {individualStrokeWeights: node.individualStrokeWeights}),
-        }),
-    ...(radius === undefined || radius === 0 ? {} : {radius}),
+    ...strokeFields({node, strokes}),
+    ...present({name: 'radius', value: radius, absent: [0]}),
   }
+}
+
+function strokeFields(input: {node: FigmaNode; strokes: Record<string, unknown>[]}): Record<string, unknown> {
+  const {node, strokes} = input
+  if (strokes.length === 0) return {}
+  return {
+    strokes,
+    strokeWeight: node.strokeWeight ?? 1,
+    ...present({name: 'strokeAlign', value: node.strokeAlign}),
+    ...present({name: 'individualStrokeWeights', value: node.individualStrokeWeights}),
+  }
+}
+
+function present(input: {name: string; value: unknown; absent?: readonly unknown[]}): Record<string, unknown> {
+  const {name, value, absent = []} = input
+  return value === undefined || absent.includes(value) ? {} : {[name]: value}
 }
 
 function placementFields(node: FigmaNode) {
   return {
-    ...(node.layoutAlign === undefined || node.layoutAlign === 'INHERIT' ? {} : {layoutAlign: node.layoutAlign}),
-    ...(node.constraints === undefined ? {} : {constraints: node.constraints}),
+    ...present({name: 'layoutAlign', value: node.layoutAlign, absent: ['INHERIT']}),
+    ...present({name: 'constraints', value: node.constraints}),
     ...(node.clipsContent === true ? {clips: true} : {}),
-    ...(node.layoutGrow === undefined || node.layoutGrow === 0 ? {} : {grow: node.layoutGrow}),
-    ...(node.rotation === undefined || node.rotation === 0 ? {} : {rotation: node.rotation}),
-    ...(node.opacity === undefined || node.opacity === 1 ? {} : {opacity: node.opacity}),
+    ...present({name: 'grow', value: node.layoutGrow, absent: [0]}),
+    ...present({name: 'rotation', value: node.rotation, absent: [0]}),
+    ...present({name: 'opacity', value: node.opacity, absent: [1]}),
   }
 }
 
@@ -90,14 +97,22 @@ function paints(list: FigmaPaint[]): Record<string, unknown>[] {
 
 function readLayers(paint: FigmaPaint): Layer[] {
   const base = {blend: paint.blendMode ?? NORMAL, opacity: paint.opacity ?? 1}
-  if (paint.type === 'IMAGE') {
-    if (paint.imageRef === undefined) return []
-    const factor = paint.scalingFactor === undefined ? {} : {scalingFactor: paint.scalingFactor}
-    const filters = paint.filters === undefined ? {} : {filters: paint.filters}
-    return [{type: 'image', ...base, ref: paint.imageRef, scale: paint.scaleMode ?? FILL, ...factor, ...filters}]
-  }
+  if (paint.type === 'IMAGE') return imageLayers({paint, base})
   if (paint.type === 'SOLID' && paint.color !== undefined)
     return [{type: 'solid', ...base, color: colorHex(paint.color), opacity: paint.opacity ?? paint.color.a ?? 1}]
+  return gradientLayers({paint, base})
+}
+
+function imageLayers(input: {paint: FigmaPaint; base: LayerBase}): Layer[] {
+  const {paint, base} = input
+  if (paint.imageRef === undefined) return []
+  const factor = paint.scalingFactor === undefined ? {} : {scalingFactor: paint.scalingFactor}
+  const filters = paint.filters === undefined ? {} : {filters: paint.filters}
+  return [{type: 'image', ...base, ref: paint.imageRef, scale: paint.scaleMode ?? FILL, ...factor, ...filters}]
+}
+
+function gradientLayers(input: {paint: FigmaPaint; base: LayerBase}): Layer[] {
+  const {paint, base} = input
   if (paint.gradientStops === undefined) return []
   const handles = paint.gradientHandlePositions === undefined ? {} : {handles: paint.gradientHandlePositions}
   return [{type: gradientType(paint), ...base, stops: readStops(paint.gradientStops), ...handles}]
@@ -127,6 +142,11 @@ function readEffect(input: {effect: FigmaEffect; type: string}): Record<string, 
   const {effect, type} = input
   const blur = effect.radius ?? 0
   if (!type.endsWith(SHADOW)) return {type, blur}
+  return shadowFields({effect, type, blur})
+}
+
+function shadowFields(input: {effect: FigmaEffect; type: string; blur: number}): Record<string, unknown> {
+  const {effect, type, blur} = input
   const color = effect.color ?? {r: 0, g: 0, b: 0}
   return {
     type,
@@ -154,7 +174,7 @@ function readFont(node: FigmaNode): Record<string, unknown> {
     family: style.fontFamily,
     size: style.fontSize,
     weight: style.fontWeight ?? REGULAR_WEIGHT,
-    ...(style.fontStyle === undefined ? {} : {style: style.fontStyle}),
+    ...present({name: 'style', value: style.fontStyle}),
     ...(style.lineHeightPx === undefined
       ? {}
       : {lineHeight: {unit: style.lineHeightUnit ?? 'PIXELS', value: style.lineHeightPx}}),
@@ -162,9 +182,9 @@ function readFont(node: FigmaNode): Record<string, unknown> {
     ...(style.letterSpacing === undefined || style.letterSpacing === 0
       ? {}
       : {letterSpacing: {unit: 'PIXELS', value: style.letterSpacing}}),
-    ...(style.textAlignHorizontal === undefined ? {} : {align: style.textAlignHorizontal}),
-    ...(style.textCase === undefined ? {} : {case: style.textCase}),
-    ...(style.textDecoration === undefined ? {} : {decoration: style.textDecoration}),
+    ...present({name: 'align', value: style.textAlignHorizontal}),
+    ...present({name: 'case', value: style.textCase}),
+    ...present({name: 'decoration', value: style.textDecoration}),
   }
 }
 
@@ -176,12 +196,12 @@ function readLayout(node: FigmaNode): Record<string, unknown> {
   return {
     mode: node.layoutMode,
     gap: node.itemSpacing ?? 0,
-    pad: [node.paddingTop ?? 0, node.paddingRight ?? 0, node.paddingBottom ?? 0, node.paddingLeft ?? 0],
+    pad: [node.paddingTop, node.paddingRight, node.paddingBottom, node.paddingLeft].map((side) => side ?? 0),
     wrap: node.layoutWrap ?? 'NO_WRAP',
     primaryAlign: node.primaryAxisAlignItems ?? 'MIN',
     counterAlign: node.counterAxisAlignItems ?? 'MIN',
-    ...(node.primaryAxisSizingMode === undefined ? {} : {primarySizing: node.primaryAxisSizingMode}),
-    ...(node.counterAxisSizingMode === undefined ? {} : {counterSizing: node.counterAxisSizingMode}),
+    ...present({name: 'primarySizing', value: node.primaryAxisSizingMode}),
+    ...present({name: 'counterSizing', value: node.counterAxisSizingMode}),
   }
 }
 
@@ -199,6 +219,7 @@ type FigmaNode = z.infer<typeof figmaSchemas.node>
 type FigmaPaint = z.infer<typeof figmaSchemas.paint>
 type FigmaEffect = NonNullable<FigmaNode['effects']>[number]
 type Layer = z.infer<typeof figmaSchemas.layer>
+type LayerBase = {blend: string; opacity: number}
 type Color = z.infer<typeof figmaSchemas.color>
 type Origin = {x: number; y: number; scale: number}
 type Facts = NonNullable<DesignNode['figma']>

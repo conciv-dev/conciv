@@ -80,16 +80,19 @@ function toFlat(input: {node: DesignNode; parent: DesignNode | null; depth: numb
   const {node, parent, depth, index} = input
   return {
     id: node.id,
-    type: node.figma?.type ?? node.kind.toUpperCase(),
-    name: node.figma?.name ?? '',
-    box: node.figma?.box ?? node.box,
-    absolute: node.figma?.absolute ?? false,
+    ...flatFacts(node),
     depth,
     index,
     within: parent?.id ?? null,
     floating: false,
     wraps: WrapsSchema.safeParse(node.figma?.fields.layout).success,
   }
+}
+
+function flatFacts(node: DesignNode): Pick<Flat, 'type' | 'name' | 'box' | 'absolute'> {
+  const facts = node.figma
+  if (facts === undefined) return {type: node.kind.toUpperCase(), name: '', box: node.box, absolute: false}
+  return {type: facts.type, name: facts.name, box: facts.box, absolute: facts.absolute}
 }
 
 function briefRecords(flat: Flat[]): BriefRecord[] {
@@ -145,23 +148,52 @@ function holdsCentre(input: {anc: Flat; n: Flat}): boolean {
 
 function decorated(input: {page: Flat[]; root: Flat; byId: Map<string, Flat>}): Set<string> {
   const {page, root, byId} = input
-  const decorations = new Set<string>()
   const hasKids = (n: Flat): boolean => page.some((k) => k.within === n.id)
-  page.forEach((n) => {
-    if (hasKids(n) || n.type === 'TEXT' || n === root) return
-    const parent = n.within === null ? undefined : byId.get(n.within)
-    const sibs = page.filter((o) => o.within === n.within && o !== n)
-    const touches = sibs.filter(
-      (o) => touch({a: o, b: n}) && !inside({a: o, b: n, by: EDGE_PX}) && !inside({a: n, b: o, by: EDGE_PX}),
-    )
-    const art = ART.includes(n.type) || n.type === 'GROUP'
-    if (art && parent !== undefined && leaves({n, parent})) decorations.add(n.id)
-    if (ART.includes(n.type) && touches.some((o) => o.type === 'TEXT' || hasKids(o))) decorations.add(n.id)
-    const covers = parent !== undefined && n.box.w >= parent.box.w * SPAN_SHARE && n.box.h >= parent.box.h * SPAN_SHARE
-    if (n.absolute && touches.length > 0 && !covers) decorations.add(n.id)
-  })
+  const decorations = new Set(page.filter((n) => decorates({n, page, root, byId, hasKids})).map((n) => n.id))
   grown({page, decorations, hasKids})
   return decorations
+}
+
+function decorates(input: {
+  n: Flat
+  page: Flat[]
+  root: Flat
+  byId: Map<string, Flat>
+  hasKids: (n: Flat) => boolean
+}): boolean {
+  const {n, page, root, byId, hasKids} = input
+  if (hasKids(n) || n.type === 'TEXT' || n === root) return false
+  const parent = n.within === null ? undefined : byId.get(n.within)
+  const touches = touching({n, page})
+  return (
+    leavesAsArt({n, parent}) ||
+    (ART.includes(n.type) && touches.some((o) => o.type === 'TEXT' || hasKids(o))) ||
+    floatsOver({n, parent, touches})
+  )
+}
+
+function touching(input: {n: Flat; page: Flat[]}): Flat[] {
+  const {n, page} = input
+  return page.filter(
+    (o) =>
+      o.within === n.within &&
+      o !== n &&
+      touch({a: o, b: n}) &&
+      !inside({a: o, b: n, by: EDGE_PX}) &&
+      !inside({a: n, b: o, by: EDGE_PX}),
+  )
+}
+
+function leavesAsArt(input: {n: Flat; parent: Flat | undefined}): boolean {
+  const {n, parent} = input
+  const art = ART.includes(n.type) || n.type === 'GROUP'
+  return art && parent !== undefined && leaves({n, parent})
+}
+
+function floatsOver(input: {n: Flat; parent: Flat | undefined; touches: Flat[]}): boolean {
+  const {n, parent, touches} = input
+  const covers = parent !== undefined && n.box.w >= parent.box.w * SPAN_SHARE && n.box.h >= parent.box.h * SPAN_SHARE
+  return n.absolute && touches.length > 0 && !covers
 }
 
 function grown(input: {page: Flat[]; decorations: Set<string>; hasKids: (n: Flat) => boolean}): void {

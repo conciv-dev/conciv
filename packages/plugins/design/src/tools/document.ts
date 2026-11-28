@@ -63,17 +63,23 @@ function designRules(input: {design: Design; implied: boolean}): string[] {
 
 function tagged(input: {node: DesignNode; parent: DesignNode | null; depth: number}): TaggedNode {
   const {node, parent, depth} = input
-  const facts = node.figma
+  const named = namedFields(node)
   return {
     id: node.id,
-    type: facts?.type ?? node.kind.toUpperCase(),
-    name: facts?.name ?? (node.kind === 'text' ? node.text : ''),
+    type: named.type,
+    name: named.name,
     within: parent?.id ?? null,
     depth,
-    box: facts?.box ?? node.box,
-    ...laidFields(facts?.fields),
+    box: named.box,
+    ...laidFields(node.figma?.fields),
     ...markedFields(node),
   }
+}
+
+function namedFields(node: DesignNode): Pick<TaggedNode, 'type' | 'name' | 'box'> {
+  const facts = node.figma
+  if (facts !== undefined) return {type: facts.type, name: facts.name, box: facts.box}
+  return {type: node.kind.toUpperCase(), name: node.kind === 'text' ? node.text : '', box: node.box}
 }
 
 function markedFields(node: DesignNode): Record<string, unknown> {
