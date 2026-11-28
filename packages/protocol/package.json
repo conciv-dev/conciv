@@ -171,6 +171,14 @@
     "./schema/model-compatibility": {
       "types": "./dist/schema/model-compatibility.d.ts",
       "import": "./dist/schema/model-compatibility.js"
+    },
+    "./schema/mcp": {
+      "types": "./dist/schema/mcp.d.ts",
+      "import": "./dist/schema/mcp.js"
+    },
+    "./schema/websearch": {
+      "types": "./dist/schema/websearch.d.ts",
+      "import": "./dist/schema/websearch.js"
     }
   },
   "publishConfig": {

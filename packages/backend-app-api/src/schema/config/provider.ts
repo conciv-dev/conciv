@@ -83,6 +83,7 @@ const ModelConfig = Schema.Struct({
   ...ModelOverlays,
   capabilities: Model.Capabilities.mapFields((fields) => ({
     tools: optional(fields.tools),
+    freeform: fields.freeform,
     input: optional(fields.input),
     output: optional(fields.output),
     temperature: fields.temperature,

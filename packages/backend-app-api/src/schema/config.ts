@@ -1,5 +1,6 @@
 import {Schema} from 'effect'
 import {AbsolutePath, optional} from '@conciv/protocol/schema/schema'
+import {ephemeral, inventory} from '@conciv/protocol/schema/event'
 import * as ConfigMCP from './config/mcp.js'
 import * as ConfigPolicy from './config/policy.js'
 import * as ConfigProvider from './config/provider.js'
@@ -19,6 +20,11 @@ export const Info = Schema.Struct({
   providers: Schema.Record(Schema.String, ConfigProvider.Info).pipe(optional),
 }).annotate({identifier: 'Config.Info'})
 
+export const Patch = Schema.Struct({
+  shell: Schema.NullOr(Schema.String),
+}).annotate({identifier: 'Config.Patch'})
+export interface Patch extends Schema.Schema.Type<typeof Patch> {}
+
 export interface Document extends Schema.Schema.Type<typeof Document> {}
 export const Document = Schema.Struct({
   type: Schema.Literal('document'),
@@ -36,3 +42,10 @@ export const Entry = Schema.Union([Document, Directory]).annotate({
   identifier: 'Config.Entry',
 })
 export type Entry = typeof Entry.Type
+
+const Updated = ephemeral({
+  type: 'config.updated',
+  schema: {},
+})
+
+export const Event = {Updated, Definitions: inventory(Updated)}

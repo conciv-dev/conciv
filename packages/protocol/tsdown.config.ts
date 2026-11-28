@@ -36,6 +36,8 @@ export default defineConfig({
     'src/schema/integration.ts',
     'src/schema/money.ts',
     'src/schema/model-compatibility.ts',
+    'src/schema/mcp.ts',
+    'src/schema/websearch.ts',
     'src/execute-schemas.ts',
     'src/protocol.ts',
     'src/simulation.ts',
