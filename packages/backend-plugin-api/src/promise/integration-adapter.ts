@@ -65,29 +65,29 @@ export function adaptIntegration({host, run, register}: IntegrationAdapterDeps):
   }
 }
 
+const attempt = <A>(run: () => Promise<A>) => Effect.tryPromise({try: run, catch: (error) => error})
+
 function effectRegistration(input: IntegrationMethodRegistration): EffectRegistration {
   if (!('authorize' in input)) return input
   const refresh = input.refresh
   return {
     ...input,
     authorize: (answer) =>
-      Effect.promise(() => input.authorize(answer)).pipe(
+      attempt(() => input.authorize(answer)).pipe(
         Effect.map((authorization) => {
           if (authorization.mode === 'code')
             return {
               ...authorization,
-              callback: (code: string) => Effect.promise(() => authorization.callback(code)),
+              callback: (code: string) => attempt(() => authorization.callback(code)),
             }
           const submit = authorization.submit
           return {
             ...authorization,
-            callback: Effect.promise(() => authorization.callback),
-            submit: submit
-              ? (redirect: string) => Effect.tryPromise({try: () => submit(redirect), catch: (error) => error})
-              : undefined,
+            callback: attempt(() => authorization.callback),
+            submit: submit ? (redirect: string) => attempt(() => submit(redirect)) : undefined,
           }
         }),
       ),
-    refresh: refresh === undefined ? undefined : (credential) => Effect.promise(() => refresh(credential)),
+    refresh: refresh === undefined ? undefined : (credential) => attempt(() => refresh(credential)),
   }
 }
