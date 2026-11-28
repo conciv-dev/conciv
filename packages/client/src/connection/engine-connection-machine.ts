@@ -54,6 +54,7 @@ export type ConnectionEvent =
   | {readonly type: 'trust-refused'; readonly token: string}
   | {readonly type: 'trust-unanswered'}
   | {readonly type: 'unauthorized'; readonly token: string | undefined}
+  | {readonly type: 'token-stored'}
   | {readonly type: 'disposed'}
 
 export type ConnectionEffect =
@@ -65,6 +66,7 @@ export type ConnectionEffect =
   | {readonly type: 'schedule-uptime'; readonly attempt: number}
   | {readonly type: 'publish'; readonly signal: ConnectionSignal}
   | {readonly type: 'ask-trust'}
+  | {readonly type: 'check-stored-token'}
   | {readonly type: 'store-token'; readonly token: string}
   | {readonly type: 'forget-token'; readonly token: string}
 
@@ -223,6 +225,8 @@ export function transitionConnection(state: ConnectionState, event: ConnectionEv
       'trust-refused': (refused) => refuse(state, refused.token),
       unauthorized: (unauthorized) => distrust(state, unauthorized.token),
       'trust-unanswered': () => (state.trust === 'checking' ? withTrust(state, 'unreachable') : unchanged(state)),
+      'token-stored': () =>
+        state.trust === 'trusted' ? unchanged(state) : {state, effects: [{type: 'check-stored-token'}]},
       disposed: () => dispose(state),
     }),
   )

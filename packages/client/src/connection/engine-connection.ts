@@ -141,14 +141,9 @@ function storeToken(key: string, token: string): Effect.Effect<void> {
   return storageEffect(() => tokenStorage()?.setItem(tokenStorageKey(key), token), undefined)
 }
 
-function watchStoredToken(key: string, onStored: () => void): Effect.Effect<void, never, Scope.Scope> {
-  if (typeof window === 'undefined') return Effect.void
-  const onStorage = (event: StorageEvent): void => {
-    if (event.key === tokenStorageKey(key) && event.newValue !== null) onStored()
-  }
-  return Effect.acquireRelease(
-    Effect.sync(() => window.addEventListener('storage', onStorage)),
-    () => Effect.sync(() => window.removeEventListener('storage', onStorage)),
+function storedTokens(key: string): Stream.Stream<StorageEvent> {
+  return Stream.fromEventListener<StorageEvent>(window, 'storage').pipe(
+    Stream.filter((event) => event.key === tokenStorageKey(key) && event.newValue !== null),
   )
 }
 
@@ -429,6 +424,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
           }).pipe(Effect.asVoid),
         publish: (published) => PubSub.publish(signals, published.signal).pipe(Effect.asVoid),
         'ask-trust': () => Effect.forkIn(requestTrust(false), lifetime).pipe(Effect.asVoid),
+        'check-stored-token': () => Effect.forkIn(requestTrust(true), lifetime).pipe(Effect.asVoid),
         'store-token': (stored) => storeToken(key, stored.token),
         'forget-token': (forgotten) => forgetToken(key, forgotten.token),
       }),
@@ -656,7 +652,11 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
       run(answered(auth.requestCode({reissue: options.reissue ?? false})).pipe(Effect.asVoid)),
   }
 
-  yield* watchStoredToken(key, () => runDetached(Effect.forkIn(requestTrust(true), lifetime)))
+  if (typeof window !== 'undefined')
+    yield* storedTokens(key).pipe(
+      Stream.runForEach(() => dispatch({type: 'token-stored'})),
+      Effect.forkIn(lifetime),
+    )
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
