@@ -1,6 +1,6 @@
 {
   "name": "@conciv/errors",
-  "version": "0.0.22",
+  "version": "0.0.25",
   "description": "The error catalogs conciv throws from: one place for every core error code, message, why and fix.",
   "keywords": [
     "conciv"

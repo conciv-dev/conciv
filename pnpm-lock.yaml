@@ -4741,6 +4741,9 @@ importers:
       '@changesets/parse':
         specifier: ^1.0.0
         version: 1.0.0
+      '@clack/prompts':
+        specifier: 'catalog:'
+        version: 1.8.1
       citty:
         specifier: 'catalog:'
         version: 0.2.2

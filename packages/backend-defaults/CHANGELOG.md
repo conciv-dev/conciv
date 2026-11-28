@@ -1,5 +1,54 @@
 # @conciv/chat
 
+## 0.0.25
+
+### Patch Changes
+
+- [#1217](https://github.com/conciv-dev/conciv/pull/1217) [`74d3b55`](https://github.com/conciv-dev/conciv/commit/74d3b550f749a7beb5fade7d735d7a41caf8ad41) Thanks [@omridevk](https://github.com/omridevk)! - Every library builds with tsdown, as devframe builds its packages; Vite builds only the app bundles (the widget, the
+  shell and the plugins' `./plugin-experimental` bundles). A library's `dependencies` and `peerDependencies` stay
+  external, so some kits now import packages they used to bundle. `@conciv/unplugin` depends on `@conciv/protocol`.
+
+- [#1203](https://github.com/conciv-dev/conciv/pull/1203) [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee) Thanks [@omridevk](https://github.com/omridevk)! - The docs links conciv prints and ships (init hints, the conciv skill, the setup and debug skills) point at the new docs structure: bundlers, getting started, reference.
+
+- [#1210](https://github.com/conciv-dev/conciv/pull/1210) [`1e1c3e5`](https://github.com/conciv-dev/conciv/commit/1e1c3e51d7e1adeb709b54136f5d3e3e2f8d3243) Thanks [@omridevk](https://github.com/omridevk)! - Every error conciv makes now comes from an evlog error catalog, with a stable code, a plain message and, where
+  someone can act on it, a why and a fix. The core catalogs live in one new package, @conciv/errors, so packages
+  compare codes without importing each other; each plugin keeps its own catalog, and the app provides @conciv/errors
+  to plugins. Plugin.define accepts any Error, so a plugin fails its entry with its own catalog error; a plugin that
+  fails to load reports its code, message and fix. Error screens, the run error row, toasts and plugin load errors show
+  the fix when the error carries one, and the conciv-try CLI prints a failure as its code and message, then its why and
+  fix only when they are set.
+
+  Codes that reach agents and the widget change with it: an outside run without a tab answers `ai.NO_TAB` (was
+  `NO_TAB`), a send to a deleted session fails with `session.DELETED` (was `session_deleted`), a code-mode tool error
+  reaches the agent as `<code>: message` with its full catalog code, and the widget shows the engine's fix for an rpc
+  error. The protocol's `ValueTooLargeError` is gone: an oversized instruction entry fails with
+  `instructions.VALUE_TOO_LARGE`.
+
+- [#1206](https://github.com/conciv-dev/conciv/pull/1206) [`2db86b6`](https://github.com/conciv-dev/conciv/commit/2db86b663cc317c31f5b37de4131b56defdd5d33) Thanks [@omridevk](https://github.com/omridevk)! - The engine refreshes each harness's model list once it is up, not while it boots, so the live probe no longer competes with engine start.
+
+- [#1214](https://github.com/conciv-dev/conciv/pull/1214) [`1173bd1`](https://github.com/conciv-dev/conciv/commit/1173bd1df39283754eae2b9e3f420ba33777941a) Thanks [@omridevk](https://github.com/omridevk)! - Works on Node 22 and later (22.16 or newer, the first 22.x with the `node:sqlite` APIs the engine uses). Node code builds for node22, and `Promise.try` and `URL.parse`, which Node 22 lacks or added late, are not used.
+
+- [#1226](https://github.com/conciv-dev/conciv/pull/1226) [`ffd5efc`](https://github.com/conciv-dev/conciv/commit/ffd5efc53cc435f7f05def06080b71b573edbc43) Thanks [@omridevk](https://github.com/omridevk)! - The engine starts when conciv is installed with npm. Every oRPC procedure is built with `.handler(handlerGen(fn))` from `@orpc/effect` instead of the `@orpc/effect/extensions/effect` prototype patch. npm can install several copies of `@orpc/server` (evlog's optional peer asks for a stable one), and the patch only reached the copy under `@orpc/effect`, so the dev server crashed with `os.auth.trust.effect is not a function`.
+
+- [#1219](https://github.com/conciv-dev/conciv/pull/1219) [`9d9166b`](https://github.com/conciv-dev/conciv/commit/9d9166bd4cc8ca109b2df2bd734d04669d732b23) Thanks [@omridevk](https://github.com/omridevk)! - A plugin can declare an integration and read its secret without the secret ever reaching the browser. Inside its `effect` (or `setup` on the promise entry) a plugin registers integrations and their sign-in methods (`oauth`, `command`, `key`, `external`, `env`) with `ctx.integration.transform`, and reads the active connection's value with `ctx.integration.connection.active` and `ctx.integration.connection.resolve`; an expiring oauth token refreshes once however many callers ask, and `ctx.credential.activate` picks which stored credential an integration uses. Credentials are stored per user in the home database (`home.db`), so every project the user opens sees them and none lands in a project folder. Every secret (a key, an oauth access and refresh token) is an Effect `Redacted` in the engine and the plugin API, so logs, tool output, events and rpc answers show `<redacted>`; only the credential table holds the plain value. The engine's rpc gains `credential.*` (list, create, update, activate, remove) and `integration.*` (list, get, connect a key or an external credential, the oauth and command sign-in attempts).
+
+- [#1203](https://github.com/conciv-dev/conciv/pull/1203) [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee) Thanks [@omridevk](https://github.com/omridevk)! - The conciv and conciv-develop skills link the new plugin pages: the first-plugin tutorial and the guides.
+
+- [#1203](https://github.com/conciv-dev/conciv/pull/1203) [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee) Thanks [@omridevk](https://github.com/omridevk)! - The built-in `conciv` skill links the Skills page at its new address, `/docs/usage/skills`.
+
+- [#1212](https://github.com/conciv-dev/conciv/pull/1212) [`1237734`](https://github.com/conciv-dev/conciv/commit/1237734bce516783f7dbc4f40e6ef2c8fba4765d) Thanks [@omridevk](https://github.com/omridevk)! - Every package builds with Vite: one shared library build in `@internal/vite-config` (Vite environments, `rolldown-plugin-dts` for the declarations). tsdown and the separate `tsc` declaration step are gone. Libraries with several entries ship one file per module, so no declaration chunk sits outside `exports`. `experimental()` configures only the `client` environment.
+- Updated dependencies [[`74d3b55`](https://github.com/conciv-dev/conciv/commit/74d3b550f749a7beb5fade7d735d7a41caf8ad41), [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee), [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee), [`1e1c3e5`](https://github.com/conciv-dev/conciv/commit/1e1c3e51d7e1adeb709b54136f5d3e3e2f8d3243), [`2f4b0f4`](https://github.com/conciv-dev/conciv/commit/2f4b0f497778ea1c9b7f538d263ef53960dbb8f1), [`1173bd1`](https://github.com/conciv-dev/conciv/commit/1173bd1df39283754eae2b9e3f420ba33777941a), [`ffd5efc`](https://github.com/conciv-dev/conciv/commit/ffd5efc53cc435f7f05def06080b71b573edbc43), [`e046362`](https://github.com/conciv-dev/conciv/commit/e0463621717628e5f4503fdae008e47ccfb3c24a), [`4f0631d`](https://github.com/conciv-dev/conciv/commit/4f0631dfbb3fa1ba5a87827b08aad4ce18a77f26), [`9d9166b`](https://github.com/conciv-dev/conciv/commit/9d9166bd4cc8ca109b2df2bd734d04669d732b23), [`8b8bc6f`](https://github.com/conciv-dev/conciv/commit/8b8bc6fd56da74578a3e8316e1c922d5cbf8cc6e), [`1237734`](https://github.com/conciv-dev/conciv/commit/1237734bce516783f7dbc4f40e6ef2c8fba4765d)]:
+  - @conciv/backend-app-api@0.0.25
+  - @conciv/backend-plugin-api@0.0.25
+  - @conciv/client@0.0.25
+  - @conciv/errors@0.0.25
+  - @conciv/harness@0.0.25
+  - @conciv/home@0.0.25
+  - @conciv/protocol@0.0.25
+  - @conciv/serve@0.0.25
+  - @conciv/simulation@0.0.25
+  - @conciv/types@0.0.25
+
 ## 0.0.24
 
 ### Patch Changes

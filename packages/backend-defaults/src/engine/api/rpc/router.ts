@@ -1,3 +1,4 @@
+import {handlerGen} from '@orpc/effect'
 import {z} from 'zod'
 import type {Maker} from '@conciv/protocol/schema/identifier'
 import {ORPCError, withEventMeta, type ContractedRouter} from '@orpc/server'
@@ -55,54 +56,68 @@ import {causeFrom, engineErrors} from '@conciv/errors'
 
 function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeof contract.chat, EngineRpcContext> {
   return {
-    events: os.chat.events.effect(function* ({input, signal}) {
-      return yield* Effect.sync(() =>
-        deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
-      )
-    }),
-    send: os.chat.send.effect(function* ({input, signal, lastEventId}) {
-      return yield* Effect.sync(() =>
-        deps.chat.plane.send(
-          {threadId: input.sessionId, runId: input.runId, messages: input.messages, lastEventId},
-          signal,
-        ),
-      )
-    }),
-    join: os.chat.join.effect(function* ({input, signal, lastEventId}) {
-      return yield* Effect.sync(() =>
-        deps.chat.plane.join({runId: input.runId, lastEventId: lastEventId ?? input.lastEventId}, signal),
-      )
-    }),
-    hydrate: os.chat.hydrate.effect(function* ({input}) {
-      return yield* Effect.promise(() =>
-        deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
-      )
-    }),
-    stop: os.chat.stop.effect(function* ({input}) {
-      yield* Effect.promise(() => deps.runtime.forSession(input.sessionId).run.stop(input.runIds))
-      return {ok: true}
-    }),
-    permissionDecision: sessionOs.chat.permissionDecision.effect(function* ({input, context}) {
-      const decided = yield* Effect.promise(() =>
-        decidePermissionCard(
-          {
-            answer: deps.answerPermission,
-            publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
-          },
-          context.session.id,
-          input,
-        ),
-      )
-      if (!decided) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST())
-      return {ok: true as const}
-    }),
-    uiReply: os.chat.uiReply.effect(function* ({input}) {
-      const answered = yield* Effect.sync(() =>
-        deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value),
-      )
-      if (!answered) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST({message: 'no pending ui question'}))
-      return {ok: true as const}
-    }),
+    events: os.chat.events.handler(
+      handlerGen(function* ({input, signal}) {
+        return yield* Effect.sync(() =>
+          deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
+        )
+      }),
+    ),
+    send: os.chat.send.handler(
+      handlerGen(function* ({input, signal, lastEventId}) {
+        return yield* Effect.sync(() =>
+          deps.chat.plane.send(
+            {threadId: input.sessionId, runId: input.runId, messages: input.messages, lastEventId},
+            signal,
+          ),
+        )
+      }),
+    ),
+    join: os.chat.join.handler(
+      handlerGen(function* ({input, signal, lastEventId}) {
+        return yield* Effect.sync(() =>
+          deps.chat.plane.join({runId: input.runId, lastEventId: lastEventId ?? input.lastEventId}, signal),
+        )
+      }),
+    ),
+    hydrate: os.chat.hydrate.handler(
+      handlerGen(function* ({input}) {
+        return yield* Effect.promise(() =>
+          deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
+        )
+      }),
+    ),
+    stop: os.chat.stop.handler(
+      handlerGen(function* ({input}) {
+        yield* Effect.promise(() => deps.runtime.forSession(input.sessionId).run.stop(input.runIds))
+        return {ok: true}
+      }),
+    ),
+    permissionDecision: sessionOs.chat.permissionDecision.handler(
+      handlerGen(function* ({input, context}) {
+        const decided = yield* Effect.promise(() =>
+          decidePermissionCard(
+            {
+              answer: deps.answerPermission,
+              publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
+            },
+            context.session.id,
+            input,
+          ),
+        )
+        if (!decided) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST())
+        return {ok: true as const}
+      }),
+    ),
+    uiReply: os.chat.uiReply.handler(
+      handlerGen(function* ({input}) {
+        const answered = yield* Effect.sync(() =>
+          deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value),
+        )
+        if (!answered) return yield* Effect.fail(engineErrors.UNKNOWN_REQUEST({message: 'no pending ui question'}))
+        return {ok: true as const}
+      }),
+    ),
   }
 }
 
@@ -189,6 +204,11 @@ function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>): unknown 
   const refused = failure.value.error
   if (Permission.isRefused(refused)) return engineErrors.APPROVAL_DENIED({message: failure.value.message})
   return registryCallError(failure.value)
+}
+
+function admittedPty(deps: RpcDeps, ptyId: string, origin: string | null) {
+  const pty = deps.ptys.admitted(ptyId, origin)
+  return pty === undefined ? Effect.fail(engineErrors.PTY_NOT_FOUND()) : Effect.succeed(pty)
 }
 
 function requireLiveSession(deps: RpcDeps, sessionId: SessionId): Effect.Effect<void, EvlogError> {
@@ -383,211 +403,275 @@ export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, 
     logs: logsRouter(),
     chat: chatRouter(deps, sessionOs),
     settings: {
-      all: os.settings.all.effect(function* ({input}) {
-        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
-        return yield* Effect.promise(() => file.read())
-      }),
-      set: os.settings.set.effect(function* ({input}) {
-        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
-        return yield* Effect.promise(() => file.set(input.key, input.value))
-      }),
-      delete: os.settings.delete.effect(function* ({input}) {
-        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
-        return yield* Effect.promise(() => file.delete(input.key))
-      }),
-      changes: os.settings.changes.effect(function* ({input, signal}) {
-        const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
-        return file.changes(signal)
-      }),
+      all: os.settings.all.handler(
+        handlerGen(function* ({input}) {
+          const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+          return yield* Effect.promise(() => file.read())
+        }),
+      ),
+      set: os.settings.set.handler(
+        handlerGen(function* ({input}) {
+          const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+          return yield* Effect.promise(() => file.set(input.key, input.value))
+        }),
+      ),
+      delete: os.settings.delete.handler(
+        handlerGen(function* ({input}) {
+          const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+          return yield* Effect.promise(() => file.delete(input.key))
+        }),
+      ),
+      changes: os.settings.changes.handler(
+        handlerGen(function* ({input, signal}) {
+          const file = yield* Effect.promise(() => deps.settings.file(input.scope, input.namespace))
+          return file.changes(signal)
+        }),
+      ),
     },
     drafts: {
-      get: os.drafts.get.effect(function* ({input}) {
-        const rows = yield* db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
-        return rows[0] ?? null
-      }),
-      set: os.drafts.set.effect(function* ({input}) {
-        yield* db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input})
-        return {ok: true as const}
-      }),
+      get: os.drafts.get.handler(
+        handlerGen(function* ({input}) {
+          const rows = yield* db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
+          return rows[0] ?? null
+        }),
+      ),
+      set: os.drafts.set.handler(
+        handlerGen(function* ({input}) {
+          yield* db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input})
+          return {ok: true as const}
+        }),
+      ),
     },
     markers: {
-      list: os.markers.list.effect(function* ({input}) {
-        return yield* db
-          .select()
-          .from(markers)
-          .where(eq(markers.sessionId, input.sessionId))
-          .orderBy(asc(sql`rowid`))
-      }),
+      list: os.markers.list.handler(
+        handlerGen(function* ({input}) {
+          return yield* db
+            .select()
+            .from(markers)
+            .where(eq(markers.sessionId, input.sessionId))
+            .orderBy(asc(sql`rowid`))
+        }),
+      ),
     },
     registry: {
-      catalog: os.registry.catalog.effect(function* () {
-        return yield* pluginSignatures()
-      }),
-      invoke: toolCallOs.registry.invoke.effect(function* ({input, context, path}) {
-        const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
-        const plugin = assist === undefined ? yield* pluginSignature(input.name) : undefined
-        if (assist === undefined && plugin === undefined) return yield* Effect.fail(engineErrors.UNKNOWN_TOOL())
-        const trace = callTrace((header) => rpcHeader(context, header), deps.code.ids)
-        const run =
-          assist === undefined
-            ? runPluginTool(deps, {
-                sessionId: context.session.id,
-                name: input.name,
-                input: input.input,
-                callId: trace.callId,
-                widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
-              })
-            : Effect.tryPromise({try: () => assist.execute(input.input), catch: (error) => error})
-        return yield* admitOutsideCall(deps, context, context.session, path.join('.')).pipe(
-          Effect.andThen(hubTraced(deps, context, {name: input.name, input: input.input, trace}, run)),
-          Effect.catchCause((cause) => Effect.fail(registryCallError(Cause.squash(cause)))),
-        )
-      }),
+      catalog: os.registry.catalog.handler(
+        handlerGen(function* () {
+          return yield* pluginSignatures()
+        }),
+      ),
+      invoke: toolCallOs.registry.invoke.handler(
+        handlerGen(function* ({input, context, path}) {
+          const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
+          const plugin = assist === undefined ? yield* pluginSignature(input.name) : undefined
+          if (assist === undefined && plugin === undefined) return yield* Effect.fail(engineErrors.UNKNOWN_TOOL())
+          const trace = callTrace((header) => rpcHeader(context, header), deps.code.ids)
+          const run =
+            assist === undefined
+              ? runPluginTool(deps, {
+                  sessionId: context.session.id,
+                  name: input.name,
+                  input: input.input,
+                  callId: trace.callId,
+                  widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
+                })
+              : Effect.tryPromise({try: () => assist.execute(input.input), catch: (error) => error})
+          return yield* admitOutsideCall(deps, context, context.session, path.join('.')).pipe(
+            Effect.andThen(hubTraced(deps, context, {name: input.name, input: input.input, trace}, run)),
+            Effect.catchCause((cause) => Effect.fail(registryCallError(Cause.squash(cause)))),
+          )
+        }),
+      ),
     },
     skill: {
-      list: os.skill.list.effect(function* () {
-        return yield* locationResponse(Skill.Service.use((skill) => skill.list()))
-      }),
+      list: os.skill.list.handler(
+        handlerGen(function* () {
+          return yield* locationResponse(Skill.Service.use((skill) => skill.list()))
+        }),
+      ),
     },
     agent: {
-      list: os.agent.list.effect(function* () {
-        return yield* locationResponse(Agent.Service.use((agent) => agent.list()))
-      }),
+      list: os.agent.list.handler(
+        handlerGen(function* () {
+          return yield* locationResponse(Agent.Service.use((agent) => agent.list()))
+        }),
+      ),
     },
     fs: {
-      find: os.fs.find.effect(function* ({input}) {
-        return yield* locationResponse(FileSystem.Service.use((files) => files.find(input)))
-      }),
+      find: os.fs.find.handler(
+        handlerGen(function* ({input}) {
+          return yield* locationResponse(FileSystem.Service.use((files) => files.find(input)))
+        }),
+      ),
     },
     plugin: {
-      invoke: os.plugin.invoke.effect(function* ({input}) {
-        return yield* pluginCall(input)
-      }),
-      list: os.plugin.list.effect(function* () {
-        return yield* locationResponse(
-          Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list()))),
-        )
-      }),
-      experimental: os.plugin.experimental.effect(function* ({input}) {
-        return yield* missingPluginOutcome(yield* pluginExperimental(input.id), input.id)
-      }),
-      experimentalChunk: os.plugin.experimentalChunk.effect(function* ({input}) {
-        return yield* missingPluginOutcome(yield* pluginExperimentalChunk(input), input.id)
-      }),
+      invoke: os.plugin.invoke.handler(
+        handlerGen(function* ({input}) {
+          return yield* pluginCall(input)
+        }),
+      ),
+      list: os.plugin.list.handler(
+        handlerGen(function* () {
+          return yield* locationResponse(
+            Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list()))),
+          )
+        }),
+      ),
+      experimental: os.plugin.experimental.handler(
+        handlerGen(function* ({input}) {
+          return yield* missingPluginOutcome(yield* pluginExperimental(input.id), input.id)
+        }),
+      ),
+      experimentalChunk: os.plugin.experimentalChunk.handler(
+        handlerGen(function* ({input}) {
+          return yield* missingPluginOutcome(yield* pluginExperimentalChunk(input), input.id)
+        }),
+      ),
     },
     experimental: {
       persistentPty: {
-        create: os.experimental.persistentPty.create.effect(function* ({input, context}) {
-          const created = yield* Effect.promise(() => deps.ptys.create(input, context.callerOrigin))
-          if (created === null) return yield* Effect.fail(engineErrors.NO_TTY())
-          return created
-        }),
-        remove: os.experimental.persistentPty.remove.effect(function* ({input}) {
-          const pty = deps.ptys.find(input.ptyId)
-          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
-          if (pty.busy()) return yield* Effect.fail(engineErrors.BUSY())
-          yield* Effect.sync(() => pty.kill())
-          return {ok: true as const}
-        }),
-        output: os.experimental.persistentPty.output.effect(function* ({
-          input,
-          context,
-          signal,
-          lastEventId,
-          procedure,
-        }) {
-          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
-          const resumed = PtyResumeCursor.safeParse(lastEventId)
-          const stream = ptyOutput(pty, {
-            cursor: resumed.success ? resumed.data : input.cursor,
-            overflow: () => contractError(engineErrors.SLOW_CONSUMER(), procedure['~orpc'].errorMap),
-          })
-          const events = yield* Stream.toAsyncIterableEffect(stream)
-          return ptyEvents(relayEvents(events[Symbol.asyncIterator](), signal))
-        }),
-        write: os.experimental.persistentPty.write.effect(function* ({input, context}) {
-          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
-          yield* Effect.sync(() => writeToPty(pty, input.data))
-          return {ok: true as const}
-        }),
-        resize: os.experimental.persistentPty.resize.effect(function* ({input, context}) {
-          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
-          yield* Effect.sync(() => pty.resize(input.cols, input.rows))
-          return {ok: true as const}
-        }),
-        inject: os.experimental.persistentPty.inject.effect(function* ({input, context}) {
-          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
-          if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
-          yield* Effect.sync(() => pty.inject(input.text))
-          return {ok: true as const}
-        }),
+        create: os.experimental.persistentPty.create.handler(
+          handlerGen(function* ({input, context}) {
+            const created = yield* Effect.promise(() => deps.ptys.create(input, context.callerOrigin))
+            if (created === null) return yield* Effect.fail(engineErrors.NO_TTY())
+            return created
+          }),
+        ),
+        remove: os.experimental.persistentPty.remove.handler(
+          handlerGen(function* ({input}) {
+            const pty = deps.ptys.find(input.ptyId)
+            if (pty === undefined) return yield* Effect.fail(engineErrors.PTY_NOT_FOUND())
+            if (pty.busy()) return yield* Effect.fail(engineErrors.BUSY())
+            yield* Effect.sync(() => pty.kill())
+            return {ok: true as const}
+          }),
+        ),
+        output: os.experimental.persistentPty.output.handler(
+          handlerGen(function* ({input, context, signal, lastEventId, procedure}) {
+            const pty = yield* admittedPty(deps, input.ptyId, context.callerOrigin)
+            const resumed = PtyResumeCursor.safeParse(lastEventId)
+            const stream = ptyOutput(pty, {
+              cursor: resumed.success ? resumed.data : input.cursor,
+              overflow: () => contractError(engineErrors.SLOW_CONSUMER(), procedure['~orpc'].errorMap),
+            })
+            const events = yield* Stream.toAsyncIterableEffect(stream)
+            return ptyEvents(relayEvents(events[Symbol.asyncIterator](), signal))
+          }),
+        ),
+        write: os.experimental.persistentPty.write.handler(
+          handlerGen(function* ({input, context}) {
+            const pty = yield* admittedPty(deps, input.ptyId, context.callerOrigin)
+            yield* Effect.sync(() => writeToPty(pty, input.data))
+            return {ok: true as const}
+          }),
+        ),
+        resize: os.experimental.persistentPty.resize.handler(
+          handlerGen(function* ({input, context}) {
+            const pty = yield* admittedPty(deps, input.ptyId, context.callerOrigin)
+            yield* Effect.sync(() => pty.resize(input.cols, input.rows))
+            return {ok: true as const}
+          }),
+        ),
+        inject: os.experimental.persistentPty.inject.handler(
+          handlerGen(function* ({input, context}) {
+            const pty = yield* admittedPty(deps, input.ptyId, context.callerOrigin)
+            yield* Effect.sync(() => pty.inject(input.text))
+            return {ok: true as const}
+          }),
+        ),
       },
     },
     event: {
-      subscribe: os.event.subscribe.effect(function* ({input, signal}) {
-        return yield* eventStream(deps.eventHeartbeatIntervalMs, input?.types, signal, deps.code.ids)
-      }),
+      subscribe: os.event.subscribe.handler(
+        handlerGen(function* ({input, signal}) {
+          return yield* eventStream(deps.eventHeartbeatIntervalMs, input?.types, signal, deps.code.ids)
+        }),
+      ),
     },
     code: {
-      describe: os.code.describe.effect(function* ({context}) {
-        return yield* Effect.promise(async (signal) =>
-          (await resolveCodeSession(deps, undefined, {context, signal})).describe(),
-        )
-      }),
-      execute: os.code.execute.effect(function* ({input, context}) {
-        return yield* Effect.promise(async (signal) => {
-          const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
-          return (await code.execute(input.typescriptCode)).result
-        })
-      }),
-      discover: os.code.discover.effect(function* ({input, context}) {
-        return yield* Effect.promise(async (signal) => {
-          const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
-          if (code.sandbox.discover === null) throw engineErrors.NO_CODE_MODE({message: 'no tools to discover'})
-          return code.discover(input.toolNames)
-        })
-      }),
+      describe: os.code.describe.handler(
+        handlerGen(function* ({context}) {
+          return yield* Effect.promise(async (signal) =>
+            (await resolveCodeSession(deps, undefined, {context, signal})).describe(),
+          )
+        }),
+      ),
+      execute: os.code.execute.handler(
+        handlerGen(function* ({input, context}) {
+          return yield* Effect.promise(async (signal) => {
+            const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
+            return (await code.execute(input.typescriptCode)).result
+          })
+        }),
+      ),
+      discover: os.code.discover.handler(
+        handlerGen(function* ({input, context}) {
+          return yield* Effect.promise(async (signal) => {
+            const code = await resolveCodeSession(deps, input.sessionId, {context, signal})
+            if (code.sandbox.discover === null) throw engineErrors.NO_CODE_MODE({message: 'no tools to discover'})
+            return code.discover(input.toolNames)
+          })
+        }),
+      ),
     },
     meta: {
-      models: os.meta.models.effect(function* ({input}) {
-        return yield* Effect.promise(async (signal) => {
-          const harness = await chat.harnessFor(input.sessionId)
-          const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.runtime)
-          return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
-        })
-      }),
-      harnesses: os.meta.harnesses.effect(function* () {
-        return yield* Effect.promise(async (signal) => ({
-          harnesses: await Promise.all(
-            chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.runtime)),
-          ),
-          defaultHarness: chat.defaultHarness.id,
-        }))
-      }),
-      commands: os.meta.commands.effect(function* ({input, context}) {
-        return yield* Effect.promise(() => listCommands(chat, {sessionId: input.sessionId, origin: context.origin}))
-      }),
-      tools: os.meta.tools.effect(function* ({input}) {
-        return {tools: yield* Effect.promise(() => deps.tools(input.sessionId))}
-      }),
-      engine: os.meta.engine.effect(function* () {
-        return yield* Effect.promise(() => engine.staleness())
-      }),
-      project: os.meta.project.effect(function* () {
-        return yield* Effect.promise(() => readProject(deps.project))
-      }),
-      hubAgents: os.meta.hubAgents.effect(function* ({signal}) {
-        return yield* Effect.sync(() => deps.hub.agents(signal))
-      }),
-      connectHub: os.meta.connectHub.effect(function* ({input}) {
-        return yield* Effect.promise(() => deps.hub.connect(input.harness))
-      }),
-      disconnectHub: os.meta.disconnectHub.effect(function* ({input}) {
-        return yield* Effect.promise(() => deps.hub.disconnect(input.harness))
-      }),
+      models: os.meta.models.handler(
+        handlerGen(function* ({input}) {
+          return yield* Effect.promise(async (signal) => {
+            const harness = await chat.harnessFor(input.sessionId)
+            const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(
+              harness,
+              signal,
+              chat.runtime,
+            )
+            return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
+          })
+        }),
+      ),
+      harnesses: os.meta.harnesses.handler(
+        handlerGen(function* () {
+          return yield* Effect.promise(async (signal) => ({
+            harnesses: await Promise.all(
+              chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.runtime)),
+            ),
+            defaultHarness: chat.defaultHarness.id,
+          }))
+        }),
+      ),
+      commands: os.meta.commands.handler(
+        handlerGen(function* ({input, context}) {
+          return yield* Effect.promise(() => listCommands(chat, {sessionId: input.sessionId, origin: context.origin}))
+        }),
+      ),
+      tools: os.meta.tools.handler(
+        handlerGen(function* ({input}) {
+          return {tools: yield* Effect.promise(() => deps.tools(input.sessionId))}
+        }),
+      ),
+      engine: os.meta.engine.handler(
+        handlerGen(function* () {
+          return yield* Effect.promise(() => engine.staleness())
+        }),
+      ),
+      project: os.meta.project.handler(
+        handlerGen(function* () {
+          return yield* Effect.promise(() => readProject(deps.project))
+        }),
+      ),
+      hubAgents: os.meta.hubAgents.handler(
+        handlerGen(function* ({signal}) {
+          return yield* Effect.sync(() => deps.hub.agents(signal))
+        }),
+      ),
+      connectHub: os.meta.connectHub.handler(
+        handlerGen(function* ({input}) {
+          return yield* Effect.promise(() => deps.hub.connect(input.harness))
+        }),
+      ),
+      disconnectHub: os.meta.disconnectHub.handler(
+        handlerGen(function* ({input}) {
+          return yield* Effect.promise(() => deps.hub.disconnect(input.harness))
+        }),
+      ),
     },
   })
 }

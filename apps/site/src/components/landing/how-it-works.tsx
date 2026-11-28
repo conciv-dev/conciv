@@ -34,7 +34,8 @@ export function HowItWorks() {
             />
           </h2>
           <p className="max-w-[52ch] text-muted-foreground">
-            No SaaS, no keys to paste, no second terminal. The agent you already trust, mounted in your dev build.
+            conciv starts with your dev server and runs on your machine, with the agent CLI you already trust. There is
+            no account to make and no key to paste.
           </p>
         </div>
         <div className="min-w-0">

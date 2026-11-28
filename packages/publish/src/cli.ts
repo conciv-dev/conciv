@@ -3,7 +3,8 @@ import {chmod, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineCommand, runCommand, runMain} from 'citty'
-import {Context, Duration, Effect} from 'effect'
+import * as clack from '@clack/prompts'
+import {Duration, Effect} from 'effect'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {
@@ -29,7 +30,14 @@ import {
 } from './workspace-imports.ts'
 import {flaggedLogLevel, logFlags, publishLogs} from './log.ts'
 import {checkNodeFloor} from './node-floor.ts'
-import {buildSyncPlan, pushMissingTags, registryRecord, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
+import {
+  buildSyncPlan,
+  pushMissingTags,
+  registryRecord,
+  type RegistryState,
+  type SyncPackageState,
+  type SyncPlanEntry,
+} from './sync.ts'
 import {
   assembleMirrorTree,
   extractCommitSubtree,
@@ -184,7 +192,7 @@ const checkNodeFloorCommand = defineCommand({
   meta: {
     name: 'check-node-floor',
     description:
-      'Pack the published packages, install them into a throwaway consumer and prove them on the Node binary given (the engines.node floor in CI): the cli runs, every node entry imports, the engine starts in simulation and lists a session it created; run it after the build',
+      'Pack the published packages, install them into a throwaway consumer and prove them on the Node binary given (the engines.node floor in CI): the cli runs, every node entry imports, the engine starts in simulation and lists a session it created; then install them with npm into an app shaped like a Vite project and prove the cli and the engine again; run it after the build',
   },
   args: {
     node: {type: 'string', default: process.execPath, description: 'the Node binary the proofs run on'},
@@ -232,35 +240,55 @@ const snapshot = defineCommand({
   },
 })
 
-const npmTrust = (...args: string[]) => ['--yes', 'npm@^11.15.0', 'trust', ...args]
+const NPM_FLOOR = [11, 15, 0]
 
 type SyncFailure = {name: string; hint: string; output: string}
 
-const SyncLines = Context.Reference<(line: string) => Effect.Effect<void>>('@internal/publish/SyncLines', {
-  defaultValue: () => (line) => Effect.sync(() => process.stdout.write(`${line}\n`)),
-})
-
-function say(line: string) {
-  return Effect.gen(function* () {
-    const write = yield* SyncLines
-    yield* write(line)
-  })
+type SyncView = {
+  status: (text: string) => Effect.Effect<void>
+  pause: Effect.Effect<void>
+  line: (text: string) => Effect.Effect<void>
+  warn: (text: string) => Effect.Effect<void>
+  list: (title: string, lines: string[]) => Effect.Effect<void>
 }
 
-const NPM_CONCURRENCY = 8
+function terminalView(): SyncView {
+  const indicator = clack.spinner()
+  let spinning = false
+  const pause = Effect.sync(() => {
+    if (spinning) indicator.clear()
+    spinning = false
+  })
+  return {
+    status: (text) =>
+      Effect.sync(() => {
+        if (spinning) indicator.message(text)
+        else indicator.start(text)
+        spinning = true
+      }),
+    pause,
+    line: (text) => pause.pipe(Effect.andThen(Effect.sync(() => clack.log.success(text)))),
+    warn: (text) => pause.pipe(Effect.andThen(Effect.sync(() => clack.log.warn(text)))),
+    list: (title, lines) => pause.pipe(Effect.andThen(Effect.sync(() => clack.note(lines.join('\n'), title)))),
+  }
+}
 
-function npmCall(name: string, file: string, args: string[], interactive: boolean) {
+function jsonView(): SyncView {
+  return {
+    status: (text) => Effect.logDebug(text),
+    pause: Effect.void,
+    line: (text) => Effect.logInfo(text),
+    warn: (text) => Effect.logWarning(text),
+    list: (title, lines) => Effect.logInfo(`${title}\n${lines.join('\n')}`),
+  }
+}
+
+function npmCall<A>(name: string, file: string, args: string[], spawn: () => Promise<A>) {
   const command = `${file} ${args.join(' ')}`
   return Effect.logDebug(`running ${command}`).pipe(
     Effect.andThen(
       Effect.tryPromise({
-        try: () =>
-          execa(file, args, {
-            cwd: process.cwd(),
-            stdin: interactive ? 'inherit' : 'ignore',
-            stderr: interactive ? 'inherit' : 'pipe',
-            all: true,
-          }),
+        try: spawn,
         catch: (cause): SyncFailure => ({
           name,
           hint: '',
@@ -275,78 +303,18 @@ function npmCall(name: string, file: string, args: string[], interactive: boolea
   )
 }
 
-function failWith(hint: string) {
-  return (failure: SyncFailure) => Effect.fail({...failure, hint})
+function npmOnTerminal(view: SyncView, run: Run, name: string, file: string, args: string[]) {
+  return view.pause.pipe(Effect.andThen(npmCall(name, file, args, () => run(file, args))), Effect.asVoid)
 }
 
-function firstAloneThenConcurrent<A, B>(
-  items: readonly A[],
-  step: (item: A, interactive: boolean) => Effect.Effect<B, SyncFailure>,
-) {
-  return Effect.gen(function* () {
-    const [head, ...rest] = items
-    if (head === undefined) return [[], []] as [B[], SyncFailure[]]
-    const [firstPasses, firstFails] = yield* Effect.partition([head], (item) => step(item, true))
-    const [passes, fails] = yield* Effect.partition(rest, (item) => step(item, false), {concurrency: NPM_CONCURRENCY})
-    return [
-      [...firstPasses, ...passes],
-      [...firstFails, ...fails],
-    ] as [B[], SyncFailure[]]
-  })
-}
-
-function firstPublish(name: string, interactive: boolean) {
-  return npmCall(
-    name,
-    'pnpm',
-    ['--filter', name, 'publish', '--access', 'public', '--no-git-checks'],
-    interactive,
-  ).pipe(
-    Effect.catch(
-      failWith(
-        'publish failed. If npm reported "previously published versions", the registry 404 cache is stale and the package is fine - rerun sync in a few minutes. If it reported EOTP or E403, run "npm login" (browser + 2FA) and rerun sync from a real terminal.',
-      ),
-    ),
-    Effect.andThen(say(`${name}: published`)),
-  )
-}
-
-function wireTrust(name: string, interactive: boolean) {
-  return npmCall(
-    name,
-    'npx',
-    npmTrust('github', name, '--repo', REPOSITORY, '--file', RELEASE_WORKFLOW, '--allow-publish', '--yes'),
-    interactive,
-  ).pipe(
-    Effect.catch(
-      failWith(
-        'trust setup failed. npm trust needs a real terminal, an "npm login" browser session, and 2FA on the account (bypass-2FA tokens are rejected). If the 2FA window expired (EOTP), rerun sync.',
-      ),
-    ),
-    Effect.andThen(say(`${name}: trust set up`)),
+function readTrustList(name: string) {
+  const args = ['trust', 'list', name, '--json']
+  return npmCall(name, 'npm', args, () => execa('npm', args, {cwd: process.cwd(), stdin: 'ignore', all: true})).pipe(
+    Effect.map(({stdout}) => stdout),
   )
 }
 
 const TrustConfig = z.object({repository: z.string().optional(), file: z.string().optional()})
-
-function trustAlreadySetUp(name: string, interactive: boolean) {
-  return npmCall(name, 'npx', npmTrust('list', name, '--json'), interactive).pipe(
-    Effect.map(({stdout}) =>
-      stdout
-        .split(/\n\s*\n/)
-        .filter((chunk) => chunk.trim() !== '')
-        .map((chunk) => TrustConfig.safeParse(parseJson(chunk)))
-        .some(({success, data}) => success && data.repository === REPOSITORY && data.file === RELEASE_WORKFLOW),
-    ),
-    Effect.catch((failure) =>
-      Effect.logWarning(`npm trust list failed, planning trust setup\n${failure.output}`).pipe(
-        Effect.annotateLogs('package', name),
-        Effect.as(false),
-      ),
-    ),
-    Effect.tap((wired) => (wired ? say(`${name}: trust already set up`) : Effect.void)),
-  )
-}
 
 function parseJson(text: string): unknown {
   try {
@@ -356,40 +324,165 @@ function parseJson(text: string): unknown {
   }
 }
 
+function namesReleaseWorkflow(output: string): boolean {
+  return output
+    .split(/\n\s*\n/)
+    .filter((chunk) => chunk.trim() !== '')
+    .map((chunk) => TrustConfig.safeParse(parseJson(chunk)))
+    .some(({success, data}) => success && data.repository === REPOSITORY && data.file === RELEASE_WORKFLOW)
+}
+
+function readTrustState(name: string) {
+  return readTrustList(name).pipe(
+    Effect.map((output): RegistryState => (namesReleaseWorkflow(output) ? 'trusted' : 'untrusted')),
+    Effect.catch((failure) =>
+      Effect.logWarning(`npm trust list failed\n${failure.output}`).pipe(
+        Effect.annotateLogs('package', name),
+        Effect.as<RegistryState>('unknown'),
+      ),
+    ),
+  )
+}
+
+function failWith(hint: string) {
+  return (failure: SyncFailure) => Effect.fail({...failure, hint})
+}
+
+function firstPublish(view: SyncView, run: Run, name: string) {
+  return view
+    .status(`${name}: publishing`)
+    .pipe(
+      Effect.andThen(
+        npmOnTerminal(view, run, name, 'pnpm', [
+          '--filter',
+          name,
+          'publish',
+          '--access',
+          'public',
+          '--no-git-checks',
+        ]).pipe(
+          Effect.catch(
+            failWith(
+              'publish failed. If npm reported "previously published versions", the registry 404 cache is stale and the package is fine - rerun sync in a few minutes. If it reported EOTP or E403, run "npm login" (browser + 2FA) and rerun sync from a real terminal.',
+            ),
+          ),
+        ),
+      ),
+      Effect.andThen(view.line(`${name}: published`)),
+    )
+}
+
+function wireTrust(view: SyncView, run: Run, name: string) {
+  return view.status(`${name}: setting up trust`).pipe(
+    Effect.andThen(
+      npmOnTerminal(view, run, name, 'npm', [
+        'trust',
+        'github',
+        name,
+        '--repo',
+        REPOSITORY,
+        '--file',
+        RELEASE_WORKFLOW,
+        '--allow-publish',
+        '--yes',
+      ]),
+    ),
+    Effect.catch((failure) =>
+      readTrustState(name).pipe(Effect.flatMap((state) => (state === 'trusted' ? Effect.void : Effect.fail(failure)))),
+    ),
+    Effect.catch(
+      failWith(
+        'trust setup failed. npm trust needs a real terminal, an "npm login" browser session, and 2FA on the account (bypass-2FA tokens are rejected). If the 2FA window expired (EOTP), rerun sync.',
+      ),
+    ),
+    Effect.andThen(view.line(`${name}: trust set up`)),
+  )
+}
+
 type Run = Awaited<ReturnType<typeof atRoot>>['run']
 type Turbo = Awaited<ReturnType<typeof atRoot>>['turbo']
 
-const gatherSyncStates = Effect.fn('sync.gatherStates')(function* () {
-  const records = yield* Effect.forEach(
+function atLeast(installed: string, floor: number[]): boolean {
+  const parts = installed.split('.').map((part) => Number.parseInt(part, 10))
+  const index = floor.findIndex((value, at) => (parts[at] ?? 0) !== value)
+  return index === -1 || (parts[index] ?? 0) > (floor[index] ?? 0)
+}
+
+const assertNpmFloor = Effect.fn('sync.assertNpmFloor')(function* (cwd: string) {
+  const {stdout} = yield* Effect.promise(() => execa('npm', ['--version'], {cwd}))
+  if (!atLeast(stdout.trim(), NPM_FLOOR)) {
+    return yield* Effect.fail(publishErrors.NPM_TOO_OLD({version: stdout.trim()}))
+  }
+})
+
+const gatherSyncStates = Effect.fn('sync.gatherStates')(function* (view: SyncView, run: Run) {
+  const total = PUBLIC_PACKAGES.length
+  let read = 0
+  let present = 0
+  let checked = 0
+  const progress = () => view.status(`reading npm ${read}/${total}, checking trust ${checked}/${present}`)
+  const states = yield* Effect.forEach(
     PUBLIC_PACKAGES,
-    (name) => Effect.promise(async () => ({name, ...(await registryRecord(name))})),
+    (name) =>
+      Effect.promise(() => registryRecord(name)).pipe(
+        Effect.tap(({exists}) =>
+          Effect.sync(() => {
+            read += 1
+            if (exists) present += 1
+          }).pipe(Effect.andThen(progress())),
+        ),
+        Effect.flatMap(({exists, versions}) =>
+          exists
+            ? readTrustState(name).pipe(
+                Effect.tap(() => Effect.sync(() => (checked += 1)).pipe(Effect.andThen(progress()))),
+                Effect.map((state): SyncPackageState => ({name, state, versions})),
+              )
+            : Effect.succeed<SyncPackageState>({name, state: 'missing', versions}),
+        ),
+      ),
     {concurrency: 'unbounded'},
   )
-  const [wired] = yield* firstAloneThenConcurrent(
-    records.filter(({state}) => state === 'untrusted'),
-    ({name}, interactive) =>
-      trustAlreadySetUp(name, interactive).pipe(Effect.map((trusted) => (trusted ? [name] : []))),
+  const unknown = states.filter(({state}) => state === 'unknown')
+  const [first] = unknown
+  if (first === undefined) return states
+  yield* view.warn(
+    `npm did not answer the trust read for ${unknown.length} packages; it may want 2FA. Approve it once below.`,
   )
-  const trusted = wired.flat()
-  return records.map((record): SyncPackageState =>
-    trusted.includes(record.name) ? {...record, state: 'trusted'} : record,
+  yield* npmOnTerminal(view, run, first.name, 'npm', ['trust', 'list', first.name, '--json']).pipe(Effect.ignore)
+  checked = 0
+  present = unknown.length
+  read = total
+  const reread = yield* Effect.forEach(
+    unknown,
+    (entry) =>
+      readTrustState(entry.name).pipe(
+        Effect.tap(() => Effect.sync(() => (checked += 1)).pipe(Effect.andThen(progress()))),
+        Effect.map((state): SyncPackageState => ({...entry, state})),
+      ),
+    {concurrency: 'unbounded'},
   )
+  return states.map((entry) => reread.find(({name}) => name === entry.name) ?? entry)
 })
 
 const printSyncPlan = Effect.fn('sync.printPlan')(function* (
+  view: SyncView,
   states: SyncPackageState[],
   plan: SyncPlanEntry[],
+  unknown: string[],
   json: boolean,
 ) {
-  const healthy = states.length - plan.length
+  const healthy = states.length - plan.length - unknown.length
   if (json) {
-    process.stdout.write(`${JSON.stringify({healthy, plan}, null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify({healthy, plan, unknown}, null, 2)}\n`)
     return
   }
-  for (const {name, state, actions} of plan) {
-    yield* say(`${name}: ${state} -> ${actions.join(', ')}`)
+  yield* view.list('Plan', [
+    ...plan.map(({name, state, actions}) => `${name}: ${state} -> ${actions.join(' + ')}`),
+    `${healthy} packages healthy`,
+  ])
+  if (unknown.length > 0) {
+    yield* view.warn(`trust could not be read, nothing planned for: ${unknown.join(', ')}`)
   }
-  yield* say(`${healthy}/${states.length} packages healthy`)
 })
 
 async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): Promise<void> {
@@ -399,32 +492,38 @@ async function buildFirstPublishes(cwd: string, turbo: Turbo, names: string[]): 
   await assertPublicTypesPublic(cwd, names)
 }
 
-function applyNpmActions({name, actions}: SyncPlanEntry, interactive: boolean) {
+function applyNpmActions(view: SyncView, run: Run, {name, actions}: SyncPlanEntry) {
   return Effect.gen(function* () {
-    if (actions.includes('publish')) yield* firstPublish(name, interactive)
-    if (actions.includes('trust')) yield* wireTrust(name, interactive && !actions.includes('publish'))
+    if (actions.includes('publish')) yield* firstPublish(view, run, name)
+    if (actions.includes('trust')) yield* wireTrust(view, run, name)
   })
 }
 
-const applySyncPlan = Effect.fn('sync.apply')(function* (cwd: string, run: Run, turbo: Turbo, plan: SyncPlanEntry[]) {
-  yield* Effect.promise(() =>
-    buildFirstPublishes(
-      cwd,
-      turbo,
-      plan.filter(({actions}) => actions.includes('publish')).map(({name}) => name),
-    ),
-  )
-  const [, failures] = yield* firstAloneThenConcurrent(
+const applySyncPlan = Effect.fn('sync.apply')(function* (
+  view: SyncView,
+  cwd: string,
+  run: Run,
+  turbo: Turbo,
+  plan: SyncPlanEntry[],
+) {
+  const firstPublishes = plan.filter(({actions}) => actions.includes('publish')).map(({name}) => name)
+  if (firstPublishes.length > 0) yield* view.line(`building ${firstPublishes.join(', ')}`)
+  yield* view.pause
+  yield* Effect.promise(() => buildFirstPublishes(cwd, turbo, firstPublishes))
+  const [, failures] = yield* Effect.partition(
     plan.filter(({actions}) => actions.includes('publish') || actions.includes('trust')),
-    applyNpmActions,
+    (entry) => applyNpmActions(view, run, entry),
   )
+  yield* view.pause
   for (const {name, hint, output} of failures) {
     yield* Effect.logError(output).pipe(Effect.annotateLogs('package', name))
-    yield* say(`${name}: ${hint}`)
+    yield* view.warn(`${name}: ${hint}`)
   }
-  if (failures.length > 0) {
-    return yield* Effect.fail(publishErrors.SYNC_FAILED({names: failures.map(({name}) => name).join(', ')}))
-  }
+  return failures.map(({name}) => name)
+})
+
+const pushTags = Effect.fn('sync.pushTags')(function* (view: SyncView, cwd: string, run: Run, plan: SyncPlanEntry[]) {
+  yield* view.pause
   yield* Effect.promise(() => run('pnpm', ['exec', 'changeset', 'git-tag']))
   yield* Effect.promise(() =>
     pushMissingTags(
@@ -435,17 +534,26 @@ const applySyncPlan = Effect.fn('sync.apply')(function* (cwd: string, run: Run, 
 })
 
 const syncProgram = Effect.fn('sync')(function* (dryRun: boolean, json: boolean) {
+  const view = json ? jsonView() : terminalView()
   const {cwd, run, turbo} = yield* Effect.promise(() => atRoot(json ? 2 : 'inherit'))
-  yield* Effect.promise(() => assertPublicDepsPublic(cwd))
-  const {stdout: user} = yield* Effect.promise(() =>
-    execa('npm', ['whoami'], {cwd, stdin: 'inherit', stderr: 'inherit'}),
+  yield* assertNpmFloor(cwd)
+  const [, , states] = yield* Effect.all(
+    [
+      Effect.promise(() => assertPublicDepsPublic(cwd)),
+      Effect.promise(() => execa('npm', ['whoami'], {cwd, stdin: 'inherit', stderr: 'inherit'})).pipe(
+        Effect.flatMap(({stdout}) => view.line(`npm user: ${stdout.trim()}`)),
+      ),
+      gatherSyncStates(view, run),
+    ],
+    {concurrency: 'unbounded'},
   )
-  yield* say(`npm user: ${user.trim()}`)
-  const states = yield* gatherSyncStates()
+  const unknown = states.filter(({state}) => state === 'unknown').map(({name}) => name)
   const plan = yield* Effect.promise(() => buildSyncPlan(cwd, states))
-  yield* printSyncPlan(states, plan, json)
-  if (plan.length === 0 || dryRun) return
-  yield* applySyncPlan(cwd, run, turbo, plan)
+  yield* printSyncPlan(view, states, plan, unknown, json)
+  const failed = plan.length === 0 || dryRun ? [] : yield* applySyncPlan(view, cwd, run, turbo, plan)
+  const names = [...failed, ...unknown]
+  if (names.length > 0) return yield* Effect.fail(publishErrors.SYNC_FAILED({names: names.join(', ')}))
+  if (plan.length > 0 && !dryRun) yield* pushTags(view, cwd, run, plan)
 })
 
 const sync = defineCommand({
@@ -465,10 +573,7 @@ const sync = defineCommand({
   },
   async run({args}) {
     await Effect.runPromise(
-      syncProgram(args['dry-run'], args.json).pipe(
-        args.json ? Effect.provideService(SyncLines, (line) => Effect.logInfo(line)) : (program) => program,
-        Effect.provide(publishLogs('sync', flaggedLogLevel(args))),
-      ),
+      syncProgram(args['dry-run'], args.json).pipe(Effect.provide(publishLogs('sync', flaggedLogLevel(args)))),
     )
   },
 })

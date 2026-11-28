@@ -1,6 +1,5 @@
 import type {Tracer} from '../../../ai.js'
 import type * as Identifier from '@conciv/protocol/schema/identifier'
-import '@orpc/effect/extensions/effect'
 import {middlewareGen, type EffectWrapOptions, type WithEffectContext} from '@orpc/effect'
 import {implement, type ORPCError, type Implementer} from '@orpc/server'
 import {answerCatalogErrors, contract, isCatalogError} from '@conciv/protocol'

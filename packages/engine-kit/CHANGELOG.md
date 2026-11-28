@@ -1,5 +1,19 @@
 # @internal/engine-kit
 
+## 0.0.25
+
+### Patch Changes
+
+- Updated dependencies [[`74d3b55`](https://github.com/conciv-dev/conciv/commit/74d3b550f749a7beb5fade7d735d7a41caf8ad41), [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee), [`ffb91f8`](https://github.com/conciv-dev/conciv/commit/ffb91f8e745efb2bdac7a898fba1b597a3b527ee), [`1e1c3e5`](https://github.com/conciv-dev/conciv/commit/1e1c3e51d7e1adeb709b54136f5d3e3e2f8d3243), [`1173bd1`](https://github.com/conciv-dev/conciv/commit/1173bd1df39283754eae2b9e3f420ba33777941a), [`ffd5efc`](https://github.com/conciv-dev/conciv/commit/ffd5efc53cc435f7f05def06080b71b573edbc43), [`e046362`](https://github.com/conciv-dev/conciv/commit/e0463621717628e5f4503fdae008e47ccfb3c24a), [`4f0631d`](https://github.com/conciv-dev/conciv/commit/4f0631dfbb3fa1ba5a87827b08aad4ce18a77f26), [`9d9166b`](https://github.com/conciv-dev/conciv/commit/9d9166bd4cc8ca109b2df2bd734d04669d732b23), [`8b8bc6f`](https://github.com/conciv-dev/conciv/commit/8b8bc6fd56da74578a3e8316e1c922d5cbf8cc6e), [`1237734`](https://github.com/conciv-dev/conciv/commit/1237734bce516783f7dbc4f40e6ef2c8fba4765d)]:
+  - @conciv/backend-plugin-api@0.0.25
+  - @conciv/client@0.0.25
+  - @conciv/errors@0.0.25
+  - @conciv/harness@0.0.25
+  - @conciv/protocol@0.0.25
+  - @conciv/simulation@0.0.25
+  - @conciv/types@0.0.25
+  - @internal/vitest-config@0.0.24
+
 ## 0.0.24
 
 ### Patch Changes
