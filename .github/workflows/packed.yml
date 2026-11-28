@@ -12,7 +12,9 @@ name: Packed
 # The packed-node-22 job proves the same tarballs on the oldest Node the published node
 # packages declare (engines.node, one floor for all): conciv-publish check-node-floor packs
 # them into a throwaway consumer and, on that Node, runs the cli, imports every node entry and
-# starts the engine in simulation.
+# starts the engine in simulation. It also installs the tarballs with npm into an app shaped like
+# a Vite user's (@conciv/it, vite, react, react-dom) and runs the cli and the engine there: npm
+# hoists, and in that shape it splits @orpc/server into several copies, which pnpm never shows.
 # It runs on pull requests that touch the paths below, and on demand; on main, release.yml
 # calls it on every push, so a broken tarball blocks npm publish (no standalone push trigger,
 # that would run it twice). The pull request paths are what can drift the two fixture
