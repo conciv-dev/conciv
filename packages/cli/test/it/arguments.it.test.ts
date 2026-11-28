@@ -15,22 +15,22 @@ describe('mistakes', () => {
     },
     {
       args: ['auth', 'link'],
-      message: 'url: Invalid input: expected string, received undefined',
+      message: 'url: missing; pass the page URL to log in, for example http://localhost:3001/',
       hint: 'run conciv auth link --help to see the arguments it accepts',
     },
     {
       args: ['mcp', 'connect', 'pi'],
-      message: 'agent: pi has no conciv hub connection; the agents with one: claude, codex, gemini-cli, opencode',
+      message: 'agent: pass claude, codex, gemini-cli or opencode',
       hint: 'run conciv mcp connect --help to see the arguments it accepts',
     },
     {
       args: ['mcp', 'disconnect'],
-      message: 'agent: name an agent with a conciv hub connection: claude, codex, gemini-cli, opencode',
+      message: 'agent: pass claude, codex, gemini-cli or opencode',
       hint: 'run conciv mcp disconnect --help to see the arguments it accepts',
     },
     {
       args: ['mcp', 'serve', '--agent', 'nope'],
-      message: '--agent: nope has no conciv hub connection; the agents with one: claude, codex, gemini-cli, opencode',
+      message: '--agent: pass the agent this server answers for (claude, codex, gemini-cli, opencode)',
       hint: 'run conciv mcp serve --help to see the arguments it accepts',
     },
   ])('conciv $args prints its hint and exits 1', async ({args, message, hint}) => {

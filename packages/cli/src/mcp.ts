@@ -10,12 +10,7 @@ import {cliErrors} from '@conciv/errors'
 
 const HUB_AGENT_IDS = INIT_HARNESS_IDS.filter((id) => initContributions[id].hub !== undefined)
 
-const HubAgentSchema = z.enum(HUB_AGENT_IDS, {
-  error: (issue) =>
-    issue.input === undefined
-      ? `name an agent with a conciv hub connection: ${HUB_AGENT_IDS.join(', ')}`
-      : `${String(issue.input)} has no conciv hub connection; the agents with one: ${HUB_AGENT_IDS.join(', ')}`,
-})
+const HubAgentSchema = z.enum(HUB_AGENT_IDS)
 
 const AgentModelSchema = z.object({agent: HubAgentSchema})
 

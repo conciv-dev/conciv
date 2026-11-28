@@ -4,6 +4,59 @@ const SILENT_HINT =
   'a dev server still starting answers once it is ready; run the command again, or restart the dev server if it stays silent.'
 
 export const cliErrors = defineErrorCatalog('cli', {
+  ARGUMENT_MISSING: {
+    status: 400,
+    message: ({argument, about}: {argument: string; about: string}) => `${argument}: missing; pass ${about}`,
+    fix: 'run the command with --help to see the arguments it accepts',
+  },
+  ARGUMENT_INVALID: {
+    status: 400,
+    message: ({argument, about}: {argument: string; about: string}) => `${argument}: not accepted; pass ${about}`,
+    fix: 'run the command with --help to see the arguments it accepts',
+  },
+  ARGUMENT_NEEDED: {
+    status: 400,
+    message: ({argument, about}: {argument: string; about: string}) => `${argument}: pass ${about}`,
+    fix: 'run the command with --help to see the arguments it accepts',
+  },
+  ARGUMENTS_INVALID: {
+    status: 400,
+    message: ({problems}: {problems: string}) => problems,
+    fix: 'run the command with --help to see the arguments it accepts',
+  },
+  COMMAND_MISSING: {
+    status: 400,
+    message: ({command}: {command: string}) => `No command given for ${command}.`,
+    fix: 'run the command with --help to list its commands',
+  },
+  METHOD_UNSUPPORTED: {
+    status: 400,
+    message: ({command, method}: {command: string; method: string}) => `${command} does not support --${method}.`,
+    fix: 'run the command with --help to list its commands',
+  },
+  ARGUMENT_UNEXPECTED: {
+    status: 400,
+    message: ({command, token}: {command: string; token: string}) => `Unexpected argument '${token}' for ${command}.`,
+    fix: 'run the command with --help to see the arguments it accepts',
+  },
+  COMMAND_UNKNOWN: {
+    status: 400,
+    message: ({command, token, suggestion}: {command: string; token: string; suggestion: string}) =>
+      `Unknown command '${token}' for ${command}.${suggestion}`,
+    fix: 'run the command with --help to list its commands',
+  },
+  FLAG_UNKNOWN: {
+    status: 400,
+    message: ({command, token, suggestion}: {command: string; token: string; suggestion: string}) =>
+      `Unknown flag ${token} for ${command}.${suggestion}`,
+    fix: 'run the command with --help to see the arguments it accepts',
+  },
+  FLAG_IS_ARGUMENT: {
+    status: 400,
+    message: ({command, argument}: {command: string; argument: string}) =>
+      `${argument} is a positional argument of ${command}, not a flag.`,
+    fix: 'pass it without the leading dashes',
+  },
   INIT_REFUSED: {status: 409, message: ({reason}: {reason: string}) => reason, fix: 'nothing was written'},
   HUB_REFUSED: {status: 409, message: 'the agent hub refused the change'},
   DATA_NOT_JSON: {
