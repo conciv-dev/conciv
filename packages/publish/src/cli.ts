@@ -184,7 +184,7 @@ const checkNodeFloorCommand = defineCommand({
   meta: {
     name: 'check-node-floor',
     description:
-      'Pack the published packages, install them into a throwaway consumer and prove them on the Node binary given (the engines.node floor in CI): the cli runs, every node entry imports, the engine starts in simulation and lists a session it created; run it after the build',
+      'Pack the published packages, install them into a throwaway consumer and prove them on the Node binary given (the engines.node floor in CI): the cli runs, every node entry imports, the engine starts in simulation and lists a session it created; then install them with npm into an app shaped like a Vite project and prove the cli and the engine again; run it after the build',
   },
   args: {
     node: {type: 'string', default: process.execPath, description: 'the Node binary the proofs run on'},

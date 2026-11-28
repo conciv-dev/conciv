@@ -1,4 +1,4 @@
-import '@orpc/effect/extensions/effect'
+import {handlerGen} from '@orpc/effect'
 import {implement, ORPCError, type AnyRouter} from '@orpc/server'
 import {Effect} from 'effect'
 import {ProcedureContract, type RouterContract} from '@orpc/contract'
@@ -42,15 +42,17 @@ export function buildRouter(
 ): AnyRouter {
   if (node instanceof ProcedureContract) {
     const name = path.join('.')
-    return implement(node).effect(function* ({input, signal}) {
-      const handler = layers.map((layer) => lookup(layer, path)).find((found) => typeof found === 'function')
-      if (typeof handler !== 'function') return notImplemented(name, unanswered)
-      const answer: unknown = yield* Effect.tryPromise({
-        try: async () => handler(input, {signal}),
-        catch: (error) => error,
-      })
-      return answer
-    })
+    return implement(node).handler(
+      handlerGen(function* ({input, signal}) {
+        const handler = layers.map((layer) => lookup(layer, path)).find((found) => typeof found === 'function')
+        if (typeof handler !== 'function') return notImplemented(name, unanswered)
+        const answer: unknown = yield* Effect.tryPromise({
+          try: async () => handler(input, {signal}),
+          catch: (error) => error,
+        })
+        return answer
+      }),
+    )
   }
   return Object.fromEntries(
     Object.entries(node).map(([key, child]) => [key, buildRouter(child, [...path, key], layers, unanswered)]),

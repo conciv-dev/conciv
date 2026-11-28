@@ -1,3 +1,4 @@
+import {handlerGen} from '@orpc/effect'
 import type {ContractedRouter} from '@orpc/server'
 import {Effect} from 'effect'
 import type {contract} from '@conciv/protocol'
@@ -42,27 +43,31 @@ const waitOne = Effect.fn('JobsRpc.wait')(function* (jobs: Job.Interface, id: st
 
 export function jobsRouter(): ContractedRouter<typeof contract.jobs, EngineRpcContext> {
   return {
-    list: os.jobs.list.effect(function* ({input}) {
-      const jobs = yield* Job.Service
-      const owned = (yield* jobs.backgroundJobs).filter((item) => item.sessionID === input.sessionId)
-      const called = input.toolCallIds
-      if (called === undefined) return {data: owned}
-      const data = yield* Effect.filter(owned, (item) =>
-        jobs.get(item.id).pipe(
-          Effect.map((info) => {
-            const toolCallId = info?.metadata?.toolCallId
-            return typeof toolCallId === 'string' && called.includes(toolCallId)
-          }),
-        ),
-      )
-      return {data}
-    }),
-    wait: os.jobs.wait.effect(function* ({input}) {
-      const jobs = yield* Job.Service
-      const waited = yield* Effect.forEach(input.ids, (id) => waitOne(jobs, id, input.waitMs), {
-        concurrency: 'unbounded',
-      })
-      return {data: waited.flat()}
-    }),
+    list: os.jobs.list.handler(
+      handlerGen(function* ({input}) {
+        const jobs = yield* Job.Service
+        const owned = (yield* jobs.backgroundJobs).filter((item) => item.sessionID === input.sessionId)
+        const called = input.toolCallIds
+        if (called === undefined) return {data: owned}
+        const data = yield* Effect.filter(owned, (item) =>
+          jobs.get(item.id).pipe(
+            Effect.map((info) => {
+              const toolCallId = info?.metadata?.toolCallId
+              return typeof toolCallId === 'string' && called.includes(toolCallId)
+            }),
+          ),
+        )
+        return {data}
+      }),
+    ),
+    wait: os.jobs.wait.handler(
+      handlerGen(function* ({input}) {
+        const jobs = yield* Job.Service
+        const waited = yield* Effect.forEach(input.ids, (id) => waitOne(jobs, id, input.waitMs), {
+          concurrency: 'unbounded',
+        })
+        return {data: waited.flat()}
+      }),
+    ),
   }
 }

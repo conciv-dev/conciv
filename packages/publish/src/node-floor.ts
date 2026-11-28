@@ -38,6 +38,8 @@ const CatalogSchema = z.object({catalog: z.record(z.string(), z.string()).defaul
 
 type Published = WorkspacePackage & {name: string; version: string}
 
+const NPM_APP_DEPENDENCIES: readonly string[] = ['vite', 'react', 'react-dom']
+
 function readFloor(packages: readonly Published[]): string {
   const floors = [...new Set(packages.flatMap((pkg) => pkg.manifest.engines?.node ?? []))]
   if (floors.length === 0) throw publishErrors.NODE_FLOOR_MISSING()
@@ -75,11 +77,13 @@ function tarballName(pkg: Published): string {
   return `${pkg.name.slice(1).replace('/', '-')}-${pkg.version}.tgz`
 }
 
+function tarballOverrides(tarballs: string, published: readonly Published[]): Record<string, string> {
+  return Object.fromEntries(published.map((pkg) => [pkg.name, `file:${join(tarballs, tarballName(pkg))}`] as const))
+}
+
 async function writeConsumer(cwd: string, consumer: string, tarballs: string, published: readonly Published[]) {
   const catalog = await readCatalog(cwd)
-  const overrides = Object.fromEntries(
-    published.map((pkg) => [pkg.name, `file:${join(tarballs, tarballName(pkg))}`] as const),
-  )
+  const overrides = tarballOverrides(tarballs, published)
   const peers = Object.fromEntries(
     published
       .flatMap((pkg) => Object.entries(pkg.manifest.peerDependencies ?? {}))
@@ -98,6 +102,25 @@ async function writeConsumer(cwd: string, consumer: string, tarballs: string, pu
   await writeFile(join(consumer, 'engine-proof.mjs'), ENGINE_PROOF)
 }
 
+async function writeNpmApp(cwd: string, app: string, tarballs: string, published: readonly Published[]) {
+  const catalog = await readCatalog(cwd)
+  const overrides = tarballOverrides(tarballs, published)
+  const it = overrides['@conciv/it']
+  if (it === undefined) throw publishErrors.NODE_FLOOR_UNPACKED({names: '@conciv/it'})
+  const dependencies = {
+    '@conciv/it': it,
+    ...Object.fromEntries(NPM_APP_DEPENDENCIES.map((name) => [name, catalog[name] ?? 'latest'] as const)),
+  }
+  const manifest = {name: 'conciv-npm-app', private: true, type: 'module', dependencies, overrides}
+  await writeFile(join(app, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+  await writeFile(join(app, 'engine-proof.mjs'), ENGINE_PROOF)
+}
+
+async function cliFailures(node: string, consumer: string): Promise<string[]> {
+  const cli = await execa(node, [join(consumer, 'node_modules/@conciv/cli/dist/bin.js'), '--help'], {reject: false})
+  return cli.exitCode === 0 ? [] : [`cli --help: ${cli.stderr.split('\n').slice(0, 3).join(' | ')}`]
+}
+
 async function importFailures(node: string, consumer: string, specifiers: string[]): Promise<string[]> {
   const results = await mapInChunks(specifiers, COMPILER_LIMIT, async (specifier) => {
     const result = await execa(node, ['--input-type=module', '-e', `await import(${JSON.stringify(specifier)})`], {
@@ -109,7 +132,7 @@ async function importFailures(node: string, consumer: string, specifiers: string
   return results.flat()
 }
 
-async function engineFailures(node: string, consumer: string, scratch: string): Promise<string[]> {
+async function engineFailures(node: string, consumer: string, scratch: string, installer: string): Promise<string[]> {
   const project = join(scratch, 'project')
   const home = join(scratch, 'home')
   await mkdir(project, {recursive: true})
@@ -119,12 +142,13 @@ async function engineFailures(node: string, consumer: string, scratch: string): 
     env: {CONCIV_SIMULATE: '1', HOME: home},
     reject: false,
   })
-  if (result.exitCode !== 0) return [`engine start: ${result.stderr.split('\n').slice(0, 5).join(' | ')}`]
+  const failed = `engine start (${installer})`
+  if (result.exitCode !== 0) return [`${failed}: ${result.stderr.split('\n').slice(0, 5).join(' | ')}`]
   const proof = EngineProofSchema.safeParse(JSON.parse(result.stdout.trim().split('\n').at(-1) ?? 'null'))
-  if (!proof.success) return [`engine start: unreadable answer ${result.stdout.trim()}`]
+  if (!proof.success) return [`${failed}: unreadable answer ${result.stdout.trim()}`]
   if (!proof.data.sessions.includes(proof.data.created))
-    return [`engine start: the session list ${proof.data.sessions.join(', ')} misses ${proof.data.created}`]
-  process.stdout.write(`engine: created and listed ${proof.data.created}\n`)
+    return [`${failed}: the session list ${proof.data.sessions.join(', ')} misses ${proof.data.created}`]
+  process.stdout.write(`engine (${installer}): created and listed ${proof.data.created}\n`)
   return []
 }
 
@@ -143,7 +167,9 @@ export async function checkNodeFloor(cwd: string, node: string): Promise<void> {
   try {
     const tarballs = join(scratch, 'tarballs')
     const consumer = join(scratch, 'consumer')
+    const npmApp = join(scratch, 'npm-app')
     await mkdir(consumer, {recursive: true})
+    await mkdir(npmApp, {recursive: true})
     for (const pkg of published) await execa('pnpm', ['pack', '--pack-destination', tarballs], {cwd: pkg.dir})
     const packed = await readdir(tarballs)
     const unpacked = published.filter((pkg) => !packed.includes(tarballName(pkg)))
@@ -151,15 +177,20 @@ export async function checkNodeFloor(cwd: string, node: string): Promise<void> {
       throw publishErrors.NODE_FLOOR_UNPACKED({names: unpacked.map((pkg) => pkg.name).join(', ')})
     await writeConsumer(cwd, consumer, tarballs, published)
     await execa('pnpm', ['install', '--ignore-scripts', '--prefer-offline'], {cwd: consumer})
+    await writeNpmApp(cwd, npmApp, tarballs, published)
+    await execa('npm', ['install', '--ignore-scripts', '--prefer-offline', '--no-audit', '--no-fund'], {cwd: npmApp})
     const specifiers = nodePackages.flatMap(exportedSpecifiers)
-    const cli = await execa(node, [join(consumer, 'node_modules/@conciv/cli/dist/bin.js'), '--help'], {reject: false})
     const failures = [
-      ...(cli.exitCode === 0 ? [] : [`cli --help: ${cli.stderr.split('\n').slice(0, 3).join(' | ')}`]),
+      ...(await cliFailures(node, consumer)),
       ...(await importFailures(node, consumer, specifiers)),
-      ...(await engineFailures(node, consumer, scratch)),
+      ...(await engineFailures(node, consumer, join(scratch, 'pnpm'), 'pnpm')),
+      ...(await cliFailures(node, npmApp)).map((failure) => `npm app ${failure}`),
+      ...(await engineFailures(node, npmApp, join(scratch, 'npm'), 'npm app')),
     ]
     if (failures.length > 0) throw publishErrors.NODE_FLOOR_FAILED({version, failures})
-    process.stdout.write(`cli --help ran and ${specifiers.length} node entries imported on ${version}\n`)
+    process.stdout.write(
+      `cli --help ran with pnpm and npm, and ${specifiers.length} node entries imported on ${version}\n`,
+    )
   } finally {
     await rm(scratch, {recursive: true, force: true})
   }

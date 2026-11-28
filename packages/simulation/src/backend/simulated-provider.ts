@@ -1,3 +1,4 @@
+import {handlerGen} from '@orpc/effect'
 import {implement} from '@orpc/server'
 import {Cause, Effect, Fiber, FiberSet, PubSub, Queue, Ref, Semaphore, Stream, type Scope} from 'effect'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
@@ -228,70 +229,90 @@ const makeRouter = (
 ) => {
   const os = implement(backendContract).$context<SimulationControlServer.Context>()
   return os.router({
-    handshake: os.handshake.effect(function* ({input}) {
-      const outcome = dispatchHandshake(
-        {role: 'backend', server: {name: 'conciv', version}, capabilities: BACKEND_CAPABILITIES},
-        input,
-      )
-      if (outcome.type === 'accepted') return outcome.response
-      return yield* Effect.fail(outcome.refusal)
-    }),
-    llm: {
-      subscribe: os.llm.subscribe.effect(function* ({context}) {
-        const attachment = yield* controllers
-          .take(context.connection)
-          .pipe(Effect.mapError((failure) => simulationErrors.CONTROLLER_DISCONNECTED({message: failure.message})))
-        return SimulationControlServer.notifications(
-          attachment.notifications,
-          context.connection,
-          controllers.release(context.connection, attachment),
+    handshake: os.handshake.handler(
+      handlerGen(function* ({input}) {
+        const outcome = dispatchHandshake(
+          {role: 'backend', server: {name: 'conciv', version}, capabilities: BACKEND_CAPABILITIES},
+          input,
         )
+        if (outcome.type === 'accepted') return outcome.response
+        return yield* Effect.fail(outcome.refusal)
       }),
-      pending: os.llm.pending.effect(function* () {
-        return {invocations: yield* driver.pending}
-      }),
-      chunk: os.llm.chunk.effect(function* ({input}) {
-        yield* driver
-          .push(input.id, input.items)
-          .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
-        return {ok: true}
-      }),
-      finish: os.llm.finish.effect(function* ({input}) {
-        yield* driver
-          .finish(input.id, input.reason)
-          .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
-        return {ok: true}
-      }),
-      disconnect: os.llm.disconnect.effect(function* ({input}) {
-        yield* driver
-          .disconnect(input.id)
-          .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
-        return {ok: true}
-      }),
+    ),
+    llm: {
+      subscribe: os.llm.subscribe.handler(
+        handlerGen(function* ({context}) {
+          const attachment = yield* controllers
+            .take(context.connection)
+            .pipe(Effect.mapError((failure) => simulationErrors.CONTROLLER_DISCONNECTED({message: failure.message})))
+          return SimulationControlServer.notifications(
+            attachment.notifications,
+            context.connection,
+            controllers.release(context.connection, attachment),
+          )
+        }),
+      ),
+      pending: os.llm.pending.handler(
+        handlerGen(function* () {
+          return {invocations: yield* driver.pending}
+        }),
+      ),
+      chunk: os.llm.chunk.handler(
+        handlerGen(function* ({input}) {
+          yield* driver
+            .push(input.id, input.items)
+            .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
+          return {ok: true}
+        }),
+      ),
+      finish: os.llm.finish.handler(
+        handlerGen(function* ({input}) {
+          yield* driver
+            .finish(input.id, input.reason)
+            .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
+          return {ok: true}
+        }),
+      ),
+      disconnect: os.llm.disconnect.handler(
+        handlerGen(function* ({input}) {
+          yield* driver
+            .disconnect(input.id)
+            .pipe(Effect.mapError((failure) => simulationErrors.INVOCATION_NOT_FOUND({id: failure.id})))
+          return {ok: true}
+        }),
+      ),
     },
     tool: {
-      register: os.tool.register.effect(function* ({input, context}) {
-        const notifications = yield* tools
-          .install(context.connection, input.tools)
-          .pipe(Effect.mapError(SimulatedTools.refusal))
-        return SimulationControlServer.notifications(
-          notifications,
-          context.connection,
-          tools.release(context.connection, notifications),
-        )
-      }),
-      update: os.tool.update.effect(function* ({input, context}) {
-        yield* tools.update(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
-        return {ok: true}
-      }),
-      finish: os.tool.finish.effect(function* ({input, context}) {
-        yield* tools.finish(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
-        return {ok: true}
-      }),
-      fail: os.tool.fail.effect(function* ({input, context}) {
-        yield* tools.fail(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
-        return {ok: true}
-      }),
+      register: os.tool.register.handler(
+        handlerGen(function* ({input, context}) {
+          const notifications = yield* tools
+            .install(context.connection, input.tools)
+            .pipe(Effect.mapError(SimulatedTools.refusal))
+          return SimulationControlServer.notifications(
+            notifications,
+            context.connection,
+            tools.release(context.connection, notifications),
+          )
+        }),
+      ),
+      update: os.tool.update.handler(
+        handlerGen(function* ({input, context}) {
+          yield* tools.update(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
+          return {ok: true}
+        }),
+      ),
+      finish: os.tool.finish.handler(
+        handlerGen(function* ({input, context}) {
+          yield* tools.finish(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
+          return {ok: true}
+        }),
+      ),
+      fail: os.tool.fail.handler(
+        handlerGen(function* ({input, context}) {
+          yield* tools.fail(context.connection, input).pipe(Effect.mapError(SimulatedTools.refusal))
+          return {ok: true}
+        }),
+      ),
     },
   })
 }

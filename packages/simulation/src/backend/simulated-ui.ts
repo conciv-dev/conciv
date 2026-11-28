@@ -1,3 +1,4 @@
+import {handlerGen} from '@orpc/effect'
 import {implement} from '@orpc/server'
 import {Deferred, Effect} from 'effect'
 import {z} from 'zod'
@@ -44,56 +45,84 @@ function makeRouter(ask: Ask, version: string) {
   const unsupported = (name: string): Effect.Effect<never, EvlogError> =>
     Effect.fail(simulationErrors.UI_ACTION_FAILED({message: `the widget does not support ${name}`}))
   return os.router({
-    handshake: os.handshake.effect(function* ({input}) {
-      const outcome = dispatchHandshake(
-        {role: 'ui', server: {name: 'conciv', version}, capabilities: WIDGET_CAPABILITIES},
-        input,
-      )
-      if (outcome.type === 'accepted') return outcome.response
-      return yield* Effect.fail(outcome.refusal)
-    }),
+    handshake: os.handshake.handler(
+      handlerGen(function* ({input}) {
+        const outcome = dispatchHandshake(
+          {role: 'ui', server: {name: 'conciv', version}, capabilities: WIDGET_CAPABILITIES},
+          input,
+        )
+        if (outcome.type === 'accepted') return outcome.response
+        return yield* Effect.fail(outcome.refusal)
+      }),
+    ),
     ui: {
-      state: os.ui.state.effect(function* () {
-        return yield* forward(UiStateSchema, {type: 'ui.state'})
-      }),
-      snapshot: os.ui.snapshot.effect(function* () {
-        return yield* forward(SemanticSnapshotSchema, {type: 'ui.snapshot'})
-      }),
-      matches: os.ui.matches.effect(function* ({input}) {
-        return yield* forward(z.boolean(), {type: 'ui.matches', ...input})
-      }),
-      type: os.ui.type.effect(function* ({input}) {
-        return yield* forward(UiStateSchema, {type: 'ui.type', ...input})
-      }),
-      press: os.ui.press.effect(function* ({input}) {
-        return yield* forward(UiStateSchema, {type: 'ui.press', ...input})
-      }),
-      enter: os.ui.enter.effect(function* () {
-        return yield* forward(UiStateSchema, {type: 'ui.enter'})
-      }),
-      arrow: os.ui.arrow.effect(function* ({input}) {
-        return yield* forward(UiStateSchema, {type: 'ui.arrow', ...input})
-      }),
-      focus: os.ui.focus.effect(function* ({input}) {
-        return yield* forward(UiStateSchema, {type: 'ui.focus', ...input})
-      }),
-      click: os.ui.click.effect(function* ({input}) {
-        return yield* forward(UiStateSchema, {type: 'ui.click', ...input})
-      }),
-      capture: os.ui.capture.effect(function* () {
-        return yield* unsupported('ui.capture')
-      }),
-      recording: {
-        finish: os.ui.recording.finish.effect(function* () {
-          return yield* unsupported('ui.recording.finish')
+      state: os.ui.state.handler(
+        handlerGen(function* () {
+          return yield* forward(UiStateSchema, {type: 'ui.state'})
         }),
+      ),
+      snapshot: os.ui.snapshot.handler(
+        handlerGen(function* () {
+          return yield* forward(SemanticSnapshotSchema, {type: 'ui.snapshot'})
+        }),
+      ),
+      matches: os.ui.matches.handler(
+        handlerGen(function* ({input}) {
+          return yield* forward(z.boolean(), {type: 'ui.matches', ...input})
+        }),
+      ),
+      type: os.ui.type.handler(
+        handlerGen(function* ({input}) {
+          return yield* forward(UiStateSchema, {type: 'ui.type', ...input})
+        }),
+      ),
+      press: os.ui.press.handler(
+        handlerGen(function* ({input}) {
+          return yield* forward(UiStateSchema, {type: 'ui.press', ...input})
+        }),
+      ),
+      enter: os.ui.enter.handler(
+        handlerGen(function* () {
+          return yield* forward(UiStateSchema, {type: 'ui.enter'})
+        }),
+      ),
+      arrow: os.ui.arrow.handler(
+        handlerGen(function* ({input}) {
+          return yield* forward(UiStateSchema, {type: 'ui.arrow', ...input})
+        }),
+      ),
+      focus: os.ui.focus.handler(
+        handlerGen(function* ({input}) {
+          return yield* forward(UiStateSchema, {type: 'ui.focus', ...input})
+        }),
+      ),
+      click: os.ui.click.handler(
+        handlerGen(function* ({input}) {
+          return yield* forward(UiStateSchema, {type: 'ui.click', ...input})
+        }),
+      ),
+      capture: os.ui.capture.handler(
+        handlerGen(function* () {
+          return yield* unsupported('ui.capture')
+        }),
+      ),
+      recording: {
+        finish: os.ui.recording.finish.handler(
+          handlerGen(function* () {
+            return yield* unsupported('ui.recording.finish')
+          }),
+        ),
       },
-      mouse: os.ui.mouse.effect(function* () {
-        return yield* unsupported('ui.mouse')
-      }),
-      resize: os.ui.resize.effect(function* () {
-        return yield* unsupported('ui.resize')
-      }),
+      mouse: os.ui.mouse.handler(
+        handlerGen(function* () {
+          return yield* unsupported('ui.mouse')
+        }),
+      ),
+      resize: os.ui.resize.handler(
+        handlerGen(function* () {
+          return yield* unsupported('ui.resize')
+        }),
+      ),
     },
   })
 }

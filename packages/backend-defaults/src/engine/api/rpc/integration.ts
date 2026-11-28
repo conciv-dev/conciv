@@ -1,3 +1,4 @@
+import {handlerGen} from '@orpc/effect'
 import type {ContractedRouter} from '@orpc/server'
 import {Effect, Redacted} from 'effect'
 import type {EvlogError} from 'evlog'
@@ -62,136 +63,158 @@ const ids = (input: {readonly integrationId: string; readonly attemptId: string}
 
 export function integrationRouter(): ContractedRouter<typeof contract.integration, EngineRpcContext> {
   return {
-    list: os.integration.list.effect(function* () {
-      const service = yield* Integration.Service
-      const current = yield* statements
-      return yield* located(
-        service
-          .list()
-          .pipe(
-            Effect.map((integrations) =>
-              integrations.filter(
-                (integration) =>
-                  isMcp(integration) ||
-                  ManagedPolicy.decision(current, 'integration.connect', integration.id) !== 'deny',
+    list: os.integration.list.handler(
+      handlerGen(function* () {
+        const service = yield* Integration.Service
+        const current = yield* statements
+        return yield* located(
+          service
+            .list()
+            .pipe(
+              Effect.map((integrations) =>
+                integrations.filter(
+                  (integration) =>
+                    isMcp(integration) ||
+                    ManagedPolicy.decision(current, 'integration.connect', integration.id) !== 'deny',
+                ),
               ),
             ),
-          ),
-      )
-    }),
-    get: os.integration.get.effect(function* ({input}) {
-      return yield* located(requireIntegration(Integration.Id.make(input.integrationId)))
-    }),
+        )
+      }),
+    ),
+    get: os.integration.get.handler(
+      handlerGen(function* ({input}) {
+        return yield* located(requireIntegration(Integration.Id.make(input.integrationId)))
+      }),
+    ),
     connect: {
-      key: os.integration.connect.key.effect(function* ({input}) {
-        const integrationId = Integration.Id.make(input.integrationId)
-        yield* requireConnectable(integrationId)
-        yield* requireIntegration(integrationId)
-        yield* authorize(
-          Integration.Service.use((service) =>
-            service.connection.key({
-              integrationId,
-              key: Redacted.make(input.key),
-              answer: input.answer,
-              label: input.label,
-            }),
-          ),
-        )
-        return ok
-      }),
-      external: os.integration.connect.external.effect(function* ({input}) {
-        const integrationId = Integration.Id.make(input.integrationId)
-        yield* requireConnectable(integrationId)
-        yield* requireIntegration(integrationId)
-        yield* authorize(
-          Integration.Service.use((service) =>
-            service.connection.external({
-              integrationId,
-              methodId: Integration.MethodId.make(input.methodId),
-              answer: input.answer,
-              label: input.label,
-            }),
-          ),
-        )
-        return ok
-      }),
-    },
-    oauth: {
-      connect: os.integration.oauth.connect.effect(function* ({input}) {
-        const integrationId = Integration.Id.make(input.integrationId)
-        yield* requireConnectable(integrationId)
-        return yield* located(
-          authorize(
+      key: os.integration.connect.key.handler(
+        handlerGen(function* ({input}) {
+          const integrationId = Integration.Id.make(input.integrationId)
+          yield* requireConnectable(integrationId)
+          yield* requireIntegration(integrationId)
+          yield* authorize(
             Integration.Service.use((service) =>
-              service.oauth.connect({
+              service.connection.key({
+                integrationId,
+                key: Redacted.make(input.key),
+                answer: input.answer,
+                label: input.label,
+              }),
+            ),
+          )
+          return ok
+        }),
+      ),
+      external: os.integration.connect.external.handler(
+        handlerGen(function* ({input}) {
+          const integrationId = Integration.Id.make(input.integrationId)
+          yield* requireConnectable(integrationId)
+          yield* requireIntegration(integrationId)
+          yield* authorize(
+            Integration.Service.use((service) =>
+              service.connection.external({
                 integrationId,
                 methodId: Integration.MethodId.make(input.methodId),
                 answer: input.answer,
                 label: input.label,
               }),
             ),
-          ),
-        )
-      }),
-      status: os.integration.oauth.status.effect(function* ({input}) {
-        yield* requireIntegration(Integration.Id.make(input.integrationId))
-        return yield* located(
-          Integration.Service.use((service) => service.oauth.status(ids(input))).pipe(
-            Effect.mapError(attemptMissing('OAuth', input.attemptId)),
-          ),
-        )
-      }),
-      complete: os.integration.oauth.complete.effect(function* ({input}) {
-        yield* requireIntegration(Integration.Id.make(input.integrationId))
-        yield* Integration.Service.use((service) => service.oauth.complete({...ids(input), code: input.code})).pipe(
-          Effect.mapError((error) => {
-            if (isCode(error, integrationErrors.ATTEMPT_NOT_FOUND))
-              return attemptMissing('OAuth', input.attemptId)(error)
-            if (isCode(error, integrationErrors.CODE_REQUIRED))
-              return engineErrors.INTEGRATION_CODE_REQUIRED({cause: error})
-            return authenticationFailed(error)
-          }),
-        )
-        return ok
-      }),
-      cancel: os.integration.oauth.cancel.effect(function* ({input}) {
-        yield* Integration.Service.use((service) => service.oauth.cancel(ids(input)))
-        return ok
-      }),
+          )
+          return ok
+        }),
+      ),
+    },
+    oauth: {
+      connect: os.integration.oauth.connect.handler(
+        handlerGen(function* ({input}) {
+          const integrationId = Integration.Id.make(input.integrationId)
+          yield* requireConnectable(integrationId)
+          return yield* located(
+            authorize(
+              Integration.Service.use((service) =>
+                service.oauth.connect({
+                  integrationId,
+                  methodId: Integration.MethodId.make(input.methodId),
+                  answer: input.answer,
+                  label: input.label,
+                }),
+              ),
+            ),
+          )
+        }),
+      ),
+      status: os.integration.oauth.status.handler(
+        handlerGen(function* ({input}) {
+          yield* requireIntegration(Integration.Id.make(input.integrationId))
+          return yield* located(
+            Integration.Service.use((service) => service.oauth.status(ids(input))).pipe(
+              Effect.mapError(attemptMissing('OAuth', input.attemptId)),
+            ),
+          )
+        }),
+      ),
+      complete: os.integration.oauth.complete.handler(
+        handlerGen(function* ({input}) {
+          yield* requireIntegration(Integration.Id.make(input.integrationId))
+          yield* Integration.Service.use((service) => service.oauth.complete({...ids(input), code: input.code})).pipe(
+            Effect.mapError((error) => {
+              if (isCode(error, integrationErrors.ATTEMPT_NOT_FOUND))
+                return attemptMissing('OAuth', input.attemptId)(error)
+              if (isCode(error, integrationErrors.CODE_REQUIRED))
+                return engineErrors.INTEGRATION_CODE_REQUIRED({cause: error})
+              return authenticationFailed(error)
+            }),
+          )
+          return ok
+        }),
+      ),
+      cancel: os.integration.oauth.cancel.handler(
+        handlerGen(function* ({input}) {
+          yield* Integration.Service.use((service) => service.oauth.cancel(ids(input)))
+          return ok
+        }),
+      ),
     },
     command: {
-      connect: os.integration.command.connect.effect(function* ({input}) {
-        const integrationId = Integration.Id.make(input.integrationId)
-        yield* requireConnectable(integrationId)
-        const integration = yield* requireIntegration(integrationId)
-        if (!integration.methods.some((method) => method.type === 'command' && method.id === input.methodId))
-          return yield* Effect.fail(
-            engineErrors.INTEGRATION_METHOD_NOT_FOUND({message: `Integration method not found: ${input.methodId}`}),
-          )
-        return yield* located(
-          authorize(
-            Integration.Service.use((service) =>
-              service.command.connect({
-                integrationId,
-                methodId: Integration.MethodId.make(input.methodId),
-                label: input.label,
-              }),
+      connect: os.integration.command.connect.handler(
+        handlerGen(function* ({input}) {
+          const integrationId = Integration.Id.make(input.integrationId)
+          yield* requireConnectable(integrationId)
+          const integration = yield* requireIntegration(integrationId)
+          if (!integration.methods.some((method) => method.type === 'command' && method.id === input.methodId))
+            return yield* Effect.fail(
+              engineErrors.INTEGRATION_METHOD_NOT_FOUND({message: `Integration method not found: ${input.methodId}`}),
+            )
+          return yield* located(
+            authorize(
+              Integration.Service.use((service) =>
+                service.command.connect({
+                  integrationId,
+                  methodId: Integration.MethodId.make(input.methodId),
+                  label: input.label,
+                }),
+              ),
             ),
-          ),
-        )
-      }),
-      status: os.integration.command.status.effect(function* ({input}) {
-        yield* requireIntegration(Integration.Id.make(input.integrationId))
-        return yield* located(
-          Integration.Service.use((service) => service.command.status(ids(input))).pipe(
-            Effect.mapError(attemptMissing('Command', input.attemptId)),
-          ),
-        )
-      }),
-      cancel: os.integration.command.cancel.effect(function* ({input}) {
-        yield* Integration.Service.use((service) => service.command.cancel(ids(input)))
-        return ok
-      }),
+          )
+        }),
+      ),
+      status: os.integration.command.status.handler(
+        handlerGen(function* ({input}) {
+          yield* requireIntegration(Integration.Id.make(input.integrationId))
+          return yield* located(
+            Integration.Service.use((service) => service.command.status(ids(input))).pipe(
+              Effect.mapError(attemptMissing('Command', input.attemptId)),
+            ),
+          )
+        }),
+      ),
+      cancel: os.integration.command.cancel.handler(
+        handlerGen(function* ({input}) {
+          yield* Integration.Service.use((service) => service.command.cancel(ids(input)))
+          return ok
+        }),
+      ),
     },
   }
 }

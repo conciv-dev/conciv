@@ -1,3 +1,4 @@
+import {handlerGen} from '@orpc/effect'
 import type {ContractedRouter} from '@orpc/server'
 import {Effect, Redacted} from 'effect'
 import type {contract, CredentialValueInput} from '@conciv/protocol'
@@ -42,39 +43,49 @@ function redactedValue(value: CredentialValueInput): Credential.Value {
 
 export function credentialRouter(): ContractedRouter<typeof contract.credential, EngineRpcContext> {
   return {
-    list: os.credential.list.effect(function* () {
-      return entries(yield* Credential.Service.use((credential) => credential.all()))
-    }),
-    create: os.credential.create.effect(function* ({input}) {
-      const integrationId = Integration.Id.make(input.integrationId)
-      yield* requireConnectable(integrationId)
-      const credential = yield* Credential.Service
-      const id = input.id === undefined ? undefined : Credential.Id.make(input.id)
-      if (id && (yield* credential.get(id)))
-        return yield* Effect.fail(engineErrors.CONFLICT({message: `Credential already exists: ${id}`}))
-      const created = yield* credential.create({
-        id,
-        integrationId,
-        label: input.label,
-        value: redactedValue(input.value),
-        activate: input.activate,
-      })
-      const entry = entries(yield* credential.list(created.integrationId)).find((item) => item.id === created.id)
-      return entry ?? {...created, active: false, value: redacted(created.value)}
-    }),
-    update: os.credential.update.effect(function* ({input}) {
-      yield* Credential.Service.use((credential) =>
-        credential.update(Credential.Id.make(input.credentialId), {label: input.label}),
-      )
-      return ok
-    }),
-    activate: os.credential.activate.effect(function* ({input}) {
-      yield* Credential.Service.use((credential) => credential.activate(Credential.Id.make(input.credentialId)))
-      return ok
-    }),
-    remove: os.credential.remove.effect(function* ({input}) {
-      yield* Credential.Service.use((credential) => credential.remove(Credential.Id.make(input.credentialId)))
-      return ok
-    }),
+    list: os.credential.list.handler(
+      handlerGen(function* () {
+        return entries(yield* Credential.Service.use((credential) => credential.all()))
+      }),
+    ),
+    create: os.credential.create.handler(
+      handlerGen(function* ({input}) {
+        const integrationId = Integration.Id.make(input.integrationId)
+        yield* requireConnectable(integrationId)
+        const credential = yield* Credential.Service
+        const id = input.id === undefined ? undefined : Credential.Id.make(input.id)
+        if (id && (yield* credential.get(id)))
+          return yield* Effect.fail(engineErrors.CONFLICT({message: `Credential already exists: ${id}`}))
+        const created = yield* credential.create({
+          id,
+          integrationId,
+          label: input.label,
+          value: redactedValue(input.value),
+          activate: input.activate,
+        })
+        const entry = entries(yield* credential.list(created.integrationId)).find((item) => item.id === created.id)
+        return entry ?? {...created, active: false, value: redacted(created.value)}
+      }),
+    ),
+    update: os.credential.update.handler(
+      handlerGen(function* ({input}) {
+        yield* Credential.Service.use((credential) =>
+          credential.update(Credential.Id.make(input.credentialId), {label: input.label}),
+        )
+        return ok
+      }),
+    ),
+    activate: os.credential.activate.handler(
+      handlerGen(function* ({input}) {
+        yield* Credential.Service.use((credential) => credential.activate(Credential.Id.make(input.credentialId)))
+        return ok
+      }),
+    ),
+    remove: os.credential.remove.handler(
+      handlerGen(function* ({input}) {
+        yield* Credential.Service.use((credential) => credential.remove(Credential.Id.make(input.credentialId)))
+        return ok
+      }),
+    ),
   }
 }
