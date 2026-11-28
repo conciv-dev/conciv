@@ -125,6 +125,17 @@ describe('a user connects a plugin integration', () => {
       message: 'Authentication failed',
     })
 
+    const helper = await rpc.integration.command.connect({integrationId: 'figma', methodId: 'login'})
+    seen.push(helper)
+    const readHelper = async () => {
+      const status = await rpc.integration.command.status({integrationId: 'figma', attemptId: helper.data.attemptId})
+      seen.push(status)
+      return status.data
+    }
+    let helperStatus = await readHelper()
+    while (helperStatus.status === 'pending') helperStatus = await readHelper()
+    expect(helperStatus).toMatchObject({status: 'failed', message: 'Authentication failed'})
+
     for (const credential of await rpc.credential.list())
       seen.push(await rpc.credential.remove({credentialId: credential.id}))
     seen.push(await rpc.credential.list())
@@ -135,10 +146,18 @@ describe('a user connects a plugin integration', () => {
     reading.abort()
     await collecting
     expect(JSON.stringify(logs.events)).toContain('credential')
-    expect(JSON.stringify(logs.events)).toContain('figma sign-in is not part of this fixture')
     expect(seen.some((event) => JSON.stringify(event).includes('credential.switched'))).toBe(true)
     const everything = JSON.stringify([seen, logs.events])
-    for (const plain of [ENV_KEY, TYPED_KEY, SPARE_KEY, OAUTH_ACCESS, OAUTH_REFRESH, REFRESHED_ACCESS])
+    for (const plain of [
+      ENV_KEY,
+      TYPED_KEY,
+      SPARE_KEY,
+      OAUTH_ACCESS,
+      OAUTH_REFRESH,
+      REFRESHED_ACCESS,
+      'figma sign-in is not part of this fixture',
+      'figma-helper-stderr-6b1e',
+    ])
       expect(everything).not.toContain(plain)
 
     const realHome = tempDir('conciv-real-home-')

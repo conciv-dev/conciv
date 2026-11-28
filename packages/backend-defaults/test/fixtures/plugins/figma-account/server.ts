@@ -22,6 +22,19 @@ export default Plugin.define({
       editor.method.update({integrationId: 'figma', method: {type: 'env', names: ['FIGMA_API_KEY']}})
       editor.method.update({
         integrationId: 'figma',
+        method: {
+          id: 'login',
+          type: 'command',
+          label: 'Log in with the Figma helper',
+          command: [
+            process.execPath,
+            '-e',
+            "process.stderr.write(Buffer.from('ZmlnbWEtaGVscGVyLXN0ZGVyci02YjFl', 'base64'));process.exit(3)",
+          ],
+        },
+      })
+      editor.method.update({
+        integrationId: 'figma',
         method: {id: 'oauth', type: 'oauth', label: 'Sign in with Figma'},
         authorize: async () => {
           throw new Error('figma sign-in is not part of this fixture')
