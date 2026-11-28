@@ -6,16 +6,13 @@ import * as Credential from './schema/credential.js'
 import * as Integration from './schema/integration.js'
 import * as Location from './schema/location.js'
 
-const Text = z.string().min(1).max(512)
-const Secret = z.string().min(1).max(16_384)
-const Label = z.string().max(512)
+const Text = z.string()
+const Secret = z.string()
+const Label = z.string()
 
-const FormAnswer = z.record(
-  z.string().max(512),
-  z.union([z.string().max(16_384), z.number(), z.boolean(), z.array(z.string().max(16_384)).max(256)]),
-)
+const FormAnswer = z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]))
 
-const Metadata = z.record(z.string().max(512), z.unknown())
+const Metadata = z.record(z.string(), z.unknown())
 
 export const CredentialValueInput = z.discriminatedUnion('type', [
   z.object({
@@ -97,7 +94,7 @@ export const integrationContract = {
           'INTEGRATION_AUTHORIZATION',
         ),
       )
-      .input(AttemptInput.extend({code: z.string().max(16_384).optional()}))
+      .input(AttemptInput.extend({code: z.string().optional()}))
       .output(Ok),
     cancel: stored.input(AttemptInput).output(Ok),
   },
